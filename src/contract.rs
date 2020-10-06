@@ -11,6 +11,9 @@ pub fn init<S: Storage, A: Api, Q: Querier>(
     _env: Env,
     msg: InitMsg,
 ) -> StdResult<InitResponse> {
+    // validate token info
+    msg.validate()?;
+
     // store token info
     let initial_total_supply = Uint128::zero();
     let data = TokenInfo {
