@@ -76,6 +76,8 @@ pub fn handle_mint<S: Storage, A: Api, Q: Querier>(
     pool.total_bond_amount += amount;
     pool.total_issued += amount;
 
+    let reward_index = pool.reward_index;
+
     pool_info(&mut deps.storage).save(&pool)?;
 
     let mut sub_env = env.clone();
@@ -91,10 +93,11 @@ pub fn handle_mint<S: Storage, A: Api, Q: Querier>(
 
     let mut token_status = token_state_read(&deps.storage).load()?;
 
-    token_status.delegation_map.insert(validator.clone(), amount);
+    token_status
+        .delegation_map
+        .insert(validator.clone(), amount);
 
-    //TODO: Update `holder_map` to store index reward.
-    token_status.holder_map.insert(sender.clone(), Decimal::zero());
+    token_status.holder_map.insert(sender.clone(), reward_index);
 
     token_state(&mut deps.storage).save(&token_status)?;
 
