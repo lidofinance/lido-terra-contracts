@@ -5,7 +5,8 @@ use cosmwasm_std::{
 
 use crate::msg::{HandleMsg, InitMsg};
 use crate::state::{
-    balances, token_info, token_info_read, token_state, token_state_read, TokenInfo, pool_info, pool_info_read, PoolInfo
+    balances, balances_read, pool_info, pool_info_read, token_info, token_info_read, token_state,
+    token_state_read, PoolInfo, TokenInfo,
 };
 use std::ops::Add;
 
@@ -40,6 +41,7 @@ pub fn handle<S: Storage, A: Api, Q: Querier>(
 ) -> StdResult<HandleResponse> {
     match msg {
         HandleMsg::Mint { validator, amount } => handle_mint(deps, env, validator, amount),
+        HandleMsg::ClaimRewards {} => handle_reward(deps, env),
         _ => Ok(HandleResponse::default()),
     }
 }
@@ -117,4 +119,53 @@ pub fn handle_mint<S: Storage, A: Api, Q: Querier>(
         data: None,
     };
     Ok(res)
+}
+
+pub fn handle_reward<S: Storage, A: Api, Q: Querier>(
+    deps: &mut Extern<S, A, Q>,
+    env: Env,
+) -> StdResult<HandleResponse> {
+    let sender = env.message.sender.clone();
+    let rcpt_raw = deps.api.canonical_address(&sender)?;
+
+    let token = token_state_read(&deps.storage).load()?;
+    if token.holder_map.get(&sender).is_none() {
+        return Err(StdError::generic_err(
+            "The sender has not requested any tokens",
+        ));
+    }
+    let sender_reward_index = token
+        .holder_map
+        .get(&sender)
+        .expect("The existence of the sender has been checked");
+
+    let pool = pool_info_read(&deps.storage).load()?;
+    let general_index = pool.reward_index;
+
+    let user_balance = balances_read(&deps.storage).load(rcpt_raw.as_slice())?;
+
+    let reward = calculate_reward(general_index, sender_reward_index, user_balance).unwrap();
+
+    balances(&mut deps.storage).update(rcpt_raw.as_slice(), |balance: Option<Uint128>| {
+        Ok(balance.unwrap_or_default() + reward)
+    })?;
+
+    let res = HandleResponse {
+        messages: vec![],
+        log: vec![
+            log("action", "claim_reward"),
+            log("to", sender),
+            log("amount", reward),
+        ],
+        data: None,
+    };
+    Ok(res)
+}
+
+pub fn calculate_reward(
+    general_index: Decimal,
+    user_index: &Decimal,
+    user_balance: Uint128,
+) -> StdResult<Uint128> {
+    general_index * user_balance - *user_index * user_balance
 }
