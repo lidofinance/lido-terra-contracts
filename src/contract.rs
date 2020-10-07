@@ -67,12 +67,6 @@ pub fn handle_mint<S: Storage, A: Api, Q: Querier>(
         .find(|x| x.denom == token.name)
         .ok_or_else(|| StdError::generic_err(format!("No {} tokens sent", &token.name)))?;
 
-    let added_amount = payment.amount.add(amount);
-
-    token.total_supply += amount;
-
-    token_info(&mut deps.storage).save(&token)?;
-
     //update pool_info
     let mut pool = pool_info_read(&deps.storage).load()?;
     pool.total_bond_amount += amount;
@@ -80,18 +74,32 @@ pub fn handle_mint<S: Storage, A: Api, Q: Querier>(
 
     let reward_index = pool.reward_index;
 
+    let amount_with_exchange_rate =
+        if pool.total_bond_amount.is_zero() || pool.total_issued.is_zero() {
+            amount
+        } else {
+            pool.update_exchange_rate();
+            let exchange_rate = pool.exchange_rate;
+            exchange_rate * amount
+        };
+
     pool_info(&mut deps.storage).save(&pool)?;
 
     let mut sub_env = env.clone();
     sub_env.message.sender = env.contract.address.clone();
 
     // Issue the bluna token for sender
-    //TODO: Apply exchange rate before issuing bluna.
     let sender = sub_env.message.sender.clone();
     let rcpt_raw = deps.api.canonical_address(&sender)?;
     balances(&mut deps.storage).update(rcpt_raw.as_slice(), |balance: Option<Uint128>| {
-        Ok(balance.unwrap_or_default() + amount)
+        Ok(balance.unwrap_or_default() + amount_with_exchange_rate)
     })?;
+
+    let added_amount = payment.amount.add(amount);
+
+    token.total_supply += amount_with_exchange_rate;
+
+    token_info(&mut deps.storage).save(&token)?;
 
     let mut token_status = token_state_read(&deps.storage).load()?;
 

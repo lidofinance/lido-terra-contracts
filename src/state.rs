@@ -23,21 +23,39 @@ pub struct TokenInfo {
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct TokenState {
-    pub exchange_rate: Decimal,
     pub delegation_map: HashMap<HumanAddr, Uint128>,
     pub holder_map: HashMap<HumanAddr, Decimal>,
     pub undelegated_wait_list_map: HashMap<HumanAddr, Uint128>,
     pub redeem_wait_list_map: HashMap<HumanAddr, Uint128>,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema, Default)]
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct PoolInfo {
+    pub exchange_rate: Decimal,
     pub total_bond_amount: Uint128,
     pub total_issued: Uint128,
     pub claimed: Uint128,
     pub reward_index: Decimal,
 }
 
+impl Default for PoolInfo {
+    fn default() -> Self {
+        Self {
+            exchange_rate: Decimal::one(),
+            total_bond_amount: Default::default(),
+            total_issued: Default::default(),
+            claimed: Default::default(),
+            reward_index: Default::default(),
+        }
+    }
+}
+
+impl PoolInfo {
+    pub fn update_exchange_rate(&mut self) {
+        //FIXME: Is total supply equal to total issued?
+        self.exchange_rate = Decimal::from_ratio(self.total_bond_amount, self.total_issued);
+    }
+}
 pub fn token_info<S: Storage>(storage: &mut S) -> Singleton<S, TokenInfo> {
     singleton(storage, TOKEN_INFO_KEY)
 }
