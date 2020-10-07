@@ -5,7 +5,7 @@ use cosmwasm_std::{
 
 use crate::msg::{HandleMsg, InitMsg};
 use crate::state::{
-    balances, token_info, token_info_read, token_state, token_state_read, TokenInfo,
+    balances, token_info, token_info_read, token_state, token_state_read, TokenInfo, pool_info, pool_info_read, PoolInfo
 };
 use std::ops::Add;
 
@@ -26,6 +26,10 @@ pub fn init<S: Storage, A: Api, Q: Querier>(
         total_supply: initial_total_supply,
     };
     token_info(&mut deps.storage).save(&data)?;
+
+    let pool = PoolInfo::default();
+    pool_info(&mut deps.storage).save(&pool)?;
+
     Ok(InitResponse::default())
 }
 
@@ -66,6 +70,13 @@ pub fn handle_mint<S: Storage, A: Api, Q: Querier>(
     token.total_supply += amount;
 
     token_info(&mut deps.storage).save(&token)?;
+
+    //update pool_info
+    let mut pool = pool_info_read(&deps.storage).load()?;
+    pool.total_bond_amount += amount;
+    pool.total_issued += amount;
+
+    pool_info(&mut deps.storage).save(&pool)?;
 
     let mut sub_env = env.clone();
     sub_env.message.sender = env.contract.address.clone();
