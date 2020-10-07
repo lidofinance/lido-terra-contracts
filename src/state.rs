@@ -10,6 +10,7 @@ use std::collections::HashMap;
 
 pub static TOKEN_STATE_KEY: &[u8] = b"token_state";
 pub static TOKEN_INFO_KEY: &[u8] = b"token_info";
+pub static POOL_INFO: &[u8] = b"pool_info";
 const BALANCE: &[u8] = b"balance";
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -22,12 +23,19 @@ pub struct TokenInfo {
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct TokenState {
-    pub reward_index: Decimal,
     pub exchange_rate: Decimal,
     pub delegation_map: HashMap<HumanAddr, Uint128>,
     pub holder_map: HashMap<HumanAddr, Decimal>,
     pub undelegated_wait_list_map: HashMap<HumanAddr, Uint128>,
     pub redeem_wait_list_map: HashMap<HumanAddr, Uint128>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema, Default)]
+pub struct PoolInfo {
+    pub total_bond_amount: Uint128,
+    pub total_issued: Uint128,
+    pub claimed: Uint128,
+    pub reward_index: Decimal,
 }
 
 pub fn token_info<S: Storage>(storage: &mut S) -> Singleton<S, TokenInfo> {
@@ -52,4 +60,12 @@ pub fn token_state<S: Storage>(storage: &mut S) -> Singleton<S, TokenState> {
 
 pub fn token_state_read<S: ReadonlyStorage>(storage: &S) -> ReadonlySingleton<S, TokenState> {
     singleton_read(storage, TOKEN_STATE_KEY)
+}
+
+pub fn pool_info<S: Storage>(storage: &mut S) -> Singleton<S, PoolInfo> {
+    singleton(storage, POOL_INFO)
+}
+
+pub fn pool_info_read<S: ReadonlyStorage>(storage: &S) -> ReadonlySingleton<S, PoolInfo> {
+    singleton_read(storage, POOL_INFO)
 }
