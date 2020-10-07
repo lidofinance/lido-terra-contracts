@@ -1,3 +1,5 @@
+#![feature(map_into_keys_values)]
+
 pub mod contract;
 pub mod msg;
 pub mod state;
