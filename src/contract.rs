@@ -1,14 +1,16 @@
 use cosmwasm_std::{
-    log, Api, Decimal, Env, Extern, HandleResponse, HumanAddr, InitResponse, Querier, StakingMsg,
-    StdError, StdResult, Storage, Uint128,
+    coin, log, to_binary, Api, Decimal, Env, Extern, HandleResponse, HumanAddr, InitResponse,
+    Querier, StakingMsg, StdError, StdResult, Storage, Uint128, WasmMsg,
 };
 
 use crate::msg::{HandleMsg, InitMsg};
 use crate::state::{
     balances, balances_read, pool_info, pool_info_read, token_info, token_info_read, token_state,
-    token_state_read, PoolInfo, TokenInfo,
+    token_state_read, EpocId, PoolInfo, TokenInfo, TokenState, Undelegation,
 };
 use std::ops::Add;
+
+const FIRST_EPOC: u64 = 1;
 
 pub fn init<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
@@ -43,7 +45,7 @@ pub fn handle<S: Storage, A: Api, Q: Querier>(
         HandleMsg::Mint { validator, amount } => handle_mint(deps, env, validator, amount),
         HandleMsg::ClaimRewards {} => handle_reward(deps, env),
         HandleMsg::Send { recipient, amount } => handle_send(deps, env, recipient, amount),
-        _ => Ok(HandleResponse::default()),
+        HandleMsg::InitBurn { amount } => handle_burn(deps, env, amount),
     }
 }
 
@@ -211,4 +213,113 @@ pub fn handle_send<S: Storage, A: Api, Q: Querier>(
         data: None,
     };
     Ok(res)
+}
+
+pub fn handle_burn<S: Storage, A: Api, Q: Querier>(
+    deps: &mut Extern<S, A, Q>,
+    env: Env,
+    amount: Uint128,
+) -> StdResult<HandleResponse> {
+    if amount == Uint128::zero() {
+        return Err(StdError::generic_err("Invalid zero amount"));
+    }
+
+    let sender_human = env.message.sender.clone();
+    let sender_raw = deps.api.canonical_address(&env.message.sender)?;
+
+    let mut token = token_state_read(&mut deps.storage).load()?;
+    let mut accounts = balances(&mut deps.storage);
+
+    let msg = HandleMsg::ClaimRewards {};
+    WasmMsg::Execute {
+        contract_addr: env.message.sender.clone(),
+        msg: to_binary(&msg)?,
+        send: vec![],
+    };
+
+    // lower balance
+    accounts.update(sender_raw.as_slice(), |balance: Option<Uint128>| {
+        balance.unwrap_or_default() - amount
+    })?;
+    // reduce total_supply
+    token_info(&mut deps.storage).update(|mut info| {
+        info.total_supply = (info.total_supply - amount)?;
+        Ok(info)
+    })?;
+
+    let block_time = env.block.time;
+    token.compute_current_epoc(block_time);
+    let epoc = EpocId {
+        epoc_id: token.current_epoc.clone(),
+    };
+
+    //Check whether the epoc is passed or not. If epoc is passed send an undelegation message.
+    if token.is_epoc_passed(block_time) && epoc.epoc_id > FIRST_EPOC {
+        handle_undelegate(deps, env, epoc.clone(), token.clone());
+    }
+
+    if token.is_epoc_passed(block_time) {
+        let mut undelegated = Undelegation::default();
+        undelegated.claim += amount;
+        undelegated
+            .undelegated_wait_list_map
+            .insert(sender_human, amount);
+        token.undelegated_wait_list.insert(epoc, undelegated);
+    } else {
+        let mut undelegated = token.undelegated_wait_list.remove(&epoc).unwrap();
+        undelegated.compute_claim();
+        undelegated
+            .undelegated_wait_list_map
+            .insert(sender_human, amount);
+        token.undelegated_wait_list.insert(epoc, undelegated);
+    }
+    token_state(&mut deps.storage).save(&token)?;
+
+    pool_info(&mut deps.storage).update(|mut pool| {
+        pool.total_issued = (pool.total_issued - amount)?;
+        Ok(pool)
+    })?;
+
+    let res = HandleResponse {
+        messages: vec![],
+        log: vec![
+            log("action", "burn"),
+            log("from", deps.api.human_address(&sender_raw)?),
+            log("amount", amount),
+        ],
+        data: None,
+    };
+    Ok(res)
+}
+
+pub fn handle_undelegate<S: Storage, A: Api, Q: Querier>(
+    deps: &mut Extern<S, A, Q>,
+    env: Env,
+    epoc: EpocId,
+    mut token: TokenState,
+) {
+    let token_inf = token_info_read(&deps.storage).load().unwrap();
+    let undelegated = token.undelegated_wait_list.get(&epoc).unwrap();
+    let claimed = undelegated.claim;
+    let validator = token.choose_validator(claimed);
+    let amount = token
+        .delegation_map
+        .get(&validator)
+        .expect("The validator has exist");
+    let new_delegation = amount.0 - &claimed.0;
+    token
+        .delegation_map
+        .insert(validator.clone(), Uint128(new_delegation));
+
+    let msgs: Vec<StakingMsg> = vec![StakingMsg::Undelegate {
+        validator,
+        amount: coin(claimed.u128(), &token_inf.name),
+    }
+    .into()];
+
+    WasmMsg::Execute {
+        contract_addr: env.contract.address,
+        msg: to_binary(&msgs).unwrap(),
+        send: vec![],
+    };
 }

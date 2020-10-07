@@ -63,8 +63,8 @@ pub enum HandleMsg {
     },
     /// ClaimRewards sends bluna rewards to sender.
     ClaimRewards {},
-    /// Burn is like a base message in CW20 to destroy tokens forever
-    Burn { amount: Uint128 },
+    /// InitBurn
+    InitBurn { amount: Uint128 },
     /// Send is like a base message in CW20 to move bluna to another account
     Send {
         recipient: HumanAddr,
