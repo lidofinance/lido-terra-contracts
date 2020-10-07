@@ -42,6 +42,7 @@ pub fn handle<S: Storage, A: Api, Q: Querier>(
     match msg {
         HandleMsg::Mint { validator, amount } => handle_mint(deps, env, validator, amount),
         HandleMsg::ClaimRewards {} => handle_reward(deps, env),
+        HandleMsg::Send { recipient, amount } => handle_send(deps, env, recipient, amount),
         _ => Ok(HandleResponse::default()),
     }
 }
@@ -176,4 +177,38 @@ pub fn calculate_reward(
     user_balance: Uint128,
 ) -> StdResult<Uint128> {
     general_index * user_balance - *user_index * user_balance
+}
+
+pub fn handle_send<S: Storage, A: Api, Q: Querier>(
+    deps: &mut Extern<S, A, Q>,
+    env: Env,
+    recipient: HumanAddr,
+    amount: Uint128,
+) -> StdResult<HandleResponse> {
+    if amount == Uint128::zero() {
+        return Err(StdError::generic_err("Invalid zero amount"));
+    }
+
+    let rcpt_raw = deps.api.canonical_address(&recipient)?;
+    let sender_raw = deps.api.canonical_address(&env.message.sender)?;
+
+    let mut accounts = balances(&mut deps.storage);
+    accounts.update(sender_raw.as_slice(), |balance: Option<Uint128>| {
+        balance.unwrap_or_default() - amount
+    })?;
+    accounts.update(rcpt_raw.as_slice(), |balance: Option<Uint128>| {
+        Ok(balance.unwrap_or_default() + amount)
+    })?;
+
+    let res = HandleResponse {
+        messages: vec![],
+        log: vec![
+            log("action", "send"),
+            log("from", deps.api.human_address(&sender_raw)?),
+            log("to", recipient),
+            log("amount", amount),
+        ],
+        data: None,
+    };
+    Ok(res)
 }
