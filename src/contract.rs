@@ -1,10 +1,12 @@
 use cosmwasm_std::{
-    log, Api, Env, Extern, HandleResponse, HumanAddr, InitResponse, Querier, StakingMsg, StdError,
-    StdResult, Storage, Uint128,
+    log, Api, Decimal, Env, Extern, HandleResponse, HumanAddr, InitResponse, Querier, StakingMsg,
+    StdError, StdResult, Storage, Uint128,
 };
 
 use crate::msg::{HandleMsg, InitMsg};
-use crate::state::{balances, token_info, token_info_read, TokenInfo};
+use crate::state::{
+    balances, token_info, token_info_read, token_state, token_state_read, TokenInfo,
+};
 use std::ops::Add;
 
 pub fn init<S: Storage, A: Api, Q: Querier>(
@@ -44,6 +46,8 @@ pub fn handle_mint<S: Storage, A: Api, Q: Querier>(
     validator: HumanAddr,
     amount: Uint128,
 ) -> StdResult<HandleResponse> {
+    //TODO: Check whether the account has this amount of Luna.
+
     if amount == Uint128::zero() {
         return Err(StdError::generic_err("Invalid zero amount"));
     }
@@ -67,11 +71,21 @@ pub fn handle_mint<S: Storage, A: Api, Q: Querier>(
     sub_env.message.sender = env.contract.address.clone();
 
     // Issue the bluna token for sender
+    //TODO: Apply exchange rate before issuing bluna.
     let sender = sub_env.message.sender.clone();
     let rcpt_raw = deps.api.canonical_address(&sender)?;
     balances(&mut deps.storage).update(rcpt_raw.as_slice(), |balance: Option<Uint128>| {
         Ok(balance.unwrap_or_default() + amount)
     })?;
+
+    let mut token_status = token_state_read(&deps.storage).load()?;
+
+    token_status.delegation_map.insert(validator.clone(), amount);
+
+    //TODO: Update `holder_map` to store index reward.
+    token_status.holder_map.insert(sender.clone(), Decimal::zero());
+
+    token_state(&mut deps.storage).save(&token_status)?;
 
     // bond them to the validator
     let res = HandleResponse {
