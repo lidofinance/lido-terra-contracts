@@ -63,8 +63,11 @@ pub enum HandleMsg {
     },
     /// ClaimRewards sends bluna rewards to sender.
     ClaimRewards {},
-    /// InitBurn
+    /// InitBurn is send an undelegate message after receiving all
+    /// requests for an specific period of time.
     InitBurn { amount: Uint128 },
+    /// FinishBurn is suppose to ask for liquidated luna
+    FinishBurn { amount: Uint128 },
     /// Send is like a base message in CW20 to move bluna to another account
     Send {
         recipient: HumanAddr,

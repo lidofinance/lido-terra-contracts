@@ -1,16 +1,18 @@
 use cosmwasm_std::{
-    coin, log, to_binary, Api, Decimal, Env, Extern, HandleResponse, HumanAddr, InitResponse,
-    Querier, StakingMsg, StdError, StdResult, Storage, Uint128, WasmMsg,
+    coin, coins, log, to_binary, Api, BankMsg, Decimal, Env, Extern, HandleResponse, HumanAddr,
+    InitResponse, Querier, StakingMsg, StdError, StdResult, Storage, Uint128, WasmMsg,
 };
 
 use crate::msg::{HandleMsg, InitMsg};
 use crate::state::{
-    balances, balances_read, pool_info, pool_info_read, token_info, token_info_read, token_state,
-    token_state_read, EpocId, PoolInfo, TokenInfo, TokenState, Undelegation,
+    balances, balances_read, claim_read, claim_store, pool_info, pool_info_read, token_info,
+    token_info_read, token_state, token_state_read, EpocId, PoolInfo, TokenInfo, TokenState,
+    Undelegation, UNDELEGATED_PERIOD,
 };
 use std::ops::Add;
 
 const FIRST_EPOC: u64 = 1;
+const EPOC_PER_UNDELEGATION_PERIOD: u64 = UNDELEGATED_PERIOD / 86400;
 
 pub fn init<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
@@ -46,6 +48,7 @@ pub fn handle<S: Storage, A: Api, Q: Querier>(
         HandleMsg::ClaimRewards {} => handle_reward(deps, env),
         HandleMsg::Send { recipient, amount } => handle_send(deps, env, recipient, amount),
         HandleMsg::InitBurn { amount } => handle_burn(deps, env, amount),
+        HandleMsg::FinishBurn { amount } => handle_finish(deps, env, amount),
     }
 }
 
@@ -322,4 +325,79 @@ pub fn handle_undelegate<S: Storage, A: Api, Q: Querier>(
         msg: to_binary(&msgs).unwrap(),
         send: vec![],
     };
+}
+
+pub fn handle_finish<S: Storage, A: Api, Q: Querier>(
+    deps: &mut Extern<S, A, Q>,
+    env: Env,
+    amount: Uint128,
+) -> StdResult<HandleResponse> {
+    let sender_human = env.message.sender.clone();
+    let contract_address = env.contract.address.clone();
+
+    let mut token = token_state_read(&mut deps.storage).load()?;
+
+    let block_time = env.block.time;
+
+    if !token.is_valid_address(&sender_human) {
+        return Err(StdError::unauthorized());
+    }
+
+    let rcpt_raw = deps.api.canonical_address(&env.message.sender.clone())?;
+    let claim_balance = claim_read(&deps.storage).load(rcpt_raw.as_slice())?;
+
+    //The user's request might have processed before. Therefore, we need to check its claim balance.
+    if amount <= claim_balance {
+        return handle_send_undelegation(amount, sender_human, contract_address);
+    }
+
+    token.compute_current_epoc(block_time);
+    let current_epoc_id = token.current_epoc.clone();
+    // Compute all of burn requests with epoc Id corresponding to 21 (can be changed to arbitrary value) days ago
+    let epoc_id = EpocId {
+        epoc_id: get_before_undelegation_epoc(current_epoc_id),
+    };
+    for (key, value) in token.undelegated_wait_list.clone() {
+        if key < epoc_id {
+            for (address, undelegated_amount) in value.undelegated_wait_list_map {
+                let raw_address = deps.api.canonical_address(&address)?;
+                claim_store(&mut deps.storage)
+                    .update(raw_address.as_slice(), |claim: Option<Uint128>| {
+                        Ok(claim.unwrap_or_default() + undelegated_amount)
+                    })?;
+            }
+            token.undelegated_wait_list.remove(&key);
+        }
+    }
+
+    return handle_send_undelegation(amount, sender_human, contract_address);
+}
+
+pub fn get_before_undelegation_epoc(current_epoc: u64) -> u64 {
+    current_epoc - EPOC_PER_UNDELEGATION_PERIOD
+}
+
+pub fn handle_send_undelegation(
+    amount: Uint128,
+    to_address: HumanAddr,
+    contract_address: HumanAddr,
+) -> StdResult<HandleResponse> {
+    // Create Send message
+    let msgs = vec![BankMsg::Send {
+        from_address: contract_address.clone(),
+        to_address: to_address,
+        amount: coins(Uint128::u128(&amount), "uluna"),
+    }
+    .into()];
+
+    let res = HandleResponse {
+        messages: msgs,
+        log: vec![
+            log("action", "finish_burn"),
+            log("from", contract_address),
+            log("amount", amount),
+        ],
+        data: None,
+    };
+    Ok(res)
 }

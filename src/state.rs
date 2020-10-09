@@ -1,7 +1,7 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use cosmwasm_std::{Decimal, HumanAddr, ReadonlyStorage, Storage, Uint128};
+use cosmwasm_std::{Decimal, HumanAddr, ReadonlyStorage, StdError, Storage, Uint128};
 use cosmwasm_storage::{
     bucket, bucket_read, singleton, singleton_read, Bucket, ReadonlyBucket, ReadonlySingleton,
     Singleton,
@@ -10,12 +10,15 @@ use rand::Rng;
 use std::collections::HashMap;
 
 // EPOC = 21600s is equal to 6 hours
-const EPOC: u64 = 21600;
+pub const EPOC: u64 = 21600;
+//UNDELEGATED_PERIOD is equal to 21 days.
+pub const UNDELEGATED_PERIOD: u64 = 1814400;
 
 pub static TOKEN_STATE_KEY: &[u8] = b"token_state";
 pub static TOKEN_INFO_KEY: &[u8] = b"token_info";
 pub static POOL_INFO: &[u8] = b"pool_info";
 const BALANCE: &[u8] = b"balance";
+static PREFIX_REWARD: &[u8] = b"claim";
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct TokenInfo {
@@ -26,7 +29,9 @@ pub struct TokenInfo {
     //TODO: Add Undelegation Period as a TokenInfo which should be changed.
 }
 
-#[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, Clone, JsonSchema, Debug)]
+#[derive(
+    PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, Clone, JsonSchema, Debug, Copy,
+)]
 pub struct EpocId {
     pub epoc_id: u64,
 }
@@ -76,6 +81,45 @@ impl TokenState {
             }
         }
     }
+
+    pub fn is_valid_address(&self, address: &HumanAddr) -> bool {
+        for (_, val) in self.undelegated_wait_list.iter() {
+            if val.undelegated_wait_list_map.contains_key(address) {
+                return true;
+            }
+        }
+        false
+    }
+
+    pub fn get_user_delegation_amount(
+        &self,
+        address: &HumanAddr,
+        epoc_id: &EpocId,
+    ) -> Result<&Uint128, StdError> {
+        let undelegated = self.undelegated_wait_list.get(epoc_id).unwrap();
+        if undelegated.is_address_exist(address) {
+            Ok(undelegated.undelegated_wait_list_map.get(address).unwrap())
+        } else {
+            return Err(StdError::generic_err(
+                "There is no record for user's delegation",
+            ));
+        }
+    }
+
+    pub fn set_new_delegation(&mut self, address: HumanAddr, epoc_id: &EpocId, amount: Uint128) {
+        let user_max = self.get_user_delegation_amount(&address, epoc_id).unwrap();
+        let decrease = user_max.0 - &amount.0;
+        if decrease != 0 {
+            let undelegated = self.undelegated_wait_list.get_mut(epoc_id).unwrap();
+            undelegated
+                .undelegated_wait_list_map
+                .insert(address, Uint128(decrease))
+                .expect("The existence of the address is checked before");
+        } else {
+            let undelegated = self.undelegated_wait_list.get_mut(epoc_id).unwrap();
+            undelegated.undelegated_wait_list_map.remove(&address);
+        }
+    }
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema, Default)]
@@ -87,11 +131,15 @@ pub struct Undelegation {
 impl Undelegation {
     pub fn compute_claim(&mut self) {
         let mut claim = self.claim;
-        for (_, value) in &self.undelegated_wait_list_map {
+        for (_, value) in self.undelegated_wait_list_map.iter() {
             claim += *value;
         }
 
         self.claim = claim;
+    }
+
+    pub fn is_address_exist(&self, address: &HumanAddr) -> bool {
+        self.undelegated_wait_list_map.contains_key(address)
     }
 }
 
@@ -152,4 +200,12 @@ pub fn pool_info<S: Storage>(storage: &mut S) -> Singleton<S, PoolInfo> {
 
 pub fn pool_info_read<S: ReadonlyStorage>(storage: &S) -> ReadonlySingleton<S, PoolInfo> {
     singleton_read(storage, POOL_INFO)
+}
+
+pub fn claim_store<S: Storage>(storage: &mut S) -> Bucket<S, Uint128> {
+    bucket(PREFIX_REWARD, storage)
+}
+
+pub fn claim_read<S: ReadonlyStorage>(storage: &S) -> ReadonlyBucket<S, Uint128> {
+    bucket_read(PREFIX_REWARD, storage)
 }
