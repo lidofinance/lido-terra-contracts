@@ -142,7 +142,7 @@ pub fn handle_reward<S: Storage, A: Api, Q: Querier>(
     let sender = env.message.sender.clone();
     let rcpt_raw = deps.api.canonical_address(&sender)?;
 
-    let token = token_state_read(&deps.storage).load()?;
+    let mut token = token_state_read(&deps.storage).load()?;
     if token.holder_map.get(&sender).is_none() {
         return Err(StdError::generic_err(
             "The sender has not requested any tokens",
@@ -159,6 +159,10 @@ pub fn handle_reward<S: Storage, A: Api, Q: Querier>(
     let user_balance = balances_read(&deps.storage).load(rcpt_raw.as_slice())?;
 
     let reward = calculate_reward(general_index, sender_reward_index, user_balance).unwrap();
+
+    token.holder_map.insert(sender.clone(), pool.reward_index);
+
+    token_state(&mut deps.storage).save(&token)?;
 
     balances(&mut deps.storage).update(rcpt_raw.as_slice(), |balance: Option<Uint128>| {
         Ok(balance.unwrap_or_default() + reward)
