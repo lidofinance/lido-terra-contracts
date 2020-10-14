@@ -1,2 +1,7 @@
 [workspace]
 members = ["contracts/anchor_basset_reward", "contracts/anchor_basset_gov"]
+
+[profile.release]
+rpath = false
+lto = true
+overflow-checks = true
