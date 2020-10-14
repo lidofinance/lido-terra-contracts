@@ -1,0 +1,2 @@
+[workspace]
+members = ["contracts/anchor_basset_reward", "contracts/anchor_basset_gov"]
