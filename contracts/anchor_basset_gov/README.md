@@ -1,4 +1,4 @@
-# Anchor_bAsset <!-- omit in toc -->
+# Anchor bAsset <!-- omit in toc -->
 This contract is supposed to manage bAsset in Terra blockchain. The contract consist of four core features:
     
    * A user can _***mint***_ bLuna by sending Luna to the contract, which results in the delegation of Luna.
@@ -24,37 +24,38 @@ pub struct TokenInfo {
     pub total_supply: Uint128,
 }
 ```
+
 ### TokenState
 TokenState is supposed to keep information related to current state of the token.
 
-_current_epoc:_ the contract gathers all burn requests in 6 hours and manage them all at once. In order to do this, EpocId is designed. this variable keeps the current epoc of the contract.
-
-_current_block_time:_  is used to help to calculate current epoc.
-
-_delegation_map:_  maps address of validator address to amount that  the contract has delegated to.
-
-_holder_map_:  maps bLuna holdings and accrued rewards (index).
-
-_undelegated_wait_list_ stores _**InitBurn**_ requests per each Epoc. Each epoc has an Identical EpocId.
-
 `EPOC`: is 6 hours period that the contract collects all burn messages. `EPOC` is hardcoded with regards to the block time.
 
-`Undelegation:` Manages all burn requests per each `EPOC`. `Undelegation` keeps all amounts in `undelegation.claim` variable. The contract sends one `StakingMsg:: Undelegate` per each `EPOC`. Besides, `Undelegation` has a map that keeps a record of each `InitBurn` request. This will be used in the `FinishBurn` message.
 ```rust
-pub struct TokenState {
-    pub current_epoc: u64,
-    pub current_block_time: u64,
-    pub delegation_map: HashMap<HumanAddr, Uint128>,
-    pub holder_map: HashMap<HumanAddr, Decimal>,
-    pub undelegated_wait_list: HashMap<EpocId, Undelegation>,
-}
-```
-
-```rust
+ // Manages all burn requests per each `EPOC`. 
+ // `Undelegation` keeps all amounts in `undelegation.claim` variable. 
+ // The contract sends one `StakingMsg:: Undelegate` per each `EPOC`. 
+ // Besides, `Undelegation` has a map that keeps a record of each `InitBurn` request. 
+ // This will be used in the `FinishBurn` message.
 pub struct Undelegation {
     pub claim: Uint128,
     // maps address of the user and the amount of burn that they requests.
     pub undelegated_wait_list_map: HashMap<HumanAddr, Uint128>,
+}
+```
+```rust
+pub struct TokenState {
+    // the contract gathers all burn requests in 6 hours and manage them all at once. 
+    // In order to do this, EpocId is designed. this variable keeps the current epoc of the contract.
+    pub current_epoc: u64,
+    // is used to help to calculate current epoc. 
+    pub current_block_time: u64,
+    // maps address of validator address to amount that the contract has delegated to
+    pub delegation_map: HashMap<HumanAddr, Uint128>,
+    //  maps bLuna holdings and accrued rewards (index). 
+    pub holder_map: HashMap<HumanAddr, Decimal>,
+    //stores InitBurn requests per each Epoc. 
+    // Each epoc has an Identical EpocId.
+    pub undelegated_wait_list: HashMap<EpocId, Undelegation>,
 }
 ```
 
