@@ -1,5 +1,5 @@
 pub mod hook;
-pub mod msg;
+pub mod init;
 pub mod state;
 
 #[cfg(target_arch = "wasm32")]

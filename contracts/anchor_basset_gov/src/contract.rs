@@ -10,7 +10,7 @@ use crate::state::{
     Undelegation, UNDELEGATED_PERIOD,
 };
 use anchor_basset_reward::hook::InitHook;
-use anchor_basset_reward::msg::RewardInitMsg;
+use anchor_basset_reward::init::RewardInitMsg;
 use std::ops::Add;
 
 const FIRST_EPOC: u64 = 1;
