@@ -1,7 +1,4 @@
-use cosmwasm_std::{
-    coin, coins, log, to_binary, Api, BankMsg, Decimal, Env, Extern, HandleResponse, HumanAddr,
-    InitResponse, Querier, StakingMsg, StdError, StdResult, Storage, Uint128, WasmMsg,
-};
+use cosmwasm_std::{coin, coins, log, to_binary, Api, BankMsg, Decimal, Env, Extern, HandleResponse, HumanAddr, InitResponse, Querier, StakingMsg, StdError, StdResult, Storage, Uint128, WasmMsg, BankQuery};
 
 use crate::msg::{HandleMsg, InitMsg};
 use crate::state::{
@@ -10,9 +7,14 @@ use crate::state::{
     Undelegation, UNDELEGATED_PERIOD,
 };
 use std::ops::Add;
+use cosmwasm_std::testing::BankQuerier;
+use an
 
 const FIRST_EPOC: u64 = 1;
 const EPOC_PER_UNDELEGATION_PERIOD: u64 = UNDELEGATED_PERIOD / 86400;
+// For updating GlobalIndex, since it is a costly message, we send a withdraw message every day.
+//DAY is supposed to help us to check whether a day is passed from the last update GlobalIndex or not.
+const DAY: u64 = 86400;
 
 pub fn init<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
@@ -141,6 +143,7 @@ pub fn handle_reward<S: Storage, A: Api, Q: Querier>(
 ) -> StdResult<HandleResponse> {
     let sender = env.message.sender.clone();
     let rcpt_raw = deps.api.canonical_address(&sender)?;
+    let contract_addr = env.contract.address.clone();
 
     let mut token = token_state_read(&deps.storage).load()?;
     if token.holder_map.get(&sender).is_none() {
@@ -148,20 +151,41 @@ pub fn handle_reward<S: Storage, A: Api, Q: Querier>(
             "The sender has not requested any tokens",
         ));
     }
-    let sender_reward_index = token
+    let mut sender_reward_index = token
         .holder_map
         .get(&sender)
         .expect("The existence of the sender has been checked");
 
     let pool = pool_info_read(&deps.storage).load()?;
-    let general_index = pool.reward_index;
 
     let user_balance = balances_read(&deps.storage).load(rcpt_raw.as_slice())?;
 
-    let reward = calculate_reward(general_index, sender_reward_index, user_balance).unwrap();
 
     token.holder_map.insert(sender.clone(), pool.reward_index);
 
+    let before_balance =  deps
+        .querier
+        .query_balance( contract_addr.clone(), &tokenInfo.name).unwrap();
+
+    let delegation_list = token.delegation_map.clone();
+    let mut validators: Vec<HumanAddr> = Vec::new();
+    let mut reward= Uint128::zero();
+    for (key, _) in delegation_list {
+        validators.push(key);
+    }
+    if withdraw_all_rewards(
+        validators,
+        pool.clone(),
+        env.block.time,
+        contract_addr.clone(),
+    ) {
+        update_index(deps, contract_addr.clone() );
+        let general_index = pool.reward_index;
+        reward = calculate_reward(general_index, sender_reward_index, user_balance).unwrap();
+    } else {
+        let general_index = pool.reward_index;
+         reward = calculate_reward(general_index, sender_reward_index, user_balance).unwrap();
+    }
     token_state(&mut deps.storage).save(&token)?;
 
     balances(&mut deps.storage).update(rcpt_raw.as_slice(), |balance: Option<Uint128>| {
@@ -178,6 +202,44 @@ pub fn handle_reward<S: Storage, A: Api, Q: Querier>(
         data: None,
     };
     Ok(res)
+}
+
+// Since we cannot query validators' reward, we have to Withdraw all the rewards
+// and then update the global index.
+pub fn withdraw_all_rewards(
+    validators: Vec<HumanAddr>,
+    pool: PoolInfo,
+    block_time: u64,
+    contract_addr: HumanAddr,
+) -> bool {
+    if pool.current_block_time > block_time - DAY {
+        for val in validators {
+            let addr = contract_addr.clone();
+            let msg: StakingMsg = StakingMsg::Withdraw {
+                validator: val,
+                recipient: Some(contract_addr.clone()),
+            };
+            WasmMsg::Execute {
+                contract_addr: addr,
+                msg: to_binary(&msg).unwrap(),
+                send: vec![],
+            };
+        }
+        return true;
+    }
+    false
+}
+
+pub fn update_index <S: Storage, A: Api, Q: Querier> (deps: &mut Extern<S, A, Q>, addr: HumanAddr){
+
+    let mut pool = pool_info_read(&deps.storage).load().unwrap();
+    let tokenInfo = token_info_read(&deps.storage).load().unwrap();
+    let balance = deps
+        .querier
+        .query_balance(addr, &tokenInfo.name).unwrap();
+    let prev_reward_index = pool.reward_index.clone();
+    let total_bonded = pool.total_bond_amount.clone();
+    pool.reward_index = prev_reward_index + Decimal::from_ratio(balance.amount.u128(), total_bonded.u128());
 }
 
 pub fn calculate_reward(
