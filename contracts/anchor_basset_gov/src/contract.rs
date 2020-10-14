@@ -1,4 +1,7 @@
-use cosmwasm_std::{coin, coins, log, to_binary, Api, BankMsg, Decimal, Env, Extern, HandleResponse, HumanAddr, InitResponse, Querier, StakingMsg, StdError, StdResult, Storage, Uint128, WasmMsg, BankQuery};
+use cosmwasm_std::{
+    coin, coins, log, to_binary, Api, BankMsg, CosmosMsg, Decimal, Env, Extern, HandleResponse,
+    HumanAddr, InitResponse, Querier, StakingMsg, StdError, StdResult, Storage, Uint128, WasmMsg,
+};
 
 use crate::msg::{HandleMsg, InitMsg};
 use crate::state::{
@@ -6,9 +9,9 @@ use crate::state::{
     token_info_read, token_state, token_state_read, EpocId, PoolInfo, TokenInfo, TokenState,
     Undelegation, UNDELEGATED_PERIOD,
 };
+use anchor_basset_reward::hook::InitHook;
+use anchor_basset_reward::msg::RewardInitMsg;
 use std::ops::Add;
-use cosmwasm_std::testing::BankQuerier;
-use an
 
 const FIRST_EPOC: u64 = 1;
 const EPOC_PER_UNDELEGATION_PERIOD: u64 = UNDELEGATED_PERIOD / 86400;
@@ -18,7 +21,7 @@ const DAY: u64 = 86400;
 
 pub fn init<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
-    _env: Env,
+    env: Env,
     msg: InitMsg,
 ) -> StdResult<InitResponse> {
     // validate token info
@@ -37,7 +40,23 @@ pub fn init<S: Storage, A: Api, Q: Querier>(
     let pool = PoolInfo::default();
     pool_info(&mut deps.storage).save(&pool)?;
 
-    Ok(InitResponse::default())
+    let reward_message = to_binary(&HandleMsg::Register {})?;
+    let res = InitResponse {
+        messages: vec![CosmosMsg::Wasm(WasmMsg::Instantiate {
+            code_id: 0,
+            msg: to_binary(&RewardInitMsg {
+                owner: deps.api.canonical_address(&env.contract.address)?,
+                init_hook: Some(InitHook {
+                    msg: reward_message,
+                    contract_addr: env.contract.address,
+                }),
+            })?,
+            send: vec![],
+            label: None,
+        })],
+        log: vec![],
+    };
+    Ok(res)
 }
 
 pub fn handle<S: Storage, A: Api, Q: Querier>(
@@ -51,6 +70,7 @@ pub fn handle<S: Storage, A: Api, Q: Querier>(
         HandleMsg::Send { recipient, amount } => handle_send(deps, env, recipient, amount),
         HandleMsg::InitBurn { amount } => handle_burn(deps, env, amount),
         HandleMsg::FinishBurn { amount } => handle_finish(deps, env, amount),
+        HandleMsg::Register {} => handle_register(deps, env),
     }
 }
 
@@ -146,30 +166,26 @@ pub fn handle_reward<S: Storage, A: Api, Q: Querier>(
     let contract_addr = env.contract.address.clone();
 
     let mut token = token_state_read(&deps.storage).load()?;
+
     if token.holder_map.get(&sender).is_none() {
         return Err(StdError::generic_err(
             "The sender has not requested any tokens",
         ));
     }
-    let mut sender_reward_index = token
-        .holder_map
+    let all_holders = token.holder_map.clone();
+    let sender_reward_index = all_holders
         .get(&sender)
         .expect("The existence of the sender has been checked");
 
     let pool = pool_info_read(&deps.storage).load()?;
-
+    let reward_addr = deps.api.human_address(&pool.reward_account)?;
     let user_balance = balances_read(&deps.storage).load(rcpt_raw.as_slice())?;
-
 
     token.holder_map.insert(sender.clone(), pool.reward_index);
 
-    let before_balance =  deps
-        .querier
-        .query_balance( contract_addr.clone(), &tokenInfo.name).unwrap();
-
     let delegation_list = token.delegation_map.clone();
     let mut validators: Vec<HumanAddr> = Vec::new();
-    let mut reward= Uint128::zero();
+    let reward: Uint128;
     for (key, _) in delegation_list {
         validators.push(key);
     }
@@ -177,14 +193,14 @@ pub fn handle_reward<S: Storage, A: Api, Q: Querier>(
         validators,
         pool.clone(),
         env.block.time,
-        contract_addr.clone(),
+        reward_addr.clone(),
     ) {
-        update_index(deps, contract_addr.clone() );
+        update_index(deps, contract_addr.clone());
         let general_index = pool.reward_index;
         reward = calculate_reward(general_index, sender_reward_index, user_balance).unwrap();
     } else {
         let general_index = pool.reward_index;
-         reward = calculate_reward(general_index, sender_reward_index, user_balance).unwrap();
+        reward = calculate_reward(general_index, sender_reward_index, user_balance).unwrap();
     }
     token_state(&mut deps.storage).save(&token)?;
 
@@ -230,16 +246,22 @@ pub fn withdraw_all_rewards(
     false
 }
 
-pub fn update_index <S: Storage, A: Api, Q: Querier> (deps: &mut Extern<S, A, Q>, addr: HumanAddr){
-
+pub fn update_index<S: Storage, A: Api, Q: Querier>(
+    deps: &mut Extern<S, A, Q>,
+    reward_addr: HumanAddr,
+) {
     let mut pool = pool_info_read(&deps.storage).load().unwrap();
-    let tokenInfo = token_info_read(&deps.storage).load().unwrap();
+    let token_info = token_info_read(&deps.storage).load().unwrap();
     let balance = deps
         .querier
-        .query_balance(addr, &tokenInfo.name).unwrap();
+        .query_balance(reward_addr, &token_info.name)
+        .unwrap();
     let prev_reward_index = pool.reward_index.clone();
     let total_bonded = pool.total_bond_amount.clone();
-    pool.reward_index = prev_reward_index + Decimal::from_ratio(balance.amount.u128(), total_bonded.u128());
+    pool.reward_index =
+        prev_reward_index + Decimal::from_ratio(balance.amount.u128(), total_bonded.u128());
+
+    pool_info(&mut deps.storage).save(&pool).unwrap();
 }
 
 pub fn calculate_reward(
@@ -463,6 +485,24 @@ pub fn handle_send_undelegation(
             log("from", contract_address),
             log("amount", amount),
         ],
+        data: None,
+    };
+    Ok(res)
+}
+
+pub fn handle_register<S: Storage, A: Api, Q: Querier>(
+    deps: &mut Extern<S, A, Q>,
+    env: Env,
+) -> StdResult<HandleResponse> {
+    let mut pool = pool_info_read(&deps.storage).load()?;
+    let raw_sender = deps.api.canonical_address(&env.message.sender)?;
+    pool.reward_account = raw_sender.clone();
+
+    pool_info(&mut deps.storage).save(&pool)?;
+
+    let res = HandleResponse {
+        messages: vec![],
+        log: vec![log("action", "register"), log("sub_contract", raw_sender)],
         data: None,
     };
     Ok(res)
