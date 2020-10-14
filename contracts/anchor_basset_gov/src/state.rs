@@ -1,7 +1,9 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use cosmwasm_std::{Decimal, HumanAddr, ReadonlyStorage, StdError, Storage, Uint128};
+use cosmwasm_std::{
+    CanonicalAddr, Decimal, HumanAddr, ReadonlyStorage, StdError, Storage, Uint128,
+};
 use cosmwasm_storage::{
     bucket, bucket_read, singleton, singleton_read, Bucket, ReadonlyBucket, ReadonlySingleton,
     Singleton,
@@ -152,6 +154,7 @@ pub struct PoolInfo {
     pub reward_index: Decimal,
     pub current_block_time: u64,
     pub all_reward: Uint128,
+    pub reward_account: CanonicalAddr,
 }
 
 impl Default for PoolInfo {
@@ -164,6 +167,7 @@ impl Default for PoolInfo {
             reward_index: Default::default(),
             current_block_time: 0,
             all_reward: Default::default(),
+            reward_account: Default::default(),
         }
     }
 }
