@@ -18,9 +18,13 @@ This contract is supposed to manage bAsset in Terra blockchain. The contract con
 TokenInfo holds general information related to the contract. 
 ```rust
 pub struct TokenInfo {
+    /// name of the derivative token
     pub name: String,
+    /// symbol / ticker of the derivative token
     pub symbol: String,
+    /// decimal places of the derivative token (for UI)
     pub decimals: u8,
+    /// total supply of the derivation token
     pub total_supply: Uint128,
 }
 ```
