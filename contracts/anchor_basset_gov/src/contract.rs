@@ -40,6 +40,7 @@ pub fn init<S: Storage, A: Api, Q: Querier>(
     let pool = PoolInfo::default();
     pool_info(&mut deps.storage).save(&pool)?;
 
+    //Instantiate the other contract to help us to manage the global index calculation.
     let reward_message = to_binary(&HandleMsg::Register {})?;
     let res = InitResponse {
         messages: vec![CosmosMsg::Wasm(WasmMsg::Instantiate {
@@ -80,14 +81,13 @@ pub fn handle_mint<S: Storage, A: Api, Q: Querier>(
     validator: HumanAddr,
     amount: Uint128,
 ) -> StdResult<HandleResponse> {
-    //TODO: Check whether the account has this amount of Luna.
-
     if amount == Uint128::zero() {
         return Err(StdError::generic_err("Invalid zero amount"));
     }
 
     let mut token = token_info_read(&deps.storage).load()?;
 
+    //Check whether the account has sent the native coin in advance.
     let payment = env
         .message
         .sent_funds
@@ -113,11 +113,8 @@ pub fn handle_mint<S: Storage, A: Api, Q: Querier>(
 
     pool_info(&mut deps.storage).save(&pool)?;
 
-    let mut sub_env = env.clone();
-    sub_env.message.sender = env.contract.address.clone();
-
     // Issue the bluna token for sender
-    let sender = sub_env.message.sender.clone();
+    let sender = env.message.sender;
     let rcpt_raw = deps.api.canonical_address(&sender)?;
     balances(&mut deps.storage).update(rcpt_raw.as_slice(), |balance: Option<Uint128>| {
         Ok(balance.unwrap_or_default() + amount_with_exchange_rate)
@@ -127,8 +124,10 @@ pub fn handle_mint<S: Storage, A: Api, Q: Querier>(
 
     token.total_supply += amount_with_exchange_rate;
 
+    //save token_info
     token_info(&mut deps.storage).save(&token)?;
 
+    //update the token_status
     let mut token_status = token_state_read(&deps.storage).load()?;
 
     token_status
@@ -148,7 +147,7 @@ pub fn handle_mint<S: Storage, A: Api, Q: Querier>(
         .into()],
         log: vec![
             log("action", "mint"),
-            log("from", env.message.sender),
+            log("from", sender.clone()),
             log("bonded", payment.amount),
             log("minted", added_amount),
         ],
@@ -165,6 +164,7 @@ pub fn handle_reward<S: Storage, A: Api, Q: Querier>(
     let rcpt_raw = deps.api.canonical_address(&sender)?;
     let contract_addr = env.contract.address.clone();
 
+    //get the token_state
     let mut token = token_state_read(&deps.storage).load()?;
 
     if token.holder_map.get(&sender).is_none() {
@@ -183,12 +183,14 @@ pub fn handle_reward<S: Storage, A: Api, Q: Querier>(
 
     token.holder_map.insert(sender.clone(), pool.reward_index);
 
+    //Retrieve all the validators.
     let delegation_list = token.delegation_map.clone();
     let mut validators: Vec<HumanAddr> = Vec::new();
     let reward: Uint128;
     for (key, _) in delegation_list {
         validators.push(key);
     }
+    //Withdraw all rewards from all validators.
     if withdraw_all_rewards(
         validators,
         pool.clone(),
@@ -222,6 +224,8 @@ pub fn handle_reward<S: Storage, A: Api, Q: Querier>(
 
 // Since we cannot query validators' reward, we have to Withdraw all the rewards
 // and then update the global index.
+// withdraw returns a bool. if is true it means the index has changed.
+// if it is false it means nothing has changed.
 pub fn withdraw_all_rewards(
     validators: Vec<HumanAddr>,
     pool: PoolInfo,
@@ -246,6 +250,7 @@ pub fn withdraw_all_rewards(
     false
 }
 
+// check the balance of the reward contract and calculate the global index.
 pub fn update_index<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
     reward_addr: HumanAddr,
@@ -264,6 +269,7 @@ pub fn update_index<S: Storage, A: Api, Q: Querier>(
     pool_info(&mut deps.storage).save(&pool).unwrap();
 }
 
+// calculate the reward based on the sender's index and the global index.
 pub fn calculate_reward(
     general_index: Decimal,
     user_index: &Decimal,
@@ -321,9 +327,10 @@ pub fn handle_burn<S: Storage, A: Api, Q: Querier>(
     let mut token = token_state_read(&mut deps.storage).load()?;
     let mut accounts = balances(&mut deps.storage);
 
+    //claim the reward.
     let msg = HandleMsg::ClaimRewards {};
     WasmMsg::Execute {
-        contract_addr: env.message.sender.clone(),
+        contract_addr: env.contract.address.clone(),
         msg: to_binary(&msg)?,
         send: vec![],
     };
@@ -338,13 +345,14 @@ pub fn handle_burn<S: Storage, A: Api, Q: Querier>(
         Ok(info)
     })?;
 
+    //compute Epoc time
     let block_time = env.block.time;
     token.compute_current_epoc(block_time);
     let epoc = EpocId {
         epoc_id: token.current_epoc.clone(),
     };
 
-    //Check whether the epoc is passed or not. If epoc is passed send an undelegation message.
+    //check whether the epoc is passed or not. If epoc is passed send an undelegation message.
     if token.is_epoc_passed(block_time) && epoc.epoc_id > FIRST_EPOC {
         handle_undelegate(deps, env, epoc.clone(), token.clone());
     }
