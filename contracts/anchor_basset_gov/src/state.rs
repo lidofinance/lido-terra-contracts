@@ -68,7 +68,10 @@ impl TokenState {
     }
 
     pub fn choose_validator(&self, claim: Uint128) -> HumanAddr {
-        let validator_array: Vec<HumanAddr> = self.delegation_map.clone().into_keys().collect();
+        let mut validator_array: Vec<HumanAddr> = Vec::new();
+        for (key, _) in self.delegation_map.iter() {
+            validator_array.push(HumanAddr::from(key));
+        }
         let mut rng = rand::thread_rng();
         loop {
             let random = rng.gen_range(0, validator_array.capacity() - 1);
