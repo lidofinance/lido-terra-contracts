@@ -1,15 +1,12 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
+use serde::ser::{SerializeMap, Serializer};
 
-use cosmwasm_std::{
-    CanonicalAddr, Decimal, HumanAddr, ReadonlyStorage, StdError, Storage, Uint128,
-};
-use cosmwasm_storage::{
-    bucket, bucket_read, singleton, singleton_read, Bucket, ReadonlyBucket, ReadonlySingleton,
-    Singleton,
-};
+use cosmwasm_std::{CanonicalAddr, Decimal, HumanAddr, ReadonlyStorage, StdError, Storage, Uint128, StdResult, from_slice};
+use cosmwasm_storage::{bucket, bucket_read, singleton, singleton_read, Bucket, ReadonlyBucket, ReadonlySingleton, Singleton, PrefixedStorage, ReadonlyPrefixedStorage};
 use rand::Rng;
 use std::collections::HashMap;
+use cosmwasm_vm::to_vec;
 
 // EPOC = 21600s is equal to 6 hours
 pub const EPOC: u64 = 21600;
@@ -21,6 +18,12 @@ pub static TOKEN_INFO_KEY: &[u8] = b"token_info";
 pub static POOL_INFO: &[u8] = b"pool_info";
 const BALANCE: &[u8] = b"balance";
 static PREFIX_REWARD: &[u8] = b"claim";
+
+pub static PREFIX_UNBOUND_PER_EPOC:&[u8]= b"unbound";
+pub static PREFIX_DELEGATION_MAP:&[u8] = b"delegate";
+pub static PREFIX_HOLDER_MAP:&[u8] = b"holder";
+pub static PREFIX_WAIT_MAP : &[u8] = b"wait";
+
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct TokenInfo {
@@ -38,14 +41,16 @@ pub struct EpocId {
     pub epoc_id: u64,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema, Default)]
 pub struct TokenState {
     pub current_epoc: u64,
     pub current_block_time: u64,
     pub delegation_map: HashMap<HumanAddr, Uint128>,
     pub holder_map: HashMap<HumanAddr, Decimal>,
+}
+
+pub struct UndelegatedList{
     pub undelegated_wait_list: HashMap<EpocId, Undelegation>,
-    pub redeem_wait_list_map: HashMap<HumanAddr, Uint128>,
 }
 
 impl TokenState {
@@ -219,4 +224,79 @@ pub fn claim_store<S: Storage>(storage: &mut S) -> Bucket<S, Uint128> {
 
 pub fn claim_read<S: ReadonlyStorage>(storage: &S) -> ReadonlyBucket<S, Uint128> {
     bucket_read(PREFIX_REWARD, storage)
+}
+
+//this stores unboned amount in the storage.
+pub fn store_total_amount<S: Storage>(storage:&mut S, epoc_Id: Uint128, claimed: Uint128) -> StdResult<()> {
+    let vec = epoc_Id.0.to_be_bytes().to_vec();
+    let value: Vec<u8> = to_vec(&claimed)?;
+    PrefixedStorage::new(PREFIX_UNBOUND_PER_EPOC, storage).set(vec.as_slice(), &value );
+    Ok(())
+}
+
+pub fn read_total_amount<S: Storage>(
+    storage: &S,
+    epoc_id: Uint128
+)-> StdResult<Uint128>{
+    let vec = epoc_id.0.to_be_bytes().to_vec();
+    let res = ReadonlyPrefixedStorage::new(PREFIX_UNBOUND_PER_EPOC, storage).get(vec.as_slice());
+    match res {
+        Some(data)=> from_slice(&data),
+        None => Err(StdError::generic_err("no unbond amount is found")),
+    }
+}
+
+pub fn store_delegation_map <S:Storage> (storage: &mut S, validator_address: HumanAddr, amount: Uint128)->StdResult<()>{
+    let vec = validator_address.0.as_bytes();
+    let value = amount.0.to_be_bytes().to_vec();
+    PrefixedStorage::new(PREFIX_DELEGATION_MAP, storage).set(vec, &value);
+    Ok(())
+}
+
+pub fn read_delegation_map <S: Storage> (
+    storage: &S,
+    validator_address: HumanAddr
+)-> StdResult<Uint128> {
+    let vec = validator_address.0.as_bytes();
+    let res = ReadonlyPrefixedStorage::new(PREFIX_DELEGATION_MAP, storage).get(vec);
+    match res {
+        Some(data) => from_slice(&data),
+        None => Err(StdError::generic_err("no validator is found")),
+    }
+}
+
+pub fn store_holder_map <S: Storage> (storage: &mut S, holder_address: HumanAddr, index: Decimal)->StdResult<()>{
+    let vec = holder_address.0.as_bytes();
+    let value:Vec<u8> = to_vec(&vec)?;
+    PrefixedStorage::new(PREFIX_HOLDER_MAP, storage).set(vec, &value);
+    Ok(())
+}
+
+pub fn read_holder_map <S: Storage> (
+    storage: &S,
+    holder_address: HumanAddr
+) -> StdResult<Uint128> {
+    let vec = holder_address.0.as_bytes();
+    let res = ReadonlyPrefixedStorage::new(PREFIX_HOLDER_MAP, storage).get(vec);
+    match res {
+        Some(data) => from_slice(&data),
+        None => Err(StdError::generic_err("no validator is found")),
+    }
+}
+
+pub fn store_undelegated_wait_list<'a, S: Storage> (storage: &'a mut S, epoc_id: Uint128, sender_address: HumanAddr, amount: Uint128)->StdResult<()>{
+    let vec = epoc_Id.0.to_be_bytes().to_vec();
+    let addr = sender_address.0.as_bytes();
+    let mut position_indexer: Bucket<'a, S, Uint128> =
+        Bucket::multilevel(&[PREFIX_WAIT_MAP, vec], storage);
+    position_indexer.save(&addr, &amount )?;
+
+    Ok(())
+}
+
+pub fn read_undelegated_wait_list <'a, S: ReadonlyStorage>(storage: &'a S, epoc_id: Uint128, sender_addr: HumanAddr)-> StdResult<Uint128> {
+    let vec = epoc_Id.0.to_be_bytes().to_vec();
+    let res: ReadonlyBucket<'a, S, Uint128 > = ReadonlyBucket::multilevel(&[PREFIX_WAIT_MAP, vec], storage);
+    let amount = res.load(sender_addr.0.as_bytes());
+    amount
 }
