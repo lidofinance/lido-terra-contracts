@@ -17,23 +17,38 @@
 //!      });
 //! 4. Anywhere you see query(&deps, ...) you must replace it with query(&mut deps, ...)
 
-use cosmwasm_std::{
-    from_binary, Coin, HandleResponse, HandleResult, HumanAddr, InitResponse, StdError,
-};
+use cosmwasm_std::{from_binary, Coin, HandleResponse, HandleResult, HumanAddr, InitResponse, StdError, Validator, Decimal, coin, Uint128, CosmosMsg, StakingMsg};
 
-use cosmwasm_std::testing ::{mock_dependencies, mock_env};
-use cosmwasm_vm::testing::{
-    handle, query, MockApi, MockQuerier, MockStorage,
-};
-use cosmwasm_vm::Instance;
+use cosmwasm_std::testing::{mock_dependencies, mock_env, MockQuerier};
 
-use anchor_bluna::msg::InitMsg;
+use anchor_bluna::msg::{InitMsg, HandleMsg};
 
-use anchor_bluna::contract::init;
+use anchor_bluna::contract::{init, handle};
 
 
 const DEFAULT_GAS_LIMIT: u64 = 500_000;
+const DEFAULT_VALIDATOR: &str = "default-validator";
 
+fn sample_validator<U: Into<HumanAddr>>(addr: U) -> Validator {
+    Validator {
+        address: addr.into(),
+        commission: Decimal::percent(3),
+        max_commission: Decimal::percent(10),
+        max_change_rate: Decimal::percent(1),
+    }
+}
+
+fn set_validator(querier: &mut MockQuerier) {
+    querier.update_staking("uluna", &[sample_validator(DEFAULT_VALIDATOR)], &[]);
+}
+
+fn default_init() -> InitMsg {
+    InitMsg {
+        name: "uluna".to_string(),
+        symbol: "BLA".to_string(),
+        decimals: 9
+    }
+}
 
 #[test]
 fn proper_initialization() {
@@ -48,7 +63,38 @@ fn proper_initialization() {
     let env = mock_env("addr0000", &[]);
 
     // we can just call .unwrap() to assert this was a success
-    let mut res: InitResponse = init(&mut deps, env, msg).unwrap();
+    let res: InitResponse = init(&mut deps, env, msg).unwrap();
     assert_eq!(1, res.messages.len());
     //TODO: query TokenInfo, query PoolInfo, query TokenState
 }
+#[test]
+fn proper_mint() {
+    let mut deps = mock_dependencies(20, &[]);
+    let validator= sample_validator(DEFAULT_VALIDATOR);
+    set_validator(&mut deps.querier);
+
+    let creator = HumanAddr::from("creator");
+    let init_msg = default_init();
+    let env = mock_env(&creator, &[]);
+
+    let res = init(&mut deps, env, init_msg).unwrap();
+    assert_eq!(1, res.messages.len());
+
+    let bob = HumanAddr::from("bob");
+    let mint_msg = HandleMsg::Mint { validator: validator.address , amount: Uint128(5) };
+
+    let env = mock_env(&bob, &[coin(10, "uluna"), coin(1000, "uluna")]);
+
+    let res = handle(&mut deps, env, mint_msg).unwrap();
+    assert_eq!(1, res.messages.len());
+
+    let delegate = &res.messages[0];
+    match delegate {
+        CosmosMsg::Staking(StakingMsg::Delegate { validator, amount }) => {
+            assert_eq!(validator.as_str(), DEFAULT_VALIDATOR);
+            assert_eq!(amount, &coin(1000, "uluna"));
+        }
+        _ => panic!("Unexpected message: {:?}", delegate),
+    }
+}
+
