@@ -37,6 +37,10 @@ pub fn init<S: Storage, A: Api, Q: Querier>(
     };
     token_info(&mut deps.storage).save(&data)?;
 
+    let token = TokenState::default();
+
+    token_state(&mut deps.storage).save(&token)?;
+
     let pool = PoolInfo::default();
     pool_info(&mut deps.storage).save(&pool)?;
 
