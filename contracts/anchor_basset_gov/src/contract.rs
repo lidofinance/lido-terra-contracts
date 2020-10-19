@@ -5,12 +5,18 @@ use cosmwasm_std::{
 
 use crate::msg::{HandleMsg, InitMsg};
 use crate::state::{
-    balances, balances_read, claim_read, claim_store, pool_info, pool_info_read, token_info,
-    token_info_read, token_state, token_state_read, EpocId, PoolInfo, TokenInfo, TokenState,
-    Undelegation, UNDELEGATED_PERIOD,
+    balances, balances_read, claim_read, claim_store, epoc_read, pool_info, pool_info_read,
+    read_all_epocs, read_delegation_map, read_holder_map, read_holders, read_total_amount,
+    read_undelegated_wait_list_for_epoc, read_validators, save_all_epoc, save_epoc,
+    store_delegation_map, store_holder_map, store_total_amount, store_undelegated_wait_list,
+    token_info, token_info_read, EpocId, PoolInfo, TokenInfo, EPOC, UNDELEGATED_PERIOD,
 };
 use anchor_basset_reward::hook::InitHook;
 use anchor_basset_reward::init::RewardInitMsg;
+use rand::Rng;
+use std::borrow::{Borrow, BorrowMut};
+use std::collections::HashMap;
+use std::env::current_exe;
 use std::ops::Add;
 
 const FIRST_EPOC: u64 = 1;
@@ -36,10 +42,6 @@ pub fn init<S: Storage, A: Api, Q: Querier>(
         total_supply: initial_total_supply,
     };
     token_info(&mut deps.storage).save(&data)?;
-
-    let token = TokenState::default();
-
-    token_state(&mut deps.storage).save(&token)?;
 
     let pool = PoolInfo::default();
     pool_info(&mut deps.storage).save(&pool)?;
@@ -131,18 +133,12 @@ pub fn handle_mint<S: Storage, A: Api, Q: Querier>(
     //save token_info
     token_info(&mut deps.storage).save(&token)?;
 
-    //update the token_status
-    let mut token_status = token_state_read(&deps.storage).load()?;
+    // save the validator storage
+    store_delegation_map(&mut deps.storage, validator.clone(), amount)?;
 
-    token_status
-        .delegation_map
-        .insert(validator.clone(), amount);
+    //save the holder map
+    store_holder_map(&mut deps.storage, sender.clone(), reward_index)?;
 
-    token_status.holder_map.insert(sender.clone(), reward_index);
-
-    token_state(&mut deps.storage).save(&token_status)?;
-
-    // bond them to the validator
     let res = HandleResponse {
         messages: vec![StakingMsg::Delegate {
             validator,
@@ -168,39 +164,31 @@ pub fn handle_reward<S: Storage, A: Api, Q: Querier>(
     let rcpt_raw = deps.api.canonical_address(&sender)?;
     let contract_addr = env.contract.address.clone();
 
-    //get the token_state
-    let mut token = token_state_read(&deps.storage).load()?;
+    //Get all holders
+    let all_holder: HashMap<HumanAddr, Decimal> = read_holders(&deps.storage)?;
 
-    if token.holder_map.get(&sender).is_none() {
+    if !all_holder.contains_key(&sender.clone()) {
         return Err(StdError::generic_err(
             "The sender has not requested any tokens",
         ));
     }
-    let all_holders = token.holder_map.clone();
-    let sender_reward_index = all_holders
+    let sender_reward_index = all_holder
         .get(&sender)
-        .expect("The existence of the sender has been checked");
+        .expect("The sender has not requested any tokens");
 
     let pool = pool_info_read(&deps.storage).load()?;
     let reward_addr = deps.api.human_address(&pool.reward_account)?;
     let user_balance = balances_read(&deps.storage).load(rcpt_raw.as_slice())?;
 
-    token.holder_map.insert(sender.clone(), pool.reward_index);
+    //update the holder index
+    store_holder_map(&mut deps.storage, sender.clone(), pool.reward_index);
 
-    //Retrieve all the validators.
-    let delegation_list = token.delegation_map.clone();
-    let mut validators: Vec<HumanAddr> = Vec::new();
-    let reward: Uint128;
-    for (key, _) in delegation_list {
-        validators.push(key);
-    }
+    //Retrive all validators
+    let validators: Vec<HumanAddr> = read_validators(&deps.storage)?;
+
     //Withdraw all rewards from all validators.
-    if withdraw_all_rewards(
-        validators,
-        pool.clone(),
-        env.block.time,
-        reward_addr.clone(),
-    ) {
+    let reward;
+    if withdraw_all_rewards(validators, pool.clone(), env.block.time, reward_addr) {
         update_index(deps, contract_addr.clone());
         let general_index = pool.reward_index;
         reward = calculate_reward(general_index, sender_reward_index, user_balance).unwrap();
@@ -208,7 +196,6 @@ pub fn handle_reward<S: Storage, A: Api, Q: Querier>(
         let general_index = pool.reward_index;
         reward = calculate_reward(general_index, sender_reward_index, user_balance).unwrap();
     }
-    token_state(&mut deps.storage).save(&token)?;
 
     balances(&mut deps.storage).update(rcpt_raw.as_slice(), |balance: Option<Uint128>| {
         Ok(balance.unwrap_or_default() + reward)
@@ -288,6 +275,8 @@ pub fn handle_send<S: Storage, A: Api, Q: Querier>(
     recipient: HumanAddr,
     amount: Uint128,
 ) -> StdResult<HandleResponse> {
+    //TODO: Invoke Claim reward.
+    //TODO: Update the holders-map.
     if amount == Uint128::zero() {
         return Err(StdError::generic_err("Invalid zero amount"));
     }
@@ -295,7 +284,7 @@ pub fn handle_send<S: Storage, A: Api, Q: Querier>(
     let rcpt_raw = deps.api.canonical_address(&recipient)?;
     let sender_raw = deps.api.canonical_address(&env.message.sender)?;
 
-    let mut accounts = balances(&mut deps.storage);
+    let mut accounts = balances(deps.storage.borrow_mut());
     accounts.update(sender_raw.as_slice(), |balance: Option<Uint128>| {
         balance.unwrap_or_default() - amount
     })?;
@@ -328,8 +317,11 @@ pub fn handle_burn<S: Storage, A: Api, Q: Querier>(
     let sender_human = env.message.sender.clone();
     let sender_raw = deps.api.canonical_address(&env.message.sender)?;
 
-    let mut token = token_state_read(&mut deps.storage).load()?;
-    let mut accounts = balances(&mut deps.storage);
+    let mut epoc = epoc_read(&deps.storage).load()?;
+    let accounts = balances_read(&deps.storage).load(&sender_raw.as_slice())?;
+
+    // get all amount that is gathered in a epoc.
+    let claimed_so_far = read_total_amount(deps.storage.borrow(), epoc.epoc_id)?;
 
     //claim the reward.
     let msg = HandleMsg::ClaimRewards {};
@@ -339,49 +331,56 @@ pub fn handle_burn<S: Storage, A: Api, Q: Querier>(
         send: vec![],
     };
 
-    // lower balance
-    accounts.update(sender_raw.as_slice(), |balance: Option<Uint128>| {
-        balance.unwrap_or_default() - amount
-    })?;
+    // get_all epoces
+    let mut all_epoces = read_all_epocs(&deps.storage).load()?;
+
     // reduce total_supply
     token_info(&mut deps.storage).update(|mut info| {
         info.total_supply = (info.total_supply - amount)?;
         Ok(info)
     })?;
 
-    //compute Epoc time
-    let block_time = env.block.time;
-    token.compute_current_epoc(block_time);
-    let epoc = EpocId {
-        epoc_id: token.current_epoc.clone(),
-    };
-
-    //check whether the epoc is passed or not. If epoc is passed send an undelegation message.
-    if token.is_epoc_passed(block_time) && epoc.epoc_id > FIRST_EPOC {
-        handle_undelegate(deps, env, epoc.clone(), token.clone());
-    }
-
-    if token.is_epoc_passed(block_time) {
-        let mut undelegated = Undelegation::default();
-        undelegated.claim += amount;
-        undelegated
-            .undelegated_wait_list_map
-            .insert(sender_human, amount);
-        token.undelegated_wait_list.insert(epoc, undelegated);
-    } else {
-        let mut undelegated = token.undelegated_wait_list.remove(&epoc).unwrap();
-        undelegated.compute_claim();
-        undelegated
-            .undelegated_wait_list_map
-            .insert(sender_human, amount);
-        token.undelegated_wait_list.insert(epoc, undelegated);
-    }
-    token_state(&mut deps.storage).save(&token)?;
-
-    pool_info(&mut deps.storage).update(|mut pool| {
-        pool.total_issued = (pool.total_issued - amount)?;
-        Ok(pool)
+    //update pool info and calculate the new exchange rate.
+    let mut exchange_rate = Decimal::zero();
+    pool_info(&mut deps.storage).update(|mut pool_inf| {
+        pool_inf.total_bond_amount = Uint128(pool_inf.total_bond_amount.0 - amount.0);
+        pool_inf.total_issued = (pool_inf.total_issued - amount)?;
+        pool_inf.update_exchange_rate();
+        exchange_rate = pool_inf.exchange_rate;
+        Ok(pool_inf)
     })?;
+
+    // lower balance
+    balances(&mut deps.storage).update(sender_raw.as_slice(), |balance: Option<Uint128>| {
+        balance.unwrap_or_default() - amount * exchange_rate
+    })?;
+
+    //compute Epoc time
+    let block_time = env.block.time.clone();
+    if epoc.is_epoc_passed(block_time) {
+        epoc.epoc_id += (block_time - epoc.current_block_time) / EPOC;
+        epoc.current_block_time = block_time;
+
+        //store the epoc in valid epoc.
+        all_epoces.epoces.push(epoc);
+        //store the new amount for the next epoc
+        store_total_amount(&mut deps.storage, epoc.epoc_id, amount)?;
+
+        // send undelegate request
+        handle_undelegate(deps, env, claimed_so_far, exchange_rate);
+        save_epoc(&mut deps.storage).save(&epoc);
+    } else {
+        claimed_so_far.add(amount);
+        //store the human_address under undelegated_wait_list.
+        store_undelegated_wait_list(
+            &mut deps.storage,
+            epoc.epoc_id,
+            sender_human.clone(),
+            amount,
+        )?;
+        //store the claimed_so_far for the current epoc;
+        store_total_amount(&mut deps.storage, epoc.epoc_id, claimed_so_far)?;
+    }
 
     let res = HandleResponse {
         messages: vec![],
@@ -398,25 +397,28 @@ pub fn handle_burn<S: Storage, A: Api, Q: Querier>(
 pub fn handle_undelegate<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
     env: Env,
-    epoc: EpocId,
-    mut token: TokenState,
+    amount: Uint128,
+    exchange_rate: Decimal,
 ) {
     let token_inf = token_info_read(&deps.storage).load().unwrap();
-    let undelegated = token.undelegated_wait_list.get(&epoc).unwrap();
-    let claimed = undelegated.claim;
-    let validator = token.choose_validator(claimed);
-    let amount = token
-        .delegation_map
-        .get(&validator)
-        .expect("The validator has exist");
-    let new_delegation = amount.0 - &claimed.0;
-    token
-        .delegation_map
-        .insert(validator.clone(), Uint128(new_delegation));
 
+    //apply exchange_rate
+    let amount_with_exchange_rate = amount * exchange_rate;
+    // pick a random validator.
+    let all_validators = read_validators(&deps.storage).unwrap();
+    let validator = pick_validator(deps, all_validators, amount_with_exchange_rate);
+
+    //the validator delegated amount
+    let amount = read_delegation_map(&deps.storage, validator.clone()).unwrap();
+    let new_amount = amount.0 - amount_with_exchange_rate.0;
+
+    //update the new delegation for the validator
+    store_delegation_map(&mut deps.storage, validator.clone(), Uint128(new_amount));
+
+    //send undelegate message
     let msgs: Vec<StakingMsg> = vec![StakingMsg::Undelegate {
         validator,
-        amount: coin(claimed.u128(), &token_inf.name),
+        amount: coin(amount.u128(), &token_inf.name),
     }
     .into()];
 
@@ -435,13 +437,12 @@ pub fn handle_finish<S: Storage, A: Api, Q: Querier>(
     let sender_human = env.message.sender.clone();
     let contract_address = env.contract.address.clone();
 
-    let mut token = token_state_read(&mut deps.storage).load()?;
-
+    //check the liquidation period.
+    let mut epoc = epoc_read(&deps.storage).load()?;
     let block_time = env.block.time;
 
-    if !token.is_valid_address(&sender_human) {
-        return Err(StdError::unauthorized());
-    }
+    // get current epoc id.
+    let current_epoc_id = compute_epoc(epoc.epoc_id, epoc.current_block_time, block_time);
 
     let rcpt_raw = deps.api.canonical_address(&env.message.sender.clone())?;
     let claim_balance = claim_read(&deps.storage).load(rcpt_raw.as_slice())?;
@@ -451,22 +452,31 @@ pub fn handle_finish<S: Storage, A: Api, Q: Querier>(
         return handle_send_undelegation(amount, sender_human, contract_address);
     }
 
-    token.compute_current_epoc(block_time);
-    let current_epoc_id = token.current_epoc.clone();
     // Compute all of burn requests with epoc Id corresponding to 21 (can be changed to arbitrary value) days ago
-    let epoc_id = EpocId {
-        epoc_id: get_before_undelegation_epoc(current_epoc_id),
-    };
-    for (key, value) in token.undelegated_wait_list.clone() {
-        if key < epoc_id {
-            for (address, undelegated_amount) in value.undelegated_wait_list_map {
+    let epoc_id = get_before_undelegation_epoc(current_epoc_id);
+
+    let all_epocs = read_all_epocs(&deps.storage).load()?;
+
+    for e in all_epocs.epoces {
+        if e.epoc_id < epoc_id {
+            let list = read_undelegated_wait_list_for_epoc(&deps.storage, epoc_id)?;
+            for (address, undelegated_amount) in list {
                 let raw_address = deps.api.canonical_address(&address)?;
                 claim_store(&mut deps.storage)
                     .update(raw_address.as_slice(), |claim: Option<Uint128>| {
                         Ok(claim.unwrap_or_default() + undelegated_amount)
                     })?;
             }
-            token.undelegated_wait_list.remove(&key);
+            //remove epoc_id from the storage.
+            save_all_epoc(&mut deps.storage).update(|mut epocs| {
+                let position = epocs
+                    .epoces
+                    .iter()
+                    .position(|x| x.epoc_id == e.epoc_id)
+                    .unwrap();
+                epocs.epoces.remove(position);
+                Ok(epocs)
+            })?;
         }
     }
 
@@ -518,4 +528,26 @@ pub fn handle_register<S: Storage, A: Api, Q: Querier>(
         data: None,
     };
     Ok(res)
+}
+
+//Pick a random validator
+pub fn pick_validator<S: Storage, A: Api, Q: Querier>(
+    deps: &mut Extern<S, A, Q>,
+    validators: Vec<HumanAddr>,
+    claim: Uint128,
+) -> HumanAddr {
+    let mut rng = rand::thread_rng();
+    loop {
+        let random = rng.gen_range(0, validators.len() - 1);
+        let validator: HumanAddr = HumanAddr::from(validators.get(random).unwrap());
+        let val = read_delegation_map(&deps.storage, validator.clone()).unwrap();
+        if val > claim {
+            return validator;
+        }
+    }
+}
+
+pub fn compute_epoc(mut epoc_id: u64, prev_time: u64, current_time: u64) -> u64 {
+    epoc_id += (prev_time - current_time) / EPOC;
+    epoc_id
 }
