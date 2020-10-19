@@ -6,7 +6,6 @@ use cosmwasm_schema::{export_schema, remove_schemas, schema_for};
 use anchor_bluna::msg::{HandleMsg, InitMsg};
 use anchor_bluna::state::{PoolInfo, TokenInfo, TokenState};
 
-
 fn main() {
     let mut out_dir = current_dir().unwrap();
     out_dir.push("schema");

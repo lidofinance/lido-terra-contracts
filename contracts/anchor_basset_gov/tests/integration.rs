@@ -17,14 +17,16 @@
 //!      });
 //! 4. Anywhere you see query(&deps, ...) you must replace it with query(&mut deps, ...)
 
-use cosmwasm_std::{from_binary, Coin, HandleResponse, HandleResult, HumanAddr, InitResponse, StdError, Validator, Decimal, coin, Uint128, CosmosMsg, StakingMsg};
+use cosmwasm_std::{
+    coin, from_binary, Coin, CosmosMsg, Decimal, HandleResponse, HandleResult, HumanAddr,
+    InitResponse, StakingMsg, StdError, Uint128, Validator,
+};
 
 use cosmwasm_std::testing::{mock_dependencies, mock_env, MockQuerier};
 
-use anchor_bluna::msg::{InitMsg, HandleMsg};
+use anchor_bluna::msg::{HandleMsg, InitMsg};
 
-use anchor_bluna::contract::{init, handle};
-
+use anchor_bluna::contract::{handle, init};
 
 const DEFAULT_GAS_LIMIT: u64 = 500_000;
 const DEFAULT_VALIDATOR: &str = "default-validator";
@@ -46,7 +48,7 @@ fn default_init() -> InitMsg {
     InitMsg {
         name: "uluna".to_string(),
         symbol: "BLA".to_string(),
-        decimals: 9
+        decimals: 9,
     }
 }
 
@@ -57,7 +59,7 @@ fn proper_initialization() {
     let msg = InitMsg {
         name: "bluna".to_string(),
         symbol: "BLA".to_string(),
-        decimals: 9
+        decimals: 9,
     };
 
     let env = mock_env("addr0000", &[]);
@@ -70,7 +72,7 @@ fn proper_initialization() {
 #[test]
 fn proper_mint() {
     let mut deps = mock_dependencies(20, &[]);
-    let validator= sample_validator(DEFAULT_VALIDATOR);
+    let validator = sample_validator(DEFAULT_VALIDATOR);
     set_validator(&mut deps.querier);
 
     let creator = HumanAddr::from("creator");
@@ -81,7 +83,10 @@ fn proper_mint() {
     assert_eq!(1, res.messages.len());
 
     let bob = HumanAddr::from("bob");
-    let mint_msg = HandleMsg::Mint { validator: validator.address , amount: Uint128(5) };
+    let mint_msg = HandleMsg::Mint {
+        validator: validator.address,
+        amount: Uint128(5),
+    };
 
     let env = mock_env(&bob, &[coin(10, "uluna"), coin(1000, "uluna")]);
 
@@ -97,4 +102,3 @@ fn proper_mint() {
         _ => panic!("Unexpected message: {:?}", delegate),
     }
 }
-
