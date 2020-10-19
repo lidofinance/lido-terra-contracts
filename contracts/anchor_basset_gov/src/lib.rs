@@ -5,9 +5,7 @@ pub mod state;
 #[cfg(target_arch = "wasm32")]
 mod wasm {
     use super::contract;
-    use cosmwasm_std::{
-        do_handle, do_init, ExternalApi, ExternalQuerier, ExternalStorage,
-    };
+    use cosmwasm_std::{do_handle, do_init, ExternalApi, ExternalQuerier, ExternalStorage};
 
     #[no_mangle]
     extern "C" fn init(env_ptr: u32, msg_ptr: u32) -> u32 {
