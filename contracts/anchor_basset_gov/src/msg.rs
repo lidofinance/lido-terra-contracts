@@ -78,6 +78,9 @@ pub enum HandleMsg {
         amount: Uint128,
     },
     // Register receives the reward contract address
+    //FIXME: How can we authorize the sender?
+    // Anybody can send this request and register itself as valid reward account.
+    // They can receive all the reward.
     Register {},
 }
 
