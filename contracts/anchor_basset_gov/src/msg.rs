@@ -62,7 +62,9 @@ pub enum HandleMsg {
         amount: Uint128,
     },
     /// ClaimRewards sends bluna rewards to sender.
-    ClaimRewards {},
+    ClaimRewards {
+        to: Option<HumanAddr>,
+    },
     /// InitBurn is send an undelegate message after receiving all
     /// requests for an specific period of time.
     InitBurn {

@@ -1,6 +1,7 @@
 use cosmwasm_std::{
-    coin, coins, log, to_binary, Api, BankMsg, CosmosMsg, Decimal, Env, Extern, HandleResponse,
-    HumanAddr, InitResponse, Querier, StakingMsg, StdError, StdResult, Storage, Uint128, WasmMsg,
+    coin, coins, log, to_binary, Api, BankMsg, CanonicalAddr, CosmosMsg, Decimal, Env, Extern,
+    HandleResponse, HumanAddr, InitResponse, Querier, StakingMsg, StdError, StdResult, Storage,
+    Uint128, WasmMsg,
 };
 
 use crate::msg::{HandleMsg, InitMsg};
@@ -78,7 +79,7 @@ pub fn handle<S: Storage, A: Api, Q: Querier>(
 ) -> StdResult<HandleResponse> {
     match msg {
         HandleMsg::Mint { validator, amount } => handle_mint(deps, env, validator, amount),
-        HandleMsg::ClaimRewards {} => handle_reward(deps, env),
+        HandleMsg::ClaimRewards { to } => handle_reward(deps, env, to),
         HandleMsg::Send { recipient, amount } => handle_send(deps, env, recipient, amount),
         HandleMsg::InitBurn { amount } => handle_burn(deps, env, amount),
         HandleMsg::FinishBurn { amount } => handle_finish(deps, env, amount),
@@ -164,9 +165,17 @@ pub fn handle_mint<S: Storage, A: Api, Q: Querier>(
 pub fn handle_reward<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
     env: Env,
+    to: Option<HumanAddr>,
 ) -> StdResult<HandleResponse> {
-    let sender = env.message.sender.clone();
-    let rcpt_raw = deps.api.canonical_address(&sender)?;
+    let sender: HumanAddr;
+    let rcpt_raw: CanonicalAddr;
+    if to.is_none() {
+        sender = env.message.sender.clone();
+        rcpt_raw = deps.api.canonical_address(&sender)?;
+    } else {
+        sender = to.expect("The receiver address is some");
+        rcpt_raw = deps.api.canonical_address(&sender)?;
+    }
     let contract_addr = env.contract.address.clone();
 
     //Get all holders
@@ -280,8 +289,17 @@ pub fn handle_send<S: Storage, A: Api, Q: Querier>(
     recipient: HumanAddr,
     amount: Uint128,
 ) -> StdResult<HandleResponse> {
+    let sender = env.message.sender.clone();
+    //claim the reward.
+    let msg = HandleMsg::ClaimRewards { to: Some(sender) };
+    WasmMsg::Execute {
+        contract_addr: env.contract.address.clone(),
+        msg: to_binary(&msg)?,
+        send: vec![],
+    };
     //TODO: Invoke Claim reward.
     //TODO: Update the holders-map.
+    //TODO: Update the index of the second holder with the calculation
     if amount == Uint128::zero() {
         return Err(StdError::generic_err("Invalid zero amount"));
     }
@@ -328,7 +346,9 @@ pub fn handle_burn<S: Storage, A: Api, Q: Querier>(
     let mut claimed_so_far = read_total_amount(deps.storage.borrow(), epoc.epoc_id)?;
 
     //claim the reward.
-    let msg = HandleMsg::ClaimRewards {};
+    let msg = HandleMsg::ClaimRewards {
+        to: Some(sender_human.clone()),
+    };
     WasmMsg::Execute {
         contract_addr: env.contract.address.clone(),
         msg: to_binary(&msg)?,
