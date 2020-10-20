@@ -7,7 +7,7 @@ use cosmwasm_std::{
 use crate::msg::{HandleMsg, InitMsg};
 use crate::state::{
     balances, balances_read, claim_read, claim_store, epoc_read, pool_info, pool_info_read,
-    read_all_epocs, read_delegation_map, read_holders, read_total_amount,
+    read_all_epocs, read_delegation_map, read_holder_map, read_holders, read_total_amount,
     read_undelegated_wait_list_for_epoc, read_validators, save_all_epoc, save_epoc,
     store_delegation_map, store_holder_map, store_total_amount, store_undelegated_wait_list,
     token_info, token_info_read, EpocId, PoolInfo, TokenInfo, EPOC, UNDELEGATED_PERIOD,
@@ -211,6 +211,9 @@ pub fn handle_reward<S: Storage, A: Api, Q: Querier>(
         reward = calculate_reward(general_index, sender_reward_index, user_balance).unwrap();
     }
 
+    //TODO: reward should be swap. (MessageSwp send)
+    //TODO: reward should be handled in a different balance.
+    //TODO: Send the bankmsg to transfer the reward to the sender
     balances(&mut deps.storage).update(rcpt_raw.as_slice(), |balance: Option<Uint128>| {
         Ok(balance.unwrap_or_default() + reward)
     })?;
@@ -291,15 +294,14 @@ pub fn handle_send<S: Storage, A: Api, Q: Querier>(
 ) -> StdResult<HandleResponse> {
     let sender = env.message.sender.clone();
     //claim the reward.
-    let msg = HandleMsg::ClaimRewards { to: Some(sender) };
+    let msg = HandleMsg::ClaimRewards {
+        to: Some(sender.clone()),
+    };
     WasmMsg::Execute {
         contract_addr: env.contract.address.clone(),
         msg: to_binary(&msg)?,
         send: vec![],
     };
-    //TODO: Invoke Claim reward.
-    //TODO: Update the holders-map.
-    //TODO: Update the index of the second holder with the calculation
     if amount == Uint128::zero() {
         return Err(StdError::generic_err("Invalid zero amount"));
     }
@@ -307,6 +309,20 @@ pub fn handle_send<S: Storage, A: Api, Q: Querier>(
     let rcpt_raw = deps.api.canonical_address(&recipient)?;
     let sender_raw = deps.api.canonical_address(&env.message.sender)?;
 
+    let pool_inf = pool_info_read(&deps.storage).load()?;
+    let global_index = pool_inf.reward_index;
+
+    //retrieve balances and index of sender and receiver
+    let sender_balance = balances_read(&deps.storage).load(sender_raw.as_slice())?;
+    let receive_balance = balances_read(&deps.storage).load(rcpt_raw.as_slice())?;
+
+    let sndr_index = read_holder_map(&deps.storage, sender.clone())?;
+    let rcp_prv_index = read_holder_map(&deps.storage, recipient.clone())?;
+
+    let rcp_cur_index =
+        compute_receiver_index(sender_balance, receive_balance, sndr_index, rcp_prv_index);
+
+    //change the balance of sender and receiver.
     let mut accounts = balances(deps.storage.borrow_mut());
     accounts.update(sender_raw.as_slice(), |balance: Option<Uint128>| {
         balance.unwrap_or_default() - amount
@@ -314,6 +330,10 @@ pub fn handle_send<S: Storage, A: Api, Q: Querier>(
     accounts.update(rcpt_raw.as_slice(), |balance: Option<Uint128>| {
         Ok(balance.unwrap_or_default() + amount)
     })?;
+
+    //update the index of receiver and the sender
+    store_holder_map(&mut deps.storage, sender.clone(), global_index)?;
+    store_holder_map(&mut deps.storage, sender.clone(), rcp_cur_index)?;
 
     let res = HandleResponse {
         messages: vec![],
@@ -574,4 +594,15 @@ pub fn pick_validator<S: Storage, A: Api, Q: Querier>(
 pub fn compute_epoc(mut epoc_id: u64, prev_time: u64, current_time: u64) -> u64 {
     epoc_id += (prev_time - current_time) / EPOC;
     epoc_id
+}
+
+pub fn compute_receiver_index(
+    sndr_balance: Uint128,
+    rcp_bal: Uint128,
+    rcp_indx: Decimal,
+    sndr_indx: Decimal,
+) -> Decimal {
+    let nom = sndr_balance * sndr_indx + rcp_bal * rcp_indx;
+    let denom = sndr_balance + rcp_bal;
+    Decimal::from_ratio(nom, denom)
 }
