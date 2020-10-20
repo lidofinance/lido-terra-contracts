@@ -9,8 +9,6 @@ use cosmwasm_storage::{
     bucket, bucket_read, singleton, singleton_read, Bucket, PrefixedStorage, ReadonlyBucket,
     ReadonlyPrefixedStorage, ReadonlySingleton, Singleton,
 };
-use rand::Rng;
-use std::collections::hash_map::RandomState;
 use std::collections::HashMap;
 
 // EPOC = 21600s is equal to 6 hours
@@ -18,7 +16,6 @@ pub const EPOC: u64 = 21600;
 //UNDELEGATED_PERIOD is equal to 21 days.
 pub const UNDELEGATED_PERIOD: u64 = 1814400;
 
-pub static TOKEN_STATE_KEY: &[u8] = b"token_state";
 pub static TOKEN_INFO_KEY: &[u8] = b"token_info";
 pub static POOL_INFO: &[u8] = b"pool_info";
 const BALANCE: &[u8] = b"balance";
@@ -205,11 +202,14 @@ pub fn read_delegation_map<S: Storage>(
 pub fn read_validators<S: Storage>(storage: &S) -> StdResult<Vec<HumanAddr>> {
     let mut validators: Vec<HumanAddr> = Vec::new();
     let res = ReadonlyPrefixedStorage::new(PREFIX_DELEGATION_MAP, storage);
-    res.range(None, None, Order::Ascending).map(|item| {
-        let (key, _) = item;
-        let sender: HumanAddr = from_slice(&key).unwrap();
-        validators.push(sender);
-    });
+    let _un: Vec<_> = res
+        .range(None, None, Order::Ascending)
+        .map(|item| {
+            let (key, _) = item;
+            let sender: HumanAddr = from_slice(&key).unwrap();
+            validators.push(sender);
+        })
+        .collect();
 
     Ok(validators)
 }
@@ -221,7 +221,7 @@ pub fn store_holder_map<S: Storage>(
     index: Decimal,
 ) -> StdResult<()> {
     let vec = holder_address.0.as_bytes();
-    let value: Vec<u8> = to_vec(&vec)?;
+    let value: Vec<u8> = to_vec(&index)?;
     PrefixedStorage::new(PREFIX_HOLDER_MAP, storage).set(vec, &value);
     Ok(())
 }
@@ -239,12 +239,15 @@ pub fn read_holder_map<S: Storage>(storage: &S, holder_address: HumanAddr) -> St
 pub fn read_holders<'a, S: Storage>(storage: &'a S) -> StdResult<HashMap<HumanAddr, Decimal>> {
     let mut holders: HashMap<HumanAddr, Decimal> = HashMap::new();
     let res = ReadonlyPrefixedStorage::new(PREFIX_HOLDER_MAP, storage);
-    res.range(None, None, Order::Ascending).map(|item| {
-        let (key, value) = item;
-        let sender: HumanAddr = from_slice(&key).unwrap();
-        let index: Decimal = from_slice(&value).unwrap();
-        holders.insert(sender, index);
-    });
+    let _un: Vec<_> = res
+        .range(None, None, Order::Ascending)
+        .map(|item| {
+            let (key, value) = item;
+            let sender: HumanAddr = from_slice(&key).unwrap();
+            let index: Decimal = from_slice(&value).unwrap();
+            holders.insert(sender, index);
+        })
+        .collect();
 
     Ok(holders)
 }
@@ -286,10 +289,13 @@ pub fn read_undelegated_wait_list_for_epoc<'a, S: ReadonlyStorage>(
     let res: ReadonlyBucket<'a, S, Uint128> =
         ReadonlyBucket::multilevel(&[PREFIX_WAIT_MAP, &vec], storage);
 
-    res.range(None, None, Order::Ascending).map(|item| {
-        let (k, v) = item.unwrap();
-        let key: HumanAddr = from_slice(&k).unwrap();
-        list.insert(key, v)
-    });
+    let _un: Vec<_> = res
+        .range(None, None, Order::Ascending)
+        .map(|item| {
+            let (k, v) = item.unwrap();
+            let key: HumanAddr = from_slice(&k).unwrap();
+            list.insert(key, v)
+        })
+        .collect();
     Ok(list)
 }
