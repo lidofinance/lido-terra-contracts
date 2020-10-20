@@ -4,7 +4,7 @@ use std::fs::create_dir_all;
 use cosmwasm_schema::{export_schema, remove_schemas, schema_for};
 
 use anchor_bluna::msg::{HandleMsg, InitMsg};
-use anchor_bluna::state::{PoolInfo, TokenInfo, TokenState};
+use anchor_bluna::state::{PoolInfo, TokenInfo};
 
 fn main() {
     let mut out_dir = current_dir().unwrap();
@@ -15,6 +15,5 @@ fn main() {
     export_schema(&schema_for!(InitMsg), &out_dir);
     export_schema(&schema_for!(HandleMsg), &out_dir);
     export_schema(&schema_for!(PoolInfo), &out_dir);
-    export_schema(&schema_for!(TokenState), &out_dir);
     export_schema(&schema_for!(TokenInfo), &out_dir);
 }
