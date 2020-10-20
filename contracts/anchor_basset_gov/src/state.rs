@@ -180,9 +180,9 @@ pub fn store_delegation_map<S: Storage>(
     validator_address: HumanAddr,
     amount: Uint128,
 ) -> StdResult<()> {
-    let vec = validator_address.0.as_bytes();
+    let vec = to_vec(&validator_address)?;
     let value = amount.0.to_be_bytes().to_vec();
-    PrefixedStorage::new(PREFIX_DELEGATION_MAP, storage).set(vec, &value);
+    PrefixedStorage::new(PREFIX_DELEGATION_MAP, storage).set(&vec, &value);
     Ok(())
 }
 
@@ -220,9 +220,9 @@ pub fn store_holder_map<S: Storage>(
     holder_address: HumanAddr,
     index: Decimal,
 ) -> StdResult<()> {
-    let vec = holder_address.0.as_bytes();
+    let vec = to_vec(&holder_address)?;
     let value: Vec<u8> = to_vec(&index)?;
-    PrefixedStorage::new(PREFIX_HOLDER_MAP, storage).set(vec, &value);
+    PrefixedStorage::new(PREFIX_HOLDER_MAP, storage).set(&vec, &value);
     Ok(())
 }
 
@@ -243,7 +243,7 @@ pub fn read_holders<'a, S: Storage>(storage: &'a S) -> StdResult<HashMap<HumanAd
         .range(None, None, Order::Ascending)
         .map(|item| {
             let (key, value) = item;
-            let sender: HumanAddr = from_slice(&key).unwrap();
+            let sender = from_slice(&key).unwrap();
             let index: Decimal = from_slice(&value).unwrap();
             holders.insert(sender, index);
         })
