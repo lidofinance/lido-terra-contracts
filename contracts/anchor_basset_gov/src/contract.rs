@@ -14,6 +14,7 @@ use crate::state::{
 };
 use anchor_basset_reward::hook::InitHook;
 use anchor_basset_reward::init::RewardInitMsg;
+use anchor_basset_reward::msg::HandleMsg::SendReward;
 use rand::Rng;
 use std::borrow::{Borrow, BorrowMut};
 use std::collections::HashMap;
@@ -211,12 +212,17 @@ pub fn handle_reward<S: Storage, A: Api, Q: Querier>(
         reward = calculate_reward(general_index, sender_reward_index, user_balance).unwrap();
     }
 
-    //TODO: reward should be swap. (MessageSwp send)
-    //TODO: reward should be handled in a different balance.
-    //TODO: Send the bankmsg to transfer the reward to the sender
-    balances(&mut deps.storage).update(rcpt_raw.as_slice(), |balance: Option<Uint128>| {
-        Ok(balance.unwrap_or_default() + reward)
-    })?;
+    //send SendReward message to the reward contract
+    let msg = SendReward {
+        receiver: sender.clone(),
+        amount: reward,
+    };
+
+    WasmMsg::Execute {
+        contract_addr: deps.api.human_address(&pool.reward_account)?,
+        msg: to_binary(&msg).unwrap(),
+        send: vec![],
+    };
 
     let res = HandleResponse {
         messages: vec![],
