@@ -8,9 +8,10 @@ use crate::msg::{HandleMsg, InitMsg};
 use crate::state::{
     balances, balances_read, claim_read, claim_store, epoc_read, pool_info, pool_info_read,
     read_all_epocs, read_delegation_map, read_holder_map, read_holders, read_total_amount,
-    read_undelegated_wait_list_for_epoc, read_validators, save_all_epoc, save_epoc,
-    store_delegation_map, store_holder_map, store_total_amount, store_undelegated_wait_list,
-    token_info, token_info_read, EpocId, PoolInfo, TokenInfo, EPOC, UNDELEGATED_PERIOD,
+    read_undelegated_wait_list, read_undelegated_wait_list_for_epoc, read_validators,
+    save_all_epoc, save_epoc, store_delegation_map, store_holder_map, store_total_amount,
+    store_undelegated_wait_list, token_info, token_info_read, EpocId, PoolInfo, TokenInfo, EPOC,
+    UNDELEGATED_PERIOD,
 };
 use anchor_basset_reward::hook::InitHook;
 use anchor_basset_reward::init::RewardInitMsg;
@@ -141,7 +142,15 @@ pub fn handle_mint<S: Storage, A: Api, Q: Querier>(
     token_info(&mut deps.storage).save(&token)?;
 
     // save the validator storage
-    store_delegation_map(&mut deps.storage, validator.clone(), amount)?;
+    // check whether the validator has previous record on the delegation map
+    let mut vld_amount: Uint128 = if read_delegation_map(&deps.storage, validator.clone()).is_err()
+    {
+        Uint128::zero()
+    } else {
+        read_delegation_map(&deps.storage, validator.clone())?
+    };
+    vld_amount += amount;
+    store_delegation_map(&mut deps.storage, validator.clone(), vld_amount)?;
 
     //save the holder map
     store_holder_map(&mut deps.storage, sender.clone(), reward_index)?;
@@ -400,6 +409,7 @@ pub fn handle_burn<S: Storage, A: Api, Q: Querier>(
         Ok(pool_inf)
     })?;
 
+    //TODO:amount alone
     // lower balance
     balances(&mut deps.storage).update(sender_raw.as_slice(), |balance: Option<Uint128>| {
         balance.unwrap_or_default() - amount * exchange_rate
@@ -422,11 +432,23 @@ pub fn handle_burn<S: Storage, A: Api, Q: Querier>(
     } else {
         claimed_so_far = claimed_so_far.add(amount);
         //store the human_address under undelegated_wait_list.
+        //check whether there is any prev requests form the same user.
+        let mut user_amount =
+            if read_undelegated_wait_list(&deps.storage, epoc.epoc_id, sender_human.clone())
+                .is_err()
+            {
+                Uint128::zero()
+            } else {
+                read_undelegated_wait_list(&deps.storage, epoc.epoc_id, sender_human.clone())?
+            };
+
+        user_amount += amount;
+
         store_undelegated_wait_list(
             &mut deps.storage,
             epoc.epoc_id,
             sender_human.clone(),
-            amount,
+            user_amount,
         )?;
         //store the claimed_so_far for the current epoc;
         store_total_amount(&mut deps.storage, epoc.epoc_id, claimed_so_far)?;
@@ -468,7 +490,7 @@ pub fn handle_undelegate<S: Storage, A: Api, Q: Querier>(
     //send undelegate message
     let msgs: Vec<StakingMsg> = vec![StakingMsg::Undelegate {
         validator,
-        amount: coin(amount.u128(), &token_inf.name),
+        amount: coin(amount_with_exchange_rate.u128(), &token_inf.name),
     }
     .into()];
 
@@ -587,6 +609,8 @@ pub fn pick_validator<S: Storage, A: Api, Q: Querier>(
     claim: Uint128,
 ) -> HumanAddr {
     let mut rng = rand::thread_rng();
+    //FIXME: consider when the validator does not have the amount.
+    // we need to split the request to a Vec<validators>.
     loop {
         let random = rng.gen_range(0, validators.len() - 1);
         let validator: HumanAddr = HumanAddr::from(validators.get(random).unwrap());
