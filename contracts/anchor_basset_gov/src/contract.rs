@@ -6,7 +6,7 @@ use cosmwasm_std::{
 use crate::msg::{HandleMsg, InitMsg};
 use crate::state::{
     balances, balances_read, claim_read, claim_store, epoc_read, pool_info, pool_info_read,
-    read_all_epocs, read_delegation_map, read_holder_map, read_holders, read_total_amount,
+    read_all_epocs, read_delegation_map, read_holders, read_total_amount,
     read_undelegated_wait_list_for_epoc, read_validators, save_all_epoc, save_epoc,
     store_delegation_map, store_holder_map, store_total_amount, store_undelegated_wait_list,
     token_info, token_info_read, EpocId, PoolInfo, TokenInfo, EPOC, UNDELEGATED_PERIOD,
@@ -16,10 +16,8 @@ use anchor_basset_reward::init::RewardInitMsg;
 use rand::Rng;
 use std::borrow::{Borrow, BorrowMut};
 use std::collections::HashMap;
-use std::env::current_exe;
 use std::ops::Add;
 
-const FIRST_EPOC: u64 = 1;
 const EPOC_PER_UNDELEGATION_PERIOD: u64 = UNDELEGATED_PERIOD / 86400;
 // For updating GlobalIndex, since it is a costly message, we send a withdraw message every day.
 //DAY is supposed to help us to check whether a day is passed from the last update GlobalIndex or not.
@@ -45,6 +43,13 @@ pub fn init<S: Storage, A: Api, Q: Querier>(
 
     let pool = PoolInfo::default();
     pool_info(&mut deps.storage).save(&pool)?;
+
+    //store the first epoc.
+    let first_epoc = EpocId {
+        epoc_id: 0,
+        current_block_time: env.block.time,
+    };
+    save_epoc(&mut deps.storage).save(&first_epoc)?;
 
     //Instantiate the other contract to help us to manage the global index calculation.
     let reward_message = to_binary(&HandleMsg::Register {})?;
@@ -181,7 +186,7 @@ pub fn handle_reward<S: Storage, A: Api, Q: Querier>(
     let user_balance = balances_read(&deps.storage).load(rcpt_raw.as_slice())?;
 
     //update the holder index
-    store_holder_map(&mut deps.storage, sender.clone(), pool.reward_index);
+    store_holder_map(&mut deps.storage, sender.clone(), pool.reward_index)?;
 
     //Retrive all validators
     let validators: Vec<HumanAddr> = read_validators(&deps.storage)?;
@@ -318,10 +323,9 @@ pub fn handle_burn<S: Storage, A: Api, Q: Querier>(
     let sender_raw = deps.api.canonical_address(&env.message.sender)?;
 
     let mut epoc = epoc_read(&deps.storage).load()?;
-    let accounts = balances_read(&deps.storage).load(&sender_raw.as_slice())?;
 
     // get all amount that is gathered in a epoc.
-    let claimed_so_far = read_total_amount(deps.storage.borrow(), epoc.epoc_id)?;
+    let mut claimed_so_far = read_total_amount(deps.storage.borrow(), epoc.epoc_id)?;
 
     //claim the reward.
     let msg = HandleMsg::ClaimRewards {};
@@ -368,9 +372,9 @@ pub fn handle_burn<S: Storage, A: Api, Q: Querier>(
 
         // send undelegate request
         handle_undelegate(deps, env, claimed_so_far, exchange_rate);
-        save_epoc(&mut deps.storage).save(&epoc);
+        save_epoc(&mut deps.storage).save(&epoc)?;
     } else {
-        claimed_so_far.add(amount);
+        claimed_so_far = claimed_so_far.add(amount);
         //store the human_address under undelegated_wait_list.
         store_undelegated_wait_list(
             &mut deps.storage,
@@ -413,7 +417,7 @@ pub fn handle_undelegate<S: Storage, A: Api, Q: Querier>(
     let new_amount = amount.0 - amount_with_exchange_rate.0;
 
     //update the new delegation for the validator
-    store_delegation_map(&mut deps.storage, validator.clone(), Uint128(new_amount));
+    store_delegation_map(&mut deps.storage, validator.clone(), Uint128(new_amount)).unwrap();
 
     //send undelegate message
     let msgs: Vec<StakingMsg> = vec![StakingMsg::Undelegate {
@@ -438,7 +442,7 @@ pub fn handle_finish<S: Storage, A: Api, Q: Querier>(
     let contract_address = env.contract.address.clone();
 
     //check the liquidation period.
-    let mut epoc = epoc_read(&deps.storage).load()?;
+    let epoc = epoc_read(&deps.storage).load()?;
     let block_time = env.block.time;
 
     // get current epoc id.
