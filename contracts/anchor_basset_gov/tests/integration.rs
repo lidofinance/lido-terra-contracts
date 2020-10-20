@@ -17,10 +17,7 @@
 //!      });
 //! 4. Anywhere you see query(&deps, ...) you must replace it with query(&mut deps, ...)
 
-use cosmwasm_std::{
-    coin, from_binary, Coin, CosmosMsg, Decimal, HandleResponse, HandleResult, HumanAddr,
-    InitResponse, StakingMsg, StdError, Uint128, Validator,
-};
+use cosmwasm_std::{coin, CosmosMsg, Decimal, HumanAddr, InitResponse, StakingMsg, Uint128, Validator};
 
 use cosmwasm_std::testing::{mock_dependencies, mock_env, MockQuerier};
 
@@ -28,7 +25,6 @@ use anchor_bluna::msg::{HandleMsg, InitMsg};
 
 use anchor_bluna::contract::{handle, init};
 
-const DEFAULT_GAS_LIMIT: u64 = 500_000;
 const DEFAULT_VALIDATOR: &str = "default-validator";
 
 fn sample_validator<U: Into<HumanAddr>>(addr: U) -> Validator {
@@ -97,8 +93,47 @@ fn proper_mint() {
     match delegate {
         CosmosMsg::Staking(StakingMsg::Delegate { validator, amount }) => {
             assert_eq!(validator.as_str(), DEFAULT_VALIDATOR);
-            assert_eq!(amount, &coin(1000, "uluna"));
+            assert_eq!(amount, &coin(10, "uluna"));
         }
         _ => panic!("Unexpected message: {:?}", delegate),
     }
+}
+
+#[test]
+pub fn proper_claim_reward() {
+    let mut deps = mock_dependencies(20, &[]);
+    let validator = sample_validator(DEFAULT_VALIDATOR);
+    set_validator(&mut deps.querier);
+
+    let creator = HumanAddr::from("creator");
+    let other_contract = HumanAddr::from("other_contract");
+    let init_msg = default_init();
+    let env = mock_env(&creator, &[]);
+
+    let res = init(&mut deps, env, init_msg).unwrap();
+    assert_eq!(1, res.messages.len());
+
+    let register_msg = HandleMsg::Register{};
+    let register_env = mock_env(&other_contract, &[]);
+    let exec = handle(&mut deps, register_env, register_msg).unwrap();
+    assert_eq!(0, exec.messages.len());
+
+    let bob = HumanAddr::from("bob");
+
+    let mint_msg = HandleMsg::Mint {
+        validator: validator.address,
+        amount: Uint128(5),
+    };
+
+    let env = mock_env(&bob, &[coin(10, "uluna")]);
+
+    let res = handle(&mut deps, env, mint_msg).unwrap();
+    assert_eq!(1, res.messages.len());
+
+    let reward_msg = HandleMsg::ClaimRewards { to: None };
+
+    let env = mock_env(&bob, &[coin(10, "uluna")]);
+    let res = handle(&mut deps, env, reward_msg).unwrap();
+    assert_eq!(0, res.messages.len());
+
 }
