@@ -2,10 +2,13 @@ use crate::init::RewardInitMsg;
 use crate::msg::HandleMsg;
 use crate::state::{config, config_read, Config};
 use cosmwasm_std::{
-    coins, log, Api, BankMsg, Env, Extern, HandleResponse, HumanAddr, InitResponse, Querier,
-    StdError, StdResult, Storage, Uint128,
+    coins, log, Api, BankMsg, CosmosMsg, Env, Extern, HandleResponse, HumanAddr, InitResponse,
+    Querier, StdError, StdResult, Storage, Uint128,
 };
 
+use terra_cosmwasm::{create_swap_msg, TerraMsgWrapper};
+
+const SWAP_DENOM: &str = "uusd";
 pub fn init<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
     _env: Env,
@@ -21,9 +24,10 @@ pub fn handle<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
     env: Env,
     msg: HandleMsg,
-) -> StdResult<HandleResponse> {
+) -> StdResult<HandleResponse<TerraMsgWrapper>> {
     match msg {
         HandleMsg::SendReward { receiver, amount } => handle_send(deps, env, receiver, amount),
+        HandleMsg::Swap {} => handle_swap(deps, env),
     }
 }
 
@@ -32,14 +36,14 @@ pub fn handle_send<S: Storage, A: Api, Q: Querier>(
     env: Env,
     receiver: HumanAddr,
     amount: Uint128,
-) -> StdResult<HandleResponse> {
+) -> StdResult<HandleResponse<TerraMsgWrapper>> {
     //check whether the gov contract has sent this
     let conf = config_read(&deps.storage).load()?;
     let sender_raw = deps.api.canonical_address(&env.message.sender)?;
     if conf.owner != sender_raw {
         return Err(StdError::generic_err("unauthorized"));
     }
-    //TODO: use swap message
+
     let contr_addr = env.contract.address;
     let msgs = vec![BankMsg::Send {
         from_address: contr_addr.clone(),
@@ -55,6 +59,30 @@ pub fn handle_send<S: Storage, A: Api, Q: Querier>(
             log("from", contr_addr),
             log("amount", amount),
         ],
+        data: None,
+    };
+    Ok(res)
+}
+
+pub fn handle_swap<S: Storage, A: Api, Q: Querier>(
+    deps: &mut Extern<S, A, Q>,
+    env: Env,
+) -> StdResult<HandleResponse<TerraMsgWrapper>> {
+    let contr_addr = env.contract.address.clone();
+    let balance = deps.querier.query_all_balances(env.contract.address)?;
+    let mut msgs: Vec<CosmosMsg<TerraMsgWrapper>> = Vec::new();
+
+    for coin in balance {
+        msgs.push(create_swap_msg(
+            contr_addr.clone(),
+            coin,
+            SWAP_DENOM.to_string(),
+        ));
+    }
+
+    let res = HandleResponse {
+        messages: msgs,
+        log: vec![log("action", "swap"), log("from", contr_addr)],
         data: None,
     };
     Ok(res)

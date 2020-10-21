@@ -15,7 +15,7 @@ use crate::state::{
 };
 use anchor_basset_reward::hook::InitHook;
 use anchor_basset_reward::init::RewardInitMsg;
-use anchor_basset_reward::msg::HandleMsg::SendReward;
+use anchor_basset_reward::msg::HandleMsg::{SendReward, Swap};
 use rand::Rng;
 use std::borrow::{Borrow, BorrowMut};
 use std::collections::HashMap;
@@ -222,6 +222,8 @@ pub fn handle_reward<S: Storage, A: Api, Q: Querier>(
     //Withdraw all rewards from all validators.
     let reward;
     if withdraw_all_rewards(validators, pool.clone(), env.block.time, reward_addr) {
+        //swap all the balance of the reward contract to uusd.
+        send_swap(contract_addr.clone());
         update_index(deps, contract_addr);
         let general_index = pool.reward_index;
         reward = calculate_reward(general_index, sender_reward_index, user_balance).unwrap();
@@ -668,4 +670,14 @@ pub fn compute_receiver_index(
     let nom = burn_amount * sndr_indx + rcp_bal * rcp_indx;
     let denom = burn_amount + rcp_bal;
     Decimal::from_ratio(nom, denom)
+}
+
+pub fn send_swap(contract_addr: HumanAddr) {
+    //send Swap message to the reward contract
+    let msg = Swap {};
+    WasmMsg::Execute {
+        contract_addr,
+        msg: to_binary(&msg).unwrap(),
+        send: vec![],
+    };
 }

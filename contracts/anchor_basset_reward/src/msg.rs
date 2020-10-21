@@ -10,4 +10,6 @@ pub enum HandleMsg {
         receiver: HumanAddr,
         amount: Uint128,
     },
+    //Swap all of the balances to uusd.
+    Swap {},
 }
