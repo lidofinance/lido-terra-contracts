@@ -228,3 +228,48 @@ pub fn proper_init_burn() {
     let res = handle(&mut deps, env, init_burn).unwrap();
     assert_eq!(0, res.messages.len());
 }
+
+#[test]
+pub fn proper_finish() {
+    let mut deps = mock_dependencies(20, &[]);
+    let validator = sample_validator(DEFAULT_VALIDATOR);
+    set_validator(&mut deps.querier);
+
+    let creator = HumanAddr::from("creator");
+    let other_contract = HumanAddr::from("other_contract");
+    let init_msg = default_init();
+    let env = mock_env(&creator, &[]);
+
+    let res = init(&mut deps, env, init_msg).unwrap();
+    assert_eq!(1, res.messages.len());
+
+    let register_msg = HandleMsg::Register {};
+    let register_env = mock_env(&other_contract, &[]);
+    let exec = handle(&mut deps, register_env, register_msg).unwrap();
+    assert_eq!(0, exec.messages.len());
+
+    let bob = HumanAddr::from("bob");
+
+    let mint_msg = HandleMsg::Mint {
+        validator: validator.address,
+        amount: Uint128(5),
+    };
+
+    let env = mock_env(&bob, &[coin(10, "uluna")]);
+
+    let res = handle(&mut deps, env, mint_msg).unwrap();
+    assert_eq!(1, res.messages.len());
+
+    let init_burn = HandleMsg::InitBurn { amount: Uint128(1) };
+
+    let env = mock_env(&bob, &[coin(10, "uluna")]);
+    let res = handle(&mut deps, env, init_burn).unwrap();
+    assert_eq!(0, res.messages.len());
+
+    let finish_msg = HandleMsg::FinishBurn { amount: Uint128(1) };
+
+    let env = mock_env(&bob, &[coin(10, "uluna")]);
+    let finish_res = handle(&mut deps, env, finish_msg).is_err();
+
+    assert_eq!(true, finish_res);
+}
