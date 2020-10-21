@@ -13,8 +13,6 @@ use std::collections::HashMap;
 
 // EPOC = 21600s is equal to 6 hours
 pub const EPOC: u64 = 21600;
-//UNDELEGATED_PERIOD is equal to 21 days.
-pub const UNDELEGATED_PERIOD: u64 = 1814400;
 
 pub static TOKEN_INFO_KEY: &[u8] = b"token_info";
 pub static POOL_INFO: &[u8] = b"pool_info";
