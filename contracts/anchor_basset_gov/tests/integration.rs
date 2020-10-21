@@ -17,7 +17,9 @@
 //!      });
 //! 4. Anywhere you see query(&deps, ...) you must replace it with query(&mut deps, ...)
 
-use cosmwasm_std::{coin, CosmosMsg, Decimal, HumanAddr, InitResponse, StakingMsg, Uint128, Validator};
+use cosmwasm_std::{
+    coin, CosmosMsg, Decimal, HumanAddr, InitResponse, StakingMsg, Uint128, Validator,
+};
 
 use cosmwasm_std::testing::{mock_dependencies, mock_env, MockQuerier};
 
@@ -113,7 +115,7 @@ pub fn proper_claim_reward() {
     let res = init(&mut deps, env, init_msg).unwrap();
     assert_eq!(1, res.messages.len());
 
-    let register_msg = HandleMsg::Register{};
+    let register_msg = HandleMsg::Register {};
     let register_env = mock_env(&other_contract, &[]);
     let exec = handle(&mut deps, register_env, register_msg).unwrap();
     assert_eq!(0, exec.messages.len());
@@ -135,5 +137,57 @@ pub fn proper_claim_reward() {
     let env = mock_env(&bob, &[coin(10, "uluna")]);
     let res = handle(&mut deps, env, reward_msg).unwrap();
     assert_eq!(0, res.messages.len());
-
 }
+
+#[test]
+pub fn proper_send() {
+    let mut deps = mock_dependencies(20, &[]);
+    let validator = sample_validator(DEFAULT_VALIDATOR);
+    set_validator(&mut deps.querier);
+
+    let creator = HumanAddr::from("creator");
+    let other_contract = HumanAddr::from("other_contract");
+    let init_msg = default_init();
+    let env = mock_env(&creator, &[]);
+
+    let res = init(&mut deps, env, init_msg).unwrap();
+    assert_eq!(1, res.messages.len());
+
+    let register_msg = HandleMsg::Register {};
+    let register_env = mock_env(&other_contract, &[]);
+    let exec = handle(&mut deps, register_env, register_msg).unwrap();
+    assert_eq!(0, exec.messages.len());
+
+    let bob = HumanAddr::from("bob");
+
+    let mint_msg = HandleMsg::Mint {
+        validator: validator.address.clone(),
+        amount: Uint128(5),
+    };
+
+    let env = mock_env(&bob, &[coin(10, "uluna")]);
+
+    let res = handle(&mut deps, env, mint_msg).unwrap();
+    assert_eq!(1, res.messages.len());
+
+    let alice = HumanAddr::from("alice");
+
+    let alice_mint_msg = HandleMsg::Mint {
+        validator: validator.address,
+        amount: Uint128(5),
+    };
+
+    let alice_env = mock_env(&alice, &[coin(100, "uluna")]);
+    let res = handle(&mut deps, alice_env.clone(), alice_mint_msg).unwrap();
+    assert_eq!(1, res.messages.len());
+
+    let send_msg = HandleMsg::Send {
+        recipient: bob,
+        amount: Uint128(1),
+    };
+    let alice_env = mock_env(&alice, &[coin(100, "uluna")]);
+    let send_res = handle(&mut deps, alice_env, send_msg).unwrap();
+
+    assert_eq!(0, send_res.messages.len())
+}
+
