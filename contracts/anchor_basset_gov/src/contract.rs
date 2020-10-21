@@ -11,7 +11,7 @@ use crate::state::{
     read_undelegated_wait_list, read_undelegated_wait_list_for_epoc, read_validators,
     save_all_epoc, save_epoc, store_delegation_map, store_holder_map, store_total_amount,
     store_undelegated_wait_list, token_info, token_info_read, AllEpoc, EpocId, PoolInfo, TokenInfo,
-    EPOC, UNDELEGATED_PERIOD,
+    EPOC,
 };
 use anchor_basset_reward::hook::InitHook;
 use anchor_basset_reward::init::RewardInitMsg;
@@ -21,7 +21,7 @@ use std::borrow::{Borrow, BorrowMut};
 use std::collections::HashMap;
 use std::ops::Add;
 
-const EPOC_PER_UNDELEGATION_PERIOD: u64 = UNDELEGATED_PERIOD / 86400;
+const EPOC_PER_UNDELEGATION_PERIOD: u64 = 84;
 // For updating GlobalIndex, since it is a costly message, we send a withdraw message every day.
 //DAY is supposed to help us to check whether a day is passed from the last update GlobalIndex or not.
 const DAY: u64 = 86400;
@@ -381,9 +381,8 @@ pub fn handle_burn<S: Storage, A: Api, Q: Querier>(
 
     let sender_human = env.message.sender.clone();
     let sender_raw = deps.api.canonical_address(&env.message.sender)?;
-
+    //TODO: check whether the user has the amount in its balance.
     let mut epoc = epoc_read(&deps.storage).load()?;
-
     // get all amount that is gathered in a epoc.
     let mut claimed_so_far = read_total_amount(deps.storage.borrow(), epoc.epoc_id)?;
 
@@ -453,7 +452,6 @@ pub fn handle_burn<S: Storage, A: Api, Q: Querier>(
             } else {
                 read_undelegated_wait_list(&deps.storage, epoc.epoc_id, sender_human.clone())?
             };
-
         user_amount += amount;
 
         store_undelegated_wait_list(
@@ -518,6 +516,10 @@ pub fn handle_finish<S: Storage, A: Api, Q: Querier>(
     env: Env,
     amount: Uint128,
 ) -> StdResult<HandleResponse> {
+    if amount == Uint128::zero() {
+        return Err(StdError::generic_err("Invalid zero amount"));
+    }
+
     let sender_human = env.message.sender.clone();
     let contract_address = env.contract.address.clone();
 
@@ -529,12 +531,6 @@ pub fn handle_finish<S: Storage, A: Api, Q: Querier>(
     let current_epoc_id = compute_epoc(epoc.epoc_id, epoc.current_block_time, block_time);
 
     let rcpt_raw = deps.api.canonical_address(&env.message.sender.clone())?;
-    let claim_balance = claim_read(&deps.storage).load(rcpt_raw.as_slice())?;
-
-    //The user's request might have processed before. Therefore, we need to check its claim balance.
-    if amount <= claim_balance {
-        return handle_send_undelegation(amount, sender_human, contract_address);
-    }
 
     // Compute all of burn requests with epoc Id corresponding to 21 (can be changed to arbitrary value) days ago
     let epoc_id = get_before_undelegation_epoc(current_epoc_id);
@@ -543,6 +539,7 @@ pub fn handle_finish<S: Storage, A: Api, Q: Querier>(
 
     for e in all_epocs.epoces {
         if e.epoc_id < epoc_id {
+            println!("I am here");
             let list = read_undelegated_wait_list_for_epoc(&deps.storage, epoc_id)?;
             for (address, undelegated_amount) in list {
                 let raw_address = deps.api.canonical_address(&address)?;
@@ -564,10 +561,25 @@ pub fn handle_finish<S: Storage, A: Api, Q: Querier>(
         }
     }
 
-    return handle_send_undelegation(amount, sender_human, contract_address);
+    if claim_read(&deps.storage).load(rcpt_raw.as_slice()).is_err() {
+        return Err(StdError::generic_err(
+            "The request has been send before undelegation period",
+        ));
+    } else {
+        let claim_balance = claim_read(&deps.storage).load(rcpt_raw.as_slice())?;
+
+        //The user's request might have processed before. Therefore, we need to check its claim balance.
+        if amount <= claim_balance {
+            return handle_send_undelegation(amount, sender_human, contract_address);
+        }
+        return Err(StdError::generic_err("The amount is not valid"));
+    }
 }
 
 pub fn get_before_undelegation_epoc(current_epoc: u64) -> u64 {
+    if current_epoc < EPOC_PER_UNDELEGATION_PERIOD {
+        return 0;
+    }
     current_epoc - EPOC_PER_UNDELEGATION_PERIOD
 }
 
@@ -603,7 +615,6 @@ pub fn handle_register<S: Storage, A: Api, Q: Querier>(
     let mut pool = pool_info_read(&deps.storage).load()?;
     let raw_sender = deps.api.canonical_address(&env.message.sender)?;
     pool.reward_account = raw_sender.clone();
-
     pool_info(&mut deps.storage).save(&pool)?;
 
     let res = HandleResponse {
