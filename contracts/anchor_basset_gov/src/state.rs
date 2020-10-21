@@ -190,8 +190,8 @@ pub fn read_delegation_map<S: Storage>(
     storage: &S,
     validator_address: HumanAddr,
 ) -> StdResult<Uint128> {
-    let vec = validator_address.0.as_bytes();
-    let res = ReadonlyPrefixedStorage::new(PREFIX_DELEGATION_MAP, storage).get(vec);
+    let vec = to_vec(&validator_address)?;
+    let res = ReadonlyPrefixedStorage::new(PREFIX_DELEGATION_MAP, storage).get(&vec);
     match res {
         Some(data) => from_slice(&data),
         None => Err(StdError::generic_err("no validator is found")),
@@ -227,11 +227,11 @@ pub fn store_holder_map<S: Storage>(
 }
 
 pub fn read_holder_map<S: Storage>(storage: &S, holder_address: HumanAddr) -> StdResult<Decimal> {
-    let vec = holder_address.0.as_bytes();
-    let res = ReadonlyPrefixedStorage::new(PREFIX_HOLDER_MAP, storage).get(vec);
+    let vec = to_vec(&holder_address)?;
+    let res = ReadonlyPrefixedStorage::new(PREFIX_HOLDER_MAP, storage).get(&vec);
     match res {
         Some(data) => from_slice(&data),
-        None => Err(StdError::generic_err("no validator is found")),
+        None => Err(StdError::generic_err("no holder is found")),
     }
 }
 
