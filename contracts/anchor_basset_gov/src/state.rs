@@ -233,7 +233,7 @@ pub fn read_holder_map<S: Storage>(storage: &S, holder_address: HumanAddr) -> St
 }
 
 // Returns a HashMap of holders. <holders, reward_index>
-pub fn read_holders<'a, S: Storage>(storage: &'a S) -> StdResult<HashMap<HumanAddr, Decimal>> {
+pub fn read_holders<S: Storage>(storage: &S) -> StdResult<HashMap<HumanAddr, Decimal>> {
     let mut holders: HashMap<HumanAddr, Decimal> = HashMap::new();
     let res = ReadonlyPrefixedStorage::new(PREFIX_HOLDER_MAP, storage);
     let _un: Vec<_> = res

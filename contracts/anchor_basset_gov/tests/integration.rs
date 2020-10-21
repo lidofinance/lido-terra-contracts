@@ -178,7 +178,7 @@ pub fn proper_send() {
     };
 
     let alice_env = mock_env(&alice, &[coin(100, "uluna")]);
-    let res = handle(&mut deps, alice_env.clone(), alice_mint_msg).unwrap();
+    let res = handle(&mut deps, alice_env, alice_mint_msg).unwrap();
     assert_eq!(1, res.messages.len());
 
     let send_msg = HandleMsg::Send {
