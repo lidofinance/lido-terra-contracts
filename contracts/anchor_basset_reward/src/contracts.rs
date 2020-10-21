@@ -1,8 +1,21 @@
+use crate::init::RewardInitMsg;
 use crate::msg::HandleMsg;
+use crate::state::{config, config_read, Config};
 use cosmwasm_std::{
-    coins, log, Api, BankMsg, Env, Extern, HandleResponse, HumanAddr, Querier, StdResult, Storage,
-    Uint128,
+    coins, log, Api, BankMsg, Env, Extern, HandleResponse, HumanAddr, InitResponse, Querier,
+    StdError, StdResult, Storage, Uint128,
 };
+
+pub fn init<S: Storage, A: Api, Q: Querier>(
+    deps: &mut Extern<S, A, Q>,
+    _env: Env,
+    msg: RewardInitMsg,
+) -> StdResult<InitResponse> {
+    let conf = Config { owner: msg.owner };
+    config(&mut deps.storage).save(&conf)?;
+
+    Ok(InitResponse::default())
+}
 
 pub fn handle<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
@@ -15,12 +28,17 @@ pub fn handle<S: Storage, A: Api, Q: Querier>(
 }
 
 pub fn handle_send<S: Storage, A: Api, Q: Querier>(
-    _deps: &mut Extern<S, A, Q>,
+    deps: &mut Extern<S, A, Q>,
     env: Env,
     receiver: HumanAddr,
     amount: Uint128,
 ) -> StdResult<HandleResponse> {
-    //TODO: check whether the gov contract has sent this
+    //check whether the gov contract has sent this
+    let conf = config_read(&deps.storage).load()?;
+    let sender_raw = deps.api.canonical_address(&env.message.sender)?;
+    if conf.owner != sender_raw {
+        return Err(StdError::generic_err("unauthorized"));
+    }
     //TODO: use swap message
     let contr_addr = env.contract.address;
     let msgs = vec![BankMsg::Send {
