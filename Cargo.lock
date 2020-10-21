@@ -24,6 +24,7 @@ dependencies = [
  "cosmwasm-storage",
  "schemars",
  "serde",
+ "terra-cosmwasm",
  "thiserror",
 ]
 
@@ -996,6 +997,17 @@ name = "target-lexicon"
 version = "0.10.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ab0e7238dcc7b40a7be719a25365910f6807bd864f4cce6b2e6b873658e2b19d"
+
+[[package]]
+name = "terra-cosmwasm"
+version = "1.2.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e414791554fbc27ef2c50301e84b7b542778cb82ef5a93cfb486ea3ac27065ac"
+dependencies = [
+ "cosmwasm-std",
+ "schemars",
+ "serde",
+]
 
 [[package]]
 name = "thiserror"
