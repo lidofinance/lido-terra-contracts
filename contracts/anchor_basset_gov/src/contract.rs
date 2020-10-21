@@ -172,7 +172,7 @@ pub fn handle_mint<S: Storage, A: Api, Q: Querier>(
         .into()],
         log: vec![
             log("action", "mint"),
-            log("from", sender.clone()),
+            log("from", sender),
             log("bonded", payment.amount),
             log("minted", added_amount),
         ],
@@ -200,7 +200,7 @@ pub fn handle_reward<S: Storage, A: Api, Q: Querier>(
     //Get all holders
     let all_holder: HashMap<HumanAddr, Decimal> = read_holders(&deps.storage)?;
 
-    if !all_holder.contains_key(&sender.clone()) {
+    if !all_holder.contains_key(&sender) {
         return Err(StdError::generic_err(
             "The sender has not requested any tokens",
         ));
@@ -222,7 +222,7 @@ pub fn handle_reward<S: Storage, A: Api, Q: Querier>(
     //Withdraw all rewards from all validators.
     let reward;
     if withdraw_all_rewards(validators, pool.clone(), env.block.time, reward_addr) {
-        update_index(deps, contract_addr.clone());
+        update_index(deps, contract_addr);
         let general_index = pool.reward_index;
         reward = calculate_reward(general_index, sender_reward_index, user_balance).unwrap();
     } else {
@@ -293,8 +293,8 @@ pub fn update_index<S: Storage, A: Api, Q: Querier>(
         .querier
         .query_balance(reward_addr, &token_info.name)
         .unwrap();
-    let prev_reward_index = pool.reward_index.clone();
-    let total_bonded = pool.total_bond_amount.clone();
+    let prev_reward_index = pool.reward_index;
+    let total_bonded = pool.total_bond_amount;
     pool.reward_index =
         prev_reward_index + Decimal::from_ratio(balance.amount.u128(), total_bonded.u128());
 
@@ -363,7 +363,7 @@ pub fn handle_send<S: Storage, A: Api, Q: Querier>(
 
     //update the index of receiver and the sender
     store_holder_map(&mut deps.storage, sender.clone(), global_index)?;
-    store_holder_map(&mut deps.storage, sender.clone(), rcp_cur_index)?;
+    store_holder_map(&mut deps.storage, sender, rcp_cur_index)?;
 
     let res = HandleResponse {
         messages: vec![],
@@ -443,7 +443,7 @@ pub fn handle_burn<S: Storage, A: Api, Q: Querier>(
     })?;
 
     //compute Epoc time
-    let block_time = env.block.time.clone();
+    let block_time = env.block.time;
     if epoc.is_epoc_passed(block_time) {
         epoc.epoc_id += (block_time - epoc.current_block_time) / EPOC;
         epoc.current_block_time = block_time;
@@ -470,12 +470,7 @@ pub fn handle_burn<S: Storage, A: Api, Q: Querier>(
             };
         user_amount += amount;
 
-        store_undelegated_wait_list(
-            &mut deps.storage,
-            epoc.epoc_id,
-            sender_human.clone(),
-            user_amount,
-        )?;
+        store_undelegated_wait_list(&mut deps.storage, epoc.epoc_id, sender_human, user_amount)?;
         //store the claimed_so_far for the current epoc;
         store_total_amount(&mut deps.storage, epoc.epoc_id, claimed_so_far)?;
     }
@@ -517,8 +512,7 @@ pub fn handle_undelegate<S: Storage, A: Api, Q: Querier>(
     let msgs: Vec<StakingMsg> = vec![StakingMsg::Undelegate {
         validator,
         amount: coin(amount_with_exchange_rate.u128(), &token_inf.name),
-    }
-    .into()];
+    }];
 
     WasmMsg::Execute {
         contract_addr: env.contract.address,
@@ -546,7 +540,7 @@ pub fn handle_finish<S: Storage, A: Api, Q: Querier>(
     // get current epoc id.
     let current_epoc_id = compute_epoc(epoc.epoc_id, epoc.current_block_time, block_time);
 
-    let rcpt_raw = deps.api.canonical_address(&env.message.sender.clone())?;
+    let rcpt_raw = deps.api.canonical_address(&env.message.sender)?;
 
     // Compute all of burn requests with epoc Id corresponding to 21 (can be changed to arbitrary value) days ago
     let epoc_id = get_before_undelegation_epoc(current_epoc_id);
@@ -578,9 +572,9 @@ pub fn handle_finish<S: Storage, A: Api, Q: Querier>(
     }
 
     if claim_read(&deps.storage).load(rcpt_raw.as_slice()).is_err() {
-        return Err(StdError::generic_err(
+        Err(StdError::generic_err(
             "The request has been send before undelegation period",
-        ));
+        ))
     } else {
         let claim_balance = claim_read(&deps.storage).load(rcpt_raw.as_slice())?;
 
@@ -588,7 +582,7 @@ pub fn handle_finish<S: Storage, A: Api, Q: Querier>(
         if amount <= claim_balance {
             return handle_send_undelegation(amount, sender_human, contract_address);
         }
-        return Err(StdError::generic_err("The amount is not valid"));
+        Err(StdError::generic_err("The amount is not valid"))
     }
 }
 
@@ -607,7 +601,7 @@ pub fn handle_send_undelegation(
     // Create Send message
     let msgs = vec![BankMsg::Send {
         from_address: contract_address.clone(),
-        to_address: to_address,
+        to_address,
         amount: coins(Uint128::u128(&amount), "uluna"),
     }
     .into()];
