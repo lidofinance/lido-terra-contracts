@@ -333,6 +333,14 @@ pub fn handle_send<S: Storage, A: Api, Q: Querier>(
     let rcpt_raw = deps.api.canonical_address(&recipient)?;
     let sender_raw = deps.api.canonical_address(&env.message.sender)?;
 
+    //check the balance of the sender
+    let sender_balance = balances_read(&deps.storage).load(sender_raw.as_slice())?;
+    if sender_balance < amount {
+        return Err(StdError::generic_err(
+            "The requested amount is more than the user's balance",
+        ));
+    }
+
     let pool_inf = pool_info_read(&deps.storage).load()?;
     let global_index = pool_inf.reward_index;
 
@@ -381,7 +389,15 @@ pub fn handle_burn<S: Storage, A: Api, Q: Querier>(
 
     let sender_human = env.message.sender.clone();
     let sender_raw = deps.api.canonical_address(&env.message.sender)?;
-    //TODO: check whether the user has the amount in its balance.
+
+    //check the balance of the user
+    let sender_balance = balances_read(&deps.storage).load(sender_raw.as_slice())?;
+    if sender_balance < amount {
+        return Err(StdError::generic_err(
+            "The requested amount is more than the user's balance",
+        ));
+    }
+
     let mut epoc = epoc_read(&deps.storage).load()?;
     // get all amount that is gathered in a epoc.
     let mut claimed_so_far = read_total_amount(deps.storage.borrow(), epoc.epoc_id)?;

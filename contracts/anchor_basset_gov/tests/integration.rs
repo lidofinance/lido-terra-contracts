@@ -182,13 +182,23 @@ pub fn proper_send() {
     assert_eq!(1, res.messages.len());
 
     let send_msg = HandleMsg::Send {
-        recipient: bob,
+        recipient: bob.clone(),
         amount: Uint128(1),
     };
     let alice_env = mock_env(&alice, &[coin(100, "uluna")]);
     let send_res = handle(&mut deps, alice_env, send_msg).unwrap();
 
-    assert_eq!(0, send_res.messages.len())
+    assert_eq!(0, send_res.messages.len());
+
+    //send more than balance
+    let error_send_msg = HandleMsg::Send {
+        recipient: bob,
+        amount: Uint128(7),
+    };
+
+    let alice_env = mock_env(&alice, &[coin(100, "uluna")]);
+    let error = handle(&mut deps, alice_env, error_send_msg).is_err();
+    assert_eq!(true, error);
 }
 
 #[test]
@@ -227,6 +237,13 @@ pub fn proper_init_burn() {
     let env = mock_env(&bob, &[coin(10, "uluna")]);
     let res = handle(&mut deps, env, init_burn).unwrap();
     assert_eq!(0, res.messages.len());
+
+    //send more than the user balance
+    let error_burn = HandleMsg::InitBurn { amount: Uint128(7) };
+
+    let env = mock_env(&bob, &[coin(100, "uluna")]);
+    let error = handle(&mut deps, env, error_burn).is_err();
+    assert_eq!(true, error);
 }
 
 #[test]
