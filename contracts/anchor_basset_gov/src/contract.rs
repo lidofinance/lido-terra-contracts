@@ -10,8 +10,8 @@ use crate::state::{
     read_all_epocs, read_delegation_map, read_holder_map, read_holders, read_total_amount,
     read_undelegated_wait_list, read_undelegated_wait_list_for_epoc, read_validators,
     save_all_epoc, save_epoc, store_delegation_map, store_holder_map, store_total_amount,
-    store_undelegated_wait_list, token_info, token_info_read, EpocId, PoolInfo, TokenInfo, EPOC,
-    UNDELEGATED_PERIOD,
+    store_undelegated_wait_list, token_info, token_info_read, AllEpoc, EpocId, PoolInfo, TokenInfo,
+    EPOC, UNDELEGATED_PERIOD,
 };
 use anchor_basset_reward::hook::InitHook;
 use anchor_basset_reward::init::RewardInitMsg;
@@ -53,6 +53,15 @@ pub fn init<S: Storage, A: Api, Q: Querier>(
         current_block_time: env.block.time,
     };
     save_epoc(&mut deps.storage).save(&first_epoc)?;
+
+    //store total amount zero for the first epoc
+    store_total_amount(&mut deps.storage, first_epoc.epoc_id, Uint128::zero())?;
+
+    let all_poc = AllEpoc {
+        epoces: vec![first_epoc],
+    };
+    //store the current epoc on the all epoc storage
+    save_all_epoc(&mut deps.storage).save(&all_poc)?;
 
     //Instantiate the other contract to help us to manage the global index calculation.
     let reward_message = to_binary(&HandleMsg::Register {})?;
@@ -327,15 +336,13 @@ pub fn handle_send<S: Storage, A: Api, Q: Querier>(
     let pool_inf = pool_info_read(&deps.storage).load()?;
     let global_index = pool_inf.reward_index;
 
-    //retrieve balances and index of sender and receiver
-    let sender_balance = balances_read(&deps.storage).load(sender_raw.as_slice())?;
+    //retrieve balances and index of the receiver
     let receive_balance = balances_read(&deps.storage).load(rcpt_raw.as_slice())?;
 
     let sndr_index = read_holder_map(&deps.storage, sender.clone())?;
     let rcp_prv_index = read_holder_map(&deps.storage, recipient.clone())?;
 
-    let rcp_cur_index =
-        compute_receiver_index(sender_balance, receive_balance, sndr_index, rcp_prv_index);
+    let rcp_cur_index = compute_receiver_index(amount, receive_balance, sndr_index, rcp_prv_index);
 
     //change the balance of sender and receiver.
     let mut accounts = balances(deps.storage.borrow_mut());
@@ -404,13 +411,18 @@ pub fn handle_burn<S: Storage, A: Api, Q: Querier>(
     pool_info(&mut deps.storage).update(|mut pool_inf| {
         pool_inf.total_bond_amount = Uint128(pool_inf.total_bond_amount.0 - amount.0);
         pool_inf.total_issued = (pool_inf.total_issued - amount)?;
-        pool_inf.update_exchange_rate();
-        exchange_rate = pool_inf.exchange_rate;
+        exchange_rate = if pool_inf.total_bond_amount == Uint128::zero()
+            || pool_inf.total_bond_amount == Uint128::zero()
+        {
+            Decimal::one()
+        } else {
+            pool_inf.update_exchange_rate();
+            pool_inf.exchange_rate
+        };
+
         Ok(pool_inf)
     })?;
 
-    //TODO:amount alone
-    // lower balance
     balances(&mut deps.storage).update(sender_raw.as_slice(), |balance: Option<Uint128>| {
         balance.unwrap_or_default() - amount * exchange_rate
     })?;
@@ -627,12 +639,12 @@ pub fn compute_epoc(mut epoc_id: u64, prev_time: u64, current_time: u64) -> u64 
 }
 
 pub fn compute_receiver_index(
-    sndr_balance: Uint128,
+    burn_amount: Uint128,
     rcp_bal: Uint128,
     rcp_indx: Decimal,
     sndr_indx: Decimal,
 ) -> Decimal {
-    let nom = sndr_balance * sndr_indx + rcp_bal * rcp_indx;
-    let denom = sndr_balance + rcp_bal;
+    let nom = burn_amount * sndr_indx + rcp_bal * rcp_indx;
+    let denom = burn_amount + rcp_bal;
     Decimal::from_ratio(nom, denom)
 }
