@@ -57,8 +57,7 @@ impl EpocId {
 
     pub fn is_epoc_passed(&self, block_time: u64) -> bool {
         let time = self.current_block_time;
-
-        if (block_time - time) > EPOC {
+        if (block_time - time) < EPOC {
             return false;
         }
         true
