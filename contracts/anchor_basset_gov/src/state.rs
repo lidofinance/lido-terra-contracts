@@ -78,6 +78,9 @@ pub struct PoolInfo {
     pub current_block_time: u64,
     pub all_reward: Uint128,
     pub reward_account: CanonicalAddr,
+    // This helps to control Register message.
+    // Register message should be called once
+    pub is_reward_exist: bool,
 }
 
 //TODO : remove this.
@@ -92,6 +95,7 @@ impl Default for PoolInfo {
             current_block_time: 0,
             all_reward: Default::default(),
             reward_account: Default::default(),
+            is_reward_exist: false,
         }
     }
 }

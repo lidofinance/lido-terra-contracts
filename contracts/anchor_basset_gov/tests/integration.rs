@@ -209,6 +209,8 @@ pub fn proper_init_burn() {
 
     let creator = HumanAddr::from("creator");
     let other_contract = HumanAddr::from("other_contract");
+    let invalid_usrer = HumanAddr::from("invalid");
+
     let init_msg = default_init();
     let env = mock_env(&creator, &[]);
 
@@ -219,6 +221,12 @@ pub fn proper_init_burn() {
     let register_env = mock_env(&other_contract, &[]);
     let exec = handle(&mut deps, register_env, register_msg).unwrap();
     assert_eq!(0, exec.messages.len());
+
+    // Test only one time we Register message can be sent.
+    let error_register_msg = HandleMsg::Register {};
+    let error_register_env = mock_env(&invalid_usrer, &[]);
+    let error = handle(&mut deps, error_register_env, error_register_msg).is_err();
+    assert_eq!(true, error);
 
     let bob = HumanAddr::from("bob");
 
