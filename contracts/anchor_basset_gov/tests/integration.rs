@@ -80,9 +80,16 @@ fn proper_mint() {
     let res = init(&mut deps, env, init_msg).unwrap();
     assert_eq!(1, res.messages.len());
 
+    let env = mock_env(&creator, &[]);
+    let msg = HandleMsg::RegisterValidator {
+        validator: validator.address.clone(),
+    };
+    let res = handle(&mut deps, env, msg).unwrap();
+    assert_eq!(0, res.messages.len());
+
     let bob = HumanAddr::from("bob");
     let mint_msg = HandleMsg::Mint {
-        validator: validator.address,
+        validator: validator.address.clone(),
         amount: Uint128(5),
     };
 
@@ -99,6 +106,27 @@ fn proper_mint() {
         }
         _ => panic!("Unexpected message: {:?}", delegate),
     }
+
+    //test invalid validator
+    let ardi = HumanAddr::from("ardi");
+    let invalid_val = sample_validator("invalid");
+    let mint_msg = HandleMsg::Mint {
+        validator: invalid_val.address,
+        amount: Uint128(5),
+    };
+    let env = mock_env(&ardi, &[coin(10, "uluna"), coin(1000, "uluna")]);
+
+    let res = handle(&mut deps, env, mint_msg).is_err();
+    assert_eq!(true, res);
+
+    //test invalid RegisterValidator sender
+    let wrong_creator = HumanAddr::from("wrong_creator");
+    let env = mock_env(&wrong_creator, &[]);
+    let msg = HandleMsg::RegisterValidator {
+        validator: validator.address,
+    };
+    let res = handle(&mut deps, env, msg).is_err();
+    assert_eq!(true, res);
 }
 
 #[test]
@@ -114,6 +142,13 @@ pub fn proper_claim_reward() {
 
     let res = init(&mut deps, env, init_msg).unwrap();
     assert_eq!(1, res.messages.len());
+
+    let env = mock_env(&creator, &[]);
+    let msg = HandleMsg::RegisterValidator {
+        validator: validator.address.clone(),
+    };
+    let res = handle(&mut deps, env, msg).unwrap();
+    assert_eq!(0, res.messages.len());
 
     let register_msg = HandleMsg::Register {};
     let register_env = mock_env(&other_contract, &[]);
@@ -152,6 +187,13 @@ pub fn proper_send() {
 
     let res = init(&mut deps, env, init_msg).unwrap();
     assert_eq!(1, res.messages.len());
+
+    let env = mock_env(&creator, &[]);
+    let msg = HandleMsg::RegisterValidator {
+        validator: validator.address.clone(),
+    };
+    let res = handle(&mut deps, env, msg).unwrap();
+    assert_eq!(0, res.messages.len());
 
     let register_msg = HandleMsg::Register {};
     let register_env = mock_env(&other_contract, &[]);
@@ -228,6 +270,13 @@ pub fn proper_init_burn() {
     let error = handle(&mut deps, error_register_env, error_register_msg).is_err();
     assert_eq!(true, error);
 
+    let env = mock_env(&creator, &[]);
+    let msg = HandleMsg::RegisterValidator {
+        validator: validator.address.clone(),
+    };
+    let res = handle(&mut deps, env, msg).unwrap();
+    assert_eq!(0, res.messages.len());
+
     let bob = HumanAddr::from("bob");
 
     let mint_msg = HandleMsg::Mint {
@@ -272,6 +321,13 @@ pub fn proper_finish() {
     let register_env = mock_env(&other_contract, &[]);
     let exec = handle(&mut deps, register_env, register_msg).unwrap();
     assert_eq!(0, exec.messages.len());
+
+    let env = mock_env(&creator, &[]);
+    let msg = HandleMsg::RegisterValidator {
+        validator: validator.address.clone(),
+    };
+    let res = handle(&mut deps, env, msg).unwrap();
+    assert_eq!(0, res.messages.len());
 
     let bob = HumanAddr::from("bob");
 
