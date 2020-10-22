@@ -1,0 +1,31 @@
+# Anchor bAsset Contracts
+
+This repository contains smart contracts for bLuna. For more information about bAsset (bLuna), you can visit the official white paper [here](https://anchorprotocol.com/docs/The_bAsset_Protocol.pdf).
+
+## Contracts
+
+
+
+| Name                                                         | Description                      |
+| ------------------------------------------------------------ | -------------------------------- |
+| [`anchor_basset_gov`](https://github.com/Anchor-Protocol/anchor-bAsset-contracts/tree/master/contracts/anchor_basset_gov/README.md) | control governance               |
+| [`anchor_basset_reward`](https://github.com/Anchor-Protocol/anchor-bAsset-contracts/tree/master/contracts/anchor_basset_reward/README.md) | control reward distribution               |
+
+## Initialization
+
+For initializing anchor bAsset contracts, the initialization is only for `anchor_basset_gov`. `anchor_basset_reward` will be instantiated from the `anchor_basset_gov`contract.
+
+## Environment Setup
+
+Contracts requires Rust version v1.44.1+ to build. Using [rustup](https://rustup.rs/) is recommended.
+
+### Integration Tests
+`anchor_basset_gov` contains a set of integration tests. To test, run the following:
+ 
+```
+cargo test --test integration
+```
+## License
+This software is licensed under the Apache 2.0 license. Read more about it [here](https://github.com/Anchor-Protocol/anchor-bAsset-contracts/blob/master/LICENSE)
+
+© 2020 Terraform Labs, PTE.
