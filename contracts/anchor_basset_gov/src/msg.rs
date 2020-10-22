@@ -22,8 +22,9 @@ impl InitMsg {
                 "Ticker symbol is not in expected format [A-Z]{3,6}",
             ));
         }
-        if self.decimals > 18 {
-            return Err(StdError::generic_err("Decimals must not exceed 18"));
+        //terra supports 6 decimals
+        if self.decimals > 6 {
+            return Err(StdError::generic_err("Decimals must not exceed 6"));
         }
         Ok(())
     }
