@@ -46,7 +46,7 @@ fn default_init() -> InitMsg {
     InitMsg {
         name: "uluna".to_string(),
         symbol: "BLA".to_string(),
-        decimals: 9,
+        decimals: 6,
     }
 }
 
@@ -57,7 +57,7 @@ fn proper_initialization() {
     let msg = InitMsg {
         name: "bluna".to_string(),
         symbol: "BLA".to_string(),
-        decimals: 9,
+        decimals: 6,
     };
 
     let env = mock_env("addr0000", &[]);
