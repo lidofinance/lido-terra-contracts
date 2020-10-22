@@ -82,6 +82,10 @@ pub enum HandleMsg {
     },
     // Register receives the reward contract address
     Register {},
+    // Register valid validators to validators whitelist
+    RegisterValidator {
+            validator: HumanAddr,
+     },
 }
 ```
 ### Mint
@@ -127,6 +131,11 @@ Sending bLuna to a different account automatically credits previously accrued re
         
 ### Register 
 Registering the instantiated reward contract on PoolInfo.
+
+### RegisterValidator
+- RegisterValidator {*address* validator}
+ 
+    - Registering a validator as a whitelisted validator. Only the first initiator of the governance contract can send this message. 
 
 ## QueryMsg
 This will be provided. 
