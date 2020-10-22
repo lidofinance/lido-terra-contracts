@@ -27,12 +27,15 @@ pub static EPOC_ID: &[u8] = b"epoc";
 pub static VALIDATORS: &[u8] = b"validators";
 pub static ALL_EPOC_ID: &[u8] = b"epoc_list";
 
+pub static WHITE_VALIDATORS: &[u8] = b"white_validators";
+
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct TokenInfo {
     pub name: String,
     pub symbol: String,
     pub decimals: u8,
     pub total_supply: Uint128,
+    pub creator: CanonicalAddr,
     //TODO: Add Undelegation Period as a TokenInfo which should be changed.
 }
 
@@ -299,4 +302,27 @@ pub fn read_undelegated_wait_list_for_epoc<'a, S: ReadonlyStorage>(
         })
         .collect();
     Ok(list)
+}
+
+// store valid validators
+pub fn store_white_validators<S: Storage>(
+    storage: &mut S,
+    validator_address: HumanAddr,
+) -> StdResult<()> {
+    let vec = to_vec(&validator_address)?;
+    let value = to_vec(&true)?;
+    PrefixedStorage::new(PREFIX_DELEGATION_MAP, storage).set(&vec, &value);
+    Ok(())
+}
+
+pub fn is_valid_validator<S: Storage>(
+    storage: &S,
+    validator_address: HumanAddr,
+) -> StdResult<bool> {
+    let vec = to_vec(&validator_address)?;
+    let res = ReadonlyPrefixedStorage::new(PREFIX_DELEGATION_MAP, storage).get(&vec);
+    match res {
+        Some(_) => Ok(true),
+        None => Ok(false),
+    }
 }

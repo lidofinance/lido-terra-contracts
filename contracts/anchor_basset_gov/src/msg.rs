@@ -82,6 +82,10 @@ pub enum HandleMsg {
     },
     // Register receives the reward contract address
     Register {},
+    // Register valid validators to validators whitelist
+    RegisterValidator {
+        validator: HumanAddr,
+    },
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
