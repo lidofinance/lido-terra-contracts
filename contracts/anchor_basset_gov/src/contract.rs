@@ -625,8 +625,12 @@ pub fn handle_register<S: Storage, A: Api, Q: Querier>(
     env: Env,
 ) -> StdResult<HandleResponse> {
     let mut pool = pool_info_read(&deps.storage).load()?;
+    if pool.is_reward_exist {
+        return Err(StdError::generic_err("The request is not valid"));
+    }
     let raw_sender = deps.api.canonical_address(&env.message.sender)?;
     pool.reward_account = raw_sender.clone();
+    pool.is_reward_exist = true;
     pool_info(&mut deps.storage).save(&pool)?;
 
     let res = HandleResponse {
