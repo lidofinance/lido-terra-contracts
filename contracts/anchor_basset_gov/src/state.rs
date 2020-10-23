@@ -71,7 +71,7 @@ pub struct AllEpoc {
     pub epoces: Vec<EpocId>,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema, Default)]
 pub struct PoolInfo {
     pub exchange_rate: Decimal,
     pub total_bond_amount: Uint128,
@@ -84,23 +84,6 @@ pub struct PoolInfo {
     // This helps to control Register message.
     // Register message should be called once
     pub is_reward_exist: bool,
-}
-
-//TODO : remove this.
-impl Default for PoolInfo {
-    fn default() -> Self {
-        Self {
-            exchange_rate: Decimal::one(),
-            total_bond_amount: Default::default(),
-            total_issued: Default::default(),
-            claimed: Default::default(),
-            reward_index: Default::default(),
-            current_block_time: 0,
-            all_reward: Default::default(),
-            reward_account: Default::default(),
-            is_reward_exist: false,
-        }
-    }
 }
 
 impl PoolInfo {

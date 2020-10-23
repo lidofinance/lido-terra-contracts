@@ -47,7 +47,10 @@ pub fn init<S: Storage, A: Api, Q: Querier>(
     };
     token_info(&mut deps.storage).save(&data)?;
 
-    let pool = PoolInfo::default();
+    let pool = PoolInfo {
+        exchange_rate: Decimal::one(),
+        ..Default::default()
+    };
     pool_info(&mut deps.storage).save(&pool)?;
 
     //store the first epoc.
@@ -560,7 +563,6 @@ pub fn handle_finish<S: Storage, A: Api, Q: Querier>(
 
     for e in all_epocs.epoces {
         if e.epoc_id < epoc_id {
-            println!("I am here");
             let list = read_undelegated_wait_list_for_epoc(&deps.storage, epoc_id)?;
             for (address, undelegated_amount) in list {
                 let raw_address = deps.api.canonical_address(&address)?;
