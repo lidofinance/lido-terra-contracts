@@ -18,14 +18,14 @@
 //! 4. Anywhere you see query(&deps, ...) you must replace it with query(&mut deps, ...)
 
 use cosmwasm_std::{
-    coin, CosmosMsg, Decimal, HumanAddr, InitResponse, StakingMsg, Uint128, Validator,
+    coin, from_binary, CosmosMsg, Decimal, HumanAddr, InitResponse, StakingMsg, Uint128, Validator,
 };
 
 use cosmwasm_std::testing::{mock_dependencies, mock_env, MockQuerier};
 
-use anchor_bluna::msg::{HandleMsg, InitMsg};
+use anchor_bluna::msg::{HandleMsg, InitMsg, QueryMsg, TokenInfoResponse};
 
-use anchor_bluna::contract::{handle, init};
+use anchor_bluna::contract::{handle, init, query};
 
 const DEFAULT_VALIDATOR: &str = "default-validator";
 
@@ -65,7 +65,15 @@ fn proper_initialization() {
     // we can just call .unwrap() to assert this was a success
     let res: InitResponse = init(&mut deps, env, msg).unwrap();
     assert_eq!(1, res.messages.len());
-    //TODO: query TokenInfo, query PoolInfo, query TokenState
+
+    //check token_info
+    let token_query = QueryMsg::TokenInfo {};
+    let query_result = query(&deps, token_query).unwrap();
+    let value: TokenInfoResponse = from_binary(&query_result).unwrap();
+    assert_eq!("bluna".to_string(), value.name);
+    assert_eq!("BLA".to_string(), value.symbol);
+    assert_eq!(Uint128::zero(), value.total_supply);
+    assert_eq!(6, value.decimals);
 }
 #[test]
 fn proper_mint() {
@@ -97,6 +105,12 @@ fn proper_mint() {
 
     let res = handle(&mut deps, env, mint_msg).unwrap();
     assert_eq!(1, res.messages.len());
+
+    //check the balance of the bob
+    let balance_msg = QueryMsg::Balance { address: bob };
+    let query_result = query(&deps, balance_msg).unwrap();
+    let value: Uint128 = from_binary(&query_result).unwrap();
+    assert_eq!(Uint128(5), value);
 
     let delegate = &res.messages[0];
     match delegate {
@@ -172,6 +186,11 @@ pub fn proper_claim_reward() {
     let env = mock_env(&bob, &[coin(10, "uluna")]);
     let res = handle(&mut deps, env, reward_msg).unwrap();
     assert_eq!(0, res.messages.len());
+
+    let reward_query = QueryMsg::AccruedRewards { address: bob };
+    let q = query(&deps, reward_query).unwrap();
+    let query_result: Uint128 = from_binary(&q).unwrap();
+    assert_eq!(Uint128(0), query_result);
 }
 
 #[test]
@@ -194,6 +213,13 @@ pub fn proper_send() {
     };
     let res = handle(&mut deps, env, msg).unwrap();
     assert_eq!(0, res.messages.len());
+
+    //query whitelisted validators
+    let valid_query = QueryMsg::WhiteListedValidators {};
+    let query_result = query(&deps, valid_query).unwrap();
+    let validators: Vec<HumanAddr> = from_binary(&query_result).unwrap();
+    let white_valid = validators.get(0).unwrap();
+    assert_eq!(&validator.address, white_valid);
 
     let register_msg = HandleMsg::Register {};
     let register_env = mock_env(&other_contract, &[]);
@@ -231,6 +257,14 @@ pub fn proper_send() {
     let send_res = handle(&mut deps, alice_env, send_msg).unwrap();
 
     assert_eq!(0, send_res.messages.len());
+
+    //check the balance of the bob
+    let balance_msg = QueryMsg::Balance {
+        address: bob.clone(),
+    };
+    let query_result = query(&deps, balance_msg).unwrap();
+    let value: Uint128 = from_binary(&query_result).unwrap();
+    assert_eq!(Uint128(6), value);
 
     //send more than balance
     let error_send_msg = HandleMsg::Send {
