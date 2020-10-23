@@ -1,17 +1,17 @@
 use cosmwasm_std::{
-    coin, coins, log, to_binary, Api, BankMsg, CanonicalAddr, CosmosMsg, Decimal, Env, Extern,
-    HandleResponse, HumanAddr, InitResponse, Querier, StakingMsg, StdError, StdResult, Storage,
-    Uint128, WasmMsg,
+    coin, coins, log, to_binary, Api, BankMsg, Binary, CanonicalAddr, CosmosMsg, Decimal, Env,
+    Extern, HandleResponse, HumanAddr, InitResponse, Querier, StakingMsg, StdError, StdResult,
+    Storage, Uint128, WasmMsg,
 };
 
-use crate::msg::{HandleMsg, InitMsg};
+use crate::msg::{HandleMsg, InitMsg, QueryMsg, TokenInfoResponse};
 use crate::state::{
     balances, balances_read, claim_read, claim_store, epoc_read, is_valid_validator, pool_info,
     pool_info_read, read_all_epocs, read_delegation_map, read_holder_map, read_holders,
     read_total_amount, read_undelegated_wait_list, read_undelegated_wait_list_for_epoc,
-    read_validators, save_all_epoc, save_epoc, store_delegation_map, store_holder_map,
-    store_total_amount, store_undelegated_wait_list, store_white_validators, token_info,
-    token_info_read, AllEpoc, EpocId, PoolInfo, TokenInfo, EPOC,
+    read_valid_validators, read_validators, save_all_epoc, save_epoc, store_delegation_map,
+    store_holder_map, store_total_amount, store_undelegated_wait_list, store_white_validators,
+    token_info, token_info_read, AllEpoc, EpocId, PoolInfo, TokenInfo, EPOC,
 };
 use anchor_basset_reward::hook::InitHook;
 use anchor_basset_reward::init::RewardInitMsg;
@@ -718,4 +718,81 @@ pub fn send_swap(contract_addr: HumanAddr) {
         msg: to_binary(&msg).unwrap(),
         send: vec![],
     };
+}
+
+pub fn query<S: Storage, A: Api, Q: Querier>(
+    deps: &Extern<S, A, Q>,
+    msg: QueryMsg,
+) -> StdResult<Binary> {
+    match msg {
+        QueryMsg::Balance { address } => to_binary(&query_balance(&deps, address)?),
+        QueryMsg::TokenInfo {} => to_binary(&query_token_info(&deps)?),
+        QueryMsg::ExchangeRate {} => to_binary(&query_exg_rate(&deps)?),
+        QueryMsg::WhiteListedValidators {} => to_binary(&query_white_validators(&deps)?),
+        QueryMsg::AccruedRewards { address } => to_binary(&query_accrued_rewards(&deps, address)?),
+        QueryMsg::WithdrawableUnbonded { address } => {
+            to_binary(&query_withdrawable_unbonded(&deps, address)?)
+        }
+    }
+}
+
+fn query_balance<S: Storage, A: Api, Q: Querier>(
+    deps: &Extern<S, A, Q>,
+    address: HumanAddr,
+) -> StdResult<Uint128> {
+    let addr_raw = deps.api.canonical_address(&address)?;
+    let balance = balances_read(&deps.storage)
+        .may_load(addr_raw.as_slice())?
+        .unwrap_or_default();
+    Ok(balance)
+}
+
+fn query_token_info<S: Storage, A: Api, Q: Querier>(
+    deps: &Extern<S, A, Q>,
+) -> StdResult<TokenInfoResponse> {
+    let token_info = token_info_read(&deps.storage).load()?;
+    Ok(TokenInfoResponse {
+        name: token_info.name,
+        symbol: token_info.symbol,
+        decimals: token_info.decimals,
+        total_supply: token_info.total_supply,
+    })
+}
+
+fn query_exg_rate<S: Storage, A: Api, Q: Querier>(deps: &Extern<S, A, Q>) -> StdResult<Decimal> {
+    let pool = pool_info_read(&deps.storage).load()?;
+    Ok(pool.exchange_rate)
+}
+
+fn query_white_validators<S: Storage, A: Api, Q: Querier>(
+    deps: &Extern<S, A, Q>,
+) -> StdResult<Vec<HumanAddr>> {
+    let validators = read_valid_validators(&deps.storage)?;
+    Ok(validators)
+}
+
+fn query_accrued_rewards<S: Storage, A: Api, Q: Querier>(
+    deps: &Extern<S, A, Q>,
+    address: HumanAddr,
+) -> StdResult<Uint128> {
+    let pool = pool_info_read(&deps.storage).load()?;
+    let addr_raw = deps.api.canonical_address(&address)?;
+    let global_index = pool.reward_index;
+    let all_holder: HashMap<HumanAddr, Decimal> = read_holders(&deps.storage)?;
+    let sender_reward_index = all_holder
+        .get(&address)
+        .expect("The sender has not requested any tokens");
+    let user_balance = balances_read(&deps.storage).load(addr_raw.as_slice())?;
+    calculate_reward(global_index, sender_reward_index, user_balance)
+}
+
+fn query_withdrawable_unbonded<S: Storage, A: Api, Q: Querier>(
+    deps: &Extern<S, A, Q>,
+    address: HumanAddr,
+) -> StdResult<Uint128> {
+    let addr_raw = deps.api.canonical_address(&address)?;
+    let user_claim = claim_read(&deps.storage)
+        .may_load(addr_raw.as_slice())?
+        .unwrap_or_default();
+    Ok(user_claim)
 }
