@@ -9,9 +9,10 @@ use crate::state::{
     balances, balances_read, claim_read, claim_store, epoc_read, is_valid_validator, pool_info,
     pool_info_read, read_all_epocs, read_delegation_map, read_holder_map, read_holders,
     read_total_amount, read_undelegated_wait_list, read_undelegated_wait_list_for_epoc,
-    read_valid_validators, read_validators, save_all_epoc, save_epoc, store_delegation_map,
-    store_holder_map, store_total_amount, store_undelegated_wait_list, store_white_validators,
-    token_info, token_info_read, AllEpoc, EpocId, PoolInfo, TokenInfo, EPOC,
+    read_valid_validators, read_validators, remove_white_validators, save_all_epoc, save_epoc,
+    store_delegation_map, store_holder_map, store_total_amount, store_undelegated_wait_list,
+    store_white_validators, token_info, token_info_read, AllEpoc, EpocId, PoolInfo, TokenInfo,
+    EPOC,
 };
 use anchor_basset_reward::hook::InitHook;
 use anchor_basset_reward::init::RewardInitMsg;
@@ -102,6 +103,9 @@ pub fn handle<S: Storage, A: Api, Q: Querier>(
         HandleMsg::FinishBurn { amount } => handle_finish(deps, env, amount),
         HandleMsg::Register {} => handle_register(deps, env),
         HandleMsg::RegisterValidator { validator } => handle_reg_validator(deps, env, validator),
+        HandleMsg::DeRegisterValidator { validator } => {
+            handle_dereg_validator(deps, env, validator)
+        }
     }
 }
 
@@ -670,6 +674,31 @@ pub fn handle_reg_validator<S: Storage, A: Api, Q: Querier>(
         messages: vec![],
         log: vec![
             log("action", "register_validator"),
+            log("validator", validator),
+        ],
+        data: None,
+    };
+    Ok(res)
+}
+
+pub fn handle_dereg_validator<S: Storage, A: Api, Q: Querier>(
+    deps: &mut Extern<S, A, Q>,
+    env: Env,
+    validator: HumanAddr,
+) -> StdResult<HandleResponse> {
+    let token = token_info_read(&deps.storage).load()?;
+
+    let sender_raw = deps.api.canonical_address(&env.message.sender)?;
+    if token.creator != sender_raw {
+        return Err(StdError::generic_err(
+            "Only the creator can send this message",
+        ));
+    }
+    remove_white_validators(&mut deps.storage, validator.clone())?;
+    let res = HandleResponse {
+        messages: vec![],
+        log: vec![
+            log("action", "de_register_validator"),
             log("validator", validator),
         ],
         data: None,
