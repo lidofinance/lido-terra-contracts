@@ -86,6 +86,10 @@ pub enum HandleMsg {
     RegisterValidator {
         validator: HumanAddr,
     },
+    // Remove the validator from validators whitelist
+    DeRegisterValidator {
+        validator: HumanAddr,
+    },
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

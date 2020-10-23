@@ -298,6 +298,16 @@ pub fn store_white_validators<S: Storage>(
     Ok(())
 }
 
+// remove valid validators
+pub fn remove_white_validators<S: Storage>(
+    storage: &mut S,
+    validator_address: HumanAddr,
+) -> StdResult<()> {
+    let vec = to_vec(&validator_address)?;
+    PrefixedStorage::new(PREFIX_DELEGATION_MAP, storage).remove(&vec);
+    Ok(())
+}
+
 pub fn is_valid_validator<S: Storage>(
     storage: &S,
     validator_address: HumanAddr,
