@@ -89,5 +89,20 @@ pub enum HandleMsg {
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct TokenInfoResponse {
+    pub name: String,
+    pub symbol: String,
+    pub decimals: u8,
+    pub total_supply: Uint128,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
-pub enum QueryMsg {}
+pub enum QueryMsg {
+    Balance { address: HumanAddr },
+    TokenInfo {},
+    ExchangeRate {},
+    WhiteListedValidators {},
+    AccruedRewards { address: HumanAddr },
+    WithdrawableUnbonded { address: HumanAddr },
+}

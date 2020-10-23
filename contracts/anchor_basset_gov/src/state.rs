@@ -326,3 +326,18 @@ pub fn is_valid_validator<S: Storage>(
         None => Ok(false),
     }
 }
+
+pub fn read_valid_validators<S: Storage>(storage: &S) -> StdResult<Vec<HumanAddr>> {
+    let mut validators: Vec<HumanAddr> = Vec::new();
+    let res = ReadonlyPrefixedStorage::new(PREFIX_DELEGATION_MAP, storage);
+
+    let _: Vec<()> = res
+        .range(None, None, Order::Ascending)
+        .map(|item| {
+            let (key, _) = item;
+            let validator: HumanAddr = from_slice(&key).unwrap();
+            validators.push(validator);
+        })
+        .collect();
+    Ok(validators)
+}
