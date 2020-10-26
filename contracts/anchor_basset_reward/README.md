@@ -26,7 +26,7 @@ The instantiation is supposed to register the owner of the reward contract. The 
 ## HandleMsg
 ```rust
 pub enum HandleMsg {
-    //Send the reward to the user 
+    // Send the reward to the user 
     // who has sent ClaimReward to governance contract.
     SendReward {
         receiver: HumanAddr,
@@ -38,13 +38,15 @@ pub enum HandleMsg {
 ```
 
 ### SendReward
-- SendReward {address receiver, Uint128 amount}
-
+- SendReward {*HumanAddr* receiver, Uint128 amount}
+    * `receiver` is the receiver of the reward. `receiver` is the one who sends the `ClaimReward` to the governance contract.
+    * `amount` is the reward amount that the `receiver` should accrued.
     * Verifies the sender of the message.
     * Sends the `amount` in `uUSD` to the user.
 
 ### Swap 
 - Swap{}
+    * This message should only be sent by the governance contract.
     * swaps all balances to `uUSD`
 
 
