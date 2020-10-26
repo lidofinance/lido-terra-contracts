@@ -22,7 +22,7 @@ use std::borrow::{Borrow, BorrowMut};
 use std::collections::HashMap;
 use std::ops::Add;
 
-const EPOC_PER_UNDELEGATION_PERIOD: u64 = 84;
+const EPOC_PER_UNDELEGATION_PERIOD: u64 = 83;
 // For updating GlobalIndex, since it is a costly message, we send a withdraw message every day.
 //DAY is supposed to help us to check whether a day is passed from the last update GlobalIndex or not.
 const DAY: u64 = 86400;
@@ -474,6 +474,13 @@ pub fn handle_burn<S: Storage, A: Api, Q: Querier>(
         // send undelegate request
         handle_undelegate(deps, env, claimed_so_far, exchange_rate);
         save_epoc(&mut deps.storage).save(&epoc)?;
+
+        //push epoc_id to all_epoc the storage.
+        save_all_epoc(&mut deps.storage).update(|mut epocs| {
+            epocs.epoces.push(epoc);
+            Ok(epocs)
+        })?;
+        store_undelegated_wait_list(&mut deps.storage, epoc.epoc_id, sender_human, amount)?;
     } else {
         claimed_so_far = claimed_so_far.add(amount);
         //store the human_address under undelegated_wait_list.
@@ -562,12 +569,11 @@ pub fn handle_finish<S: Storage, A: Api, Q: Querier>(
 
     // Compute all of burn requests with epoc Id corresponding to 21 (can be changed to arbitrary value) days ago
     let epoc_id = get_before_undelegation_epoc(current_epoc_id);
-
     let all_epocs = read_all_epocs(&deps.storage).load()?;
 
     for e in all_epocs.epoces {
         if e.epoc_id < epoc_id {
-            let list = read_undelegated_wait_list_for_epoc(&deps.storage, epoc_id)?;
+            let list = read_undelegated_wait_list_for_epoc(&deps.storage, e.epoc_id)?;
             for (address, undelegated_amount) in list {
                 let raw_address = deps.api.canonical_address(&address)?;
                 claim_store(&mut deps.storage)
@@ -716,7 +722,7 @@ pub fn pick_validator<S: Storage, A: Api, Q: Querier>(
     //FIXME: consider when the validator does not have the amount.
     // we need to split the request to a Vec<validators>.
     loop {
-        let random = rng.gen_range(0, validators.len() - 1);
+        let random = rng.gen_range(0, validators.len());
         let validator: HumanAddr = HumanAddr::from(validators.get(random).unwrap());
         let val = read_delegation_map(&deps.storage, validator.clone()).unwrap();
         if val > claim {
@@ -726,7 +732,7 @@ pub fn pick_validator<S: Storage, A: Api, Q: Querier>(
 }
 
 pub fn compute_epoc(mut epoc_id: u64, prev_time: u64, current_time: u64) -> u64 {
-    epoc_id += (prev_time - current_time) / EPOC;
+    epoc_id += (current_time - prev_time) / EPOC;
     epoc_id
 }
 

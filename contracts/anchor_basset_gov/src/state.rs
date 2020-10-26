@@ -168,7 +168,7 @@ pub fn store_delegation_map<S: Storage>(
     amount: Uint128,
 ) -> StdResult<()> {
     let vec = to_vec(&validator_address)?;
-    let value = amount.0.to_be_bytes().to_vec();
+    let value = to_vec(&amount)?;
     PrefixedStorage::new(PREFIX_DELEGATION_MAP, storage).set(&vec, &value);
     Ok(())
 }
@@ -247,7 +247,7 @@ pub fn store_undelegated_wait_list<'a, S: Storage>(
     amount: Uint128,
 ) -> StdResult<()> {
     let vec = to_vec(&epoc_id)?;
-    let addr = sender_address.0.as_bytes();
+    let addr = to_vec(&sender_address)?;
     let mut position_indexer: Bucket<'a, S, Uint128> =
         Bucket::multilevel(&[PREFIX_WAIT_MAP, &vec], storage);
     position_indexer.save(&addr, &amount)?;
@@ -284,6 +284,7 @@ pub fn read_undelegated_wait_list_for_epoc<'a, S: ReadonlyStorage>(
             list.insert(key, v)
         })
         .collect();
+    println!("get the undelegate {}, epoc_id {}", list.len(), epoc_id);
     Ok(list)
 }
 
