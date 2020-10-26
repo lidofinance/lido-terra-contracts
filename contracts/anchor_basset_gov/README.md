@@ -69,29 +69,41 @@ pub enum HandleMsg {
         amount: Uint128,
     },
     /// ClaimRewards sends bluna rewards to sender.
-    ClaimRewards {},
+    /// ClaimReward can be sent by others. If `to` is `None`, 
+    /// it means the contract should send the reward to the sender.
+        ClaimRewards {
+            to: Option<HumanAddr>,
+        },
     /// InitBurn is send an undelegate message after receiving all
     /// requests for an specific period of time.
+    /// `amount` is amount of `bluna` that the user wants to burn.
     InitBurn { amount: Uint128 },
     /// FinishBurn is suppose to ask for liquidated luna
+    /// `amount` is the amount that user want to claim after undelegation period.
     FinishBurn { amount: Uint128 },
     /// Send is like a base message in CW20 to move bluna to another account
+    /// `recipient`: is the another bluna user,
+    /// `amount`: is the amount of `bluna` that the user wants to transfer.
     Send {
         recipient: HumanAddr,
         amount: Uint128,
     },
-    // Register receives the reward contract address
+    ///  Register receives the reward contract address
+    /// This message is only sent by the reward contract during the instantiation.
     Register {},
-    // Register valid validators to validators whitelist
+    /// Register valid validators to validators whitelist
+    /// `validator` is the human address of the whitelisted validator.
+    /// Only the initializer of the governance contract can send this.
     RegisterValidator {
             validator: HumanAddr,
      },
 }
 ```
 ### Mint
-* Mint{*address* validator, *Uint128* amount}
+* Mint{*HumanAddr* validator, *Uint128* amount}
 
-    * Receives amount Luna from sender.
+    * `amount`: the amount of Luna that the sender wants to delegate.
+    * `validator`: the `HumanAddr` of a whitelisted validator.
     * amount Luna is delegated to validator.
     * Updates `token_state.undelagation_map`.
     * Updates `token_state.holding_map`.
@@ -100,7 +112,9 @@ pub enum HandleMsg {
 
 
 ### ClaimRewards
-* ClaimRewards{}
+* ClaimRewards{*to* `Option<HumanAddr>`}
+    * The receiver of the ClaimReward is specified by `to`.
+    * If to is `None`, the receiver is the sender.
     * Sends previously accrued bLuna rewards to sender.
     * Updates `token_state.holding_map`.
         * Updates previously recorded index values to the current rewardIndex.
@@ -108,6 +122,7 @@ pub enum HandleMsg {
 
 ### InitBurn
 * InitiateBurn{*Uint128* amount}
+    * `amount` is amount of `bluna` that the sender wants to burn.
     * Invokes ClaimRewards{}.
     * Updates `token_state.holding_map`.
         * Burns amount bLuna from sender.
@@ -124,18 +139,67 @@ pub enum HandleMsg {
 ### Send
 Sending bLuna to a different account automatically credits previously accrued rewards to the sender.
 
-* Send{*address* recipient, *Uint128* amount}
+* Send{*HumanAddr* recipient, *Uint128* amount}
+    * `recipient` is another bluna account that the sender wish to transfer `bluna` to.
+    * `amount` is the amount of `bluna` that the sender wants to send.
     * Invokes ClaimRewards{}.
     * Updates `token_state.holding_map`.
         * Sends amount bLuna to recipient.
         
 ### Register 
-Registering the instantiated reward contract on PoolInfo.
+* Registering the instantiated reward contract on PoolInfo. 
+* This message is sent only once by the reward contract during the initialization of the governance contract.
+
 
 ### RegisterValidator
-- RegisterValidator {*address* validator}
- 
+- RegisterValidator {*HumanAddr* validator}
+    - `validator` is the `HumanAddr` of a valid validator
+    - Only the initializer of the governance contract can send this message.
     - Registering a validator as a whitelisted validator. Only the first initiator of the governance contract can send this message. 
 
 ## QueryMsg
-This will be provided. 
+```rust
+   pub enum QueryMsg {
+       Balance { address: HumanAddr },
+       TokenInfo {},
+       ExchangeRate {},
+       WhiteListedValidators {},
+       AccruedRewards { address: HumanAddr },
+       WithdrawableUnbonded { address: HumanAddr },
+   } 
+```
+
+### Balance
+*  Balance {*HumanAddr* address}
+    * `address`: the `HumanAddr` of the bluna user.
+    * Returns the `bluna` balance of the `address`.
+    
+### TokenInfo
+* TokenInfo {}
+    * returns the status of the token.
+```rust 
+pub struct TokenInfoResponse {
+    pub name: String,
+    pub symbol: String,
+    pub decimals: u8,
+    pub total_supply: Uint128,
+}
+```   
+### ExchangeRate
+* ExchangeRate {}
+    * Returns the current `exchange_rate` of `PoolInfo`.
+
+### WhiteListedValidators
+* WhiteListedValidators {}
+    * Returns all whitelisted validators.
+
+### AccruedRewards
+* AccruedRewards { *HumanAddr* : address}
+     * `address`: the `HumanAddr` of the bluna user.
+     * Return the expected reward of the `address`.
+
+### WithdrawableUnbonded
+* WithdrawableUnbonded { *HumanAddr* : address}
+    * `address`: the `HumanAddr` of the bluna user.
+    * Returns possible withdrawable amount of `uluna` form the `address`.
+     
