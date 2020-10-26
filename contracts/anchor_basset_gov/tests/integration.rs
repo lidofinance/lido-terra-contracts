@@ -18,7 +18,8 @@
 //! 4. Anywhere you see query(&deps, ...) you must replace it with query(&mut deps, ...)
 
 use cosmwasm_std::{
-    coin, from_binary, CosmosMsg, Decimal, HumanAddr, InitResponse, StakingMsg, Uint128, Validator,
+    coin, from_binary, Api, BankMsg, CosmosMsg, Decimal, Extern, HumanAddr, InitResponse, Querier,
+    StakingMsg, Storage, Uint128, Validator,
 };
 
 use cosmwasm_std::testing::{mock_dependencies, mock_env, MockQuerier};
@@ -329,6 +330,13 @@ pub fn proper_init_burn() {
     let res = handle(&mut deps, env, init_burn).unwrap();
     assert_eq!(0, res.messages.len());
 
+    let balance = QueryMsg::Balance {
+        address: bob.clone(),
+    };
+    let query_result = query(&deps, balance).unwrap();
+    let value: Uint128 = from_binary(&query_result).unwrap();
+    assert_eq!(Uint128(4), value);
+
     //send more than the user balance
     let error_burn = HandleMsg::InitBurn { amount: Uint128(7) };
 
@@ -366,7 +374,7 @@ pub fn proper_finish() {
     let bob = HumanAddr::from("bob");
 
     let mint_msg = HandleMsg::Mint {
-        validator: validator.address,
+        validator: validator.address.clone(),
         amount: Uint128(5),
     };
 
@@ -381,10 +389,57 @@ pub fn proper_finish() {
     let res = handle(&mut deps, env, init_burn).unwrap();
     assert_eq!(0, res.messages.len());
 
+    send_init_burn(&mut deps, "ardi", validator);
+
     let finish_msg = HandleMsg::FinishBurn { amount: Uint128(1) };
 
-    let env = mock_env(&bob, &[coin(10, "uluna")]);
-    let finish_res = handle(&mut deps, env, finish_msg).is_err();
+    let mut env = mock_env(&bob, &[coin(10, "uluna")]);
+    //set the block time 6 hours from now.
+    env.block.time += 22600;
+    let finish_res = handle(&mut deps, env.clone(), finish_msg.clone()).is_err();
 
     assert_eq!(true, finish_res);
+
+    env.block.time = 1573911419;
+    let finish_res = handle(&mut deps, env, finish_msg).unwrap();
+
+    assert_eq!(finish_res.messages.len(), 1);
+
+    let delegate = &finish_res.messages[0];
+    match delegate {
+        CosmosMsg::Bank(BankMsg::Send {
+            from_address: _,
+            to_address,
+            amount,
+        }) => {
+            assert_eq!(to_address, &bob);
+            assert_eq!(amount.get(0).unwrap().amount, Uint128(1))
+        }
+        _ => panic!("Unexpected message: {:?}", delegate),
+    }
+}
+
+fn send_init_burn<S: Storage, A: Api, Q: Querier>(
+    mut deps: &mut Extern<S, A, Q>,
+    address_string: &str,
+    validator: Validator,
+) {
+    let bob = HumanAddr::from(address_string);
+
+    let mint_msg = HandleMsg::Mint {
+        validator: validator.address,
+        amount: Uint128(5),
+    };
+
+    let env = mock_env(&bob, &[coin(10, "uluna")]);
+
+    let res = handle(&mut deps, env, mint_msg).unwrap();
+    assert_eq!(1, res.messages.len());
+
+    let init_burn = HandleMsg::InitBurn { amount: Uint128(1) };
+
+    let mut env = mock_env(&bob, &[coin(10, "uluna")]);
+    env.block.time += 22600;
+    let res = handle(&mut deps, env, init_burn).unwrap();
+    assert_eq!(0, res.messages.len());
 }
