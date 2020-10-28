@@ -13,3 +13,7 @@ pub enum HandleMsg {
     //Swap all of the balances to uusd.
     Swap {},
 }
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum QueryMsg {}

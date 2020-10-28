@@ -36,7 +36,6 @@ pub struct TokenInfo {
     pub decimals: u8,
     pub total_supply: Uint128,
     pub creator: CanonicalAddr,
-    //TODO: Add Undelegation Period as a TokenInfo which should be changed.
 }
 
 #[derive(
