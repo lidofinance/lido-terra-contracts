@@ -1,9 +1,9 @@
 use crate::init::RewardInitMsg;
-use crate::msg::HandleMsg;
+use crate::msg::{HandleMsg, QueryMsg};
 use crate::state::{config, config_read, Config};
 use cosmwasm_std::{
-    coins, log, Api, BankMsg, CosmosMsg, Env, Extern, HandleResponse, HumanAddr, InitResponse,
-    Querier, StdError, StdResult, Storage, Uint128,
+    coins, log, Api, BankMsg, Binary, CosmosMsg, Env, Extern, HandleResponse, HumanAddr,
+    InitResponse, Querier, StdError, StdResult, Storage, Uint128, WasmMsg,
 };
 
 use terra_cosmwasm::{create_swap_msg, TerraMsgWrapper};
@@ -17,7 +17,19 @@ pub fn init<S: Storage, A: Api, Q: Querier>(
     let conf = Config { owner: msg.owner };
     config(&mut deps.storage).save(&conf)?;
 
-    Ok(InitResponse::default())
+    let mut messages: Vec<CosmosMsg> = vec![];
+    if let Some(init_hook) = msg.init_hook {
+        messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
+            contract_addr: init_hook.contract_addr,
+            msg: init_hook.msg,
+            send: vec![],
+        }));
+    }
+
+    Ok(InitResponse {
+        messages,
+        log: vec![],
+    })
 }
 
 pub fn handle<S: Storage, A: Api, Q: Querier>(
@@ -37,6 +49,10 @@ pub fn handle_send<S: Storage, A: Api, Q: Querier>(
     receiver: HumanAddr,
     amount: Uint128,
 ) -> StdResult<HandleResponse<TerraMsgWrapper>> {
+    if amount == Uint128::zero() {
+        return Err(StdError::generic_err("Invalid zero amount"));
+    }
+
     //check whether the gov contract has sent this
     let conf = config_read(&deps.storage).load()?;
     let sender_raw = deps.api.canonical_address(&env.message.sender)?;
@@ -48,7 +64,7 @@ pub fn handle_send<S: Storage, A: Api, Q: Querier>(
     let msgs = vec![BankMsg::Send {
         from_address: contr_addr.clone(),
         to_address: receiver,
-        amount: coins(Uint128::u128(&amount), "uluna"),
+        amount: coins(Uint128::u128(&amount), "uusd"),
     }
     .into()];
 
@@ -86,4 +102,11 @@ pub fn handle_swap<S: Storage, A: Api, Q: Querier>(
         data: None,
     };
     Ok(res)
+}
+
+pub fn query<S: Storage, A: Api, Q: Querier>(
+    _deps: &Extern<S, A, Q>,
+    _msg: QueryMsg,
+) -> StdResult<Binary> {
+    unimplemented!()
 }

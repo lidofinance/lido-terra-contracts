@@ -48,6 +48,7 @@ fn default_init() -> InitMsg {
         name: "uluna".to_string(),
         symbol: "BLA".to_string(),
         decimals: 6,
+        code_id: 0,
     }
 }
 
@@ -59,6 +60,7 @@ fn proper_initialization() {
         name: "bluna".to_string(),
         symbol: "BLA".to_string(),
         decimals: 6,
+        code_id: 0,
     };
 
     let env = mock_env("addr0000", &[]);
@@ -102,7 +104,7 @@ fn proper_mint() {
         amount: Uint128(5),
     };
 
-    let env = mock_env(&bob, &[coin(10, "uluna"), coin(1000, "uluna")]);
+    let env = mock_env(&bob, &[coin(10, "uluna")]);
 
     let res = handle(&mut deps, env, mint_msg).unwrap();
     assert_eq!(1, res.messages.len());
@@ -186,7 +188,7 @@ pub fn proper_claim_reward() {
 
     let env = mock_env(&bob, &[coin(10, "uluna")]);
     let res = handle(&mut deps, env, reward_msg).unwrap();
-    assert_eq!(0, res.messages.len());
+    assert_eq!(1, res.messages.len());
 
     let reward_query = QueryMsg::AccruedRewards { address: bob };
     let q = query(&deps, reward_query).unwrap();
@@ -257,7 +259,7 @@ pub fn proper_send() {
     let alice_env = mock_env(&alice, &[coin(100, "uluna")]);
     let send_res = handle(&mut deps, alice_env, send_msg).unwrap();
 
-    assert_eq!(0, send_res.messages.len());
+    assert_eq!(1, send_res.messages.len());
 
     //check the balance of the bob
     let balance_msg = QueryMsg::Balance {
@@ -328,7 +330,7 @@ pub fn proper_init_burn() {
 
     let env = mock_env(&bob, &[coin(10, "uluna")]);
     let res = handle(&mut deps, env, init_burn).unwrap();
-    assert_eq!(0, res.messages.len());
+    assert_eq!(1, res.messages.len());
 
     let balance = QueryMsg::Balance {
         address: bob.clone(),
@@ -387,7 +389,7 @@ pub fn proper_finish() {
 
     let env = mock_env(&bob, &[coin(10, "uluna")]);
     let res = handle(&mut deps, env, init_burn).unwrap();
-    assert_eq!(0, res.messages.len());
+    assert_eq!(1, res.messages.len());
 
     send_init_burn(&mut deps, "ardi", validator);
 
@@ -441,5 +443,5 @@ fn send_init_burn<S: Storage, A: Api, Q: Querier>(
     let mut env = mock_env(&bob, &[coin(10, "uluna")]);
     env.block.time += 22600;
     let res = handle(&mut deps, env, init_burn).unwrap();
-    assert_eq!(0, res.messages.len());
+    assert_eq!(2, res.messages.len());
 }

@@ -7,6 +7,7 @@ pub struct InitMsg {
     pub name: String,
     pub symbol: String,
     pub decimals: u8,
+    pub code_id: u64,
 }
 
 impl InitMsg {
