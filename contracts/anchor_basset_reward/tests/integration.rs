@@ -17,7 +17,7 @@
 //!      });
 //! 4. Anywhere you see query(&deps, ...) you must replace it with query(&mut deps, ...)
 
-use cosmwasm_std::{coin, Api, CanonicalAddr, HumanAddr, Uint128};
+use cosmwasm_std::{coin, Api, CanonicalAddr, HumanAddr};
 
 use cosmwasm_std::testing::{mock_dependencies, mock_env};
 
@@ -60,11 +60,8 @@ pub fn proper_send_reward() {
 
     let env = mock_env(&owner, &[coin(10, "uluna"), coin(1000, "uluna")]);
 
-    let alice = HumanAddr::from("alice");
-    let msg = HandleMsg::SendReward {
-        receiver: alice,
-        amount: Uint128(2),
-    };
+    let _alice = HumanAddr::from("alice");
+    let msg = HandleMsg::SendReward {};
 
     let res = handle(&mut deps, env, msg).unwrap();
     assert_eq!(1, res.messages.len());

@@ -64,8 +64,6 @@ pub enum HandleMsg {
     },
     /// Update general index
     UpdateGlobalIndex {},
-    /// InitBurn is send an undelegate message after receiving all
-    /// requests for an specific period of time.
     InitBurn {
         amount: Uint128,
     },
