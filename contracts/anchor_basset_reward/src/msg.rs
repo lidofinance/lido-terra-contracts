@@ -12,6 +12,10 @@ pub enum HandleMsg {
     },
     //Swap all of the balances to uusd.
     Swap {},
+    //Update the global index
+    UpdateGlobalIndex {
+        total_supply: Uint128,
+    },
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
