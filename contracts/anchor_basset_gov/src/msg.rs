@@ -61,7 +61,6 @@ pub enum HandleMsg {
     /// Issue the same `amount` of bLuna to sender.
     Mint {
         validator: HumanAddr,
-        amount: Uint128,
     },
     /// ClaimRewards sends bluna rewards to sender.
     ClaimRewards {

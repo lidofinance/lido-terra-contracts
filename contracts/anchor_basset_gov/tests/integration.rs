@@ -101,7 +101,6 @@ fn proper_mint() {
     let bob = HumanAddr::from("bob");
     let mint_msg = HandleMsg::Mint {
         validator: validator.address.clone(),
-        amount: Uint128(5),
     };
 
     let env = mock_env(&bob, &[coin(10, "uluna")]);
@@ -129,7 +128,6 @@ fn proper_mint() {
     let invalid_val = sample_validator("invalid");
     let mint_msg = HandleMsg::Mint {
         validator: invalid_val.address,
-        amount: Uint128(5),
     };
     let env = mock_env(&ardi, &[coin(10, "uluna"), coin(1000, "uluna")]);
 
@@ -176,7 +174,6 @@ pub fn proper_claim_reward() {
 
     let mint_msg = HandleMsg::Mint {
         validator: validator.address,
-        amount: Uint128(5),
     };
 
     let env = mock_env(&bob, &[coin(10, "uluna")]);
@@ -233,7 +230,6 @@ pub fn proper_send() {
 
     let mint_msg = HandleMsg::Mint {
         validator: validator.address.clone(),
-        amount: Uint128(5),
     };
 
     let env = mock_env(&bob, &[coin(10, "uluna")]);
@@ -245,7 +241,6 @@ pub fn proper_send() {
 
     let alice_mint_msg = HandleMsg::Mint {
         validator: validator.address,
-        amount: Uint128(5),
     };
 
     let alice_env = mock_env(&alice, &[coin(100, "uluna")]);
@@ -318,7 +313,6 @@ pub fn proper_init_burn() {
 
     let mint_msg = HandleMsg::Mint {
         validator: validator.address,
-        amount: Uint128(5),
     };
 
     let env = mock_env(&bob, &[coin(10, "uluna")]);
@@ -377,7 +371,6 @@ pub fn proper_finish() {
 
     let mint_msg = HandleMsg::Mint {
         validator: validator.address.clone(),
-        amount: Uint128(5),
     };
 
     let env = mock_env(&bob, &[coin(10, "uluna")]);
@@ -430,7 +423,6 @@ fn send_init_burn<S: Storage, A: Api, Q: Querier>(
 
     let mint_msg = HandleMsg::Mint {
         validator: validator.address,
-        amount: Uint128(5),
     };
 
     let env = mock_env(&bob, &[coin(10, "uluna")]);
