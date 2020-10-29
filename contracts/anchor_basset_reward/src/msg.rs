@@ -14,8 +14,16 @@ pub enum HandleMsg {
     Swap {},
     //Update the global index
     UpdateGlobalIndex {
-        total_supply: Uint128,
+        past_balance: Uint128,
     },
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct TokenInfoResponse {
+    pub name: String,
+    pub symbol: String,
+    pub decimals: u8,
+    pub total_supply: Uint128,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

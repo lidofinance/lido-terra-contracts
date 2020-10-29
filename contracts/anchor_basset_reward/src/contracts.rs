@@ -1,11 +1,13 @@
 use crate::init::RewardInitMsg;
-use crate::msg::{HandleMsg, QueryMsg};
+use crate::msg::{HandleMsg, QueryMsg, TokenInfoResponse};
 use crate::state::{config, config_read, index_store, Config, Index};
 use cosmwasm_std::{
-    coins, log, Api, BankMsg, Binary, CosmosMsg, Decimal, Env, Extern, HandleResponse, HumanAddr,
-    InitResponse, Querier, StdError, StdResult, Storage, Uint128, WasmMsg,
+    coins, from_binary, log, Api, BankMsg, Binary, CosmosMsg, Decimal, Env, Extern, HandleResponse,
+    HumanAddr, InitResponse, Querier, QueryRequest, StdError, StdResult, Storage, Uint128, WasmMsg,
+    WasmQuery,
 };
 
+use cosmwasm_storage::to_length_prefixed;
 use std::ops::Add;
 use terra_cosmwasm::{create_swap_msg, TerraMsgWrapper};
 
@@ -47,8 +49,8 @@ pub fn handle<S: Storage, A: Api, Q: Querier>(
     match msg {
         HandleMsg::SendReward { receiver, amount } => handle_send(deps, env, receiver, amount),
         HandleMsg::Swap {} => handle_swap(deps, env),
-        HandleMsg::UpdateGlobalIndex { total_supply } => {
-            handle_global_index(deps, env, total_supply)
+        HandleMsg::UpdateGlobalIndex { past_balance } => {
+            handle_global_index(deps, env, past_balance)
         }
     }
 }
@@ -117,7 +119,7 @@ pub fn handle_swap<S: Storage, A: Api, Q: Querier>(
 pub fn handle_global_index<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
     env: Env,
-    total_supply: Uint128,
+    past_balance: Uint128,
 ) -> StdResult<HandleResponse<TerraMsgWrapper>> {
     //TODO: Do we need to consider tax here?
     //check who sent this
@@ -133,12 +135,21 @@ pub fn handle_global_index<S: Storage, A: Api, Q: Querier>(
         .query_balance(env.contract.address, SWAP_DENOM)
         .unwrap();
 
+    let total_supply = {
+        let res = deps.querier.query(&QueryRequest::Wasm(WasmQuery::Raw {
+            contract_addr: owner_raw,
+            key: Binary::from(to_length_prefixed(b"token_info")),
+        }))?;
+        let token_info: TokenInfoResponse = from_binary(&res)?;
+        token_info.total_supply
+    };
+
+    let claimed_reward = (balance.amount - past_balance)?;
     //update the global index
     index_store(&mut deps.storage).update(|mut index| {
-        index.global_index = index.global_index.add(Decimal::from_ratio(
-            balance.amount.u128(),
-            total_supply.u128(),
-        ));
+        index.global_index = index
+            .global_index
+            .add(Decimal::from_ratio(claimed_reward, total_supply.u128()));
         Ok(index)
     })?;
 
