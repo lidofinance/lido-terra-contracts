@@ -77,7 +77,7 @@ pub struct PoolInfo {
     pub total_issued: Uint128,
     pub claimed: Uint128,
     pub reward_index: Decimal,
-    pub current_block_time: u64,
+    pub last_index_modification: u64,
     pub all_reward: Uint128,
     pub reward_account: CanonicalAddr,
     // This helps to control Register message.

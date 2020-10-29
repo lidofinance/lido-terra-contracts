@@ -62,10 +62,8 @@ pub enum HandleMsg {
     Mint {
         validator: HumanAddr,
     },
-    /// ClaimRewards sends bluna rewards to sender.
-    ClaimRewards {
-        to: Option<HumanAddr>,
-    },
+    /// Update general index
+    UpdateGlobalIndex {},
     /// InitBurn is send an undelegate message after receiving all
     /// requests for an specific period of time.
     InitBurn {

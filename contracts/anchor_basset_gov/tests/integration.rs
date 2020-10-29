@@ -181,7 +181,7 @@ pub fn proper_claim_reward() {
     let res = handle(&mut deps, env, mint_msg).unwrap();
     assert_eq!(1, res.messages.len());
 
-    let reward_msg = HandleMsg::ClaimRewards { to: None };
+    let reward_msg = HandleMsg::UpdateGlobalIndex {};
 
     let env = mock_env(&bob, &[coin(10, "uluna")]);
     let res = handle(&mut deps, env, reward_msg).unwrap();
