@@ -1,14 +1,16 @@
 use crate::init::RewardInitMsg;
 use crate::msg::{HandleMsg, QueryMsg};
-use crate::state::{config, config_read, Config};
+use crate::state::{config, config_read, index_store, Config, Index};
 use cosmwasm_std::{
-    coins, log, Api, BankMsg, Binary, CosmosMsg, Env, Extern, HandleResponse, HumanAddr,
+    coins, log, Api, BankMsg, Binary, CosmosMsg, Decimal, Env, Extern, HandleResponse, HumanAddr,
     InitResponse, Querier, StdError, StdResult, Storage, Uint128, WasmMsg,
 };
 
+use std::ops::Add;
 use terra_cosmwasm::{create_swap_msg, TerraMsgWrapper};
 
 const SWAP_DENOM: &str = "uusd";
+
 pub fn init<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
     _env: Env,
@@ -16,6 +18,11 @@ pub fn init<S: Storage, A: Api, Q: Querier>(
 ) -> StdResult<InitResponse> {
     let conf = Config { owner: msg.owner };
     config(&mut deps.storage).save(&conf)?;
+
+    let index = Index {
+        global_index: Decimal::zero(),
+    };
+    index_store(&mut deps.storage).save(&index)?;
 
     let mut messages: Vec<CosmosMsg> = vec![];
     if let Some(init_hook) = msg.init_hook {
@@ -40,6 +47,9 @@ pub fn handle<S: Storage, A: Api, Q: Querier>(
     match msg {
         HandleMsg::SendReward { receiver, amount } => handle_send(deps, env, receiver, amount),
         HandleMsg::Swap {} => handle_swap(deps, env),
+        HandleMsg::UpdateGlobalIndex { total_supply } => {
+            handle_global_index(deps, env, total_supply)
+        }
     }
 }
 
@@ -101,6 +111,43 @@ pub fn handle_swap<S: Storage, A: Api, Q: Querier>(
         log: vec![log("action", "swap"), log("from", contr_addr)],
         data: None,
     };
+    Ok(res)
+}
+
+pub fn handle_global_index<S: Storage, A: Api, Q: Querier>(
+    deps: &mut Extern<S, A, Q>,
+    env: Env,
+    total_supply: Uint128,
+) -> StdResult<HandleResponse<TerraMsgWrapper>> {
+    //TODO: Do we need to consider tax here?
+    //check who sent this
+    let config = config_read(&deps.storage).load()?;
+    let owner_raw = deps.api.human_address(&config.owner)?;
+    if env.message.sender != owner_raw {
+        return Err(StdError::generic_err("Unauthorized"));
+    }
+
+    //check the balance of the reward contract.
+    let balance = deps
+        .querier
+        .query_balance(env.contract.address, SWAP_DENOM)
+        .unwrap();
+
+    //update the global index
+    index_store(&mut deps.storage).update(|mut index| {
+        index.global_index = index.global_index.add(Decimal::from_ratio(
+            balance.amount.u128(),
+            total_supply.u128(),
+        ));
+        Ok(index)
+    })?;
+
+    let res = HandleResponse {
+        messages: vec![],
+        log: vec![log("action", "update_index")],
+        data: None,
+    };
+
     Ok(res)
 }
 
