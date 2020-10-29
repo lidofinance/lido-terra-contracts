@@ -97,7 +97,7 @@ pub fn handle<S: Storage, A: Api, Q: Querier>(
     msg: HandleMsg,
 ) -> StdResult<HandleResponse> {
     match msg {
-        HandleMsg::Mint { validator, amount } => handle_mint(deps, env, validator, amount),
+        HandleMsg::Mint { validator } => handle_mint(deps, env, validator),
         HandleMsg::ClaimRewards { to } => handle_reward(deps, env, to),
         HandleMsg::Send { recipient, amount } => handle_send(deps, env, recipient, amount),
         HandleMsg::InitBurn { amount } => handle_burn(deps, env, amount),
@@ -114,12 +114,7 @@ pub fn handle_mint<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
     env: Env,
     validator: HumanAddr,
-    amount: Uint128,
 ) -> StdResult<HandleResponse> {
-    if amount == Uint128::zero() {
-        return Err(StdError::generic_err("Invalid zero amount"));
-    }
-
     let is_valid = is_valid_validator(&deps.storage, validator.clone())?;
     if !is_valid {
         return Err(StdError::generic_err("Unsupported validator"));
@@ -132,24 +127,24 @@ pub fn handle_mint<S: Storage, A: Api, Q: Querier>(
         .message
         .sent_funds
         .iter()
-        .find(|x| x.denom == LUNA && x.amount >= amount)
+        .find(|x| x.denom == LUNA && x.amount > Uint128::zero())
         .ok_or_else(|| StdError::generic_err(format!("No {} tokens sent", LUNA)))?;
 
-    //update pool_info
     let mut pool = pool_info_read(&deps.storage).load()?;
-    pool.total_bond_amount += amount;
-    pool.total_issued += amount;
-
     let reward_index = pool.reward_index;
 
     let amount_with_exchange_rate =
         if pool.total_bond_amount.is_zero() || pool.total_issued.is_zero() {
-            amount
+            payment.amount
         } else {
             pool.update_exchange_rate();
             let exchange_rate = pool.exchange_rate;
-            exchange_rate * amount
+            exchange_rate * payment.amount
         };
+
+    //update pool_info
+    pool.total_bond_amount += amount_with_exchange_rate;
+    pool.total_issued += amount_with_exchange_rate;
 
     pool_info(&mut deps.storage).save(&pool)?;
 
@@ -159,8 +154,6 @@ pub fn handle_mint<S: Storage, A: Api, Q: Querier>(
     balances(&mut deps.storage).update(rcpt_raw.as_slice(), |balance: Option<Uint128>| {
         Ok(balance.unwrap_or_default() + amount_with_exchange_rate)
     })?;
-
-    let added_amount = payment.amount.add(amount);
 
     token.total_supply += amount_with_exchange_rate;
 
@@ -175,7 +168,7 @@ pub fn handle_mint<S: Storage, A: Api, Q: Querier>(
     } else {
         read_delegation_map(&deps.storage, validator.clone())?
     };
-    vld_amount += amount;
+    vld_amount += payment.amount;
     store_delegation_map(&mut deps.storage, validator.clone(), vld_amount)?;
 
     //save the holder map
@@ -191,7 +184,7 @@ pub fn handle_mint<S: Storage, A: Api, Q: Querier>(
             log("action", "mint"),
             log("from", sender),
             log("bonded", payment.amount),
-            log("minted", added_amount),
+            log("minted", amount_with_exchange_rate),
         ],
         data: None,
     };
