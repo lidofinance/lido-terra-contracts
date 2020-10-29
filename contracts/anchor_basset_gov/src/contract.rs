@@ -16,7 +16,7 @@ use crate::state::{
 };
 use anchor_basset_reward::hook::InitHook;
 use anchor_basset_reward::init::RewardInitMsg;
-use anchor_basset_reward::msg::HandleMsg::{Swap, UpdateGlobalIndex};
+use anchor_basset_reward::msg::HandleMsg::{Swap, UpdateGlobalIndex, UpdateUserIndex};
 use rand::Rng;
 use std::borrow::{Borrow, BorrowMut};
 use std::collections::HashMap;
@@ -133,7 +133,6 @@ pub fn handle_mint<S: Storage, A: Api, Q: Querier>(
         .ok_or_else(|| StdError::generic_err(format!("No {} tokens sent", LUNA)))?;
 
     let mut pool = pool_info_read(&deps.storage).load()?;
-    let reward_index = pool.reward_index;
 
     let amount_with_exchange_rate =
         if pool.total_bond_amount.is_zero() || pool.total_issued.is_zero() {
@@ -151,7 +150,7 @@ pub fn handle_mint<S: Storage, A: Api, Q: Querier>(
     pool_info(&mut deps.storage).save(&pool)?;
 
     // Issue the bluna token for sender
-    let sender = env.message.sender;
+    let sender = env.message.sender.clone();
     let rcpt_raw = deps.api.canonical_address(&sender)?;
     balances(&mut deps.storage).update(rcpt_raw.as_slice(), |balance: Option<Uint128>| {
         Ok(balance.unwrap_or_default() + amount_with_exchange_rate)
@@ -173,15 +172,27 @@ pub fn handle_mint<S: Storage, A: Api, Q: Querier>(
     vld_amount += payment.amount;
     store_delegation_map(&mut deps.storage, validator.clone(), vld_amount)?;
 
-    //save the holder map
-    store_holder_map(&mut deps.storage, sender.clone(), reward_index)?;
+    let mut messages: Vec<CosmosMsg> = vec![];
+
+    //delegate the amount
+    messages.push(CosmosMsg::Staking(StakingMsg::Delegate {
+        validator,
+        amount: payment.clone(),
+    }));
+
+    //
+    let reward_address = deps.api.human_address(&pool.reward_account)?;
+    let holder_msg = UpdateUserIndex {
+        address: env.message.sender,
+    };
+    messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
+        contract_addr: reward_address,
+        msg: to_binary(&holder_msg)?,
+        send: vec![],
+    }));
 
     let res = HandleResponse {
-        messages: vec![StakingMsg::Delegate {
-            validator,
-            amount: payment.clone(),
-        }
-        .into()],
+        messages,
         log: vec![
             log("action", "mint"),
             log("from", sender),

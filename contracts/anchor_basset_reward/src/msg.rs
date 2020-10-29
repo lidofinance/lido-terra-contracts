@@ -6,16 +6,13 @@ use cosmwasm_std::{HumanAddr, Uint128};
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum HandleMsg {
-    SendReward {
-        receiver: HumanAddr,
-        amount: Uint128,
-    },
+    SendReward {},
     //Swap all of the balances to uusd.
     Swap {},
     //Update the global index
-    UpdateGlobalIndex {
-        past_balance: Uint128,
-    },
+    UpdateGlobalIndex { past_balance: Uint128 },
+    //Register bluna holders
+    UpdateUserIndex { address: HumanAddr },
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
