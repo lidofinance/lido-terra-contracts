@@ -16,7 +16,6 @@
 //!          //...
 //!      });
 //! 4. Anywhere you see query(&deps, ...) you must replace it with query(&mut deps, ...)
-
 use cosmwasm_std::{
     coin, from_binary, Api, BankMsg, CosmosMsg, Decimal, Extern, HumanAddr, InitResponse, Querier,
     StakingMsg, Storage, Uint128, Validator,
@@ -24,7 +23,8 @@ use cosmwasm_std::{
 
 use cosmwasm_std::testing::{mock_dependencies, mock_env, MockQuerier};
 
-use anchor_bluna::msg::{HandleMsg, InitMsg, QueryMsg, TokenInfoResponse};
+use anchor_bluna::msg::{InitMsg, QueryMsg, TokenInfoResponse};
+use gov_courier::HandleMsg;
 
 use anchor_bluna::contract::{handle, init, query};
 
@@ -50,7 +50,7 @@ fn default_init() -> InitMsg {
         name: "uluna".to_string(),
         symbol: "BLA".to_string(),
         decimals: 6,
-        code_id: 0,
+        reward_code_id: 0,
     }
 }
 
@@ -62,7 +62,7 @@ fn proper_initialization() {
         name: "bluna".to_string(),
         symbol: "BLA".to_string(),
         decimals: 6,
-        code_id: 0,
+        reward_code_id: 0,
     };
 
     let env = mock_env("addr0000", &[]);
@@ -173,7 +173,7 @@ pub fn proper_claim_reward() {
     let res = handle(&mut deps, env, msg).unwrap();
     assert_eq!(0, res.messages.len());
 
-    let register_msg = HandleMsg::Register {};
+    let register_msg = HandleMsg::RegisterSubContracts {};
     let register_env = mock_env(&other_contract, &[]);
     let exec = handle(&mut deps, register_env, register_msg).unwrap();
     assert_eq!(0, exec.messages.len());
@@ -183,13 +183,12 @@ pub fn proper_claim_reward() {
     let mint_msg = HandleMsg::Mint {
         validator: validator.address,
     };
-    
 
     let env = mock_env(&bob, &[coin(10, "uluna")]);
 
     let res = handle(&mut deps, env.clone(), mint_msg).unwrap();
     assert_eq!(1, res.messages.len());
-    
+
     let reward_msg = HandleMsg::UpdateGlobalIndex {};
 
     let env = mock_env(&bob, &[coin(10, "uluna")]);
@@ -225,7 +224,7 @@ pub fn proper_send() {
     let white_valid = validators.get(0).unwrap();
     assert_eq!(&validator.address, white_valid);
 
-    let register_msg = HandleMsg::Register {};
+    let register_msg = HandleMsg::RegisterSubContracts {};
     let register_env = mock_env(&other_contract, &[]);
     let exec = handle(&mut deps, register_env, register_msg).unwrap();
     assert_eq!(0, exec.messages.len());
@@ -295,13 +294,13 @@ pub fn proper_init_burn() {
     let res = init(&mut deps, env, init_msg).unwrap();
     assert_eq!(1, res.messages.len());
 
-    let register_msg = HandleMsg::Register {};
+    let register_msg = HandleMsg::RegisterSubContracts {};
     let register_env = mock_env(&other_contract, &[]);
     let exec = handle(&mut deps, register_env, register_msg).unwrap();
     assert_eq!(0, exec.messages.len());
 
     // Test only one time we Register message can be sent.
-    let error_register_msg = HandleMsg::Register {};
+    let error_register_msg = HandleMsg::RegisterSubContracts {};
     let error_register_env = mock_env(&invalid_usrer, &[]);
     let error = handle(&mut deps, error_register_env, error_register_msg).is_err();
     assert_eq!(true, error);
@@ -359,7 +358,7 @@ pub fn proper_finish() {
     let res = init(&mut deps, env, init_msg).unwrap();
     assert_eq!(1, res.messages.len());
 
-    let register_msg = HandleMsg::Register {};
+    let register_msg = HandleMsg::RegisterSubContracts {};
     let register_env = mock_env(&other_contract, &[]);
     let exec = handle(&mut deps, register_env, register_msg).unwrap();
     assert_eq!(0, exec.messages.len());

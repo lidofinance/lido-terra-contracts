@@ -2,8 +2,8 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use cosmwasm_std::{
-    from_slice, to_vec, CanonicalAddr, Decimal, HumanAddr, Order, ReadonlyStorage, StdError,
-    StdResult, Storage, Uint128,
+    from_slice, to_vec, CanonicalAddr, HumanAddr, Order, ReadonlyStorage, StdError, StdResult,
+    Storage, Uint128,
 };
 use cosmwasm_storage::{
     bucket, bucket_read, singleton, singleton_read, Bucket, PrefixedStorage, ReadonlyBucket,
@@ -11,12 +11,13 @@ use cosmwasm_storage::{
 };
 use std::collections::HashMap;
 
+use gov_courier::PoolInfo;
+
 // EPOC = 21600s is equal to 6 hours
 pub const EPOC: u64 = 21600;
 
-pub static TOKEN_INFO_KEY: &[u8] = b"token_info";
+pub static CONFIG: &[u8] = b"gov_config";
 pub static POOL_INFO: &[u8] = b"pool_info";
-const BALANCE: &[u8] = b"balance";
 static PREFIX_REWARD: &[u8] = b"claim";
 
 pub static PREFIX_UNBOUND_PER_EPOC: &[u8] = b"unbound";
@@ -29,11 +30,7 @@ pub static ALL_EPOC_ID: &[u8] = b"epoc_list";
 pub static WHITE_VALIDATORS: &[u8] = b"white_validators";
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct TokenInfo {
-    pub name: String,
-    pub symbol: String,
-    pub decimals: u8,
-    pub total_supply: Uint128,
+pub struct GovConfig {
     pub creator: CanonicalAddr,
 }
 
@@ -69,41 +66,12 @@ pub struct AllEpoc {
     pub epoces: Vec<EpocId>,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema, Default)]
-pub struct PoolInfo {
-    pub exchange_rate: Decimal,
-    pub total_bond_amount: Uint128,
-    pub total_issued: Uint128,
-    pub claimed: Uint128,
-    pub reward_index: Decimal,
-    pub last_index_modification: u64,
-    pub all_reward: Uint128,
-    pub reward_account: CanonicalAddr,
-    // This helps to control Register message.
-    // Register message should be called once
-    pub is_reward_exist: bool,
+pub fn config<S: Storage>(storage: &mut S) -> Singleton<S, GovConfig> {
+    singleton(storage, CONFIG)
 }
 
-impl PoolInfo {
-    pub fn update_exchange_rate(&mut self) {
-        //FIXME: Is total supply equal to total issued?
-        self.exchange_rate = Decimal::from_ratio(self.total_bond_amount, self.total_issued);
-    }
-}
-pub fn token_info<S: Storage>(storage: &mut S) -> Singleton<S, TokenInfo> {
-    singleton(storage, TOKEN_INFO_KEY)
-}
-
-pub fn token_info_read<S: ReadonlyStorage>(storage: &S) -> ReadonlySingleton<S, TokenInfo> {
-    singleton_read(storage, TOKEN_INFO_KEY)
-}
-
-pub fn balances<S: Storage>(storage: &mut S) -> Bucket<S, Uint128> {
-    bucket(BALANCE, storage)
-}
-
-pub fn balances_read<S: ReadonlyStorage>(storage: &S) -> ReadonlyBucket<S, Uint128> {
-    bucket_read(BALANCE, storage)
+pub fn config_read<S: ReadonlyStorage>(storage: &S) -> ReadonlySingleton<S, GovConfig> {
+    singleton_read(storage, CONFIG)
 }
 
 pub fn save_epoc<S: Storage>(storage: &mut S) -> Singleton<S, EpocId> {
