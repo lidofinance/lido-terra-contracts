@@ -61,7 +61,7 @@ pub fn proper_send_reward() {
     let env = mock_env(&owner, &[coin(10, "uluna"), coin(1000, "uluna")]);
 
     let _alice = HumanAddr::from("alice");
-    let msg = HandleMsg::SendReward {};
+    let msg = HandleMsg::SendReward { recipient: None };
 
     let res = handle(&mut deps, env, msg).unwrap();
     assert_eq!(1, res.messages.len());

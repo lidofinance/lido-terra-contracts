@@ -6,13 +6,20 @@ use cosmwasm_std::{HumanAddr, Uint128};
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum HandleMsg {
-    SendReward {},
+    SendReward {
+        recipient: Option<HumanAddr>,
+    },
     //Swap all of the balances to uusd.
     Swap {},
     //Update the global index
-    UpdateGlobalIndex { past_balance: Uint128 },
+    UpdateGlobalIndex {
+        past_balance: Uint128,
+    },
     //Register bluna holders
-    UpdateUserIndex { address: HumanAddr },
+    UpdateUserIndex {
+        address: HumanAddr,
+        is_send: Option<Uint128>,
+    },
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -25,4 +32,6 @@ pub struct TokenInfoResponse {
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
-pub enum QueryMsg {}
+pub enum QueryMsg {
+    AccruedRewards { address: HumanAddr },
+}
