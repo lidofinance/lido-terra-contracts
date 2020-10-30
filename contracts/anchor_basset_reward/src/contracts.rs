@@ -50,44 +50,61 @@ pub fn handle<S: Storage, A: Api, Q: Querier>(
     msg: HandleMsg,
 ) -> StdResult<HandleResponse<TerraMsgWrapper>> {
     match msg {
-        HandleMsg::SendReward {} => handle_send_reward(deps, env),
+        HandleMsg::SendReward { recipient } => handle_send_reward(deps, env, recipient),
         HandleMsg::Swap {} => handle_swap(deps, env),
         HandleMsg::UpdateGlobalIndex { past_balance } => {
             handle_global_index(deps, env, past_balance)
         }
-        HandleMsg::UpdateUserIndex { address } => handle_update_index(deps, env, address),
+        HandleMsg::UpdateUserIndex { address, is_send } => {
+            handle_update_index(deps, env, address, is_send)
+        }
     }
 }
 
 pub fn handle_send_reward<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
     env: Env,
+    recipient: Option<HumanAddr>,
 ) -> StdResult<HandleResponse<TerraMsgWrapper>> {
-    //check whether the gov contract has sent this
-    let conf = config_read(&deps.storage).load()?;
+    let mut receiver: HumanAddr = Default::default();
 
-    let owner_human = deps.api.human_address(&conf.owner)?;
-    let sender = env.message.sender;
-    let sender_raw = deps.api.canonical_address(&sender)?;
+    let config = config_read(&deps.storage).load()?;
+    let owner_human = deps.api.human_address(&config.owner)?;
+
+    if recipient.is_some() && env.message.sender != owner_human {
+        return Err(StdError::generic_err("Unauthorized"));
+    }
+
+    if let Some(value) = recipient {
+        receiver = value;
+    }
+
+    let is_exist = read_holder_map(&deps.storage, receiver.clone());
+    if is_exist.is_err() {
+        return Err(StdError::generic_err(
+            "The sender has not requested any tokens",
+        ));
+    }
+
+    let rcvr_raw = deps.api.canonical_address(&receiver)?;
     //calculate the reward
-    let recv_index = read_holder_map(&deps.storage, sender.clone())?;
+    let recv_index = read_holder_map(&deps.storage, receiver.clone())?;
     let global_index = index_read(&deps.storage).load()?.global_index;
 
-    let balance = query_balance(&deps, &sender, owner_human).unwrap();
+    let balance = query_balance(&deps, &receiver, owner_human).unwrap();
     let reward = calculate_reward(global_index, recv_index, balance)?;
 
-    let pending_reward = pending_reward_read(&deps.storage).load(sender_raw.as_slice())?;
+    let pending_reward = pending_reward_read(&deps.storage).load(rcvr_raw.as_slice())?;
 
     //set the pending reward to zero
-    pending_reward_store(&mut deps.storage)
-        .update(sender_raw.as_slice(), |_| Ok(Uint128::zero()))?;
+    pending_reward_store(&mut deps.storage).update(rcvr_raw.as_slice(), |_| Ok(Uint128::zero()))?;
 
     let final_reward = reward + pending_reward;
 
     let contr_addr = env.contract.address;
     let msgs = vec![BankMsg::Send {
         from_address: contr_addr.clone(),
-        to_address: sender,
+        to_address: receiver,
         amount: coins(Uint128::u128(&final_reward), SWAP_DENOM),
     }
     .into()];
@@ -187,6 +204,7 @@ pub fn handle_update_index<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
     env: Env,
     address: HumanAddr,
+    is_send: Option<Uint128>,
 ) -> StdResult<HandleResponse<TerraMsgWrapper>> {
     let config = config_read(&deps.storage).load()?;
     let owner_human = deps.api.human_address(&config.owner)?;
@@ -198,25 +216,43 @@ pub fn handle_update_index<S: Storage, A: Api, Q: Querier>(
     }
 
     let global_index = index_read(&deps.storage).load()?.global_index;
+    match is_send {
+        Some(value) => {
+            let prev_rcpt_balance = value;
 
-    if read_holder_map(&deps.storage, address.clone()).is_err() {
-        //save the holder map
-        store_holder_map(&mut deps.storage, address, global_index)?;
-    } else {
-        //calculate the reward
-        let recv_index = read_holder_map(&deps.storage, sender.clone())?;
-        let global_index = index_read(&deps.storage).load()?.global_index;
+            let global_index = index_read(&deps.storage).load()?.global_index;
+            let rcpt_index = read_holder_map(&deps.storage, address.clone())?;
+            let reward = calculate_reward(global_index, rcpt_index, prev_rcpt_balance)?;
 
-        let balance = query_balance(&deps, &sender, owner_human).unwrap();
-        let reward = calculate_reward(global_index, recv_index, balance)?;
+            //store the reward
+            pending_reward_store(&mut deps.storage)
+                .update(address_raw.as_slice(), |balance: Option<Uint128>| {
+                    Ok(balance.unwrap_or_default() + reward)
+                })?;
 
-        //store the reward
-        pending_reward_store(&mut deps.storage)
-            .update(address_raw.as_slice(), |balance: Option<Uint128>| {
-                Ok(balance.unwrap_or_default() + reward)
-            })?;
+            store_holder_map(&mut deps.storage, address, global_index)?;
+        }
+        None => {
+            if read_holder_map(&deps.storage, address.clone()).is_err() {
+                //save the holder map
+                store_holder_map(&mut deps.storage, address, global_index)?;
+            } else {
+                //calculate the reward
+                let recv_index = read_holder_map(&deps.storage, sender.clone())?;
+                let global_index = index_read(&deps.storage).load()?.global_index;
 
-        store_holder_map(&mut deps.storage, address, global_index)?;
+                let balance = query_balance(&deps, &sender, owner_human).unwrap();
+                let reward = calculate_reward(global_index, recv_index, balance)?;
+
+                //store the reward
+                pending_reward_store(&mut deps.storage)
+                    .update(address_raw.as_slice(), |balance: Option<Uint128>| {
+                        Ok(balance.unwrap_or_default() + reward)
+                    })?;
+
+                store_holder_map(&mut deps.storage, address, global_index)?;
+            }
+        }
     }
 
     let res = HandleResponse {
@@ -226,6 +262,17 @@ pub fn handle_update_index<S: Storage, A: Api, Q: Querier>(
     };
 
     Ok(res)
+}
+
+pub fn compute_receiver_index(
+    burn_amount: Uint128,
+    rcp_bal: Uint128,
+    rcp_indx: Decimal,
+    sndr_indx: Decimal,
+) -> Decimal {
+    let nom = burn_amount * sndr_indx + rcp_bal * rcp_indx;
+    let denom = burn_amount + rcp_bal;
+    Decimal::from_ratio(nom, denom)
 }
 
 #[inline]
@@ -256,8 +303,26 @@ pub fn query_balance<S: Storage, A: Api, Q: Querier>(
 }
 
 pub fn query<S: Storage, A: Api, Q: Querier>(
-    _deps: &Extern<S, A, Q>,
-    _msg: QueryMsg,
+    deps: &Extern<S, A, Q>,
+    msg: QueryMsg,
 ) -> StdResult<Binary> {
-    unimplemented!()
+    match msg {
+        QueryMsg::AccruedRewards { address } => to_binary(&query_accrued_rewards(&deps, address)?),
+    }
+}
+
+fn query_accrued_rewards<S: Storage, A: Api, Q: Querier>(
+    deps: &Extern<S, A, Q>,
+    address: HumanAddr,
+) -> StdResult<Uint128> {
+    let global_index = index_read(&deps.storage).load()?.global_index;
+    let owner_human = deps
+        .api
+        .human_address(&config_read(&deps.storage).load()?.owner)?;
+    let user_balance = query_balance(&deps, &address, owner_human)?;
+    let sender_reward_index = read_holder_map(&deps.storage, address);
+    if sender_reward_index.is_err() {
+        return Err(StdError::generic_err("There is no user with this address"));
+    }
+    calculate_reward(global_index, sender_reward_index.unwrap(), user_balance)
 }

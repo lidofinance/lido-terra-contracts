@@ -186,11 +186,6 @@ pub fn proper_claim_reward() {
     let env = mock_env(&bob, &[coin(10, "uluna")]);
     let res = handle(&mut deps, env, reward_msg).unwrap();
     assert_eq!(1, res.messages.len());
-
-    let reward_query = QueryMsg::AccruedRewards { address: bob };
-    let q = query(&deps, reward_query).unwrap();
-    let query_result: Uint128 = from_binary(&q).unwrap();
-    assert_eq!(Uint128(0), query_result);
 }
 
 #[test]

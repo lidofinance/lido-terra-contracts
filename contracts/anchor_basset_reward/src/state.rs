@@ -1,6 +1,6 @@
 use cosmwasm_std::{
-    from_slice, to_vec, CanonicalAddr, Decimal, HumanAddr, Order, ReadonlyStorage, StdError,
-    StdResult, Storage, Uint128,
+    from_slice, to_vec, CanonicalAddr, Decimal, HumanAddr, ReadonlyStorage, StdError, StdResult,
+    Storage, Uint128,
 };
 use cosmwasm_storage::{
     bucket, bucket_read, singleton, singleton_read, Bucket, PrefixedStorage, ReadonlyBucket,
@@ -8,7 +8,6 @@ use cosmwasm_storage::{
 };
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
 
 pub static CONFIG: &[u8] = b"config";
 pub static INDEX: &[u8] = b"index";
@@ -60,23 +59,6 @@ pub fn read_holder_map<S: Storage>(storage: &S, holder_address: HumanAddr) -> St
         Some(data) => from_slice(&data),
         None => Err(StdError::generic_err("no holder is found")),
     }
-}
-
-// Returns a HashMap of holders. <holders, reward_index>
-pub fn read_holders<S: Storage>(storage: &S) -> StdResult<HashMap<HumanAddr, Decimal>> {
-    let mut holders: HashMap<HumanAddr, Decimal> = HashMap::new();
-    let res = ReadonlyPrefixedStorage::new(PREFIX_HOLDERS_MAP, storage);
-    let _un: Vec<_> = res
-        .range(None, None, Order::Ascending)
-        .map(|item| {
-            let (key, value) = item;
-            let sender = from_slice(&key).unwrap();
-            let index: Decimal = from_slice(&value).unwrap();
-            holders.insert(sender, index);
-        })
-        .collect();
-
-    Ok(holders)
 }
 
 pub fn pending_reward_store<S: Storage>(storage: &mut S) -> Bucket<S, Uint128> {

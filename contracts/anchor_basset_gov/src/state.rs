@@ -21,7 +21,6 @@ static PREFIX_REWARD: &[u8] = b"claim";
 
 pub static PREFIX_UNBOUND_PER_EPOC: &[u8] = b"unbound";
 pub static PREFIX_DELEGATION_MAP: &[u8] = b"delegate";
-pub static PREFIX_HOLDER_MAP: &[u8] = b"holder";
 pub static PREFIX_WAIT_MAP: &[u8] = b"wait";
 pub static EPOC_ID: &[u8] = b"epoc";
 pub static VALIDATORS: &[u8] = b"validators";
@@ -198,44 +197,6 @@ pub fn read_validators<S: Storage>(storage: &S) -> StdResult<Vec<HumanAddr>> {
         .collect();
 
     Ok(validators)
-}
-
-// This is similar to HashMap<holder's address, reward_index>
-pub fn store_holder_map<S: Storage>(
-    storage: &mut S,
-    holder_address: HumanAddr,
-    index: Decimal,
-) -> StdResult<()> {
-    let vec = to_vec(&holder_address)?;
-    let value: Vec<u8> = to_vec(&index)?;
-    PrefixedStorage::new(PREFIX_HOLDER_MAP, storage).set(&vec, &value);
-    Ok(())
-}
-
-pub fn read_holder_map<S: Storage>(storage: &S, holder_address: HumanAddr) -> StdResult<Decimal> {
-    let vec = to_vec(&holder_address)?;
-    let res = ReadonlyPrefixedStorage::new(PREFIX_HOLDER_MAP, storage).get(&vec);
-    match res {
-        Some(data) => from_slice(&data),
-        None => Err(StdError::generic_err("no holder is found")),
-    }
-}
-
-// Returns a HashMap of holders. <holders, reward_index>
-pub fn read_holders<S: Storage>(storage: &S) -> StdResult<HashMap<HumanAddr, Decimal>> {
-    let mut holders: HashMap<HumanAddr, Decimal> = HashMap::new();
-    let res = ReadonlyPrefixedStorage::new(PREFIX_HOLDER_MAP, storage);
-    let _un: Vec<_> = res
-        .range(None, None, Order::Ascending)
-        .map(|item| {
-            let (key, value) = item;
-            let sender = from_slice(&key).unwrap();
-            let index: Decimal = from_slice(&value).unwrap();
-            holders.insert(sender, index);
-        })
-        .collect();
-
-    Ok(holders)
 }
 
 //stores undelegation wait list per each epoc.

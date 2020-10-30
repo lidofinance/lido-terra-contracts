@@ -7,19 +7,17 @@ use cosmwasm_std::{
 use crate::msg::{HandleMsg, InitMsg, QueryMsg, TokenInfoResponse};
 use crate::state::{
     balances, balances_read, claim_read, claim_store, epoc_read, is_valid_validator, pool_info,
-    pool_info_read, read_all_epocs, read_delegation_map, read_holder_map, read_holders,
-    read_total_amount, read_undelegated_wait_list, read_undelegated_wait_list_for_epoc,
-    read_valid_validators, read_validators, remove_white_validators, save_all_epoc, save_epoc,
-    store_delegation_map, store_holder_map, store_total_amount, store_undelegated_wait_list,
-    store_white_validators, token_info, token_info_read, AllEpoc, EpocId, PoolInfo, TokenInfo,
-    EPOC,
+    pool_info_read, read_all_epocs, read_delegation_map, read_total_amount,
+    read_undelegated_wait_list, read_undelegated_wait_list_for_epoc, read_valid_validators,
+    read_validators, remove_white_validators, save_all_epoc, save_epoc, store_delegation_map,
+    store_total_amount, store_undelegated_wait_list, store_white_validators, token_info,
+    token_info_read, AllEpoc, EpocId, PoolInfo, TokenInfo, EPOC,
 };
 use anchor_basset_reward::hook::InitHook;
 use anchor_basset_reward::init::RewardInitMsg;
-use anchor_basset_reward::msg::HandleMsg::{Swap, UpdateGlobalIndex, UpdateUserIndex};
+use anchor_basset_reward::msg::HandleMsg::{SendReward, Swap, UpdateGlobalIndex, UpdateUserIndex};
 use rand::Rng;
 use std::borrow::{Borrow, BorrowMut};
-use std::collections::HashMap;
 use std::ops::Add;
 
 const LUNA: &str = "uluna";
@@ -180,10 +178,11 @@ pub fn handle_mint<S: Storage, A: Api, Q: Querier>(
         amount: payment.clone(),
     }));
 
-    //
+    //updat the index of the holder
     let reward_address = deps.api.human_address(&pool.reward_account)?;
     let holder_msg = UpdateUserIndex {
         address: env.message.sender,
+        is_send: None,
     };
     messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
         contract_addr: reward_address,
@@ -208,15 +207,6 @@ pub fn handle_update_global<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
     env: Env,
 ) -> StdResult<HandleResponse> {
-    //Get all holders
-    let all_holder: HashMap<HumanAddr, Decimal> = read_holders(&deps.storage)?;
-
-    if !all_holder.contains_key(&env.message.sender) {
-        return Err(StdError::generic_err(
-            "The sender has not requested any tokens",
-        ));
-    }
-
     let mut messages: Vec<CosmosMsg> = vec![];
 
     let pool = pool_info_read(&deps.storage).load()?;
@@ -299,18 +289,29 @@ pub fn handle_send<S: Storage, A: Api, Q: Querier>(
     recipient: HumanAddr,
     amount: Uint128,
 ) -> StdResult<HandleResponse> {
-    let sender = env.message.sender.clone();
-    //claim the reward.
-    let msg = HandleMsg::UpdateGlobalIndex {};
-    let messages = WasmMsg::Execute {
-        contract_addr: env.contract.address.clone(),
-        msg: to_binary(&msg)?,
-        send: vec![],
-    };
-
     if amount == Uint128::zero() {
         return Err(StdError::generic_err("Invalid zero amount"));
     }
+
+    let mut messages: Vec<CosmosMsg> = vec![];
+    //claim the reward.
+    let msg = HandleMsg::UpdateGlobalIndex {};
+    messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
+        contract_addr: env.contract.address.clone(),
+        msg: to_binary(&msg)?,
+        send: vec![],
+    }));
+    let pool_inf = pool_info_read(&deps.storage).load()?;
+    let reward_contract = deps.api.human_address(&pool_inf.reward_account)?;
+    let send_reward = SendReward {
+        recipient: Some(env.message.sender.clone()),
+    };
+    //this will update the sender index
+    messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
+        contract_addr: reward_contract.clone(),
+        msg: to_binary(&send_reward)?,
+        send: vec![],
+    }));
 
     let rcpt_raw = deps.api.canonical_address(&recipient)?;
     let sender_raw = deps.api.canonical_address(&env.message.sender)?;
@@ -323,16 +324,18 @@ pub fn handle_send<S: Storage, A: Api, Q: Querier>(
         ));
     }
 
-    let pool_inf = pool_info_read(&deps.storage).load()?;
-    let global_index = pool_inf.reward_index;
+    let rcv_balance = balances_read(&deps.storage).load(rcpt_raw.as_slice())?;
 
-    //retrieve balances and index of the receiver
-    let receive_balance = balances_read(&deps.storage).load(rcpt_raw.as_slice())?;
-
-    let sndr_index = read_holder_map(&deps.storage, sender.clone())?;
-    let rcp_prv_index = read_holder_map(&deps.storage, recipient.clone())?;
-
-    let rcp_cur_index = compute_receiver_index(amount, receive_balance, sndr_index, rcp_prv_index);
+    let update_rcv_index = UpdateUserIndex {
+        address: recipient.clone(),
+        is_send: Some(rcv_balance),
+    };
+    //this will update the recipient's index
+    messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
+        contract_addr: reward_contract,
+        msg: to_binary(&update_rcv_index)?,
+        send: vec![],
+    }));
 
     //change the balance of sender and receiver.
     let mut accounts = balances(deps.storage.borrow_mut());
@@ -343,12 +346,8 @@ pub fn handle_send<S: Storage, A: Api, Q: Querier>(
         Ok(balance.unwrap_or_default() + amount)
     })?;
 
-    //update the index of receiver and the sender
-    store_holder_map(&mut deps.storage, sender.clone(), global_index)?;
-    store_holder_map(&mut deps.storage, sender, rcp_cur_index)?;
-
     let res = HandleResponse {
-        messages: vec![messages.into()],
+        messages,
         log: vec![
             log("action", "send"),
             log("from", deps.api.human_address(&sender_raw)?),
@@ -724,7 +723,6 @@ pub fn query<S: Storage, A: Api, Q: Querier>(
         QueryMsg::TokenInfo {} => to_binary(&query_token_info(&deps)?),
         QueryMsg::ExchangeRate {} => to_binary(&query_exg_rate(&deps)?),
         QueryMsg::WhiteListedValidators {} => to_binary(&query_white_validators(&deps)?),
-        QueryMsg::AccruedRewards { address } => to_binary(&query_accrued_rewards(&deps, address)?),
         QueryMsg::WithdrawableUnbonded { address } => {
             to_binary(&query_withdrawable_unbonded(&deps, address)?)
         }
@@ -764,21 +762,6 @@ fn query_white_validators<S: Storage, A: Api, Q: Querier>(
 ) -> StdResult<Vec<HumanAddr>> {
     let validators = read_valid_validators(&deps.storage)?;
     Ok(validators)
-}
-
-fn query_accrued_rewards<S: Storage, A: Api, Q: Querier>(
-    deps: &Extern<S, A, Q>,
-    address: HumanAddr,
-) -> StdResult<Uint128> {
-    let pool = pool_info_read(&deps.storage).load()?;
-    let addr_raw = deps.api.canonical_address(&address)?;
-    let global_index = pool.reward_index;
-    let all_holder: HashMap<HumanAddr, Decimal> = read_holders(&deps.storage)?;
-    let sender_reward_index = all_holder
-        .get(&address)
-        .expect("The sender has not requested any tokens");
-    let user_balance = balances_read(&deps.storage).load(addr_raw.as_slice())?;
-    calculate_reward(global_index, sender_reward_index, user_balance)
 }
 
 fn query_withdrawable_unbonded<S: Storage, A: Api, Q: Querier>(

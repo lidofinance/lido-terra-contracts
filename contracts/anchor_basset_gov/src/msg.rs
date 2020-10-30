@@ -103,6 +103,5 @@ pub enum QueryMsg {
     TokenInfo {},
     ExchangeRate {},
     WhiteListedValidators {},
-    AccruedRewards { address: HumanAddr },
     WithdrawableUnbonded { address: HumanAddr },
 }
