@@ -29,15 +29,33 @@ dependencies = [
 ]
 
 [[package]]
-name = "anchor_bluna"
+name = "anchor_basset_token"
 version = "0.1.0"
 dependencies = [
  "anchor_basset_reward",
  "cosmwasm-schema 0.10.1",
  "cosmwasm-std",
  "cosmwasm-storage",
+ "cw2",
+ "cw20",
+ "gov_courier",
+ "schemars",
+ "serde",
+ "snafu",
+]
+
+[[package]]
+name = "anchor_bluna"
+version = "0.1.0"
+dependencies = [
+ "anchor_basset_reward",
+ "anchor_basset_token",
+ "cosmwasm-schema 0.10.1",
+ "cosmwasm-std",
+ "cosmwasm-storage",
  "cosmwasm-vm",
  "cw20",
+ "gov_courier",
  "rand",
  "schemars",
  "serde",
@@ -360,6 +378,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "cw2"
+version = "0.2.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a1a5dd960277ae9180e0077fcc8769928da2d9c1c42cc8c8c734c625c6f2a90b"
+dependencies = [
+ "cosmwasm-std",
+ "cosmwasm-storage",
+ "schemars",
+ "serde",
+]
+
+[[package]]
 name = "cw20"
 version = "0.2.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -498,6 +528,19 @@ name = "gimli"
 version = "0.22.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "aaf91faf136cb47367fa430cd46e37a788775e7fa104f8b4bcb3861dc389b724"
+
+[[package]]
+name = "gov_courier"
+version = "0.1.0"
+dependencies = [
+ "cosmwasm-schema 0.11.1",
+ "cosmwasm-std",
+ "cosmwasm-storage",
+ "schemars",
+ "serde",
+ "terra-cosmwasm",
+ "thiserror",
+]
 
 [[package]]
 name = "hashbrown"

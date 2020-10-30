@@ -1,5 +1,5 @@
 [workspace]
-members = ["contracts/anchor_basset_reward", "contracts/anchor_basset_gov"]
+members = ["contracts/anchor_basset_reward", "contracts/anchor_basset_gov" , "contracts/anchor_basset_token" , "contracts/gov_courier"]
 
 [profile.release]
 rpath = false

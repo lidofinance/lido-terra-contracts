@@ -4,13 +4,10 @@ use crate::state::{
     config, config_read, index_read, index_store, pending_reward_read, pending_reward_store,
     read_holder_map, store_holder_map, Config, Index,
 };
-use cosmwasm_std::{
-    coins, from_binary, log, to_binary, Api, BankMsg, Binary, CosmosMsg, Decimal, Env, Extern,
-    HandleResponse, HumanAddr, InitResponse, Querier, QueryRequest, StdError, StdResult, Storage,
-    Uint128, WasmMsg, WasmQuery,
-};
+use cosmwasm_std::{coins, from_binary, log, to_binary, Api, BankMsg, Binary, CosmosMsg, Decimal, Env, Extern, HandleResponse, HumanAddr, InitResponse, Querier, QueryRequest, StdError, StdResult, Storage, Uint128, WasmMsg, WasmQuery, CanonicalAddr};
 
 use cosmwasm_storage::to_length_prefixed;
+use gov_courier::PoolInfo;
 use std::ops::Add;
 use terra_cosmwasm::{create_swap_msg, TerraMsgWrapper};
 
@@ -91,7 +88,9 @@ pub fn handle_send_reward<S: Storage, A: Api, Q: Querier>(
     let recv_index = read_holder_map(&deps.storage, receiver.clone())?;
     let global_index = index_read(&deps.storage).load()?.global_index;
 
-    let balance = query_balance(&deps, &receiver, owner_human).unwrap();
+    let token_address = deps.api.human_address(&query_token_contract(&deps,  owner_human)?)?;
+
+    let balance = query_balance(&deps, &receiver, token_address).unwrap();
     let reward = calculate_reward(global_index, recv_index, balance)?;
 
     let pending_reward = pending_reward_read(&deps.storage).load(rcvr_raw.as_slice())?;
@@ -240,8 +239,9 @@ pub fn handle_update_index<S: Storage, A: Api, Q: Querier>(
                 //calculate the reward
                 let recv_index = read_holder_map(&deps.storage, sender.clone())?;
                 let global_index = index_read(&deps.storage).load()?.global_index;
+                let token_address = deps.api.human_address(&query_token_contract(&deps,  owner_human)?)?;
 
-                let balance = query_balance(&deps, &sender, owner_human).unwrap();
+                let balance = query_balance(&deps, &sender, token_address).unwrap();
                 let reward = calculate_reward(global_index, recv_index, balance)?;
 
                 //store the reward
@@ -302,6 +302,22 @@ pub fn query_balance<S: Storage, A: Api, Q: Querier>(
     Ok(bal)
 }
 
+pub fn query_token_contract<S: Storage, A: Api, Q: Querier>(
+    deps: &Extern<S, A, Q>,
+    contract_addr: HumanAddr,
+) -> StdResult<CanonicalAddr> {
+    let res: Binary = deps
+        .querier
+        .query(&QueryRequest::Wasm(WasmQuery::Raw {
+            contract_addr,
+            key: Binary::from(to_length_prefixed(b"pool_info")),
+        }))
+        .unwrap_or_else(|_| to_binary(&Uint128::zero()).unwrap());
+
+    let pool_info: PoolInfo = from_binary(&res)?;
+    Ok(pool_info.reward_account)
+}
+
 pub fn query<S: Storage, A: Api, Q: Querier>(
     deps: &Extern<S, A, Q>,
     msg: QueryMsg,
@@ -319,7 +335,8 @@ fn query_accrued_rewards<S: Storage, A: Api, Q: Querier>(
     let owner_human = deps
         .api
         .human_address(&config_read(&deps.storage).load()?.owner)?;
-    let user_balance = query_balance(&deps, &address, owner_human)?;
+    let token_address = deps.api.human_address(&query_token_contract(&deps,  owner_human)?)?;
+    let user_balance = query_balance(&deps, &address, token_address)?;
     let sender_reward_index = read_holder_map(&deps.storage, address);
     if sender_reward_index.is_err() {
         return Err(StdError::generic_err("There is no user with this address"));

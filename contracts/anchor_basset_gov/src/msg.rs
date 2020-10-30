@@ -1,4 +1,4 @@
-use cosmwasm_std::{HumanAddr, StdError, StdResult, Uint128};
+use cosmwasm_std::{HumanAddr, StdError, StdResult};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -7,7 +7,8 @@ pub struct InitMsg {
     pub name: String,
     pub symbol: String,
     pub decimals: u8,
-    pub code_id: u64,
+    pub reward_code_id: u64,
+    pub token_code_id: u64,
 }
 
 impl InitMsg {
@@ -54,53 +55,7 @@ fn is_valid_symbol(symbol: &str) -> bool {
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
-pub enum HandleMsg {
-    /// Mint is a message to work as follows:
-    /// Receives `amount` Luna from sender.
-    /// Delegate `amount` to a specific `validator`.
-    /// Issue the same `amount` of bLuna to sender.
-    Mint {
-        validator: HumanAddr,
-    },
-    /// Update general index
-    UpdateGlobalIndex {},
-    InitBurn {
-        amount: Uint128,
-    },
-    /// FinishBurn is suppose to ask for liquidated luna
-    FinishBurn {
-        amount: Uint128,
-    },
-    /// Send is like a base message in CW20 to move bluna to another account
-    Send {
-        recipient: HumanAddr,
-        amount: Uint128,
-    },
-    // Register receives the reward contract address
-    Register {},
-    // Register valid validators to validators whitelist
-    RegisterValidator {
-        validator: HumanAddr,
-    },
-    // Remove the validator from validators whitelist
-    DeRegisterValidator {
-        validator: HumanAddr,
-    },
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct TokenInfoResponse {
-    pub name: String,
-    pub symbol: String,
-    pub decimals: u8,
-    pub total_supply: Uint128,
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-#[serde(rename_all = "snake_case")]
 pub enum QueryMsg {
-    Balance { address: HumanAddr },
-    TokenInfo {},
     ExchangeRate {},
     WhiteListedValidators {},
     WithdrawableUnbonded { address: HumanAddr },
