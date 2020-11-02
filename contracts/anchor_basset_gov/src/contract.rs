@@ -217,7 +217,7 @@ pub fn handle_update_global<S: Storage, A: Api, Q: Querier>(
         let validators: Vec<HumanAddr> = read_validators(&deps.storage)?;
 
         //send withdraw message
-        let mut withdraw_msgs = withdraw_all_rewards(validators, reward_addr.clone());
+        let mut withdraw_msgs = withdraw_all_rewards(validators);
         messages.append(&mut withdraw_msgs);
 
         //send Swap message to reward contract
@@ -259,15 +259,12 @@ pub fn handle_update_global<S: Storage, A: Api, Q: Querier>(
 }
 
 //create withdraw requests for all validators
-pub fn withdraw_all_rewards(
-    validators: Vec<HumanAddr>,
-    contract_addr: HumanAddr,
-) -> Vec<CosmosMsg> {
+pub fn withdraw_all_rewards(validators: Vec<HumanAddr>) -> Vec<CosmosMsg> {
     let mut messages: Vec<CosmosMsg> = vec![];
     for val in validators {
         let msg: CosmosMsg = CosmosMsg::Staking(StakingMsg::Withdraw {
             validator: val,
-            recipient: Some(contract_addr.clone()),
+            recipient: None,
         });
         messages.push(msg)
     }
@@ -611,8 +608,17 @@ pub fn handle_register<S: Storage, A: Api, Q: Querier>(
     pool.is_reward_exist = true;
     pool_info(&mut deps.storage).save(&pool)?;
 
+    let mut messages: Vec<CosmosMsg> = vec![];
+    let validators: Vec<HumanAddr> = read_validators(&deps.storage)?;
+
+    let msg: CosmosMsg = CosmosMsg::Staking(StakingMsg::Withdraw {
+        validator: HumanAddr::default(),
+        recipient: Some(deps.api.human_address(&raw_sender)?),
+    });
+    messages.push(msg);
+
     let res = HandleResponse {
-        messages: vec![],
+        messages,
         log: vec![log("action", "register"), log("sub_contract", raw_sender)],
         data: None,
     };

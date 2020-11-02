@@ -28,6 +28,8 @@ use anchor_bluna::msg::{HandleMsg, InitMsg, QueryMsg, TokenInfoResponse};
 
 use anchor_bluna::contract::{handle, init, query};
 
+use anchor_basset_reward::contracts::{handle as reward_handle, query as reward_query};
+
 const DEFAULT_VALIDATOR: &str = "default-validator";
 
 fn sample_validator<U: Into<HumanAddr>>(addr: U) -> Validator {
@@ -68,6 +70,12 @@ fn proper_initialization() {
     // we can just call .unwrap() to assert this was a success
     let res: InitResponse = init(&mut deps, env, msg).unwrap();
     assert_eq!(1, res.messages.len());
+
+    let other_contract = HumanAddr::from("other_contract");
+    let register_msg = HandleMsg::Register {};
+    let register_env = mock_env(&other_contract, &[]);
+    let exec = handle(&mut deps, register_env, register_msg).unwrap();
+    assert_eq!(1, exec.messages.len());
 
     //check token_info
     let token_query = QueryMsg::TokenInfo {};
@@ -175,12 +183,13 @@ pub fn proper_claim_reward() {
     let mint_msg = HandleMsg::Mint {
         validator: validator.address,
     };
+    
 
     let env = mock_env(&bob, &[coin(10, "uluna")]);
 
-    let res = handle(&mut deps, env, mint_msg).unwrap();
+    let res = handle(&mut deps, env.clone(), mint_msg).unwrap();
     assert_eq!(1, res.messages.len());
-
+    
     let reward_msg = HandleMsg::UpdateGlobalIndex {};
 
     let env = mock_env(&bob, &[coin(10, "uluna")]);
