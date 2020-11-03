@@ -159,7 +159,7 @@ pub fn handle_burn<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
     env: Env,
     amount: Uint128,
-    from: HumanAddr
+    from: HumanAddr,
 ) -> StdResult<HandleResponse> {
     if amount == Uint128::zero() {
         return Err(StdError::generic_err("Invalid zero amount"));

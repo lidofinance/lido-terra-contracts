@@ -17,18 +17,27 @@
 //!      });
 //! 4. Anywhere you see query(&deps, ...) you must replace it with query(&mut deps, ...)
 use cosmwasm_std::{
-    coin, from_binary, Api, BankMsg, CosmosMsg, Decimal, Extern, HumanAddr, InitResponse, Querier,
-    StakingMsg, Storage, Uint128, Validator,
+    coin, from_binary, Api, BankMsg, CanonicalAddr, CosmosMsg, Decimal, Env, Extern, HumanAddr,
+    InitResponse, Querier, StakingMsg, Storage, Uint128, Validator,
 };
 
 use cosmwasm_std::testing::{mock_dependencies, mock_env, MockQuerier};
 
-use anchor_bluna::msg::{InitMsg, QueryMsg, TokenInfoResponse};
+use anchor_bluna::msg::InitMsg;
 use gov_courier::HandleMsg;
 
-use anchor_bluna::contract::{handle, init, query};
+use anchor_bluna::contract::{handle, init};
 
-use anchor_basset_reward::contracts::{handle as reward_handle, query as reward_query};
+use anchor_basset_reward::contracts::init as reward_init;
+use anchor_basset_reward::init::RewardInitMsg;
+use anchor_basset_token::contract::{
+    handle as token_handle, init as token_init, query as token_query,
+};
+use anchor_basset_token::msg::HandleMsg::{Burn, Mint};
+use anchor_basset_token::msg::QueryMsg::{Balance, TokenInfo};
+use anchor_basset_token::msg::TokenInitMsg;
+use cw20::{BalanceResponse, MinterResponse, TokenInfoResponse};
+use gov_courier::Registration::{Reward, Token};
 
 const DEFAULT_VALIDATOR: &str = "default-validator";
 
@@ -45,13 +54,58 @@ fn set_validator(querier: &mut MockQuerier) {
     querier.update_staking("uluna", &[sample_validator(DEFAULT_VALIDATOR)], &[]);
 }
 
-fn default_init() -> InitMsg {
-    InitMsg {
-        name: "uluna".to_string(),
-        symbol: "BLA".to_string(),
+fn default_token(owner: CanonicalAddr, minter: HumanAddr) -> TokenInitMsg {
+    TokenInitMsg {
+        name: "bluna".to_string(),
+        symbol: "BLUNA".to_string(),
+        decimals: 6,
+        initial_balances: vec![],
+        mint: Some(MinterResponse { minter, cap: None }),
+        init_hook: None,
+        owner,
+    }
+}
+
+fn default_reward(owner: CanonicalAddr) -> RewardInitMsg {
+    RewardInitMsg {
+        owner,
+        init_hook: None,
+    }
+}
+
+pub fn init_all<S: Storage, A: Api, Q: Querier>(
+    mut deps: &mut Extern<S, A, Q>,
+    owner: HumanAddr,
+    reward_contract: HumanAddr,
+    token_contract: HumanAddr,
+) {
+    let msg = InitMsg {
+        name: "bluna".to_string(),
+        symbol: "BLUNA".to_string(),
         decimals: 6,
         reward_code_id: 0,
-    }
+        token_code_id: 0,
+    };
+
+    let owner_raw = deps.api.canonical_address(&owner).unwrap();
+
+    let env = mock_env(owner.clone(), &[]);
+
+    init(&mut deps, env.clone(), msg).unwrap();
+
+    let reward_in = default_reward(owner_raw.clone());
+    reward_init(&mut deps, env.clone(), reward_in).unwrap();
+
+    let token_int = default_token(owner_raw, owner);
+    token_init(&mut deps, env, token_int).unwrap();
+
+    let register_msg = HandleMsg::RegisterSubContracts { contract: Reward };
+    let register_env = mock_env(reward_contract, &[]);
+    handle(&mut deps, register_env, register_msg).unwrap();
+
+    let register_msg = HandleMsg::RegisterSubContracts { contract: Token };
+    let register_env = mock_env(token_contract, &[]);
+    handle(&mut deps, register_env, register_msg).unwrap();
 }
 
 #[test]
@@ -60,69 +114,80 @@ fn proper_initialization() {
 
     let msg = InitMsg {
         name: "bluna".to_string(),
-        symbol: "BLA".to_string(),
+        symbol: "BLUNA".to_string(),
         decimals: 6,
         reward_code_id: 0,
+        token_code_id: 0,
     };
 
-    let env = mock_env("addr0000", &[]);
+    let owner = HumanAddr::from("addr0000");
+    let owner_raw = deps.api.canonical_address(&owner).unwrap();
+
+    let env = mock_env(owner.clone(), &[]);
 
     // we can just call .unwrap() to assert this was a success
-    let res: InitResponse = init(&mut deps, env, msg).unwrap();
-    assert_eq!(1, res.messages.len());
+    let res: InitResponse = init(&mut deps, env.clone(), msg).unwrap();
+    assert_eq!(2, res.messages.len());
+
+    let reward_in = default_reward(owner_raw.clone());
+    reward_init(&mut deps, env.clone(), reward_in).unwrap();
+
+    let token_int = default_token(owner_raw, owner);
+    token_init(&mut deps, env, token_int).unwrap();
 
     let other_contract = HumanAddr::from("other_contract");
-    let register_msg = HandleMsg::Register {};
+    let register_msg = HandleMsg::RegisterSubContracts { contract: Reward };
     let register_env = mock_env(&other_contract, &[]);
+    let exec = handle(&mut deps, register_env, register_msg).unwrap();
+    assert_eq!(0, exec.messages.len());
+
+    let token_contract = HumanAddr::from("token_contract");
+    let register_msg = HandleMsg::RegisterSubContracts { contract: Token };
+    let register_env = mock_env(&token_contract, &[]);
     let exec = handle(&mut deps, register_env, register_msg).unwrap();
     assert_eq!(1, exec.messages.len());
 
     //check token_info
-    let token_query = QueryMsg::TokenInfo {};
-    let query_result = query(&deps, token_query).unwrap();
+    let token_inf = TokenInfo {};
+    let query_result = token_query(&deps, token_inf).unwrap();
     let value: TokenInfoResponse = from_binary(&query_result).unwrap();
     assert_eq!("bluna".to_string(), value.name);
-    assert_eq!("BLA".to_string(), value.symbol);
+    assert_eq!("BLUNA".to_string(), value.symbol);
     assert_eq!(Uint128::zero(), value.total_supply);
     assert_eq!(6, value.decimals);
 }
+
 #[test]
 fn proper_mint() {
     let mut deps = mock_dependencies(20, &[]);
     let validator = sample_validator(DEFAULT_VALIDATOR);
     set_validator(&mut deps.querier);
 
-    let creator = HumanAddr::from("creator");
-    let init_msg = default_init();
-    let env = mock_env(&creator, &[]);
+    let owner = HumanAddr::from("owner");
+    let token_contract = HumanAddr::from("token");
+    let reward_contract = HumanAddr::from("reward");
 
-    let res = init(&mut deps, env, init_msg).unwrap();
-    assert_eq!(1, res.messages.len());
+    init_all(&mut deps, owner.clone(), reward_contract, token_contract);
 
-    let env = mock_env(&creator, &[]);
+    let owner_env = mock_env(owner, &[]);
     let msg = HandleMsg::RegisterValidator {
         validator: validator.address.clone(),
     };
-    let res = handle(&mut deps, env, msg).unwrap();
+
+    let res = handle(&mut deps, owner_env.clone(), msg).unwrap();
     assert_eq!(0, res.messages.len());
 
     let bob = HumanAddr::from("bob");
     let mint_msg = HandleMsg::Mint {
-        validator: validator.address.clone(),
+        validator: validator.address,
     };
 
     let env = mock_env(&bob, &[coin(10, "uluna")]);
 
     let res = handle(&mut deps, env, mint_msg).unwrap();
-    assert_eq!(1, res.messages.len());
+    assert_eq!(3, res.messages.len());
 
-    //check the balance of the bob
-    let balance_msg = QueryMsg::Balance { address: bob };
-    let query_result = query(&deps, balance_msg).unwrap();
-    let value: Uint128 = from_binary(&query_result).unwrap();
-    assert_eq!(Uint128(5), value);
-
-    let delegate = &res.messages[0];
+    let delegate = &res.messages[1];
     match delegate {
         CosmosMsg::Staking(StakingMsg::Delegate { validator, amount }) => {
             assert_eq!(validator.as_str(), DEFAULT_VALIDATOR);
@@ -131,25 +196,18 @@ fn proper_mint() {
         _ => panic!("Unexpected message: {:?}", delegate),
     }
 
-    //test invalid validator
-    let ardi = HumanAddr::from("ardi");
-    let invalid_val = sample_validator("invalid");
-    let mint_msg = HandleMsg::Mint {
-        validator: invalid_val.address,
+    let token_mint = Mint {
+        recipient: bob.clone(),
+        amount: Uint128(10),
     };
-    let env = mock_env(&ardi, &[coin(10, "uluna"), coin(1000, "uluna")]);
+    let token_res = token_handle(&mut deps, owner_env, token_mint).unwrap();
+    assert_eq!(0, token_res.messages.len());
 
-    let res = handle(&mut deps, env, mint_msg).is_err();
-    assert_eq!(true, res);
-
-    //test invalid RegisterValidator sender
-    let wrong_creator = HumanAddr::from("wrong_creator");
-    let env = mock_env(&wrong_creator, &[]);
-    let msg = HandleMsg::RegisterValidator {
-        validator: validator.address,
-    };
-    let res = handle(&mut deps, env, msg).is_err();
-    assert_eq!(true, res);
+    //check the balance of the bob
+    let balance_msg = Balance { address: bob };
+    let query_result = token_query(&deps, balance_msg).unwrap();
+    let value: BalanceResponse = from_binary(&query_result).unwrap();
+    assert_eq!(Uint128(10), value.balance);
 }
 
 #[test]
@@ -158,124 +216,52 @@ pub fn proper_claim_reward() {
     let validator = sample_validator(DEFAULT_VALIDATOR);
     set_validator(&mut deps.querier);
 
-    let creator = HumanAddr::from("creator");
-    let other_contract = HumanAddr::from("other_contract");
-    let init_msg = default_init();
-    let env = mock_env(&creator, &[]);
+    let owner = HumanAddr::from("owner");
+    let token_contract = HumanAddr::from("token");
+    let reward_contract = HumanAddr::from("reward");
 
-    let res = init(&mut deps, env, init_msg).unwrap();
-    assert_eq!(1, res.messages.len());
+    init_all(&mut deps, owner.clone(), reward_contract, token_contract);
 
-    let env = mock_env(&creator, &[]);
+    let owner_env = mock_env(owner.clone(), &[]);
+    let env = mock_env(&owner, &[]);
     let msg = HandleMsg::RegisterValidator {
         validator: validator.address.clone(),
     };
+
     let res = handle(&mut deps, env, msg).unwrap();
     assert_eq!(0, res.messages.len());
 
-    let register_msg = HandleMsg::RegisterSubContracts {};
-    let register_env = mock_env(&other_contract, &[]);
-    let exec = handle(&mut deps, register_env, register_msg).unwrap();
-    assert_eq!(0, exec.messages.len());
-
     let bob = HumanAddr::from("bob");
-
     let mint_msg = HandleMsg::Mint {
         validator: validator.address,
-    };
-
-    let env = mock_env(&bob, &[coin(10, "uluna")]);
-
-    let res = handle(&mut deps, env.clone(), mint_msg).unwrap();
-    assert_eq!(1, res.messages.len());
-
-    let reward_msg = HandleMsg::UpdateGlobalIndex {};
-
-    let env = mock_env(&bob, &[coin(10, "uluna")]);
-    let res = handle(&mut deps, env, reward_msg).unwrap();
-    assert_eq!(1, res.messages.len());
-}
-
-#[test]
-pub fn proper_send() {
-    let mut deps = mock_dependencies(20, &[]);
-    let validator = sample_validator(DEFAULT_VALIDATOR);
-    set_validator(&mut deps.querier);
-
-    let creator = HumanAddr::from("creator");
-    let other_contract = HumanAddr::from("other_contract");
-    let init_msg = default_init();
-    let env = mock_env(&creator, &[]);
-
-    let res = init(&mut deps, env, init_msg).unwrap();
-    assert_eq!(1, res.messages.len());
-
-    let env = mock_env(&creator, &[]);
-    let msg = HandleMsg::RegisterValidator {
-        validator: validator.address.clone(),
-    };
-    let res = handle(&mut deps, env, msg).unwrap();
-    assert_eq!(0, res.messages.len());
-
-    //query whitelisted validators
-    let valid_query = QueryMsg::WhiteListedValidators {};
-    let query_result = query(&deps, valid_query).unwrap();
-    let validators: Vec<HumanAddr> = from_binary(&query_result).unwrap();
-    let white_valid = validators.get(0).unwrap();
-    assert_eq!(&validator.address, white_valid);
-
-    let register_msg = HandleMsg::RegisterSubContracts {};
-    let register_env = mock_env(&other_contract, &[]);
-    let exec = handle(&mut deps, register_env, register_msg).unwrap();
-    assert_eq!(0, exec.messages.len());
-
-    let bob = HumanAddr::from("bob");
-
-    let mint_msg = HandleMsg::Mint {
-        validator: validator.address.clone(),
     };
 
     let env = mock_env(&bob, &[coin(10, "uluna")]);
 
     let res = handle(&mut deps, env, mint_msg).unwrap();
-    assert_eq!(1, res.messages.len());
+    assert_eq!(3, res.messages.len());
 
-    let alice = HumanAddr::from("alice");
+    let delegate = &res.messages[1];
+    match delegate {
+        CosmosMsg::Staking(StakingMsg::Delegate { validator, amount }) => {
+            assert_eq!(validator.as_str(), DEFAULT_VALIDATOR);
+            assert_eq!(amount, &coin(10, "uluna"));
+        }
+        _ => panic!("Unexpected message: {:?}", delegate),
+    }
 
-    let alice_mint_msg = HandleMsg::Mint {
-        validator: validator.address,
-    };
-
-    let alice_env = mock_env(&alice, &[coin(100, "uluna")]);
-    let res = handle(&mut deps, alice_env, alice_mint_msg).unwrap();
-    assert_eq!(1, res.messages.len());
-
-    let send_msg = HandleMsg::Send {
+    let token_mint = Mint {
         recipient: bob.clone(),
-        amount: Uint128(1),
+        amount: Uint128(10),
     };
-    let alice_env = mock_env(&alice, &[coin(100, "uluna")]);
-    let send_res = handle(&mut deps, alice_env, send_msg).unwrap();
+    let token_res = token_handle(&mut deps, owner_env, token_mint).unwrap();
+    assert_eq!(0, token_res.messages.len());
 
-    assert_eq!(1, send_res.messages.len());
+    let reward_msg = HandleMsg::UpdateGlobalIndex {};
 
-    //check the balance of the bob
-    let balance_msg = QueryMsg::Balance {
-        address: bob.clone(),
-    };
-    let query_result = query(&deps, balance_msg).unwrap();
-    let value: Uint128 = from_binary(&query_result).unwrap();
-    assert_eq!(Uint128(6), value);
-
-    //send more than balance
-    let error_send_msg = HandleMsg::Send {
-        recipient: bob,
-        amount: Uint128(7),
-    };
-
-    let alice_env = mock_env(&alice, &[coin(100, "uluna")]);
-    let error = handle(&mut deps, alice_env, error_send_msg).is_err();
-    assert_eq!(true, error);
+    let env = mock_env(&bob, &[]);
+    let res = handle(&mut deps, env, reward_msg).unwrap();
+    assert_eq!(3, res.messages.len());
 }
 
 #[test]
@@ -284,36 +270,22 @@ pub fn proper_init_burn() {
     let validator = sample_validator(DEFAULT_VALIDATOR);
     set_validator(&mut deps.querier);
 
-    let creator = HumanAddr::from("creator");
-    let other_contract = HumanAddr::from("other_contract");
-    let invalid_usrer = HumanAddr::from("invalid");
+    let owner = HumanAddr::from("owner");
+    let token_contract = HumanAddr::from("token");
+    let reward_contract = HumanAddr::from("reward");
+    init_all(&mut deps, owner.clone(), reward_contract, token_contract);
 
-    let init_msg = default_init();
-    let env = mock_env(&creator, &[]);
+    let owner_env = mock_env(owner.clone(), &[]);
 
-    let res = init(&mut deps, env, init_msg).unwrap();
-    assert_eq!(1, res.messages.len());
-
-    let register_msg = HandleMsg::RegisterSubContracts {};
-    let register_env = mock_env(&other_contract, &[]);
-    let exec = handle(&mut deps, register_env, register_msg).unwrap();
-    assert_eq!(0, exec.messages.len());
-
-    // Test only one time we Register message can be sent.
-    let error_register_msg = HandleMsg::RegisterSubContracts {};
-    let error_register_env = mock_env(&invalid_usrer, &[]);
-    let error = handle(&mut deps, error_register_env, error_register_msg).is_err();
-    assert_eq!(true, error);
-
-    let env = mock_env(&creator, &[]);
+    let env = mock_env(&owner, &[]);
     let msg = HandleMsg::RegisterValidator {
         validator: validator.address.clone(),
     };
+
     let res = handle(&mut deps, env, msg).unwrap();
     assert_eq!(0, res.messages.len());
 
     let bob = HumanAddr::from("bob");
-
     let mint_msg = HandleMsg::Mint {
         validator: validator.address,
     };
@@ -321,27 +293,39 @@ pub fn proper_init_burn() {
     let env = mock_env(&bob, &[coin(10, "uluna")]);
 
     let res = handle(&mut deps, env, mint_msg).unwrap();
-    assert_eq!(1, res.messages.len());
+    assert_eq!(3, res.messages.len());
+
+    let delegate = &res.messages[1];
+    match delegate {
+        CosmosMsg::Staking(StakingMsg::Delegate { validator, amount }) => {
+            assert_eq!(validator.as_str(), DEFAULT_VALIDATOR);
+            assert_eq!(amount, &coin(10, "uluna"));
+        }
+        _ => panic!("Unexpected message: {:?}", delegate),
+    }
+
+    let token_mint = Mint {
+        recipient: bob.clone(),
+        amount: Uint128(10),
+    };
+    let token_res = token_handle(&mut deps, owner_env.clone(), token_mint).unwrap();
+    assert_eq!(0, token_res.messages.len());
 
     let init_burn = HandleMsg::InitBurn { amount: Uint128(1) };
-
-    let env = mock_env(&bob, &[coin(10, "uluna")]);
+    let env = mock_env(&bob, &[]);
     let res = handle(&mut deps, env, init_burn).unwrap();
-    assert_eq!(1, res.messages.len());
+    assert_eq!(2, res.messages.len());
 
-    let balance = QueryMsg::Balance {
-        address: bob.clone(),
+    let token_burn = Burn {
+        amount: Uint128(1),
+        from: bob.clone(),
     };
-    let query_result = query(&deps, balance).unwrap();
-    let value: Uint128 = from_binary(&query_result).unwrap();
-    assert_eq!(Uint128(4), value);
+    token_handle(&mut deps, owner_env, token_burn).unwrap();
 
-    //send more than the user balance
-    let error_burn = HandleMsg::InitBurn { amount: Uint128(7) };
-
-    let env = mock_env(&bob, &[coin(100, "uluna")]);
-    let error = handle(&mut deps, env, error_burn).is_err();
-    assert_eq!(true, error);
+    let balance = Balance { address: bob };
+    let query_result = token_query(&deps, balance).unwrap();
+    let value: BalanceResponse = from_binary(&query_result).unwrap();
+    assert_eq!(Uint128(9), value.balance);
 }
 
 #[test]
@@ -350,28 +334,22 @@ pub fn proper_finish() {
     let validator = sample_validator(DEFAULT_VALIDATOR);
     set_validator(&mut deps.querier);
 
-    let creator = HumanAddr::from("creator");
-    let other_contract = HumanAddr::from("other_contract");
-    let init_msg = default_init();
-    let env = mock_env(&creator, &[]);
+    let owner = HumanAddr::from("owner");
+    let token_contract = HumanAddr::from("token");
+    let reward_contract = HumanAddr::from("reward");
 
-    let res = init(&mut deps, env, init_msg).unwrap();
-    assert_eq!(1, res.messages.len());
+    init_all(&mut deps, owner.clone(), reward_contract, token_contract);
 
-    let register_msg = HandleMsg::RegisterSubContracts {};
-    let register_env = mock_env(&other_contract, &[]);
-    let exec = handle(&mut deps, register_env, register_msg).unwrap();
-    assert_eq!(0, exec.messages.len());
-
-    let env = mock_env(&creator, &[]);
+    let owner_env = mock_env(owner.clone(), &[]);
+    let env = mock_env(&owner, &[]);
     let msg = HandleMsg::RegisterValidator {
         validator: validator.address.clone(),
     };
+
     let res = handle(&mut deps, env, msg).unwrap();
     assert_eq!(0, res.messages.len());
 
     let bob = HumanAddr::from("bob");
-
     let mint_msg = HandleMsg::Mint {
         validator: validator.address.clone(),
     };
@@ -379,15 +357,43 @@ pub fn proper_finish() {
     let env = mock_env(&bob, &[coin(10, "uluna")]);
 
     let res = handle(&mut deps, env, mint_msg).unwrap();
-    assert_eq!(1, res.messages.len());
+    assert_eq!(3, res.messages.len());
+
+    let delegate = &res.messages[1];
+    match delegate {
+        CosmosMsg::Staking(StakingMsg::Delegate { validator, amount }) => {
+            assert_eq!(validator.as_str(), DEFAULT_VALIDATOR);
+            assert_eq!(amount, &coin(10, "uluna"));
+        }
+        _ => panic!("Unexpected message: {:?}", delegate),
+    }
+
+    let token_mint = Mint {
+        recipient: bob.clone(),
+        amount: Uint128(10),
+    };
+    let token_res = token_handle(&mut deps, owner_env.clone(), token_mint).unwrap();
+    assert_eq!(0, token_res.messages.len());
 
     let init_burn = HandleMsg::InitBurn { amount: Uint128(1) };
-
-    let env = mock_env(&bob, &[coin(10, "uluna")]);
+    let env = mock_env(&bob, &[]);
     let res = handle(&mut deps, env, init_burn).unwrap();
-    assert_eq!(1, res.messages.len());
+    assert_eq!(2, res.messages.len());
 
-    send_init_burn(&mut deps, "ardi", validator);
+    let token_burn = Burn {
+        amount: Uint128(1),
+        from: bob.clone(),
+    };
+    token_handle(&mut deps, owner_env.clone(), token_burn).unwrap();
+
+    let balance = Balance {
+        address: bob.clone(),
+    };
+    let query_result = token_query(&deps, balance).unwrap();
+    let value: BalanceResponse = from_binary(&query_result).unwrap();
+    assert_eq!(Uint128(9), value.balance);
+
+    send_init_burn(&mut deps, "ardi", validator, owner_env);
 
     let finish_msg = HandleMsg::FinishBurn { amount: Uint128(1) };
 
@@ -421,22 +427,30 @@ fn send_init_burn<S: Storage, A: Api, Q: Querier>(
     mut deps: &mut Extern<S, A, Q>,
     address_string: &str,
     validator: Validator,
+    owner_env: Env,
 ) {
     let bob = HumanAddr::from(address_string);
 
     let mint_msg = HandleMsg::Mint {
         validator: validator.address,
     };
+    let mut env = mock_env(&bob, &[coin(10, "uluna")]);
+    handle(&mut deps, env.clone(), mint_msg).unwrap();
 
-    let env = mock_env(&bob, &[coin(10, "uluna")]);
-
-    let res = handle(&mut deps, env, mint_msg).unwrap();
-    assert_eq!(1, res.messages.len());
+    let token_mint = Mint {
+        recipient: bob.clone(),
+        amount: Uint128(10),
+    };
+    token_handle(&mut deps, owner_env.clone(), token_mint).unwrap();
 
     let init_burn = HandleMsg::InitBurn { amount: Uint128(1) };
-
-    let mut env = mock_env(&bob, &[coin(10, "uluna")]);
     env.block.time += 22600;
     let res = handle(&mut deps, env, init_burn).unwrap();
-    assert_eq!(2, res.messages.len());
+    assert_eq!(3, res.messages.len());
+
+    let token_burn = Burn {
+        amount: Uint128(1),
+        from: bob,
+    };
+    token_handle(&mut deps, owner_env, token_burn).unwrap();
 }

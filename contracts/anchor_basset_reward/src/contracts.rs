@@ -4,7 +4,11 @@ use crate::state::{
     config, config_read, index_read, index_store, pending_reward_read, pending_reward_store,
     read_holder_map, store_holder_map, Config, Index,
 };
-use cosmwasm_std::{coins, from_binary, log, to_binary, Api, BankMsg, Binary, CosmosMsg, Decimal, Env, Extern, HandleResponse, HumanAddr, InitResponse, Querier, QueryRequest, StdError, StdResult, Storage, Uint128, WasmMsg, WasmQuery, CanonicalAddr};
+use cosmwasm_std::{
+    coins, from_binary, log, to_binary, Api, BankMsg, Binary, CanonicalAddr, CosmosMsg, Decimal,
+    Env, Extern, HandleResponse, HumanAddr, InitResponse, Querier, QueryRequest, StdError,
+    StdResult, Storage, Uint128, WasmMsg, WasmQuery,
+};
 
 use cosmwasm_storage::to_length_prefixed;
 use gov_courier::PoolInfo;
@@ -88,7 +92,9 @@ pub fn handle_send_reward<S: Storage, A: Api, Q: Querier>(
     let recv_index = read_holder_map(&deps.storage, receiver.clone())?;
     let global_index = index_read(&deps.storage).load()?.global_index;
 
-    let token_address = deps.api.human_address(&query_token_contract(&deps,  owner_human)?)?;
+    let token_address = deps
+        .api
+        .human_address(&query_token_contract(&deps, owner_human)?)?;
 
     let balance = query_balance(&deps, &receiver, token_address).unwrap();
     let reward = calculate_reward(global_index, recv_index, balance)?;
@@ -172,9 +178,11 @@ pub fn handle_global_index<S: Storage, A: Api, Q: Querier>(
         .query_balance(env.contract.address, SWAP_DENOM)
         .unwrap();
 
+    let token_address = query_token_contract(&deps, owner_raw)?;
+    let address = deps.api.human_address(&token_address)?;
     let total_supply = {
         let res = deps.querier.query(&QueryRequest::Wasm(WasmQuery::Raw {
-            contract_addr: owner_raw,
+            contract_addr: address,
             key: Binary::from(to_length_prefixed(b"token_info")),
         }))?;
         let token_info: TokenInfoResponse = from_binary(&res)?;
@@ -239,7 +247,9 @@ pub fn handle_update_index<S: Storage, A: Api, Q: Querier>(
                 //calculate the reward
                 let recv_index = read_holder_map(&deps.storage, sender.clone())?;
                 let global_index = index_read(&deps.storage).load()?.global_index;
-                let token_address = deps.api.human_address(&query_token_contract(&deps,  owner_human)?)?;
+                let token_address = deps
+                    .api
+                    .human_address(&query_token_contract(&deps, owner_human)?)?;
 
                 let balance = query_balance(&deps, &sender, token_address).unwrap();
                 let reward = calculate_reward(global_index, recv_index, balance)?;
@@ -312,10 +322,10 @@ pub fn query_token_contract<S: Storage, A: Api, Q: Querier>(
             contract_addr,
             key: Binary::from(to_length_prefixed(b"pool_info")),
         }))
-        .unwrap_or_else(|_| to_binary(&Uint128::zero()).unwrap());
+        .unwrap();
 
     let pool_info: PoolInfo = from_binary(&res)?;
-    Ok(pool_info.reward_account)
+    Ok(pool_info.token_account)
 }
 
 pub fn query<S: Storage, A: Api, Q: Querier>(
@@ -335,7 +345,9 @@ fn query_accrued_rewards<S: Storage, A: Api, Q: Querier>(
     let owner_human = deps
         .api
         .human_address(&config_read(&deps.storage).load()?.owner)?;
-    let token_address = deps.api.human_address(&query_token_contract(&deps,  owner_human)?)?;
+    let token_address = deps
+        .api
+        .human_address(&query_token_contract(&deps, owner_human)?)?;
     let user_balance = query_balance(&deps, &address, token_address)?;
     let sender_reward_index = read_holder_map(&deps.storage, address);
     if sender_reward_index.is_err() {

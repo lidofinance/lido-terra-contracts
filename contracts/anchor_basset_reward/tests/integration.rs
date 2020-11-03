@@ -46,26 +46,6 @@ pub fn proper_init() {
     let res = init(&mut deps, env, init_msg).unwrap();
     assert_eq!(0, res.messages.len());
 }
-#[test]
-pub fn proper_send_reward() {
-    let mut deps = mock_dependencies(20, &[]);
-    let owner = HumanAddr::from("owner");
-    let owner_raw = deps.api.canonical_address(&owner).unwrap();
-    let init_msg = default_init(owner_raw);
-
-    let env = mock_env("addr0000", &[]);
-
-    let res = init(&mut deps, env, init_msg).unwrap();
-    assert_eq!(0, res.messages.len());
-
-    let env = mock_env(&owner, &[coin(10, "uluna"), coin(1000, "uluna")]);
-
-    let _alice = HumanAddr::from("alice");
-    let msg = HandleMsg::SendReward { recipient: None };
-
-    let res = handle(&mut deps, env, msg).unwrap();
-    assert_eq!(1, res.messages.len());
-}
 
 #[test]
 pub fn proper_swap() {

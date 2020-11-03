@@ -22,6 +22,7 @@ dependencies = [
  "cosmwasm-schema 0.11.1",
  "cosmwasm-std",
  "cosmwasm-storage",
+ "gov_courier",
  "schemars",
  "serde",
  "terra-cosmwasm",
