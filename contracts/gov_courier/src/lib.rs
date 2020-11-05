@@ -36,9 +36,6 @@ pub enum HandleMsg {
     },
     /// Update general index
     UpdateGlobalIndex {},
-    InitBurn {
-        amount: Uint128,
-    },
     /// FinishBurn is suppose to ask for liquidated luna
     FinishBurn {
         amount: Uint128,
@@ -64,4 +61,10 @@ pub enum HandleMsg {
 pub enum Registration {
     Token,
     Reward,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum Cw20HookMsg {
+    InitBurn {},
 }
