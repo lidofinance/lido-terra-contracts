@@ -34,4 +34,6 @@ pub struct TokenInfoResponse {
 #[serde(rename_all = "snake_case")]
 pub enum QueryMsg {
     AccruedRewards { address: HumanAddr },
+    GetIndex{},
+    GetUserIn{address: HumanAddr }
 }

@@ -14,6 +14,7 @@ use cosmwasm_storage::to_length_prefixed;
 use gov_courier::PoolInfo;
 use std::ops::Add;
 use terra_cosmwasm::{create_swap_msg, TerraMsgWrapper};
+use crate::msg::HandleMsg::UpdateUserIndex;
 
 const SWAP_DENOM: &str = "uusd";
 
@@ -67,7 +68,7 @@ pub fn handle_send_reward<S: Storage, A: Api, Q: Querier>(
     env: Env,
     recipient: Option<HumanAddr>,
 ) -> StdResult<HandleResponse<TerraMsgWrapper>> {
-    let mut receiver: HumanAddr = Default::default();
+    let receiver: HumanAddr;
 
     let config = config_read(&deps.storage).load()?;
     let owner_human = deps.api.human_address(&config.owner)?;
@@ -76,8 +77,13 @@ pub fn handle_send_reward<S: Storage, A: Api, Q: Querier>(
         return Err(StdError::generic_err("Unauthorized"));
     }
 
-    if let Some(value) = recipient {
-        receiver = value;
+    match recipient {
+        Some(value ) => {
+            receiver = value;
+        }
+        None => {
+            receiver = env.message.sender;
+        }
     }
 
     let is_exist = read_holder_map(&deps.storage, receiver.clone());
@@ -107,12 +113,22 @@ pub fn handle_send_reward<S: Storage, A: Api, Q: Querier>(
     let final_reward = reward + pending_reward;
 
     let contr_addr = env.contract.address;
-    let msgs = vec![BankMsg::Send {
+    let mut msgs = vec![BankMsg::Send {
         from_address: contr_addr.clone(),
-        to_address: receiver,
+        to_address: receiver.clone(),
         amount: coins(Uint128::u128(&final_reward), SWAP_DENOM),
     }
     .into()];
+
+    let holder_msg = UpdateUserIndex {
+        address: receiver,
+        is_send: Some(balance),
+    };
+    msgs.push(CosmosMsg::Wasm(WasmMsg::Execute {
+        contract_addr: contr_addr.clone(),
+        msg: to_binary(&holder_msg)?,
+        send: vec![],
+    }));
 
     let res = HandleResponse {
         messages: msgs,
@@ -144,6 +160,9 @@ pub fn handle_swap<S: Storage, A: Api, Q: Querier>(
     let mut msgs: Vec<CosmosMsg<TerraMsgWrapper>> = Vec::new();
 
     for coin in balance {
+        if coin.denom == SWAP_DENOM {
+            continue;
+        }
         msgs.push(create_swap_msg(
             contr_addr.clone(),
             coin,
@@ -218,7 +237,7 @@ pub fn handle_update_index<S: Storage, A: Api, Q: Querier>(
     let address_raw = deps.api.canonical_address(&address)?;
 
     let sender = env.message.sender;
-    if sender != owner_human {
+    if sender != owner_human && sender != env.contract.address {
         return Err(StdError::generic_err("Unauthorized"));
     }
 
@@ -240,9 +259,9 @@ pub fn handle_update_index<S: Storage, A: Api, Q: Querier>(
             store_holder_map(&mut deps.storage, address, global_index)?;
         }
         None => {
-            if read_holder_map(&deps.storage, address.clone()).is_err() {
+            if read_holder_map(&deps.storage, sender.clone()).is_err() {
                 //save the holder map
-                store_holder_map(&mut deps.storage, address, global_index)?;
+                store_holder_map(&mut deps.storage, sender, global_index)?;
             } else {
                 //calculate the reward
                 let recv_index = read_holder_map(&deps.storage, sender.clone())?;
@@ -334,6 +353,9 @@ pub fn query<S: Storage, A: Api, Q: Querier>(
 ) -> StdResult<Binary> {
     match msg {
         QueryMsg::AccruedRewards { address } => to_binary(&query_accrued_rewards(&deps, address)?),
+        QueryMsg::GetIndex {}=> to_binary(&query_index(&deps)?),
+        QueryMsg::GetUserIn {address}=> to_binary(&query_user_index(&deps, address)?)
+
     }
 }
 
@@ -354,4 +376,18 @@ fn query_accrued_rewards<S: Storage, A: Api, Q: Querier>(
         return Err(StdError::generic_err("There is no user with this address"));
     }
     calculate_reward(global_index, sender_reward_index.unwrap(), user_balance)
+}
+
+fn query_index<S: Storage, A: Api, Q: Querier>(
+    deps: &Extern<S, A, Q>) -> StdResult<Decimal>
+{
+    let a =  index_read(&deps.storage).load()?;
+    Ok(a.global_index)
+}
+
+fn query_user_index<S: Storage, A: Api, Q: Querier>(
+    deps: &Extern<S, A, Q>,   address: HumanAddr ) -> StdResult<Decimal>
+{
+    let holder = read_holder_map(&deps.storage, address)?;
+    Ok(holder)
 }
