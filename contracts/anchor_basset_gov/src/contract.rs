@@ -6,11 +6,11 @@ use cosmwasm_std::{
 
 use crate::msg::{InitMsg, QueryMsg};
 use crate::state::{
-    config, config_read, epoc_read, get_finished_amount, is_valid_validator, pool_info,
-    pool_info_read, read_delegation_map, read_total_amount, read_undelegated_wait_list,
-    read_valid_validators, read_validators, remove_white_validators, save_epoc,
-    store_delegation_map, store_total_amount, store_undelegated_wait_list, store_white_validators,
-    EpocId, GovConfig, EPOC,
+    config, config_read, epoc_read, get_all_delegations, get_finished_amount, get_minted,
+    is_valid_validator, pool_info, pool_info_read, read_delegation_map, read_total_amount,
+    read_undelegated_wait_list, read_valid_validators, read_validators, remove_white_validators,
+    save_epoc, set_all_delegations, set_minted, store_delegation_map, store_total_amount,
+    store_undelegated_wait_list, store_white_validators, EpocId, GovConfig, EPOC,
 };
 use anchor_basset_reward::hook::InitHook;
 use anchor_basset_reward::init::RewardInitMsg;
@@ -66,6 +66,10 @@ pub fn init<S: Storage, A: Api, Q: Querier>(
     let token_message = to_binary(&HandleMsg::RegisterSubContracts {
         contract: Registration::Token,
     })?;
+
+    //set minted and all_delegations to keep the record of slashing.
+    set_minted(&mut deps.storage).save(&Uint128::zero())?;
+    set_all_delegations(&mut deps.storage).save(&Uint128::zero())?;
 
     //instantiate token contract
     messages.push(CosmosMsg::Wasm(WasmMsg::Instantiate {
@@ -130,6 +134,7 @@ pub fn handle<S: Storage, A: Api, Q: Querier>(
         HandleMsg::DeRegisterValidator { validator } => {
             handle_dereg_validator(deps, env, validator)
         }
+        HandleMsg::ReportSlashing {} => handle_slashing(deps, env),
     }
 }
 
@@ -222,6 +227,12 @@ pub fn handle_mint<S: Storage, A: Api, Q: Querier>(
         validator,
         amount: payment.clone(),
     }));
+
+    //add minted for slashing
+    set_minted(&mut deps.storage).update(|mut mint| {
+        mint += amount_with_exchange_rate;
+        Ok(mint)
+    })?;
 
     let res = HandleResponse {
         messages,
@@ -447,7 +458,10 @@ pub fn handle_finish<S: Storage, A: Api, Q: Querier>(
     let epoc_id = get_before_undelegation_epoc(current_epoc_id);
 
     let amount = get_finished_amount(&deps.storage, epoc_id, sender_human.clone())?;
-    handle_send_undelegation(amount, sender_human, contract_address)
+    handle_slashing(deps, env)?;
+    let exchange_rate = pool_info_read(&deps.storage).load()?.exchange_rate;
+    let final_amount = amount * exchange_rate;
+    handle_send_undelegation(final_amount, sender_human, contract_address)
 }
 
 pub fn get_before_undelegation_epoc(current_epoc: u64) -> u64 {
@@ -462,7 +476,6 @@ pub fn handle_send_undelegation(
     to_address: HumanAddr,
     contract_address: HumanAddr,
 ) -> StdResult<HandleResponse> {
-    // Create Send message
     let msgs = vec![BankMsg::Send {
         from_address: contract_address.clone(),
         to_address,
@@ -572,6 +585,36 @@ pub fn handle_dereg_validator<S: Storage, A: Api, Q: Querier>(
         data: None,
     };
     Ok(res)
+}
+
+pub fn handle_slashing<S: Storage, A: Api, Q: Querier>(
+    deps: &mut Extern<S, A, Q>,
+    env: Env,
+) -> StdResult<HandleResponse> {
+    let validators = read_validators(&deps.storage)?;
+    let mut amount = Uint128::zero();
+    let all_delegations = get_all_delegations(&deps.storage).load()?;
+    let minted = get_minted(&deps.storage).load()?;
+    for validator in validators {
+        let slashing = deps
+            .querier
+            .query_delegation(env.contract.address.clone(), validator)?
+            .unwrap();
+        if slashing.amount.denom == "uluna" {
+            amount += slashing.amount.amount;
+        }
+    }
+    let all_changes = amount.0 - all_delegations.0;
+    if minted.0 > all_changes {
+        pool_info(&mut deps.storage).update(|mut pool| {
+            pool.total_bond_amount = amount;
+            pool.update_exchange_rate();
+            Ok(pool)
+        })?;
+    }
+    set_all_delegations(&mut deps.storage).save(&amount)?;
+    set_minted(&mut deps.storage).save(&Uint128::zero())?;
+    Ok(HandleResponse::default())
 }
 
 //Pick a random validator

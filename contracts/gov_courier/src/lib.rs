@@ -54,6 +54,8 @@ pub enum HandleMsg {
     },
     //Receive interface for send token
     Receive(Cw20ReceiveMsg),
+    //check whether the slashing has happened or not
+    ReportSlashing {},
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
