@@ -10,11 +10,11 @@ use cosmwasm_std::{
     StdResult, Storage, Uint128, WasmMsg, WasmQuery,
 };
 
+use crate::msg::HandleMsg::UpdateUserIndex;
 use cosmwasm_storage::to_length_prefixed;
 use gov_courier::PoolInfo;
 use std::ops::Add;
 use terra_cosmwasm::{create_swap_msg, TerraMsgWrapper};
-use crate::msg::HandleMsg::UpdateUserIndex;
 
 const SWAP_DENOM: &str = "uusd";
 
@@ -73,12 +73,8 @@ pub fn handle_send_reward<S: Storage, A: Api, Q: Querier>(
     let config = config_read(&deps.storage).load()?;
     let owner_human = deps.api.human_address(&config.owner)?;
 
-    if recipient.is_some() && env.message.sender != owner_human {
-        return Err(StdError::generic_err("Unauthorized"));
-    }
-
     match recipient {
-        Some(value ) => {
+        Some(value) => {
             receiver = value;
         }
         None => {
@@ -353,9 +349,8 @@ pub fn query<S: Storage, A: Api, Q: Querier>(
 ) -> StdResult<Binary> {
     match msg {
         QueryMsg::AccruedRewards { address } => to_binary(&query_accrued_rewards(&deps, address)?),
-        QueryMsg::GetIndex {}=> to_binary(&query_index(&deps)?),
-        QueryMsg::GetUserIn {address}=> to_binary(&query_user_index(&deps, address)?)
-
+        QueryMsg::GetIndex {} => to_binary(&query_index(&deps)?),
+        QueryMsg::GetUserIn { address } => to_binary(&query_user_index(&deps, address)?),
     }
 }
 
@@ -378,16 +373,15 @@ fn query_accrued_rewards<S: Storage, A: Api, Q: Querier>(
     calculate_reward(global_index, sender_reward_index.unwrap(), user_balance)
 }
 
-fn query_index<S: Storage, A: Api, Q: Querier>(
-    deps: &Extern<S, A, Q>) -> StdResult<Decimal>
-{
-    let a =  index_read(&deps.storage).load()?;
+fn query_index<S: Storage, A: Api, Q: Querier>(deps: &Extern<S, A, Q>) -> StdResult<Decimal> {
+    let a = index_read(&deps.storage).load()?;
     Ok(a.global_index)
 }
 
 fn query_user_index<S: Storage, A: Api, Q: Querier>(
-    deps: &Extern<S, A, Q>,   address: HumanAddr ) -> StdResult<Decimal>
-{
+    deps: &Extern<S, A, Q>,
+    address: HumanAddr,
+) -> StdResult<Decimal> {
     let holder = read_holder_map(&deps.storage, address)?;
     Ok(holder)
 }

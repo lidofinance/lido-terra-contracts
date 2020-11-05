@@ -1,4 +1,5 @@
 use cosmwasm_std::{CanonicalAddr, Decimal, HumanAddr, Uint128};
+use cw20::Cw20ReceiveMsg;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -54,6 +55,8 @@ pub enum HandleMsg {
     DeRegisterValidator {
         validator: HumanAddr,
     },
+    //Receive interface for send token
+    Receive(Cw20ReceiveMsg),
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

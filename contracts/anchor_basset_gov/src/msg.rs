@@ -59,6 +59,6 @@ pub enum QueryMsg {
     ExchangeRate {},
     WhiteListedValidators {},
     WithdrawableUnbonded { address: HumanAddr },
-    GetToken{},
-    GetReward{}
+    GetToken {},
+    GetReward {},
 }
