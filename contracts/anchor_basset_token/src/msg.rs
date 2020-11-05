@@ -74,7 +74,7 @@ pub enum HandleMsg {
         amount: Uint128,
     },
     /// Burn is a base message to destroy tokens forever
-    Burn { amount: Uint128, from: HumanAddr },
+    Burn { amount: Uint128 },
     /// Send is a base message to transfer tokens to a contract and trigger an action
     /// on the receiving contract.
     Send {

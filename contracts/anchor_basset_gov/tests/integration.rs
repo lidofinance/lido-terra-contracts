@@ -139,13 +139,13 @@ fn proper_initialization() {
     let register_msg = HandleMsg::RegisterSubContracts { contract: Reward };
     let register_env = mock_env(&other_contract, &[]);
     let exec = handle(&mut deps, register_env, register_msg).unwrap();
-    assert_eq!(0, exec.messages.len());
+    assert_eq!(1, exec.messages.len());
 
     let token_contract = HumanAddr::from("token_contract");
     let register_msg = HandleMsg::RegisterSubContracts { contract: Token };
     let register_env = mock_env(&token_contract, &[]);
     let exec = handle(&mut deps, register_env, register_msg).unwrap();
-    assert_eq!(1, exec.messages.len());
+    assert_eq!(0, exec.messages.len());
 
     //check token_info
     let token_inf = TokenInfo {};
@@ -316,10 +316,7 @@ pub fn proper_init_burn() {
     let res = handle(&mut deps, env, init_burn).unwrap();
     assert_eq!(2, res.messages.len());
 
-    let token_burn = Burn {
-        amount: Uint128(1),
-        from: bob.clone(),
-    };
+    let token_burn = Burn { amount: Uint128(1) };
     token_handle(&mut deps, owner_env, token_burn).unwrap();
 
     let balance = Balance { address: bob };
@@ -380,10 +377,7 @@ pub fn proper_finish() {
     let res = handle(&mut deps, env, init_burn).unwrap();
     assert_eq!(2, res.messages.len());
 
-    let token_burn = Burn {
-        amount: Uint128(1),
-        from: bob.clone(),
-    };
+    let token_burn = Burn { amount: Uint128(1) };
     token_handle(&mut deps, owner_env.clone(), token_burn).unwrap();
 
     let balance = Balance {
@@ -438,7 +432,7 @@ fn send_init_burn<S: Storage, A: Api, Q: Querier>(
     handle(&mut deps, env.clone(), mint_msg).unwrap();
 
     let token_mint = Mint {
-        recipient: bob.clone(),
+        recipient: bob,
         amount: Uint128(10),
     };
     token_handle(&mut deps, owner_env.clone(), token_mint).unwrap();
@@ -448,9 +442,6 @@ fn send_init_burn<S: Storage, A: Api, Q: Querier>(
     let res = handle(&mut deps, env, init_burn).unwrap();
     assert_eq!(3, res.messages.len());
 
-    let token_burn = Burn {
-        amount: Uint128(1),
-        from: bob,
-    };
+    let token_burn = Burn { amount: Uint128(1) };
     token_handle(&mut deps, owner_env, token_burn).unwrap();
 }

@@ -1,7 +1,7 @@
 use cosmwasm_std::{
-    coin, coins, log, to_binary, Api, BankMsg, Binary, CosmosMsg, Decimal, Env, Extern,
-    HandleResponse, HumanAddr, InitResponse, Querier, StakingMsg, StdError, StdResult, Storage,
-    Uint128, WasmMsg,
+    coin, coins, from_binary, log, to_binary, Api, BankMsg, Binary, CosmosMsg, Decimal, Env,
+    Extern, HandleResponse, HumanAddr, InitResponse, Querier, StakingMsg, StdError, StdResult,
+    Storage, Uint128, WasmMsg,
 };
 
 use crate::msg::{InitMsg, QueryMsg};
@@ -15,11 +15,12 @@ use crate::state::{
 };
 use anchor_basset_reward::hook::InitHook;
 use anchor_basset_reward::init::RewardInitMsg;
-use anchor_basset_reward::msg::HandleMsg::{Swap, UpdateGlobalIndex, UpdateUserIndex, SendReward};
+use anchor_basset_reward::msg::HandleMsg::{Swap, UpdateGlobalIndex, UpdateUserIndex};
 use anchor_basset_token::msg::HandleMsg::{Burn, Mint};
 use anchor_basset_token::msg::{TokenInitHook, TokenInitMsg};
-use cw20::MinterResponse;
+use cw20::{Cw20ReceiveMsg, MinterResponse};
 use gov_courier::HandleMsg;
+use gov_courier::HandleMsg::InitBurn;
 use gov_courier::PoolInfo;
 use gov_courier::Registration;
 use rand::Rng;
@@ -126,6 +127,7 @@ pub fn handle<S: Storage, A: Api, Q: Querier>(
     msg: HandleMsg,
 ) -> StdResult<HandleResponse> {
     match msg {
+        HandleMsg::Receive(msg) => receive_cw20(deps, env, msg),
         HandleMsg::Mint { validator } => handle_mint(deps, env, validator),
         HandleMsg::UpdateGlobalIndex {} => handle_update_global(deps, env),
         HandleMsg::InitBurn { amount } => handle_burn(deps, env, amount),
@@ -138,6 +140,44 @@ pub fn handle<S: Storage, A: Api, Q: Querier>(
             handle_dereg_validator(deps, env, validator)
         }
     }
+}
+
+pub fn receive_cw20<S: Storage, A: Api, Q: Querier>(
+    deps: &mut Extern<S, A, Q>,
+    env: Env,
+    cw20_msg: Cw20ReceiveMsg,
+) -> StdResult<HandleResponse> {
+    let contract_addr = env.message.sender.clone();
+    let mut messages: Vec<CosmosMsg> = vec![];
+
+    if let Some(msg) = cw20_msg.msg {
+        match from_binary(&msg)? {
+            InitBurn { amount } => {
+                // only asset contract can execute this message
+                let pool = pool_info_read(&deps.storage).load()?;
+                if deps.api.canonical_address(&contract_addr)? != pool.token_account {
+                    return Err(StdError::unauthorized());
+                }
+                let message = InitBurn { amount };
+                messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
+                    contract_addr: env.contract.address,
+                    msg: to_binary(&message)?,
+                    send: vec![],
+                }));
+            }
+            _ => {
+                return Err(StdError::generic_err("Invalid request"));
+            }
+        }
+    } else {
+        return Err(StdError::generic_err("Invalid request"));
+    }
+    let res = HandleResponse {
+        messages,
+        log: vec![],
+        data: None,
+    };
+    Ok(res)
 }
 
 pub fn handle_mint<S: Storage, A: Api, Q: Querier>(
@@ -241,41 +281,41 @@ pub fn handle_update_global<S: Storage, A: Api, Q: Querier>(
     let pool = pool_info_read(&deps.storage).load()?;
     let reward_addr = deps.api.human_address(&pool.reward_account)?;
 
-        //retrieve all validators
-        let validators: Vec<HumanAddr> = read_validators(&deps.storage)?;
+    //retrieve all validators
+    let validators: Vec<HumanAddr> = read_validators(&deps.storage)?;
 
-        //send withdraw message
-        let mut withdraw_msgs = withdraw_all_rewards(validators);
-        messages.append(&mut withdraw_msgs);
+    //send withdraw message
+    let mut withdraw_msgs = withdraw_all_rewards(validators);
+    messages.append(&mut withdraw_msgs);
 
-        //send Swap message to reward contract
-        let swap_msg = Swap {};
-        messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
-            contract_addr: reward_addr.clone(),
-            msg: to_binary(&swap_msg).unwrap(),
-            send: vec![],
-        }));
+    //send Swap message to reward contract
+    let swap_msg = Swap {};
+    messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
+        contract_addr: reward_addr.clone(),
+        msg: to_binary(&swap_msg).unwrap(),
+        send: vec![],
+    }));
 
-        let reward_balance = deps
-            .querier
-            .query_balance(reward_addr.clone(), REWARD)?
-            .amount;
+    let reward_balance = deps
+        .querier
+        .query_balance(reward_addr.clone(), REWARD)?
+        .amount;
 
-        //send update GlobalIndex message to reward contract
-        let global_msg = UpdateGlobalIndex {
-            past_balance: reward_balance,
-        };
-        messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
-            contract_addr: reward_addr,
-            msg: to_binary(&global_msg).unwrap(),
-            send: vec![],
-        }));
+    //send update GlobalIndex message to reward contract
+    let global_msg = UpdateGlobalIndex {
+        past_balance: reward_balance,
+    };
+    messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
+        contract_addr: reward_addr,
+        msg: to_binary(&global_msg).unwrap(),
+        send: vec![],
+    }));
 
-        //update pool_info last modified
-        pool_info(&mut deps.storage).update(|mut pool| {
-            pool.last_index_modification = env.block.time;
-            Ok(pool)
-        })?;
+    //update pool_info last modified
+    pool_info(&mut deps.storage).update(|mut pool| {
+        pool.last_index_modification = env.block.time;
+        Ok(pool)
+    })?;
 
     let res = HandleResponse {
         messages,
@@ -316,6 +356,10 @@ pub fn handle_burn<S: Storage, A: Api, Q: Querier>(
         return Err(StdError::generic_err("Invalid zero amount"));
     }
 
+    if env.message.sender != env.contract.address {
+        return Err(StdError::unauthorized());
+    }
+
     let sender_human = env.message.sender.clone();
     let sender_raw = deps.api.canonical_address(&env.message.sender)?;
 
@@ -324,16 +368,6 @@ pub fn handle_burn<S: Storage, A: Api, Q: Querier>(
     let mut claimed_so_far = read_total_amount(&deps.storage, epoc.epoc_id)?;
 
     let mut messages: Vec<CosmosMsg> = vec![];
-    //claim the reward.
-    let msg = HandleMsg::UpdateGlobalIndex {};
-    messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
-        contract_addr: env.contract.address.clone(),
-        msg: to_binary(&msg)?,
-        send: vec![],
-    }));
-
-    //TODO: SEND rewards to the sender
-
 
     // get_all epoces
     let mut all_epoces = read_all_epocs(&deps.storage).load()?;
@@ -357,17 +391,17 @@ pub fn handle_burn<S: Storage, A: Api, Q: Querier>(
 
     let pool = pool_info_read(&deps.storage).load()?;
 
-    //send reward
-    let send_reward = SendReward {recipient: Some(sender_human.clone())};
-    let reward_address = deps.api.human_address(&pool.reward_account)?;
-    messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
-        contract_addr: reward_address,
-        msg: to_binary(&send_reward)?,
-        send: vec![]
-    }));
-
     //send Burn message to token contract
-    let mut burn_messages:Vec<CosmosMsg> = vec![];
+    let token_address = deps.api.human_address(&pool.token_account)?;
+    let burn_amount = amount * exchange_rate;
+    let burn_msg = Burn {
+        amount: burn_amount,
+    };
+    messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
+        contract_addr: token_address,
+        msg: to_binary(&burn_msg)?,
+        send: vec![],
+    }));
 
     //compute Epoc time
     let block_time = env.block.time;
@@ -391,19 +425,6 @@ pub fn handle_burn<S: Storage, A: Api, Q: Querier>(
         })?;
         store_undelegated_wait_list(&mut deps.storage, epoc.epoc_id, sender_human, amount)?;
     } else {
-        let token_address = deps
-            .api
-            .human_address(&pool.token_account)?;
-        let burn_amount = amount * exchange_rate;
-        let burn_msg = Burn {
-            amount: burn_amount,
-            from: sender_human.clone(),
-        };
-        burn_messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
-            contract_addr: token_address,
-            msg: to_binary(&burn_msg)?,
-            send: vec![],
-        }));
         claimed_so_far = claimed_so_far.add(burn_amount);
         //store the human_address under undelegated_wait_list.
         //check whether there is any prev requests form the same user.
@@ -432,12 +453,6 @@ pub fn handle_burn<S: Storage, A: Api, Q: Querier>(
         data: None,
     };
     Ok(res)
-}
-
-pub fn create_token_burn<S: Storage, A: Api, Q: Querier>(
-    deps: &mut Extern<S, A, Q>,
-    _env: Env) -> Vec<CosmosMsg> {
-
 }
 
 pub fn handle_undelegate<S: Storage, A: Api, Q: Querier>(
@@ -709,9 +724,8 @@ pub fn query<S: Storage, A: Api, Q: Querier>(
         QueryMsg::WithdrawableUnbonded { address } => {
             to_binary(&query_withdrawable_unbonded(&deps, address)?)
         }
-        QueryMsg::GetToken {}=> to_binary(&query_token(&deps)?),
-        QueryMsg::GetReward {} => to_binary(&query_reward(&deps)?)
-
+        QueryMsg::GetToken {} => to_binary(&query_token(&deps)?),
+        QueryMsg::GetReward {} => to_binary(&query_reward(&deps)?),
     }
 }
 
@@ -738,18 +752,12 @@ fn query_withdrawable_unbonded<S: Storage, A: Api, Q: Querier>(
     Ok(user_claim)
 }
 
-fn query_token<S: Storage, A: Api, Q: Querier>(
-    deps: &Extern<S, A, Q>,
-) -> StdResult<HumanAddr> {
+fn query_token<S: Storage, A: Api, Q: Querier>(deps: &Extern<S, A, Q>) -> StdResult<HumanAddr> {
     let pool = pool_info_read(&deps.storage).load()?;
-    let address = deps.api.human_address(&pool.token_account);
-    address
+    deps.api.human_address(&pool.token_account)
 }
 
-fn query_reward<S: Storage, A: Api, Q: Querier>(
-    deps: &Extern<S, A, Q>,
-) -> StdResult<HumanAddr> {
+fn query_reward<S: Storage, A: Api, Q: Querier>(deps: &Extern<S, A, Q>) -> StdResult<HumanAddr> {
     let pool = pool_info_read(&deps.storage).load()?;
-    let address = deps.api.human_address(&pool.reward_account);
-    address
+    deps.api.human_address(&pool.reward_account)
 }

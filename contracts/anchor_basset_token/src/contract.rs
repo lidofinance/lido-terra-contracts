@@ -88,7 +88,7 @@ pub fn handle<S: Storage, A: Api, Q: Querier>(
 ) -> StdResult<HandleResponse> {
     match msg {
         HandleMsg::Transfer { recipient, amount } => handle_transfer(deps, env, recipient, amount),
-        HandleMsg::Burn { amount, from } => handle_burn(deps, env, amount, from),
+        HandleMsg::Burn { amount } => handle_burn(deps, env, amount),
         HandleMsg::Send {
             contract,
             amount,
@@ -159,7 +159,6 @@ pub fn handle_burn<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
     env: Env,
     amount: Uint128,
-    from: HumanAddr,
 ) -> StdResult<HandleResponse> {
     if amount == Uint128::zero() {
         return Err(StdError::generic_err("Invalid zero amount"));
@@ -173,11 +172,9 @@ pub fn handle_burn<S: Storage, A: Api, Q: Querier>(
         return Err(StdError::unauthorized());
     }
 
-    let from_raw = deps.api.canonical_address(&from)?;
-
     // lower balance
     let mut accounts = balances(&mut deps.storage);
-    accounts.update(from_raw.as_slice(), |balance: Option<Uint128>| {
+    accounts.update(sender_raw.as_slice(), |balance: Option<Uint128>| {
         balance.unwrap_or_default() - amount
     })?;
     // reduce total_supply
@@ -190,7 +187,7 @@ pub fn handle_burn<S: Storage, A: Api, Q: Querier>(
         messages: vec![],
         log: vec![
             log("action", "burn"),
-            log("from", deps.api.human_address(&from_raw)?),
+            log("from", deps.api.human_address(&sender_raw)?),
             log("amount", amount),
         ],
         data: None,
@@ -266,7 +263,7 @@ pub fn handle_send<S: Storage, A: Api, Q: Querier>(
         Ok(balance.unwrap_or_default() + amount)
     })?;
 
-    let mut messages = update_index(&deps, env.message.sender, contract.clone());
+    let mut messages = update_index_send(&deps, env.message.sender);
 
     let sender = deps.api.human_address(&sender_raw)?;
     let logs = vec![
@@ -418,6 +415,42 @@ pub fn update_index<S: Storage, A: Api, Q: Querier>(
     messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
         contract_addr: reward_address,
         msg: to_binary(&update_rcv_index).unwrap(),
+        send: vec![],
+    }));
+
+    messages
+}
+
+pub fn update_index_send<S: Storage, A: Api, Q: Querier>(
+    deps: &Extern<S, A, Q>,
+    sender: HumanAddr,
+) -> Vec<CosmosMsg> {
+    let mut messages: Vec<CosmosMsg> = vec![];
+
+    let gov_address = deps
+        .api
+        .human_address(&token_info_read(&deps.storage).load().unwrap().owner)
+        .unwrap();
+    let reward_address = deps
+        .api
+        .human_address(&query_reward_contract(&deps, gov_address.clone()).unwrap())
+        .unwrap();
+
+    let update_message = UpdateGlobalIndex {};
+
+    messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
+        contract_addr: gov_address,
+        msg: to_binary(&update_message).unwrap(),
+        send: vec![],
+    }));
+
+    //this will update the sender index
+    let send_reward = SendReward {
+        recipient: Some(sender),
+    };
+    messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
+        contract_addr: reward_address,
+        msg: to_binary(&send_reward).unwrap(),
         send: vec![],
     }));
 

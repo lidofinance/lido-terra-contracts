@@ -4,7 +4,7 @@ use cosmwasm_std::{
 };
 use cw20::{AllowanceResponse, Cw20ReceiveMsg, Expiration};
 
-use crate::contract::update_index;
+use crate::contract::{update_index, update_index_send};
 use crate::state::{allowances, allowances_read, balances, token_info, token_info_read};
 
 pub fn handle_increase_allowance<S: Storage, A: Api, Q: Querier>(
@@ -231,7 +231,7 @@ pub fn handle_send_from<S: Storage, A: Api, Q: Querier>(
     })?;
 
     let spender = deps.api.human_address(&spender_raw)?;
-    let mut messages = update_index(&deps, env.message.sender, contract.clone());
+    let mut messages = update_index_send(&deps, env.message.sender);
 
     let logs = vec![
         log("action", "send_from"),
