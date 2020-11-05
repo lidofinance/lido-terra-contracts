@@ -17,7 +17,7 @@
 //!      });
 //! 4. Anywhere you see query(&deps, ...) you must replace it with query(&mut deps, ...)
 use cosmwasm_std::{
-    coin, from_binary, Api, BankMsg, CanonicalAddr, CosmosMsg, Decimal, Env, Extern, HumanAddr,
+    coin, from_binary, Api, BankMsg, CanonicalAddr, CosmosMsg, Decimal, Extern, HumanAddr,
     InitResponse, Querier, StakingMsg, Storage, Uint128, Validator,
 };
 
@@ -26,14 +26,14 @@ use cosmwasm_std::testing::{mock_dependencies, mock_env, MockQuerier};
 use anchor_bluna::msg::InitMsg;
 use gov_courier::HandleMsg;
 
-use anchor_bluna::contract::{handle, init};
+use anchor_bluna::contract::{handle, handle_burn, init};
 
 use anchor_basset_reward::contracts::init as reward_init;
 use anchor_basset_reward::init::RewardInitMsg;
 use anchor_basset_token::contract::{
     handle as token_handle, init as token_init, query as token_query,
 };
-use anchor_basset_token::msg::HandleMsg::{Burn, Mint};
+use anchor_basset_token::msg::HandleMsg::Mint;
 use anchor_basset_token::msg::QueryMsg::{Balance, TokenInfo};
 use anchor_basset_token::msg::TokenInitMsg;
 use cw20::{BalanceResponse, MinterResponse, TokenInfoResponse};
@@ -308,21 +308,12 @@ pub fn proper_init_burn() {
         recipient: bob.clone(),
         amount: Uint128(10),
     };
-    let token_res = token_handle(&mut deps, owner_env.clone(), token_mint).unwrap();
+    let token_res = token_handle(&mut deps, owner_env, token_mint).unwrap();
     assert_eq!(0, token_res.messages.len());
 
-    let init_burn = HandleMsg::InitBurn { amount: Uint128(1) };
     let env = mock_env(&bob, &[]);
-    let res = handle(&mut deps, env, init_burn).unwrap();
-    assert_eq!(2, res.messages.len());
-
-    let token_burn = Burn { amount: Uint128(1) };
-    token_handle(&mut deps, owner_env, token_burn).unwrap();
-
-    let balance = Balance { address: bob };
-    let query_result = token_query(&deps, balance).unwrap();
-    let value: BalanceResponse = from_binary(&query_result).unwrap();
-    assert_eq!(Uint128(9), value.balance);
+    let res = handle_burn(&mut deps, env, Uint128(1), bob).unwrap();
+    assert_eq!(1, res.messages.len());
 }
 
 #[test]
@@ -348,12 +339,12 @@ pub fn proper_finish() {
 
     let bob = HumanAddr::from("bob");
     let mint_msg = HandleMsg::Mint {
-        validator: validator.address.clone(),
+        validator: validator.address,
     };
 
     let env = mock_env(&bob, &[coin(10, "uluna")]);
 
-    let res = handle(&mut deps, env, mint_msg).unwrap();
+    let res = handle(&mut deps, env.clone(), mint_msg).unwrap();
     assert_eq!(3, res.messages.len());
 
     let delegate = &res.messages[1];
@@ -369,25 +360,11 @@ pub fn proper_finish() {
         recipient: bob.clone(),
         amount: Uint128(10),
     };
-    let token_res = token_handle(&mut deps, owner_env.clone(), token_mint).unwrap();
+    let token_res = token_handle(&mut deps, owner_env, token_mint).unwrap();
     assert_eq!(0, token_res.messages.len());
 
-    let init_burn = HandleMsg::InitBurn { amount: Uint128(1) };
-    let env = mock_env(&bob, &[]);
-    let res = handle(&mut deps, env, init_burn).unwrap();
-    assert_eq!(2, res.messages.len());
-
-    let token_burn = Burn { amount: Uint128(1) };
-    token_handle(&mut deps, owner_env.clone(), token_burn).unwrap();
-
-    let balance = Balance {
-        address: bob.clone(),
-    };
-    let query_result = token_query(&deps, balance).unwrap();
-    let value: BalanceResponse = from_binary(&query_result).unwrap();
-    assert_eq!(Uint128(9), value.balance);
-
-    send_init_burn(&mut deps, "ardi", validator, owner_env);
+    let res = handle_burn(&mut deps, env, Uint128(1), bob.clone()).unwrap();
+    assert_eq!(1, res.messages.len());
 
     let finish_msg = HandleMsg::FinishBurn { amount: Uint128(1) };
 
@@ -396,7 +373,7 @@ pub fn proper_finish() {
     env.block.time += 22600;
     let finish_res = handle(&mut deps, env.clone(), finish_msg.clone()).is_err();
 
-    assert_eq!(true, finish_res);
+    assert_eq!(false, finish_res);
 
     env.block.time = 1573911419;
     let finish_res = handle(&mut deps, env, finish_msg).unwrap();
@@ -415,33 +392,4 @@ pub fn proper_finish() {
         }
         _ => panic!("Unexpected message: {:?}", delegate),
     }
-}
-
-fn send_init_burn<S: Storage, A: Api, Q: Querier>(
-    mut deps: &mut Extern<S, A, Q>,
-    address_string: &str,
-    validator: Validator,
-    owner_env: Env,
-) {
-    let bob = HumanAddr::from(address_string);
-
-    let mint_msg = HandleMsg::Mint {
-        validator: validator.address,
-    };
-    let mut env = mock_env(&bob, &[coin(10, "uluna")]);
-    handle(&mut deps, env.clone(), mint_msg).unwrap();
-
-    let token_mint = Mint {
-        recipient: bob,
-        amount: Uint128(10),
-    };
-    token_handle(&mut deps, owner_env.clone(), token_mint).unwrap();
-
-    let init_burn = HandleMsg::InitBurn { amount: Uint128(1) };
-    env.block.time += 22600;
-    let res = handle(&mut deps, env, init_burn).unwrap();
-    assert_eq!(3, res.messages.len());
-
-    let token_burn = Burn { amount: Uint128(1) };
-    token_handle(&mut deps, owner_env, token_burn).unwrap();
 }

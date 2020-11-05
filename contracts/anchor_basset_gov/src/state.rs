@@ -6,10 +6,9 @@ use cosmwasm_std::{
     Storage, Uint128,
 };
 use cosmwasm_storage::{
-    bucket, bucket_read, singleton, singleton_read, Bucket, PrefixedStorage, ReadonlyBucket,
-    ReadonlyPrefixedStorage, ReadonlySingleton, Singleton,
+    singleton, singleton_read, Bucket, PrefixedStorage, ReadonlyBucket, ReadonlyPrefixedStorage,
+    ReadonlySingleton, Singleton,
 };
-use std::collections::HashMap;
 
 use gov_courier::PoolInfo;
 
@@ -18,7 +17,6 @@ pub const EPOC: u64 = 21600;
 
 pub static CONFIG: &[u8] = b"gov_config";
 pub static POOL_INFO: &[u8] = b"pool_info";
-static PREFIX_REWARD: &[u8] = b"claim";
 
 pub static PREFIX_UNBOUND_PER_EPOC: &[u8] = b"unbound";
 pub static PREFIX_DELEGATION_MAP: &[u8] = b"delegate";
@@ -60,12 +58,6 @@ impl EpocId {
     }
 }
 
-//keep all unprocessed epocs
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema, Default)]
-pub struct AllEpoc {
-    pub epoces: Vec<EpocId>,
-}
-
 pub fn config<S: Storage>(storage: &mut S) -> Singleton<S, GovConfig> {
     singleton(storage, CONFIG)
 }
@@ -82,28 +74,12 @@ pub fn epoc_read<S: ReadonlyStorage>(storage: &S) -> ReadonlySingleton<S, EpocId
     singleton_read(storage, EPOC_ID)
 }
 
-pub fn save_all_epoc<S: Storage>(storage: &mut S) -> Singleton<S, AllEpoc> {
-    singleton(storage, ALL_EPOC_ID)
-}
-
-pub fn read_all_epocs<S: ReadonlyStorage>(storage: &S) -> ReadonlySingleton<S, AllEpoc> {
-    singleton_read(storage, ALL_EPOC_ID)
-}
-
 pub fn pool_info<S: Storage>(storage: &mut S) -> Singleton<S, PoolInfo> {
     singleton(storage, POOL_INFO)
 }
 
 pub fn pool_info_read<S: ReadonlyStorage>(storage: &S) -> ReadonlySingleton<S, PoolInfo> {
     singleton_read(storage, POOL_INFO)
-}
-
-pub fn claim_store<S: Storage>(storage: &mut S) -> Bucket<S, Uint128> {
-    bucket(PREFIX_REWARD, storage)
-}
-
-pub fn claim_read<S: ReadonlyStorage>(storage: &S) -> ReadonlyBucket<S, Uint128> {
-    bucket_read(PREFIX_REWARD, storage)
 }
 
 //this stores unboned amount in the storage per each epoc.
@@ -167,18 +143,18 @@ pub fn read_validators<S: Storage>(storage: &S) -> StdResult<Vec<HumanAddr>> {
     Ok(validators)
 }
 
-//stores undelegation wait list per each epoc.
+//store undelegation wait list per each epoc
 pub fn store_undelegated_wait_list<'a, S: Storage>(
     storage: &'a mut S,
     epoc_id: u64,
     sender_address: HumanAddr,
     amount: Uint128,
 ) -> StdResult<()> {
-    let vec = to_vec(&epoc_id)?;
+    let epoch = to_vec(&epoc_id)?;
     let addr = to_vec(&sender_address)?;
     let mut position_indexer: Bucket<'a, S, Uint128> =
-        Bucket::multilevel(&[PREFIX_WAIT_MAP, &vec], storage);
-    position_indexer.save(&addr, &amount)?;
+        Bucket::multilevel(&[PREFIX_WAIT_MAP, &addr], storage);
+    position_indexer.save(&epoch, &amount)?;
 
     Ok(())
 }
@@ -188,32 +164,33 @@ pub fn read_undelegated_wait_list<'a, S: ReadonlyStorage>(
     epoc_id: u64,
     sender_addr: HumanAddr,
 ) -> StdResult<Uint128> {
-    let vec = to_vec(&epoc_id)?;
+    let vec = to_vec(&sender_addr)?;
     let res: ReadonlyBucket<'a, S, Uint128> =
         ReadonlyBucket::multilevel(&[PREFIX_WAIT_MAP, &vec], storage);
-    let amount = res.load(sender_addr.0.as_bytes());
-    amount
+    let epoch = to_vec(&epoc_id)?;
+    res.load(&epoch)
 }
 
-pub fn read_undelegated_wait_list_for_epoc<'a, S: ReadonlyStorage>(
+pub fn get_finished_amount<'a, S: ReadonlyStorage>(
     storage: &'a S,
     epoc_id: u64,
-) -> StdResult<HashMap<HumanAddr, Uint128>> {
-    let vec = to_vec(&epoc_id)?;
-    let mut list: HashMap<HumanAddr, Uint128> = HashMap::new();
+    sender_addr: HumanAddr,
+) -> StdResult<Uint128> {
+    let vec = to_vec(&sender_addr)?;
+    let mut amount: Uint128 = Uint128::zero();
     let res: ReadonlyBucket<'a, S, Uint128> =
         ReadonlyBucket::multilevel(&[PREFIX_WAIT_MAP, &vec], storage);
-
     let _un: Vec<_> = res
         .range(None, None, Order::Ascending)
         .map(|item| {
             let (k, v) = item.unwrap();
-            let key: HumanAddr = from_slice(&k).unwrap();
-            list.insert(key, v)
+            let user_epoch: u64 = from_slice(&k).unwrap();
+            if user_epoch < epoc_id {
+                amount = v;
+            }
         })
         .collect();
-    println!("get the undelegate {}, epoc_id {}", list.len(), epoc_id);
-    Ok(list)
+    Ok(amount)
 }
 
 // store valid validators
