@@ -23,8 +23,9 @@ pub static PREFIX_DELEGATION_MAP: &[u8] = b"delegate";
 pub static PREFIX_WAIT_MAP: &[u8] = b"wait";
 pub static EPOC_ID: &[u8] = b"epoc";
 pub static VALIDATORS: &[u8] = b"validators";
-pub static ALL_EPOC_ID: &[u8] = b"epoc_list";
 
+pub static SLASHING: &[u8] = b"slashing";
+pub static MINTED: &[u8] = b"minted";
 pub static WHITE_VALIDATORS: &[u8] = b"white_validators";
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -239,4 +240,19 @@ pub fn read_valid_validators<S: Storage>(storage: &S) -> StdResult<Vec<HumanAddr
         })
         .collect();
     Ok(validators)
+}
+pub fn set_all_delegations<S: Storage>(storage: &mut S) -> Singleton<S, Uint128> {
+    singleton(storage, SLASHING)
+}
+
+pub fn get_all_delegations<S: ReadonlyStorage>(storage: &S) -> ReadonlySingleton<S, Uint128> {
+    singleton_read(storage, SLASHING)
+}
+
+pub fn set_minted<S: Storage>(storage: &mut S) -> Singleton<S, Uint128> {
+    singleton(storage, MINTED)
+}
+
+pub fn get_minted<S: ReadonlyStorage>(storage: &S) -> ReadonlySingleton<S, Uint128> {
+    singleton_read(storage, MINTED)
 }
