@@ -15,7 +15,7 @@ use crate::state::{
 };
 use anchor_basset_reward::hook::InitHook;
 use anchor_basset_reward::init::RewardInitMsg;
-use anchor_basset_reward::msg::HandleMsg::{Swap, UpdateGlobalIndex, UpdateUserIndex};
+use anchor_basset_reward::msg::HandleMsg::{Swap, UpdateGlobalIndex, UpdateUserIndex, SendReward};
 use anchor_basset_token::msg::HandleMsg::{Burn, Mint};
 use anchor_basset_token::msg::{TokenInitHook, TokenInitMsg};
 use cw20::MinterResponse;
@@ -29,9 +29,6 @@ const LUNA: &str = "uluna";
 const EPOC_PER_UNDELEGATION_PERIOD: u64 = 83;
 const REWARD: &str = "uusd";
 const DECIMALS: u8 = 6;
-// For updating GlobalIndex, since it is a costly message, we send a withdraw message every day.
-//DAY is supposed to help us to check whether a day is passed from the last update GlobalIndex or not.
-const DAY: u64 = 86400;
 
 pub fn init<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
@@ -186,8 +183,9 @@ pub fn handle_mint<S: Storage, A: Api, Q: Querier>(
         recipient: sender.clone(),
         amount: amount_with_exchange_rate,
     };
+    let token_address = deps.api.human_address(&pool.token_account)?;
     messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
-        contract_addr: deps.api.human_address(&pool.token_account)?,
+        contract_addr: token_address,
         msg: to_binary(&mint_msg)?,
         send: vec![],
     }));
@@ -243,7 +241,6 @@ pub fn handle_update_global<S: Storage, A: Api, Q: Querier>(
     let pool = pool_info_read(&deps.storage).load()?;
     let reward_addr = deps.api.human_address(&pool.reward_account)?;
 
-    if pool.last_index_modification > env.block.time - DAY {
         //retrieve all validators
         let validators: Vec<HumanAddr> = read_validators(&deps.storage)?;
 
@@ -279,7 +276,6 @@ pub fn handle_update_global<S: Storage, A: Api, Q: Querier>(
             pool.last_index_modification = env.block.time;
             Ok(pool)
         })?;
-    }
 
     let res = HandleResponse {
         messages,
@@ -336,6 +332,9 @@ pub fn handle_burn<S: Storage, A: Api, Q: Querier>(
         send: vec![],
     }));
 
+    //TODO: SEND rewards to the sender
+
+
     // get_all epoces
     let mut all_epoces = read_all_epocs(&deps.storage).load()?;
 
@@ -356,20 +355,19 @@ pub fn handle_burn<S: Storage, A: Api, Q: Querier>(
         Ok(pool_inf)
     })?;
 
-    //send Burn message to token contract
-    let token_address = deps
-        .api
-        .human_address(&pool_info_read(&deps.storage).load()?.token_account)?;
-    let burn_amount = amount * exchange_rate;
-    let burn_msg = Burn {
-        amount: burn_amount,
-        from: sender_human.clone(),
-    };
+    let pool = pool_info_read(&deps.storage).load()?;
+
+    //send reward
+    let send_reward = SendReward {recipient: Some(sender_human.clone())};
+    let reward_address = deps.api.human_address(&pool.reward_account)?;
     messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
-        contract_addr: token_address,
-        msg: to_binary(&burn_msg)?,
-        send: vec![],
+        contract_addr: reward_address,
+        msg: to_binary(&send_reward)?,
+        send: vec![]
     }));
+
+    //send Burn message to token contract
+    let mut burn_messages:Vec<CosmosMsg> = vec![];
 
     //compute Epoc time
     let block_time = env.block.time;
@@ -393,7 +391,20 @@ pub fn handle_burn<S: Storage, A: Api, Q: Querier>(
         })?;
         store_undelegated_wait_list(&mut deps.storage, epoc.epoc_id, sender_human, amount)?;
     } else {
-        claimed_so_far = claimed_so_far.add(amount);
+        let token_address = deps
+            .api
+            .human_address(&pool.token_account)?;
+        let burn_amount = amount * exchange_rate;
+        let burn_msg = Burn {
+            amount: burn_amount,
+            from: sender_human.clone(),
+        };
+        burn_messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
+            contract_addr: token_address,
+            msg: to_binary(&burn_msg)?,
+            send: vec![],
+        }));
+        claimed_so_far = claimed_so_far.add(burn_amount);
         //store the human_address under undelegated_wait_list.
         //check whether there is any prev requests form the same user.
         let mut user_amount =
@@ -421,6 +432,12 @@ pub fn handle_burn<S: Storage, A: Api, Q: Querier>(
         data: None,
     };
     Ok(res)
+}
+
+pub fn create_token_burn<S: Storage, A: Api, Q: Querier>(
+    deps: &mut Extern<S, A, Q>,
+    _env: Env) -> Vec<CosmosMsg> {
+
 }
 
 pub fn handle_undelegate<S: Storage, A: Api, Q: Querier>(
@@ -553,7 +570,7 @@ pub fn handle_register_contracts<S: Storage, A: Api, Q: Querier>(
     let raw_sender = deps.api.canonical_address(&env.message.sender)?;
     let mut messages: Vec<CosmosMsg> = vec![];
     match contract {
-        Registration::Token => {
+        Registration::Reward => {
             let mut pool = pool_info_read(&deps.storage).load()?;
             if pool.is_reward_exist {
                 return Err(StdError::generic_err("The request is not valid"));
@@ -568,7 +585,7 @@ pub fn handle_register_contracts<S: Storage, A: Api, Q: Querier>(
             });
             messages.push(msg);
         }
-        Registration::Reward => {
+        Registration::Token => {
             pool_info(&mut deps.storage).update(|mut pool| {
                 if pool.is_token_exist {
                     return Err(StdError::generic_err("The request is not valid"));
@@ -692,6 +709,9 @@ pub fn query<S: Storage, A: Api, Q: Querier>(
         QueryMsg::WithdrawableUnbonded { address } => {
             to_binary(&query_withdrawable_unbonded(&deps, address)?)
         }
+        QueryMsg::GetToken {}=> to_binary(&query_token(&deps)?),
+        QueryMsg::GetReward {} => to_binary(&query_reward(&deps)?)
+
     }
 }
 
@@ -716,4 +736,20 @@ fn query_withdrawable_unbonded<S: Storage, A: Api, Q: Querier>(
         .may_load(addr_raw.as_slice())?
         .unwrap_or_default();
     Ok(user_claim)
+}
+
+fn query_token<S: Storage, A: Api, Q: Querier>(
+    deps: &Extern<S, A, Q>,
+) -> StdResult<HumanAddr> {
+    let pool = pool_info_read(&deps.storage).load()?;
+    let address = deps.api.human_address(&pool.token_account);
+    address
+}
+
+fn query_reward<S: Storage, A: Api, Q: Querier>(
+    deps: &Extern<S, A, Q>,
+) -> StdResult<HumanAddr> {
+    let pool = pool_info_read(&deps.storage).load()?;
+    let address = deps.api.human_address(&pool.reward_account);
+    address
 }
