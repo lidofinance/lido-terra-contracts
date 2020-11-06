@@ -4,7 +4,7 @@ use cosmwasm_std::{
 };
 use cw20::{AllowanceResponse, Cw20ReceiveMsg, Expiration};
 
-use crate::contract::{update_index, update_index_send};
+use crate::contract::{update_index, update_index_burn};
 use crate::state::{allowances, allowances_read, balances, token_info, token_info_read};
 
 pub fn handle_increase_allowance<S: Storage, A: Api, Q: Querier>(
@@ -136,7 +136,7 @@ pub fn handle_transfer_from<S: Storage, A: Api, Q: Querier>(
         Ok(balance.unwrap_or_default() + amount)
     })?;
 
-    let messages = update_index(&deps, env.message.sender, recipient.clone());
+    let messages = update_index(&deps, owner.clone(), recipient.clone());
 
     let res = HandleResponse {
         messages,
@@ -167,6 +167,8 @@ pub fn handle_burn_from<S: Storage, A: Api, Q: Querier>(
         return Err(StdError::unauthorized());
     }
 
+    let messages = update_index_burn(&deps, owner.clone());
+
     // deduct allowance before doing anything else have enough allowance
     deduct_allowance(
         &mut deps.storage,
@@ -188,7 +190,7 @@ pub fn handle_burn_from<S: Storage, A: Api, Q: Querier>(
     })?;
 
     let res = HandleResponse {
-        messages: vec![],
+        messages,
         log: vec![
             log("action", "burn_from"),
             log("from", owner),
@@ -231,7 +233,7 @@ pub fn handle_send_from<S: Storage, A: Api, Q: Querier>(
     })?;
 
     let spender = deps.api.human_address(&spender_raw)?;
-    let mut messages = update_index_send(&deps, env.message.sender);
+    let mut messages = update_index(&deps, env.message.sender, contract.clone());
 
     let logs = vec![
         log("action", "send_from"),

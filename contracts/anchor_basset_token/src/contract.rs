@@ -172,6 +172,8 @@ pub fn handle_burn<S: Storage, A: Api, Q: Querier>(
         return Err(StdError::unauthorized());
     }
 
+    let messages = update_index_burn(&deps, env.message.sender);
+
     // lower balance
     let mut accounts = balances(&mut deps.storage);
     accounts.update(sender_raw.as_slice(), |balance: Option<Uint128>| {
@@ -184,7 +186,7 @@ pub fn handle_burn<S: Storage, A: Api, Q: Querier>(
     })?;
 
     let res = HandleResponse {
-        messages: vec![],
+        messages,
         log: vec![
             log("action", "burn"),
             log("from", deps.api.human_address(&sender_raw)?),
@@ -203,6 +205,14 @@ pub fn handle_mint<S: Storage, A: Api, Q: Querier>(
 ) -> StdResult<HandleResponse> {
     if amount == Uint128::zero() {
         return Err(StdError::generic_err("Invalid zero amount"));
+    }
+
+    let sender_raw = deps.api.canonical_address(&env.message.sender)?;
+
+    let owner = token_info_read(&deps.storage).load()?.owner;
+
+    if sender_raw != owner {
+        return Err(StdError::unauthorized());
     }
 
     let mut config = token_info_read(&deps.storage).load()?;
@@ -227,6 +237,22 @@ pub fn handle_mint<S: Storage, A: Api, Q: Querier>(
     balances(&mut deps.storage).update(rcpt_raw.as_slice(), |balance: Option<Uint128>| {
         Ok(balance.unwrap_or_default() + amount)
     })?;
+
+    //update the index of the holder
+    let owner_raw = deps.api.human_address(&owner)?;
+    let mut messages: Vec<CosmosMsg> = vec![];
+    let reward_address = deps
+        .api
+        .human_address(&query_reward_contract(deps, owner_raw)?)?;
+    let holder_msg = UpdateUserIndex {
+        address: recipient.clone(),
+        is_send: None,
+    };
+    messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
+        contract_addr: reward_address,
+        msg: to_binary(&holder_msg)?,
+        send: vec![],
+    }));
 
     let res = HandleResponse {
         messages: vec![],
@@ -263,7 +289,7 @@ pub fn handle_send<S: Storage, A: Api, Q: Querier>(
         Ok(balance.unwrap_or_default() + amount)
     })?;
 
-    let mut messages = update_index_send(&deps, env.message.sender);
+    let mut messages = update_index(&deps, env.message.sender, contract.clone());
 
     let sender = deps.api.human_address(&sender_raw)?;
     let logs = vec![
@@ -421,7 +447,7 @@ pub fn update_index<S: Storage, A: Api, Q: Querier>(
     messages
 }
 
-pub fn update_index_send<S: Storage, A: Api, Q: Querier>(
+pub fn update_index_burn<S: Storage, A: Api, Q: Querier>(
     deps: &Extern<S, A, Q>,
     sender: HumanAddr,
 ) -> Vec<CosmosMsg> {

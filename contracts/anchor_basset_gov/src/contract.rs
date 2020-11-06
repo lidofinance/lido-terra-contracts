@@ -15,7 +15,7 @@ use crate::state::{
 };
 use anchor_basset_reward::hook::InitHook;
 use anchor_basset_reward::init::RewardInitMsg;
-use anchor_basset_reward::msg::HandleMsg::{Swap, UpdateGlobalIndex, UpdateUserIndex};
+use anchor_basset_reward::msg::HandleMsg::{Swap, UpdateGlobalIndex};
 use anchor_basset_token::msg::HandleMsg::{Burn, Mint};
 use anchor_basset_token::msg::{TokenInitHook, TokenInitMsg};
 use cw20::{Cw20ReceiveMsg, MinterResponse};
@@ -245,18 +245,6 @@ pub fn handle_mint<S: Storage, A: Api, Q: Querier>(
     messages.push(CosmosMsg::Staking(StakingMsg::Delegate {
         validator,
         amount: payment.clone(),
-    }));
-
-    //updat the index of the holder
-    let reward_address = deps.api.human_address(&pool.reward_account)?;
-    let holder_msg = UpdateUserIndex {
-        address: sender.clone(),
-        is_send: None,
-    };
-    messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
-        contract_addr: reward_address,
-        msg: to_binary(&holder_msg)?,
-        send: vec![],
     }));
 
     let res = HandleResponse {
