@@ -54,7 +54,7 @@ pub fn handle<S: Storage, A: Api, Q: Querier>(
     msg: HandleMsg,
 ) -> StdResult<HandleResponse<TerraMsgWrapper>> {
     match msg {
-        HandleMsg::SendReward { recipient } => handle_send_reward(deps, env, recipient),
+        HandleMsg::ClaimReward { recipient } => handle_send_reward(deps, env, recipient),
         HandleMsg::Swap {} => handle_swap(deps, env),
         HandleMsg::UpdateGlobalIndex {} => handle_global_index(deps, env),
         HandleMsg::UpdateUserIndex { address, is_send } => {
@@ -144,7 +144,7 @@ pub fn handle_send_reward<S: Storage, A: Api, Q: Querier>(
 }
 
 // calculate the reward based on the sender's index and the global index.
-pub fn calculate_reward(
+fn calculate_reward(
     general_index: Decimal,
     user_index: Decimal,
     user_balance: Uint128,
@@ -290,17 +290,6 @@ pub fn handle_update_index<S: Storage, A: Api, Q: Querier>(
     Ok(res)
 }
 
-pub fn compute_receiver_index(
-    burn_amount: Uint128,
-    rcp_bal: Uint128,
-    rcp_indx: Decimal,
-    sndr_indx: Decimal,
-) -> Decimal {
-    let nom = burn_amount * sndr_indx + rcp_bal * rcp_indx;
-    let denom = burn_amount + rcp_bal;
-    Decimal::from_ratio(nom, denom)
-}
-
 #[inline]
 fn concat(namespace: &[u8], key: &[u8]) -> Vec<u8> {
     let mut k = namespace.to_vec();
@@ -308,7 +297,7 @@ fn concat(namespace: &[u8], key: &[u8]) -> Vec<u8> {
     k
 }
 
-pub fn query_balance<S: Storage, A: Api, Q: Querier>(
+fn query_balance<S: Storage, A: Api, Q: Querier>(
     deps: &Extern<S, A, Q>,
     address: &HumanAddr,
     contract_addr: HumanAddr,
@@ -328,7 +317,7 @@ pub fn query_balance<S: Storage, A: Api, Q: Querier>(
     Ok(bal)
 }
 
-pub fn query_token_contract<S: Storage, A: Api, Q: Querier>(
+fn query_token_contract<S: Storage, A: Api, Q: Querier>(
     deps: &Extern<S, A, Q>,
     contract_addr: HumanAddr,
 ) -> StdResult<CanonicalAddr> {

@@ -6,7 +6,7 @@ use cosmwasm_std::{HumanAddr, Uint128};
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum HandleMsg {
-    SendReward {
+    ClaimReward {
         recipient: Option<HumanAddr>,
     },
     //Swap all of the balances to uusd.

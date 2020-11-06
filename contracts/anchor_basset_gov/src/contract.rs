@@ -6,11 +6,11 @@ use cosmwasm_std::{
 
 use crate::msg::{InitMsg, QueryMsg};
 use crate::state::{
-    config, config_read, epoc_read, get_all_delegations, get_finished_amount, get_minted,
+    config, config_read, epoch_read, get_all_delegations, get_finished_amount, get_minted,
     is_valid_validator, pool_info, pool_info_read, read_total_amount, read_undelegated_wait_list,
-    read_valid_validators, read_validators, remove_white_validators, save_epoc,
+    read_valid_validators, read_validators, remove_white_validators, save_epoch,
     set_all_delegations, set_minted, store_total_amount, store_undelegated_wait_list,
-    store_white_validators, EpocId, GovConfig, EPOC,
+    store_white_validators, EpochId, GovConfig, EPOCH,
 };
 use anchor_basset_reward::hook::InitHook;
 use anchor_basset_reward::init::RewardInitMsg;
@@ -25,7 +25,7 @@ use rand::Rng;
 use std::ops::Add;
 
 const LUNA: &str = "uluna";
-const EPOC_PER_UNDELEGATION_PERIOD: u64 = 83;
+const EPOCH_PER_UNDELEGATION_PERIOD: u64 = 83;
 const DECIMALS: u8 = 6;
 
 pub fn init<S: Storage, A: Api, Q: Querier>(
@@ -49,15 +49,15 @@ pub fn init<S: Storage, A: Api, Q: Querier>(
     };
     pool_info(&mut deps.storage).save(&pool)?;
 
-    //store the first epoc.
-    let first_epoc = EpocId {
-        epoc_id: 0,
+    //store the first epoch.
+    let first_epoch = EpochId {
+        epoch_id: 0,
         current_block_time: env.block.time,
     };
-    save_epoc(&mut deps.storage).save(&first_epoc)?;
+    save_epoch(&mut deps.storage).save(&first_epoch)?;
 
     //store total amount zero for the first epoc
-    store_total_amount(&mut deps.storage, first_epoc.epoc_id, Uint128::zero())?;
+    store_total_amount(&mut deps.storage, first_epoch.epoch_id, Uint128::zero())?;
 
     let mut messages: Vec<CosmosMsg> = vec![];
 
@@ -197,6 +197,7 @@ pub fn handle_mint<S: Storage, A: Api, Q: Querier>(
     pool_info(&mut deps.storage).save(&pool)?;
 
     let mut messages: Vec<CosmosMsg> = vec![];
+
     // Issue the bluna token for sender
     let mint_msg = Mint {
         recipient: sender.clone(),
@@ -281,7 +282,7 @@ pub fn handle_update_global<S: Storage, A: Api, Q: Querier>(
 }
 
 //create withdraw requests for all validators
-pub fn withdraw_all_rewards(validators: Vec<HumanAddr>) -> Vec<CosmosMsg> {
+fn withdraw_all_rewards(validators: Vec<HumanAddr>) -> Vec<CosmosMsg> {
     let mut messages: Vec<CosmosMsg> = vec![];
     for val in validators {
         let msg: CosmosMsg = CosmosMsg::Staking(StakingMsg::Withdraw {
@@ -291,15 +292,6 @@ pub fn withdraw_all_rewards(validators: Vec<HumanAddr>) -> Vec<CosmosMsg> {
         messages.push(msg)
     }
     messages
-}
-
-// calculate the reward based on the sender's index and the global index.
-pub fn calculate_reward(
-    general_index: Decimal,
-    user_index: &Decimal,
-    user_balance: Uint128,
-) -> StdResult<Uint128> {
-    general_index * user_balance - *user_index * user_balance
 }
 
 pub fn handle_burn<S: Storage, A: Api, Q: Querier>(
@@ -312,9 +304,9 @@ pub fn handle_burn<S: Storage, A: Api, Q: Querier>(
         return Err(StdError::generic_err("Invalid zero amount"));
     }
 
-    let mut epoc = epoc_read(&deps.storage).load()?;
-    // get all amount that is gathered in a epoc.
-    let mut undelegated_so_far = read_total_amount(&deps.storage, epoc.epoc_id)?;
+    let mut epoch = epoch_read(&deps.storage).load()?;
+    // get all amount that is gathered in a epoch.
+    let mut undelegated_so_far = read_total_amount(&deps.storage, epoch.epoch_id)?;
 
     let mut messages: Vec<CosmosMsg> = vec![];
 
@@ -346,14 +338,14 @@ pub fn handle_burn<S: Storage, A: Api, Q: Querier>(
         send: vec![],
     }));
 
-    //compute Epoc time
+    //compute Epoch time
     let block_time = env.block.time;
-    if epoc.is_epoc_passed(block_time) {
-        epoc.epoc_id += (block_time - epoc.current_block_time) / EPOC;
-        epoc.current_block_time = block_time;
+    if epoch.is_epoch_passed(block_time) {
+        epoch.epoch_id += (block_time - epoch.current_block_time) / EPOCH;
+        epoch.current_block_time = block_time;
 
-        //store the new amount for the next epoc
-        store_total_amount(&mut deps.storage, epoc.epoc_id, amount)?;
+        //store the new amount for the next epoch
+        store_total_amount(&mut deps.storage, epoch.epoch_id, amount)?;
 
         let delegator = env.contract.address;
 
@@ -361,24 +353,29 @@ pub fn handle_burn<S: Storage, A: Api, Q: Querier>(
         let mut undelegated_msgs =
             handle_undelegate(deps, undelegated_so_far, exchange_rate, delegator);
         messages.append(&mut undelegated_msgs);
-        save_epoc(&mut deps.storage).save(&epoc)?;
+        save_epoch(&mut deps.storage).save(&epoch)?;
 
-        store_undelegated_wait_list(&mut deps.storage, epoc.epoc_id, sender.clone(), amount)?;
+        store_undelegated_wait_list(&mut deps.storage, epoch.epoch_id, sender.clone(), amount)?;
     } else {
         undelegated_so_far = undelegated_so_far.add(amount);
         //store the human_address under undelegated_wait_list.
         //check whether there is any prev requests form the same user.
         let mut user_amount =
-            if read_undelegated_wait_list(&deps.storage, epoc.epoc_id, sender.clone()).is_err() {
+            if read_undelegated_wait_list(&deps.storage, epoch.epoch_id, sender.clone()).is_err() {
                 Uint128::zero()
             } else {
-                read_undelegated_wait_list(&deps.storage, epoc.epoc_id, sender.clone())?
+                read_undelegated_wait_list(&deps.storage, epoch.epoch_id, sender.clone())?
             };
         user_amount += amount;
 
-        store_undelegated_wait_list(&mut deps.storage, epoc.epoc_id, sender.clone(), user_amount)?;
-        //store the claimed_so_far for the current epoc;
-        store_total_amount(&mut deps.storage, epoc.epoc_id, undelegated_so_far)?;
+        store_undelegated_wait_list(
+            &mut deps.storage,
+            epoch.epoch_id,
+            sender.clone(),
+            user_amount,
+        )?;
+        //store the claimed_so_far for the current epoch;
+        store_total_amount(&mut deps.storage, epoch.epoch_id, undelegated_so_far)?;
     }
 
     let res = HandleResponse {
@@ -393,7 +390,7 @@ pub fn handle_burn<S: Storage, A: Api, Q: Querier>(
     Ok(res)
 }
 
-pub fn handle_undelegate<S: Storage, A: Api, Q: Querier>(
+fn handle_undelegate<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
     amount: Uint128,
     exchange_rate: Decimal,
@@ -419,30 +416,32 @@ pub fn handle_finish<S: Storage, A: Api, Q: Querier>(
     let contract_address = env.contract.address.clone();
 
     //check the liquidation period.
-    let epoc = epoc_read(&deps.storage).load()?;
+    let epoch = epoch_read(&deps.storage).load()?;
     let block_time = env.block.time;
 
-    // get current epoc id.
-    let current_epoc_id = compute_epoc(epoc.epoc_id, epoc.current_block_time, block_time);
+    // get current epoch id.
+    let current_epoch_id =
+        compute_current_epoch(epoch.epoch_id, epoch.current_block_time, block_time);
 
-    // Compute all of burn requests with epoc Id corresponding to 21 (can be changed to arbitrary value) days ago
-    let epoc_id = get_before_undelegation_epoc(current_epoc_id);
+    // Compute all of burn requests with epoch Id corresponding to 21 (can be changed to arbitrary value) days ago
+    let epoch_id = get_past_epoch(current_epoch_id);
 
-    let amount = get_finished_amount(&deps.storage, epoc_id, sender_human.clone())?;
+    let amount = get_finished_amount(&deps.storage, epoch_id, sender_human.clone())?;
     handle_slashing(deps, env)?;
     let exchange_rate = pool_info_read(&deps.storage).load()?.exchange_rate;
     let final_amount = amount * exchange_rate;
-    handle_send_undelegation(final_amount, sender_human, contract_address)
+    send_undelegate_msgs(final_amount, sender_human, contract_address)
 }
 
-pub fn get_before_undelegation_epoc(current_epoc: u64) -> u64 {
-    if current_epoc < EPOC_PER_UNDELEGATION_PERIOD {
+//return the epoch-id of the 21 days ago.
+fn get_past_epoch(current_epoch: u64) -> u64 {
+    if current_epoch < EPOCH_PER_UNDELEGATION_PERIOD {
         return 0;
     }
-    current_epoc - EPOC_PER_UNDELEGATION_PERIOD
+    current_epoch - EPOCH_PER_UNDELEGATION_PERIOD
 }
 
-pub fn handle_send_undelegation(
+fn send_undelegate_msgs(
     amount: Uint128,
     to_address: HumanAddr,
     contract_address: HumanAddr,
@@ -450,7 +449,7 @@ pub fn handle_send_undelegation(
     let msgs = vec![BankMsg::Send {
         from_address: contract_address.clone(),
         to_address,
-        amount: coins(Uint128::u128(&amount), "uluna"),
+        amount: coins(Uint128::u128(&amount), LUNA),
     }
     .into()];
 
@@ -607,7 +606,7 @@ pub fn handle_slashing<S: Storage, A: Api, Q: Querier>(
             .querier
             .query_delegation(env.contract.address.clone(), validator)?
             .unwrap();
-        if slashing.amount.denom == "uluna" {
+        if slashing.amount.denom == LUNA {
             amount += slashing.amount.amount;
         }
     }
@@ -625,7 +624,7 @@ pub fn handle_slashing<S: Storage, A: Api, Q: Querier>(
 }
 
 //Pick a random validator
-pub fn pick_validator<S: Storage, A: Api, Q: Querier>(
+fn pick_validator<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
     validators: Vec<HumanAddr>,
     delegator: HumanAddr,
@@ -676,30 +675,9 @@ pub fn pick_validator<S: Storage, A: Api, Q: Querier>(
     messages
 }
 
-pub fn compute_epoc(mut epoc_id: u64, prev_time: u64, current_time: u64) -> u64 {
-    epoc_id += (current_time - prev_time) / EPOC;
-    epoc_id
-}
-
-pub fn compute_receiver_index(
-    burn_amount: Uint128,
-    rcp_bal: Uint128,
-    rcp_indx: Decimal,
-    sndr_indx: Decimal,
-) -> Decimal {
-    let nom = burn_amount * sndr_indx + rcp_bal * rcp_indx;
-    let denom = burn_amount + rcp_bal;
-    Decimal::from_ratio(nom, denom)
-}
-
-pub fn send_swap(contract_addr: HumanAddr) {
-    //send Swap message to the reward contract
-    let msg = Swap {};
-    WasmMsg::Execute {
-        contract_addr,
-        msg: to_binary(&msg).unwrap(),
-        send: vec![],
-    };
+fn compute_current_epoch(mut epoch_id: u64, prev_time: u64, current_time: u64) -> u64 {
+    epoch_id += (current_time - prev_time) / EPOCH;
+    epoch_id
 }
 
 pub fn query<S: Storage, A: Api, Q: Querier>(

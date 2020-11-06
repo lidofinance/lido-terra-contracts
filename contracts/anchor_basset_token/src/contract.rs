@@ -12,7 +12,7 @@ use crate::allowances::{
 use crate::enumerable::{query_all_accounts, query_all_allowances};
 use crate::msg::{HandleMsg, QueryMsg, TokenInitMsg};
 use crate::state::{balances, balances_read, token_info, token_info_read, MinterData, TokenInfo};
-use anchor_basset_reward::msg::HandleMsg::{SendReward, UpdateUserIndex};
+use anchor_basset_reward::msg::HandleMsg::{ClaimReward, UpdateUserIndex};
 use cosmwasm_storage::to_length_prefixed;
 use gov_courier::HandleMsg::UpdateGlobalIndex;
 use gov_courier::PoolInfo;
@@ -394,20 +394,7 @@ pub fn query_reward_contract<S: Storage, A: Api, Q: Querier>(
         .query(&QueryRequest::Wasm(WasmQuery::Raw {
             contract_addr,
             key: Binary::from(to_length_prefixed(b"pool_info")),
-        }))
-        .unwrap_or_else(|_| {
-            to_binary(&PoolInfo {
-                exchange_rate: Decimal::one(),
-                total_bond_amount: Default::default(),
-                total_issued: Default::default(),
-                last_index_modification: 0,
-                reward_account: default_reward,
-                is_reward_exist: true,
-                is_token_exist: true,
-                token_account: default_token,
-            })
-            .unwrap()
-        });
+        }))?;
 
     let pool_info: PoolInfo = from_binary(&res)?;
     Ok(pool_info.reward_account)
@@ -438,7 +425,7 @@ pub fn update_index<S: Storage, A: Api, Q: Querier>(
     }));
 
     //this will update the sender index
-    let send_reward = SendReward {
+    let send_reward = ClaimReward {
         recipient: Some(sender.clone()),
     };
     messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
@@ -491,7 +478,7 @@ pub fn update_index_burn<S: Storage, A: Api, Q: Querier>(
     }));
 
     //this will update the sender index
-    let send_reward = SendReward {
+    let send_reward = ClaimReward {
         recipient: Some(sender),
     };
     messages.push(CosmosMsg::Wasm(WasmMsg::Execute {

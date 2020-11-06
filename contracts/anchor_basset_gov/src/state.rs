@@ -13,7 +13,7 @@ use cosmwasm_storage::{
 use gov_courier::PoolInfo;
 
 // EPOC = 21600s is equal to 6 hours
-pub const EPOC: u64 = 21600;
+pub const EPOCH: u64 = 21600;
 
 pub static CONFIG: &[u8] = b"gov_config";
 pub static POOL_INFO: &[u8] = b"pool_info";
@@ -21,7 +21,7 @@ pub static POOL_INFO: &[u8] = b"pool_info";
 pub static PREFIX_UNBOUND_PER_EPOC: &[u8] = b"unbound";
 pub static VALIDATORS: &[u8] = b"validators";
 pub static PREFIX_WAIT_MAP: &[u8] = b"wait";
-pub static EPOC_ID: &[u8] = b"epoc";
+pub static EPOCH_ID: &[u8] = b"epoch";
 
 pub static SLASHING: &[u8] = b"slashing";
 pub static MINTED: &[u8] = b"minted";
@@ -34,23 +34,23 @@ pub struct GovConfig {
 #[derive(
     PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, Clone, JsonSchema, Debug, Copy,
 )]
-pub struct EpocId {
-    pub epoc_id: u64,
+pub struct EpochId {
+    pub epoch_id: u64,
     pub current_block_time: u64,
 }
 
-impl EpocId {
-    pub fn compute_current_epoc(&mut self, block_time: u64) {
-        let epoc = self.epoc_id;
+impl EpochId {
+    pub fn compute_current_epoch(&mut self, block_time: u64) {
+        let epoc = self.epoch_id;
         let time = self.current_block_time;
 
         self.current_block_time = block_time;
-        self.epoc_id = epoc + (block_time - time) / EPOC;
+        self.epoch_id = epoc + (block_time - time) / EPOCH;
     }
 
-    pub fn is_epoc_passed(&self, block_time: u64) -> bool {
+    pub fn is_epoch_passed(&self, block_time: u64) -> bool {
         let time = self.current_block_time;
-        if (block_time - time) < EPOC {
+        if (block_time - time) < EPOCH {
             return false;
         }
         true
@@ -65,12 +65,12 @@ pub fn config_read<S: ReadonlyStorage>(storage: &S) -> ReadonlySingleton<S, GovC
     singleton_read(storage, CONFIG)
 }
 
-pub fn save_epoc<S: Storage>(storage: &mut S) -> Singleton<S, EpocId> {
-    singleton(storage, EPOC_ID)
+pub fn save_epoch<S: Storage>(storage: &mut S) -> Singleton<S, EpochId> {
+    singleton(storage, EPOCH_ID)
 }
 
-pub fn epoc_read<S: ReadonlyStorage>(storage: &S) -> ReadonlySingleton<S, EpocId> {
-    singleton_read(storage, EPOC_ID)
+pub fn epoch_read<S: ReadonlyStorage>(storage: &S) -> ReadonlySingleton<S, EpochId> {
+    singleton_read(storage, EPOCH_ID)
 }
 
 pub fn pool_info<S: Storage>(storage: &mut S) -> Singleton<S, PoolInfo> {
