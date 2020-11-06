@@ -7,10 +7,10 @@ use cosmwasm_std::{
 use crate::msg::{InitMsg, QueryMsg};
 use crate::state::{
     config, config_read, epoc_read, get_all_delegations, get_finished_amount, get_minted,
-    is_valid_validator, pool_info, pool_info_read, read_delegation_map, read_total_amount,
-    read_undelegated_wait_list, read_valid_validators, read_validators, remove_white_validators,
-    save_epoc, set_all_delegations, set_minted, store_delegation_map, store_total_amount,
-    store_undelegated_wait_list, store_white_validators, EpocId, GovConfig, EPOC,
+    is_valid_validator, pool_info, pool_info_read, read_total_amount, read_undelegated_wait_list,
+    read_valid_validators, read_validators, remove_white_validators, save_epoc,
+    set_all_delegations, set_minted, store_total_amount, store_undelegated_wait_list,
+    store_white_validators, EpocId, GovConfig, EPOC,
 };
 use anchor_basset_reward::hook::InitHook;
 use anchor_basset_reward::init::RewardInitMsg;
@@ -211,17 +211,6 @@ pub fn handle_mint<S: Storage, A: Api, Q: Querier>(
         send: vec![],
     }));
 
-    // save the validator storage
-    // check whether the validator has previous record on the delegation map
-    let mut vld_amount: Uint128 = if read_delegation_map(&deps.storage, validator.clone()).is_err()
-    {
-        Uint128::zero()
-    } else {
-        read_delegation_map(&deps.storage, validator.clone())?
-    };
-    vld_amount += payment.amount;
-    store_delegation_map(&mut deps.storage, validator.clone(), vld_amount)?;
-
     //delegate the amount
     messages.push(CosmosMsg::Staking(StakingMsg::Delegate {
         validator,
@@ -375,8 +364,12 @@ pub fn handle_burn<S: Storage, A: Api, Q: Querier>(
         //store the new amount for the next epoc
         store_total_amount(&mut deps.storage, epoc.epoc_id, amount)?;
 
-        // send undelegate request
-        messages.push(handle_undelegate(deps, undelegated_so_far, exchange_rate));
+        let delegator = env.contract.address;
+
+        // send undelegated requests
+        let mut undelegated_msgs =
+            handle_undelegate(deps, undelegated_so_far, exchange_rate, delegator);
+        messages.append(&mut undelegated_msgs);
         save_epoc(&mut deps.storage).save(&epoc)?;
 
         store_undelegated_wait_list(&mut deps.storage, epoc.epoc_id, sender.clone(), amount)?;
@@ -413,26 +406,13 @@ pub fn handle_undelegate<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
     amount: Uint128,
     exchange_rate: Decimal,
-) -> CosmosMsg {
+    delegator: HumanAddr,
+) -> Vec<CosmosMsg> {
     //apply exchange_rate
     let amount_with_exchange_rate = amount * exchange_rate;
     // pick a random validator.
     let all_validators = read_validators(&deps.storage).unwrap();
-    let validator = pick_validator(deps, all_validators, amount_with_exchange_rate);
-
-    //the validator delegated amount
-    let amount = read_delegation_map(&deps.storage, validator.clone()).unwrap();
-    let new_amount = amount.0 - amount_with_exchange_rate.0;
-
-    //update the new delegation for the validator
-    store_delegation_map(&mut deps.storage, validator.clone(), Uint128(new_amount)).unwrap();
-
-    //send undelegate message
-    let msgs: CosmosMsg = CosmosMsg::Staking(StakingMsg::Undelegate {
-        validator,
-        amount: coin(amount_with_exchange_rate.u128(), LUNA),
-    });
-    msgs
+    pick_validator(deps, all_validators, delegator, amount_with_exchange_rate)
 }
 
 pub fn handle_finish<S: Storage, A: Api, Q: Querier>(
@@ -621,19 +601,52 @@ pub fn handle_slashing<S: Storage, A: Api, Q: Querier>(
 pub fn pick_validator<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
     validators: Vec<HumanAddr>,
+    delegator: HumanAddr,
     claim: Uint128,
-) -> HumanAddr {
+) -> Vec<CosmosMsg> {
+    let mut claimed = claim;
     let mut rng = rand::thread_rng();
-    //FIXME: consider when the validator does not have the amount.
-    // we need to split the request to a Vec<validators>.
-    loop {
-        let random = rng.gen_range(0, validators.len());
-        let validator: HumanAddr = HumanAddr::from(validators.get(random).unwrap());
-        let val = read_delegation_map(&deps.storage, validator.clone()).unwrap();
-        if val > claim {
-            return validator;
+    let mut messages: Vec<CosmosMsg> = vec![];
+    let mut situation: Option<bool> = None;
+    for v in validators.clone() {
+        let val = deps
+            .querier
+            .query_delegation(delegator.clone(), v.clone())
+            .unwrap()
+            .unwrap()
+            .amount
+            .amount;
+        if val < claim {
+            situation = None;
+        } else {
+            situation = Some(true);
+            let msgs: CosmosMsg = CosmosMsg::Staking(StakingMsg::Undelegate {
+                validator: v,
+                amount: coin(claim.u128(), LUNA),
+            });
+            messages.push(msgs);
         }
     }
+    if situation.is_none() {
+        while claimed.0 > 0 {
+            let random = rng.gen_range(0, validators.len());
+            let validator: HumanAddr = HumanAddr::from(validators.get(random).unwrap());
+            let val = deps
+                .querier
+                .query_delegation(delegator.clone(), validator.clone())
+                .unwrap()
+                .unwrap()
+                .amount
+                .amount;
+            claimed = Uint128(claim.0 - val.0);
+            let msgs: CosmosMsg = CosmosMsg::Staking(StakingMsg::Undelegate {
+                validator,
+                amount: coin(val.u128(), LUNA),
+            });
+            messages.push(msgs);
+        }
+    }
+    messages
 }
 
 pub fn compute_epoc(mut epoc_id: u64, prev_time: u64, current_time: u64) -> u64 {
