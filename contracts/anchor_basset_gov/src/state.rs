@@ -19,14 +19,12 @@ pub static CONFIG: &[u8] = b"gov_config";
 pub static POOL_INFO: &[u8] = b"pool_info";
 
 pub static PREFIX_UNBOUND_PER_EPOC: &[u8] = b"unbound";
-pub static PREFIX_DELEGATION_MAP: &[u8] = b"delegate";
+pub static VALIDATORS: &[u8] = b"validators";
 pub static PREFIX_WAIT_MAP: &[u8] = b"wait";
 pub static EPOC_ID: &[u8] = b"epoc";
-pub static VALIDATORS: &[u8] = b"validators";
 
 pub static SLASHING: &[u8] = b"slashing";
 pub static MINTED: &[u8] = b"minted";
-pub static WHITE_VALIDATORS: &[u8] = b"white_validators";
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct GovConfig {
@@ -104,46 +102,6 @@ pub fn read_total_amount<S: Storage>(storage: &S, epoc_id: u64) -> StdResult<Uin
     }
 }
 
-// maps address of validator address to amount that the contract has delegated to
-pub fn store_delegation_map<S: Storage>(
-    storage: &mut S,
-    validator_address: HumanAddr,
-    amount: Uint128,
-) -> StdResult<()> {
-    let vec = to_vec(&validator_address)?;
-    let value = to_vec(&amount)?;
-    PrefixedStorage::new(PREFIX_DELEGATION_MAP, storage).set(&vec, &value);
-    Ok(())
-}
-
-pub fn read_delegation_map<S: Storage>(
-    storage: &S,
-    validator_address: HumanAddr,
-) -> StdResult<Uint128> {
-    let vec = to_vec(&validator_address)?;
-    let res = ReadonlyPrefixedStorage::new(PREFIX_DELEGATION_MAP, storage).get(&vec);
-    match res {
-        Some(data) => from_slice(&data),
-        None => Err(StdError::generic_err("no validator is found")),
-    }
-}
-
-// Returns all validators and their delegated amount
-pub fn read_validators<S: Storage>(storage: &S) -> StdResult<Vec<HumanAddr>> {
-    let mut validators: Vec<HumanAddr> = Vec::new();
-    let res = ReadonlyPrefixedStorage::new(PREFIX_DELEGATION_MAP, storage);
-    let _un: Vec<_> = res
-        .range(None, None, Order::Ascending)
-        .map(|item| {
-            let (key, _) = item;
-            let sender: HumanAddr = from_slice(&key).unwrap();
-            validators.push(sender);
-        })
-        .collect();
-
-    Ok(validators)
-}
-
 //store undelegation wait list per each epoc
 pub fn store_undelegated_wait_list<'a, S: Storage>(
     storage: &'a mut S,
@@ -201,7 +159,7 @@ pub fn store_white_validators<S: Storage>(
 ) -> StdResult<()> {
     let vec = to_vec(&validator_address)?;
     let value = to_vec(&true)?;
-    PrefixedStorage::new(PREFIX_DELEGATION_MAP, storage).set(&vec, &value);
+    PrefixedStorage::new(VALIDATORS, storage).set(&vec, &value);
     Ok(())
 }
 
@@ -211,8 +169,24 @@ pub fn remove_white_validators<S: Storage>(
     validator_address: HumanAddr,
 ) -> StdResult<()> {
     let vec = to_vec(&validator_address)?;
-    PrefixedStorage::new(PREFIX_DELEGATION_MAP, storage).remove(&vec);
+    PrefixedStorage::new(VALIDATORS, storage).remove(&vec);
     Ok(())
+}
+
+// Returns all validators and their delegated amount
+pub fn read_validators<S: Storage>(storage: &S) -> StdResult<Vec<HumanAddr>> {
+    let mut validators: Vec<HumanAddr> = Vec::new();
+    let res = ReadonlyPrefixedStorage::new(VALIDATORS, storage);
+    let _un: Vec<_> = res
+        .range(None, None, Order::Ascending)
+        .map(|item| {
+            let (key, _) = item;
+            let sender: HumanAddr = from_slice(&key).unwrap();
+            validators.push(sender);
+        })
+        .collect();
+
+    Ok(validators)
 }
 
 pub fn is_valid_validator<S: Storage>(
@@ -220,7 +194,7 @@ pub fn is_valid_validator<S: Storage>(
     validator_address: HumanAddr,
 ) -> StdResult<bool> {
     let vec = to_vec(&validator_address)?;
-    let res = ReadonlyPrefixedStorage::new(PREFIX_DELEGATION_MAP, storage).get(&vec);
+    let res = ReadonlyPrefixedStorage::new(VALIDATORS, storage).get(&vec);
     match res {
         Some(_) => Ok(true),
         None => Ok(false),
@@ -229,7 +203,7 @@ pub fn is_valid_validator<S: Storage>(
 
 pub fn read_valid_validators<S: Storage>(storage: &S) -> StdResult<Vec<HumanAddr>> {
     let mut validators: Vec<HumanAddr> = Vec::new();
-    let res = ReadonlyPrefixedStorage::new(PREFIX_DELEGATION_MAP, storage);
+    let res = ReadonlyPrefixedStorage::new(VALIDATORS, storage);
 
     let _: Vec<()> = res
         .range(None, None, Order::Ascending)
