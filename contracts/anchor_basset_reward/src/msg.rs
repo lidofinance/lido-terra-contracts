@@ -12,9 +12,7 @@ pub enum HandleMsg {
     //Swap all of the balances to uusd.
     Swap {},
     //Update the global index
-    UpdateGlobalIndex {
-        past_balance: Uint128,
-    },
+    UpdateGlobalIndex {},
     //Register bluna holders
     UpdateUserIndex {
         address: HumanAddr,

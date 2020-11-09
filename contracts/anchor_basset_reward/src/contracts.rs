@@ -2,7 +2,7 @@ use crate::init::RewardInitMsg;
 use crate::msg::{HandleMsg, QueryMsg, TokenInfoResponse};
 use crate::state::{
     config, config_read, index_read, index_store, pending_reward_read, pending_reward_store,
-    read_holder_map, store_holder_map, Config, Index,
+    prev_balance, prev_balance_read, read_holder_map, store_holder_map, Config, Index,
 };
 use cosmwasm_std::{
     coins, from_binary, log, to_binary, Api, BankMsg, Binary, CanonicalAddr, CosmosMsg, Decimal,
@@ -31,6 +31,8 @@ pub fn init<S: Storage, A: Api, Q: Querier>(
     };
     index_store(&mut deps.storage).save(&index)?;
 
+    prev_balance(&mut deps.storage).save(&Uint128::zero())?;
+
     let mut messages: Vec<CosmosMsg> = vec![];
     if let Some(init_hook) = msg.init_hook {
         messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
@@ -54,9 +56,7 @@ pub fn handle<S: Storage, A: Api, Q: Querier>(
     match msg {
         HandleMsg::SendReward { recipient } => handle_send_reward(deps, env, recipient),
         HandleMsg::Swap {} => handle_swap(deps, env),
-        HandleMsg::UpdateGlobalIndex { past_balance } => {
-            handle_global_index(deps, env, past_balance)
-        }
+        HandleMsg::UpdateGlobalIndex {} => handle_global_index(deps, env),
         HandleMsg::UpdateUserIndex { address, is_send } => {
             handle_update_index(deps, env, address, is_send)
         }
@@ -177,7 +177,6 @@ pub fn handle_swap<S: Storage, A: Api, Q: Querier>(
 pub fn handle_global_index<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
     env: Env,
-    past_balance: Uint128,
 ) -> StdResult<HandleResponse<TerraMsgWrapper>> {
     //TODO: Do we need to consider tax here?
     //check who sent this
@@ -204,7 +203,13 @@ pub fn handle_global_index<S: Storage, A: Api, Q: Querier>(
         token_info.total_supply
     };
 
+    let past_balance = prev_balance_read(&deps.storage).load()?;
     let claimed_reward = (balance.amount - past_balance)?;
+
+    if claimed_reward.0 > 0 {
+        prev_balance(&mut deps.storage).save(&balance.amount)?;
+    }
+
     //update the global index
     index_store(&mut deps.storage).update(|mut index| {
         index.global_index = index
