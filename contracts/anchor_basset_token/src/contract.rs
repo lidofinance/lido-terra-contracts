@@ -1,5 +1,5 @@
 use cosmwasm_std::{
-    from_binary, log, to_binary, Api, Binary, CanonicalAddr, CosmosMsg, Env, Extern,
+    from_binary, log, to_binary, Api, Binary, CanonicalAddr, CosmosMsg, Decimal, Env, Extern,
     HandleResponse, HumanAddr, InitResponse, Querier, QueryRequest, StdError, StdResult, Storage,
     Uint128, WasmMsg, WasmQuery,
 };
@@ -381,13 +381,33 @@ pub fn query_reward_contract<S: Storage, A: Api, Q: Querier>(
     deps: &Extern<S, A, Q>,
     contract_addr: HumanAddr,
 ) -> StdResult<CanonicalAddr> {
+    let default_reward = deps
+        .api
+        .canonical_address(&HumanAddr::from("reward"))
+        .unwrap();
+    let default_token = deps
+        .api
+        .canonical_address(&HumanAddr::from("token"))
+        .unwrap();
     let res: Binary = deps
         .querier
         .query(&QueryRequest::Wasm(WasmQuery::Raw {
             contract_addr,
             key: Binary::from(to_length_prefixed(b"pool_info")),
         }))
-        .unwrap_or_else(|_| to_binary(&Uint128::zero()).unwrap());
+        .unwrap_or_else(|_| {
+            to_binary(&PoolInfo {
+                exchange_rate: Decimal::one(),
+                total_bond_amount: Default::default(),
+                total_issued: Default::default(),
+                last_index_modification: 0,
+                reward_account: default_reward,
+                is_reward_exist: true,
+                is_token_exist: true,
+                token_account: default_token,
+            })
+            .unwrap()
+        });
 
     let pool_info: PoolInfo = from_binary(&res)?;
     Ok(pool_info.reward_account)
