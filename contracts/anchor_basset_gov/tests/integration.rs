@@ -44,6 +44,7 @@ use cw20::{BalanceResponse, MinterResponse, TokenInfoResponse};
 use gov_courier::Registration::{Reward, Token};
 
 const DEFAULT_VALIDATOR: &str = "default-validator";
+const DEFAULT_VALIDATOR2: &str = "default-validator2";
 pub const MOCK_CONTRACT_ADDR: &str = "cosmos2contract";
 
 pub static POOL_INFO: &[u8] = b"pool_info";
@@ -60,7 +61,14 @@ fn sample_validator<U: Into<HumanAddr>>(addr: U) -> Validator {
 }
 
 fn set_validator(querier: &mut MockQuerier) {
-    querier.update_staking("uluna", &[sample_validator(DEFAULT_VALIDATOR)], &[]);
+    querier.update_staking(
+        "uluna",
+        &[
+            sample_validator(DEFAULT_VALIDATOR),
+            sample_validator(DEFAULT_VALIDATOR2),
+        ],
+        &[],
+    );
 }
 
 fn default_token(owner: CanonicalAddr, minter: HumanAddr) -> TokenInitMsg {
@@ -247,6 +255,44 @@ fn proper_mint() {
 }
 
 #[test]
+fn proper_deregister() {
+    let mut deps = mock_dependencies(20, &[]);
+    let validator = sample_validator(DEFAULT_VALIDATOR);
+    let validator2 = sample_validator(DEFAULT_VALIDATOR2);
+    set_validator(&mut deps.querier);
+
+    let owner = HumanAddr::from("owner1");
+    let token_contract = HumanAddr::from("token");
+    let reward_contract = HumanAddr::from("reward");
+
+    init_all(&mut deps, owner.clone(), reward_contract, token_contract);
+
+    let owner_env = mock_env(owner, &[]);
+    let msg = HandleMsg::RegisterValidator {
+        validator: validator.address.clone(),
+    };
+
+    let res = handle(&mut deps, owner_env.clone(), msg).unwrap();
+    assert_eq!(0, res.messages.len());
+
+    let msg = HandleMsg::RegisterValidator {
+        validator: validator2.address,
+    };
+
+    let res = handle(&mut deps, owner_env.clone(), msg).unwrap();
+    assert_eq!(0, res.messages.len());
+
+    set_delegation(&mut deps.querier, 10, "uluna");
+
+    let msg = HandleMsg::DeRegisterValidator {
+        validator: validator.address,
+    };
+
+    let res = handle(&mut deps, owner_env, msg).unwrap();
+    assert_eq!(2, res.messages.len());
+}
+
+#[test]
 pub fn proper_claim_reward() {
     let mut deps = mock_dependencies(20, &[]);
     let validator = sample_validator(DEFAULT_VALIDATOR);
@@ -361,12 +407,7 @@ pub fn proper_finish() {
     let token_contract = HumanAddr::from("token");
     let reward_contract = HumanAddr::from("reward");
 
-    init_all(
-        &mut deps,
-        owner.clone(),
-        reward_contract,
-        token_contract,
-    );
+    init_all(&mut deps, owner.clone(), reward_contract, token_contract);
 
     let env = mock_env(&owner, &[]);
     let msg = HandleMsg::RegisterValidator {
