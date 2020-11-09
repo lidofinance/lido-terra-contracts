@@ -556,8 +556,33 @@ pub fn handle_dereg_validator<S: Storage, A: Api, Q: Querier>(
         ));
     }
     remove_white_validators(&mut deps.storage, validator.clone())?;
+
+
+    let query = deps.querier.query_delegation(env.contract.address.clone(), validator.clone())?.unwrap();
+    let delegated_amount = query.amount;
+
+    let mut messages: Vec<CosmosMsg> = vec![];
+    let validators = read_validators(&deps.storage)?;
+
+    //redelegate the amount to a random validator.
+    let mut rng = rand::thread_rng();
+    let random = rng.gen_range(0, validators.len());
+    let replaced_val = HumanAddr::from(validators.get(random).unwrap());
+    messages.push(CosmosMsg::Staking(StakingMsg::Redelegate {
+        src_validator: validator.clone(),
+        dst_validator: replaced_val,
+        amount: delegated_amount
+    }));
+
+    let msg = HandleMsg::UpdateGlobalIndex {} ;
+    messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
+        contract_addr: env.contract.address,
+        msg: to_binary(&msg)?,
+        send: vec![]
+    }));
+
     let res = HandleResponse {
-        messages: vec![],
+        messages,
         log: vec![
             log("action", "de_register_validator"),
             log("validator", validator),
