@@ -26,7 +26,6 @@ use std::ops::Add;
 
 const LUNA: &str = "uluna";
 const EPOC_PER_UNDELEGATION_PERIOD: u64 = 83;
-const REWARD: &str = "uusd";
 const DECIMALS: u8 = 6;
 
 pub fn init<S: Storage, A: Api, Q: Querier>(
@@ -260,15 +259,8 @@ pub fn handle_update_global<S: Storage, A: Api, Q: Querier>(
         send: vec![],
     }));
 
-    let reward_balance = deps
-        .querier
-        .query_balance(reward_addr.clone(), REWARD)?
-        .amount;
-
     //send update GlobalIndex message to reward contract
-    let global_msg = UpdateGlobalIndex {
-        past_balance: reward_balance,
-    };
+    let global_msg = UpdateGlobalIndex {};
     messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
         contract_addr: reward_addr,
         msg: to_binary(&global_msg).unwrap(),
@@ -557,8 +549,10 @@ pub fn handle_dereg_validator<S: Storage, A: Api, Q: Querier>(
     }
     remove_white_validators(&mut deps.storage, validator.clone())?;
 
-
-    let query = deps.querier.query_delegation(env.contract.address.clone(), validator.clone())?.unwrap();
+    let query = deps
+        .querier
+        .query_delegation(env.contract.address.clone(), validator.clone())?
+        .unwrap();
     let delegated_amount = query.amount;
 
     let mut messages: Vec<CosmosMsg> = vec![];
@@ -571,14 +565,14 @@ pub fn handle_dereg_validator<S: Storage, A: Api, Q: Querier>(
     messages.push(CosmosMsg::Staking(StakingMsg::Redelegate {
         src_validator: validator.clone(),
         dst_validator: replaced_val,
-        amount: delegated_amount
+        amount: delegated_amount,
     }));
 
-    let msg = HandleMsg::UpdateGlobalIndex {} ;
+    let msg = HandleMsg::UpdateGlobalIndex {};
     messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
         contract_addr: env.contract.address,
         msg: to_binary(&msg)?,
-        send: vec![]
+        send: vec![],
     }));
 
     let res = HandleResponse {

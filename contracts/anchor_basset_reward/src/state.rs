@@ -13,6 +13,7 @@ pub static CONFIG: &[u8] = b"config";
 pub static INDEX: &[u8] = b"index";
 pub static PREFIX_HOLDERS_MAP: &[u8] = b"holders";
 static PENDING_REWARD: &[u8] = b"pending_reward";
+static PREV_BALANCE: &[u8] = b"last_balance";
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct Config {
@@ -67,4 +68,12 @@ pub fn pending_reward_store<S: Storage>(storage: &mut S) -> Bucket<S, Uint128> {
 
 pub fn pending_reward_read<S: ReadonlyStorage>(storage: &S) -> ReadonlyBucket<S, Uint128> {
     bucket_read(PENDING_REWARD, storage)
+}
+
+pub fn prev_balance<S: Storage>(storage: &mut S) -> Singleton<S, Uint128> {
+    singleton(storage, PREV_BALANCE)
+}
+
+pub fn prev_balance_read<S: ReadonlyStorage>(storage: &S) -> ReadonlySingleton<S, Uint128> {
+    singleton_read(storage, PREV_BALANCE)
 }
