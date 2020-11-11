@@ -255,7 +255,7 @@ pub fn handle_mint<S: Storage, A: Api, Q: Querier>(
     }));
 
     let res = HandleResponse {
-        messages: vec![],
+        messages,
         log: vec![
             log("action", "mint"),
             log("to", recipient),

@@ -245,7 +245,7 @@ fn proper_mint() {
     let gov_env = mock_env(address, &[]);
 
     let token_res = token_handle(&mut deps, gov_env, token_mint).unwrap();
-    assert_eq!(0, token_res.messages.len());
+    assert_eq!(1, token_res.messages.len());
 
     //check the balance of the bob
     let balance_msg = Balance { address: bob };
@@ -337,7 +337,7 @@ pub fn proper_claim_reward() {
     };
     let gov_env = mock_env(MOCK_CONTRACT_ADDR, &[]);
     let token_res = token_handle(&mut deps, gov_env, token_mint).unwrap();
-    assert_eq!(0, token_res.messages.len());
+    assert_eq!(1, token_res.messages.len());
 
     let reward_msg = HandleMsg::UpdateGlobalIndex {};
 
@@ -390,7 +390,7 @@ pub fn proper_init_burn() {
     };
     let gov_env = mock_env(MOCK_CONTRACT_ADDR, &[]);
     let token_res = token_handle(&mut deps, gov_env, token_mint).unwrap();
-    assert_eq!(0, token_res.messages.len());
+    assert_eq!(1, token_res.messages.len());
 
     let env = mock_env(&bob, &[]);
     let res = handle_burn(&mut deps, env, Uint128(1), bob).unwrap();
@@ -445,7 +445,7 @@ pub fn proper_finish() {
 
     let gov_env = mock_env(MOCK_CONTRACT_ADDR, &[]);
     let token_res = token_handle(&mut deps, gov_env, token_mint).unwrap();
-    assert_eq!(0, token_res.messages.len());
+    assert_eq!(1, token_res.messages.len());
 
     let res = handle_burn(&mut deps, env, Uint128(1), bob.clone()).unwrap();
     assert_eq!(1, res.messages.len());
