@@ -197,7 +197,6 @@ pub fn handle_mint<S: Storage, A: Api, Q: Querier>(
     pool_info(&mut deps.storage).save(&pool)?;
 
     let mut messages: Vec<CosmosMsg> = vec![];
-
     // Issue the bluna token for sender
     let mint_msg = Mint {
         recipient: sender.clone(),
@@ -522,6 +521,15 @@ pub fn handle_reg_validator<S: Storage, A: Api, Q: Querier>(
             "Only the creator can send this message",
         ));
     }
+    let is_exist = deps
+        .querier
+        .query_validators()?
+        .iter()
+        .any(|val| val.address == validator);
+    if !is_exist {
+        return Err(StdError::generic_err("Invalid validator"));
+    }
+
     store_white_validators(&mut deps.storage, validator.clone())?;
     let res = HandleResponse {
         messages: vec![],
