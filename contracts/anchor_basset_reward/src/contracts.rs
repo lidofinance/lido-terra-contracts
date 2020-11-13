@@ -10,7 +10,6 @@ use cosmwasm_std::{
     StdResult, Storage, Uint128, WasmMsg, WasmQuery,
 };
 
-use crate::msg::HandleMsg::UpdateUserIndex;
 use cosmwasm_storage::to_length_prefixed;
 use gov_courier::PoolInfo;
 use std::ops::Add;
@@ -20,7 +19,7 @@ const SWAP_DENOM: &str = "uusd";
 
 pub fn init<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
-    _env: Env,
+    env: Env,
     msg: RewardInitMsg,
 ) -> StdResult<InitResponse> {
     let conf = Config { owner: msg.owner };
@@ -32,6 +31,8 @@ pub fn init<S: Storage, A: Api, Q: Querier>(
     index_store(&mut deps.storage).save(&index)?;
 
     prev_balance(&mut deps.storage).save(&Uint128::zero())?;
+
+    store_holder_map(&mut deps.storage, env.message.sender, index.global_index)?;
 
     let mut messages: Vec<CosmosMsg> = vec![];
     if let Some(init_hook) = msg.init_hook {
@@ -104,32 +105,25 @@ pub fn handle_send_reward<S: Storage, A: Api, Q: Querier>(
     let pending_reward = pending_reward_read(&deps.storage).load(rcvr_raw.as_slice())?;
 
     //set the pending reward to zero
-    pending_reward_store(&mut deps.storage).update(rcvr_raw.as_slice(), |_| Ok(Uint128::zero()))?;
+    pending_reward_store(&mut deps.storage).save(rcvr_raw.as_slice(), &Uint128(0))?;
+
+    //store the new index of holder map
+    store_holder_map(&mut deps.storage, receiver.clone(), global_index)?;
 
     let final_reward = reward + pending_reward;
 
     prev_balance(&mut deps.storage).update(|mut prev_bal| {
-        prev_bal = (prev_bal - final_reward)?;
+        prev_bal = Uint128::from(prev_bal.0 - final_reward.0);
         Ok(prev_bal)
     })?;
 
     let contr_addr = env.contract.address;
-    let mut msgs = vec![BankMsg::Send {
+    let msgs = vec![BankMsg::Send {
         from_address: contr_addr.clone(),
-        to_address: receiver.clone(),
+        to_address: receiver,
         amount: coins(Uint128::u128(&final_reward), SWAP_DENOM),
     }
     .into()];
-
-    let holder_msg = UpdateUserIndex {
-        address: receiver,
-        is_send: Some(balance),
-    };
-    msgs.push(CosmosMsg::Wasm(WasmMsg::Execute {
-        contract_addr: contr_addr.clone(),
-        msg: to_binary(&holder_msg)?,
-        send: vec![],
-    }));
 
     let res = HandleResponse {
         messages: msgs,
@@ -207,9 +201,7 @@ pub fn handle_global_index<S: Storage, A: Api, Q: Querier>(
     let past_balance = prev_balance_read(&deps.storage).load()?;
     let claimed_reward = (balance.amount - past_balance)?;
 
-    if claimed_reward.0 > 0 {
-        prev_balance(&mut deps.storage).save(&balance.amount)?;
-    }
+    prev_balance(&mut deps.storage).save(&balance.amount)?;
 
     //update the global index
     index_store(&mut deps.storage).update(|mut index| {

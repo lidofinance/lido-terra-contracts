@@ -1,7 +1,6 @@
 use cosmwasm_std::{
-    from_binary, log, to_binary, Api, Binary, CanonicalAddr, CosmosMsg, Decimal, Env, Extern,
-    HandleResponse, HumanAddr, InitResponse, Querier, QueryRequest, StdError, StdResult, Storage,
-    Uint128, WasmMsg, WasmQuery,
+    from_binary, log, to_binary, Api, Binary, CosmosMsg, Env, Extern, HandleResponse, HumanAddr,
+    InitResponse, Querier, QueryRequest, StdError, StdResult, Storage, Uint128, WasmMsg, WasmQuery,
 };
 use cw20::{BalanceResponse, Cw20CoinHuman, Cw20ReceiveMsg, MinterResponse, TokenInfoResponse};
 
@@ -239,11 +238,8 @@ pub fn handle_mint<S: Storage, A: Api, Q: Querier>(
     })?;
 
     //update the index of the holder
-    let owner_raw = deps.api.human_address(&owner)?;
     let mut messages: Vec<CosmosMsg> = vec![];
-    let reward_address = deps
-        .api
-        .human_address(&query_reward_contract(deps, owner_raw)?)?;
+    let reward_address = query_reward(&deps)?;
     let holder_msg = UpdateUserIndex {
         address: recipient.clone(),
         is_send: None,
@@ -377,27 +373,20 @@ pub fn query_minter<S: Storage, A: Api, Q: Querier>(
     Ok(minter)
 }
 
-pub fn query_reward_contract<S: Storage, A: Api, Q: Querier>(
+pub fn query_reward<S: Storage, A: Api, Q: Querier>(
     deps: &Extern<S, A, Q>,
-    contract_addr: HumanAddr,
-) -> StdResult<CanonicalAddr> {
-    let default_reward = deps
+) -> StdResult<HumanAddr> {
+    let gov_address = deps
         .api
-        .canonical_address(&HumanAddr::from("reward"))
+        .human_address(&token_info_read(&deps.storage).load().unwrap().owner)
         .unwrap();
-    let default_token = deps
-        .api
-        .canonical_address(&HumanAddr::from("token"))
-        .unwrap();
-    let res: Binary = deps
-        .querier
-        .query(&QueryRequest::Wasm(WasmQuery::Raw {
-            contract_addr,
-            key: Binary::from(to_length_prefixed(b"pool_info")),
-        }))?;
-
+    let res: Binary = deps.querier.query(&QueryRequest::Wasm(WasmQuery::Raw {
+        contract_addr: gov_address,
+        key: Binary::from(to_length_prefixed(b"pool_info")),
+    }))?;
     let pool_info: PoolInfo = from_binary(&res)?;
-    Ok(pool_info.reward_account)
+    let address = deps.api.human_address(&pool_info.reward_account).unwrap();
+    Ok(address)
 }
 
 pub fn update_index<S: Storage, A: Api, Q: Querier>(
@@ -411,10 +400,7 @@ pub fn update_index<S: Storage, A: Api, Q: Querier>(
         .api
         .human_address(&token_info_read(&deps.storage).load().unwrap().owner)
         .unwrap();
-    let reward_address = deps
-        .api
-        .human_address(&query_reward_contract(&deps, gov_address.clone()).unwrap())
-        .unwrap();
+    let reward_address = query_reward(&deps).unwrap();
 
     let update_message = UpdateGlobalIndex {};
 
@@ -464,11 +450,8 @@ pub fn update_index_burn<S: Storage, A: Api, Q: Querier>(
         .api
         .human_address(&token_info_read(&deps.storage).load().unwrap().owner)
         .unwrap();
-    let reward_address = deps
-        .api
-        .human_address(&query_reward_contract(&deps, gov_address.clone()).unwrap())
-        .unwrap();
 
+    let reward_address = query_reward(&deps).unwrap();
     let update_message = UpdateGlobalIndex {};
 
     messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
