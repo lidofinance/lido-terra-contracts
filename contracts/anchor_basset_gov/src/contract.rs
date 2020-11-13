@@ -1,15 +1,16 @@
 use cosmwasm_std::{
     coin, coins, from_binary, log, to_binary, Api, BankMsg, Binary, CosmosMsg, Decimal, Env,
-    Extern, HandleResponse, HumanAddr, InitResponse, Querier, StakingMsg, StdError, StdResult,
-    Storage, Uint128, WasmMsg,
+    Extern, HandleResponse, HumanAddr, InitResponse, Querier, QueryRequest, StakingMsg, StdError,
+    StdResult, Storage, Uint128, WasmMsg, WasmQuery,
 };
 
+use crate::math::decimal_division;
 use crate::msg::{InitMsg, QueryMsg};
 use crate::state::{
-    config, config_read, epoch_read, get_all_delegations, get_finished_amount, get_minted,
-    is_valid_validator, pool_info, pool_info_read, read_total_amount, read_undelegated_wait_list,
-    read_valid_validators, read_validators, remove_white_validators, save_epoch,
-    set_all_delegations, set_minted, store_total_amount, store_undelegated_wait_list,
+    config, config_read, epoch_read, get_all_delegations, get_bonded, get_burn_epochs,
+    get_finished_amount, is_valid_validator, pool_info, pool_info_read, read_total_amount,
+    read_valid_validators, read_validators, remove_undelegated_wait_list, remove_white_validators,
+    save_epoch, set_all_delegations, set_bonded, store_total_amount, store_undelegated_wait_list,
     store_white_validators, EpochId, GovConfig, EPOCH,
 };
 use anchor_basset_reward::hook::InitHook;
@@ -17,15 +18,16 @@ use anchor_basset_reward::init::RewardInitMsg;
 use anchor_basset_reward::msg::HandleMsg::{Swap, UpdateGlobalIndex};
 use anchor_basset_token::msg::HandleMsg::{Burn, Mint};
 use anchor_basset_token::msg::{TokenInitHook, TokenInitMsg};
+use anchor_basset_token::state::TokenInfo;
+use cosmwasm_storage::to_length_prefixed;
 use cw20::{Cw20CoinHuman, Cw20ReceiveMsg, MinterResponse};
 use gov_courier::PoolInfo;
 use gov_courier::Registration;
 use gov_courier::{Cw20HookMsg, HandleMsg};
-use rand::Rng;
-use std::ops::Add;
+use rand::{Rng, SeedableRng, XorShiftRng};
 
 const LUNA: &str = "uluna";
-const EPOCH_PER_UNDELEGATION_PERIOD: u64 = 83;
+const EPOCH_PER_UNDELEGATION_PERIOD: u64 = 2;
 const DECIMALS: u8 = 6;
 
 pub fn init<S: Storage, A: Api, Q: Querier>(
@@ -67,7 +69,7 @@ pub fn init<S: Storage, A: Api, Q: Querier>(
     })?;
 
     //set minted and all_delegations to keep the record of slashing.
-    set_minted(&mut deps.storage).save(&Uint128::zero())?;
+    set_bonded(&mut deps.storage).save(&Uint128::zero())?;
     set_all_delegations(&mut deps.storage).save(&Uint128::zero())?;
 
     //instantiate token contract
@@ -128,7 +130,7 @@ pub fn handle<S: Storage, A: Api, Q: Querier>(
         HandleMsg::Receive(msg) => receive_cw20(deps, env, msg),
         HandleMsg::Mint { validator } => handle_mint(deps, env, validator),
         HandleMsg::UpdateGlobalIndex {} => handle_update_global(deps, env),
-        HandleMsg::FinishBurn { amount } => handle_finish(deps, env, amount),
+        HandleMsg::FinishBurn {} => handle_finish(deps, env),
         HandleMsg::RegisterSubContracts { contract } => {
             handle_register_contracts(deps, env, contract)
         }
@@ -182,16 +184,13 @@ pub fn handle_mint<S: Storage, A: Api, Q: Querier>(
         .ok_or_else(|| StdError::generic_err(format!("No {} tokens sent", LUNA)))?;
 
     let mut pool = pool_info_read(&deps.storage).load()?;
-    let sender = env.message.sender;
+    let sender = env.message.sender.clone();
 
-    let amount_with_exchange_rate =
-        if pool.total_bond_amount.is_zero() || pool.total_issued.is_zero() {
-            payment.amount
-        } else {
-            pool.update_exchange_rate();
-            let exchange_rate = pool.exchange_rate;
-            exchange_rate * payment.amount
-        };
+    //update the exchange rate
+    if slashing(deps, env.clone()).is_ok() {
+        pool.update_exchange_rate();
+    }
+    let amount_with_exchange_rate = decimal_division(payment.amount, pool.exchange_rate);
 
     //update pool_info
     pool.total_bond_amount += payment.amount;
@@ -220,9 +219,9 @@ pub fn handle_mint<S: Storage, A: Api, Q: Querier>(
     }));
 
     //add minted for slashing
-    set_minted(&mut deps.storage).update(|mut mint| {
-        mint += amount_with_exchange_rate;
-        Ok(mint)
+    set_bonded(&mut deps.storage).update(|mut bonded| {
+        bonded += payment.amount;
+        Ok(bonded)
     })?;
 
     let res = HandleResponse {
@@ -318,15 +317,8 @@ pub fn handle_burn<S: Storage, A: Api, Q: Querier>(
     pool_info(&mut deps.storage).update(|mut pool_inf| {
         pool_inf.total_bond_amount = Uint128(pool_inf.total_bond_amount.0 - amount.0);
         pool_inf.total_issued = (pool_inf.total_issued - amount)?;
-        exchange_rate = if pool_inf.total_bond_amount == Uint128::zero()
-            || pool_inf.total_bond_amount == Uint128::zero()
-        {
-            Decimal::one()
-        } else {
-            pool_inf.update_exchange_rate();
-            pool_inf.exchange_rate
-        };
-
+        pool_inf.update_exchange_rate();
+        exchange_rate = pool_inf.exchange_rate;
         Ok(pool_inf)
     })?;
 
@@ -344,39 +336,47 @@ pub fn handle_burn<S: Storage, A: Api, Q: Querier>(
     //compute Epoch time
     let block_time = env.block.time;
     if epoch.is_epoch_passed(block_time) {
-        epoch.epoch_id += (block_time - epoch.current_block_time) / EPOCH;
-        epoch.current_block_time = block_time;
+        let last_epoch = epoch.epoch_id;
+        epoch.compute_current_epoch(block_time);
 
-        //store the new amount for the next epoch
-        store_total_amount(&mut deps.storage, epoch.epoch_id, amount)?;
+        //this will store the user request for the past epoch.
+        store_total_amount(&mut deps.storage, epoch.epoch_id, Uint128::zero())?;
 
         let delegator = env.contract.address;
 
         // send undelegated requests
-        let mut undelegated_msgs =
-            handle_undelegate(deps, undelegated_so_far, exchange_rate, delegator);
+        undelegated_so_far += amount;
+        let undelegated_amount = exchange_rate * undelegated_so_far;
+        let all_validators = read_validators(&deps.storage).unwrap();
+        let block_height = env.block.height;
+        let mut undelegated_msgs = pick_validator(
+            deps,
+            all_validators,
+            undelegated_amount,
+            delegator.clone(),
+            block_height,
+        );
+        //messages.append(&mut undelegated_msgs);
         messages.append(&mut undelegated_msgs);
         save_epoch(&mut deps.storage).save(&epoch)?;
 
-        store_undelegated_wait_list(&mut deps.storage, epoch.epoch_id, sender.clone(), amount)?;
-    } else {
-        undelegated_so_far = undelegated_so_far.add(amount);
-        //store the human_address under undelegated_wait_list.
-        //check whether there is any prev requests form the same user.
-        let mut user_amount =
-            if read_undelegated_wait_list(&deps.storage, epoch.epoch_id, sender.clone()).is_err() {
-                Uint128::zero()
-            } else {
-                read_undelegated_wait_list(&deps.storage, epoch.epoch_id, sender.clone())?
-            };
-        user_amount += amount;
+        //update all_delegation
+        let mut delegated_before = Uint128::zero();
+        let all_delegations = deps.querier.query_all_delegations(delegator)?;
+        for delegation in all_delegations {
+            delegated_before += delegation.amount.amount
+        }
 
-        store_undelegated_wait_list(
-            &mut deps.storage,
-            epoch.epoch_id,
-            sender.clone(),
-            user_amount,
-        )?;
+        let delegated_after_burn = (delegated_before - undelegated_so_far)?;
+
+        set_all_delegations(&mut deps.storage).save(&delegated_after_burn)?;
+
+        //store the sender for the previous epoch
+        store_undelegated_wait_list(&mut deps.storage, last_epoch, sender.clone(), amount)?;
+    } else {
+        undelegated_so_far += amount;
+
+        store_undelegated_wait_list(&mut deps.storage, epoch.epoch_id, sender.clone(), amount)?;
         //store the claimed_so_far for the current epoch;
         store_total_amount(&mut deps.storage, epoch.epoch_id, undelegated_so_far)?;
     }
@@ -386,35 +386,17 @@ pub fn handle_burn<S: Storage, A: Api, Q: Querier>(
         log: vec![
             log("action", "burn"),
             log("from", sender),
-            log("amount", amount),
+            log("undelegated_amount", undelegated_so_far),
         ],
         data: None,
     };
     Ok(res)
 }
 
-fn handle_undelegate<S: Storage, A: Api, Q: Querier>(
-    deps: &mut Extern<S, A, Q>,
-    amount: Uint128,
-    exchange_rate: Decimal,
-    delegator: HumanAddr,
-) -> Vec<CosmosMsg> {
-    //apply exchange_rate
-    let amount_with_exchange_rate = amount * exchange_rate;
-    // pick a random validator.
-    let all_validators = read_validators(&deps.storage).unwrap();
-    pick_validator(deps, all_validators, delegator, amount_with_exchange_rate)
-}
-
 pub fn handle_finish<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
     env: Env,
-    amount: Uint128,
 ) -> StdResult<HandleResponse> {
-    if amount == Uint128::zero() {
-        return Err(StdError::generic_err("Invalid zero amount"));
-    }
-
     let sender_human = env.message.sender.clone();
     let contract_address = env.contract.address.clone();
 
@@ -429,11 +411,23 @@ pub fn handle_finish<S: Storage, A: Api, Q: Querier>(
     // Compute all of burn requests with epoch Id corresponding to 21 (can be changed to arbitrary value) days ago
     let epoch_id = get_past_epoch(current_epoch_id);
 
-    let amount = get_finished_amount(&deps.storage, epoch_id, sender_human.clone())?;
-    handle_slashing(deps, env)?;
+    let payable_amount = get_finished_amount(&deps.storage, epoch_id, sender_human.clone())?;
+
+    if payable_amount.is_zero() {
+        return Err(StdError::generic_err(
+            "Previously requested amount is not ready yet",
+        ));
+    }
+
+    //remove the previous epochs for the user
+    let deprecated_epochs = get_burn_epochs(&deps.storage, sender_human.clone(), epoch_id)?;
+    remove_undelegated_wait_list(&mut deps.storage, deprecated_epochs, sender_human.clone())?;
+
+    slashing(deps, env)?;
+
     let exchange_rate = pool_info_read(&deps.storage).load()?.exchange_rate;
-    let final_amount = amount * exchange_rate;
-    send_undelegate_msgs(final_amount, sender_human, contract_address)
+    let final_amount = payable_amount * exchange_rate;
+    send_undelegated_luna(final_amount, sender_human, contract_address)
 }
 
 //return the epoch-id of the 21 days ago.
@@ -444,7 +438,7 @@ fn get_past_epoch(current_epoch: u64) -> u64 {
     current_epoch - EPOCH_PER_UNDELEGATION_PERIOD
 }
 
-fn send_undelegate_msgs(
+fn send_undelegated_luna(
     amount: Uint128,
     to_address: HumanAddr,
     contract_address: HumanAddr,
@@ -523,14 +517,15 @@ pub fn handle_reg_validator<S: Storage, A: Api, Q: Querier>(
             "Only the creator can send this message",
         ));
     }
-    // let is_exist = deps
-    //     .querier
-    //     .query_validators()?
-    //     .iter()
-    //     .any(|val| val.address == validator);
-    // if !is_exist {
-    //     return Err(StdError::generic_err("Invalid validator"));
-    // }
+
+    let is_exist = deps
+        .querier
+        .query_validators()?
+        .iter()
+        .any(|val| val.address == validator);
+    if !is_exist {
+        return Err(StdError::generic_err("Invalid validator"));
+    }
 
     store_white_validators(&mut deps.storage, validator.clone())?;
     let res = HandleResponse {
@@ -569,9 +564,10 @@ pub fn handle_dereg_validator<S: Storage, A: Api, Q: Querier>(
     let validators = read_validators(&deps.storage)?;
 
     //redelegate the amount to a random validator.
-    let mut rng = rand::thread_rng();
-    let random = rng.gen_range(0, validators.len());
-    let replaced_val = HumanAddr::from(validators.get(random).unwrap());
+    let block_height = env.block.height;
+    let mut rng = XorShiftRng::seed_from_u64(block_height);
+    let random_index = rng.gen_range(0, validators.len());
+    let replaced_val = HumanAddr::from(validators.get(random_index).unwrap());
     messages.push(CosmosMsg::Staking(StakingMsg::Redelegate {
         src_validator: validator.clone(),
         dst_validator: replaced_val,
@@ -596,25 +592,25 @@ pub fn handle_dereg_validator<S: Storage, A: Api, Q: Querier>(
     Ok(res)
 }
 
-pub fn handle_slashing<S: Storage, A: Api, Q: Querier>(
+pub fn slashing<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
     env: Env,
-) -> StdResult<HandleResponse> {
+) -> StdResult<()> {
     let validators = read_validators(&deps.storage)?;
     let mut amount = Uint128::zero();
     let all_delegations = get_all_delegations(&deps.storage).load()?;
-    let minted = get_minted(&deps.storage).load()?;
+    let bonded = get_bonded(&deps.storage).load()?;
     for validator in validators {
-        let slashing = deps
+        let all_delegated = deps
             .querier
             .query_delegation(env.contract.address.clone(), validator)?
             .unwrap();
-        if slashing.amount.denom == LUNA {
-            amount += slashing.amount.amount;
+        if all_delegated.amount.denom == LUNA {
+            amount += all_delegated.amount.amount;
         }
     }
-    let all_changes = amount.0 - all_delegations.0;
-    if minted.0 > all_changes {
+    let all_changes = (amount - all_delegations)?;
+    if bonded.0 > all_changes.0 {
         pool_info(&mut deps.storage).update(|mut pool| {
             pool.total_bond_amount = amount;
             pool.update_exchange_rate();
@@ -622,58 +618,52 @@ pub fn handle_slashing<S: Storage, A: Api, Q: Querier>(
         })?;
     }
     set_all_delegations(&mut deps.storage).save(&amount)?;
-    set_minted(&mut deps.storage).save(&Uint128::zero())?;
+    set_bonded(&mut deps.storage).save(&Uint128::zero())?;
+    Ok(())
+}
+
+pub fn handle_slashing<S: Storage, A: Api, Q: Querier>(
+    deps: &mut Extern<S, A, Q>,
+    env: Env,
+) -> StdResult<HandleResponse> {
+    slashing(deps, env)?;
     Ok(HandleResponse::default())
 }
 
-//Pick a random validator
 fn pick_validator<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
     validators: Vec<HumanAddr>,
-    delegator: HumanAddr,
     claim: Uint128,
+    delegator: HumanAddr,
+    block_height: u64,
 ) -> Vec<CosmosMsg> {
-    let mut claimed = claim;
-    let mut rng = rand::thread_rng();
     let mut messages: Vec<CosmosMsg> = vec![];
-    let mut situation: Option<bool> = None;
-    for v in validators.clone() {
+    let mut claimed = claim;
+    let mut rng = XorShiftRng::seed_from_u64(block_height);
+
+    while claimed.0 > 0 {
+        let random_index = rng.gen_range(0, validators.len());
+        let validator: HumanAddr = HumanAddr::from(validators.get(random_index).unwrap());
         let val = deps
             .querier
-            .query_delegation(delegator.clone(), v.clone())
+            .query_delegation(delegator.clone(), validator.clone())
             .unwrap()
             .unwrap()
             .amount
             .amount;
-        if val < claim {
-            situation = None;
+        let undelegated_amount: Uint128;
+        if val.0 > claimed.0 {
+            undelegated_amount = claimed;
+            claimed = Uint128::zero();
         } else {
-            situation = Some(true);
-            let msgs: CosmosMsg = CosmosMsg::Staking(StakingMsg::Undelegate {
-                validator: v,
-                amount: coin(claim.u128(), LUNA),
-            });
-            messages.push(msgs);
+            undelegated_amount = val;
+            claimed = Uint128(claimed.0 - val.0);
         }
-    }
-    if situation.is_none() {
-        while claimed.0 > 0 {
-            let random = rng.gen_range(0, validators.len());
-            let validator: HumanAddr = HumanAddr::from(validators.get(random).unwrap());
-            let val = deps
-                .querier
-                .query_delegation(delegator.clone(), validator.clone())
-                .unwrap()
-                .unwrap()
-                .amount
-                .amount;
-            claimed = Uint128(claim.0 - val.0);
-            let msgs: CosmosMsg = CosmosMsg::Staking(StakingMsg::Undelegate {
-                validator,
-                amount: coin(val.u128(), LUNA),
-            });
-            messages.push(msgs);
-        }
+        let msgs: CosmosMsg = CosmosMsg::Staking(StakingMsg::Undelegate {
+            validator,
+            amount: coin(undelegated_amount.0, LUNA),
+        });
+        messages.push(msgs);
     }
     messages
 }
@@ -725,4 +715,18 @@ fn query_token<S: Storage, A: Api, Q: Querier>(deps: &Extern<S, A, Q>) -> StdRes
 fn query_reward<S: Storage, A: Api, Q: Querier>(deps: &Extern<S, A, Q>) -> StdResult<HumanAddr> {
     let pool = pool_info_read(&deps.storage).load()?;
     deps.api.human_address(&pool.reward_account)
+}
+
+fn _query_total_issued<S: Storage, A: Api, Q: Querier>(
+    deps: &Extern<S, A, Q>,
+) -> StdResult<Uint128> {
+    let token_address = deps
+        .api
+        .human_address(&pool_info_read(&deps.storage).load()?.token_account)?;
+    let res = deps.querier.query(&QueryRequest::Wasm(WasmQuery::Raw {
+        contract_addr: token_address,
+        key: Binary::from(to_length_prefixed(b"token_info")),
+    }))?;
+    let token_info: TokenInfo = from_binary(&res)?;
+    Ok(token_info.total_supply)
 }

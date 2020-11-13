@@ -12,19 +12,19 @@ use cosmwasm_storage::{
 
 use gov_courier::PoolInfo;
 
-// EPOC = 21600s is equal to 6 hours
-pub const EPOCH: u64 = 21600;
+//FIXME: should be changed to three days
+pub const EPOCH: u64 = 30;
 
 pub static CONFIG: &[u8] = b"gov_config";
 pub static POOL_INFO: &[u8] = b"pool_info";
 
-pub static PREFIX_UNBOUND_PER_EPOC: &[u8] = b"unbound";
+pub static PREFIX_UNBONDED_PER_EPOCH: &[u8] = b"unbond";
 pub static VALIDATORS: &[u8] = b"validators";
 pub static PREFIX_WAIT_MAP: &[u8] = b"wait";
 pub static EPOCH_ID: &[u8] = b"epoch";
 
 pub static SLASHING: &[u8] = b"slashing";
-pub static MINTED: &[u8] = b"minted";
+pub static BONDED: &[u8] = b"bonded";
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct GovConfig {
@@ -89,13 +89,13 @@ pub fn store_total_amount<S: Storage>(
 ) -> StdResult<()> {
     let vec = to_vec(&epoc_id)?;
     let value: Vec<u8> = to_vec(&claimed)?;
-    PrefixedStorage::new(PREFIX_UNBOUND_PER_EPOC, storage).set(&vec, &value);
+    PrefixedStorage::new(PREFIX_UNBONDED_PER_EPOCH, storage).set(&vec, &value);
     Ok(())
 }
 
 pub fn read_total_amount<S: Storage>(storage: &S, epoc_id: u64) -> StdResult<Uint128> {
     let vec = to_vec(&epoc_id)?;
-    let res = ReadonlyPrefixedStorage::new(PREFIX_UNBOUND_PER_EPOC, storage).get(&vec);
+    let res = ReadonlyPrefixedStorage::new(PREFIX_UNBONDED_PER_EPOCH, storage).get(&vec);
     match res {
         Some(data) => from_slice(&data),
         None => Err(StdError::generic_err("no unbond amount is found")),
@@ -113,8 +113,26 @@ pub fn store_undelegated_wait_list<'a, S: Storage>(
     let addr = to_vec(&sender_address)?;
     let mut position_indexer: Bucket<'a, S, Uint128> =
         Bucket::multilevel(&[PREFIX_WAIT_MAP, &addr], storage);
-    position_indexer.save(&epoch, &amount)?;
+    position_indexer.update(&epoch, |asked_already| {
+        Ok(asked_already.unwrap_or_default() + amount)
+    })?;
 
+    Ok(())
+}
+
+//store undelegation wait list per each epoc
+pub fn remove_undelegated_wait_list<'a, S: Storage>(
+    storage: &'a mut S,
+    epoc_id: Vec<u64>,
+    sender_address: HumanAddr,
+) -> StdResult<()> {
+    let addr = to_vec(&sender_address)?;
+    let mut position_indexer: Bucket<'a, S, Uint128> =
+        Bucket::multilevel(&[PREFIX_WAIT_MAP, &addr], storage);
+    for e in epoc_id {
+        let epoch = to_vec(&e)?;
+        position_indexer.remove(&epoch);
+    }
     Ok(())
 }
 
@@ -130,6 +148,49 @@ pub fn read_undelegated_wait_list<'a, S: ReadonlyStorage>(
     res.load(&epoch)
 }
 
+//this function is here for test purpose
+pub fn get_burn_requests<'a, S: ReadonlyStorage>(
+    storage: &'a S,
+    sender_addr: HumanAddr,
+) -> StdResult<Vec<u64>> {
+    let vec = to_vec(&sender_addr)?;
+    let mut amount: Vec<u64> = vec![];
+    let res: ReadonlyBucket<'a, S, Uint128> =
+        ReadonlyBucket::multilevel(&[PREFIX_WAIT_MAP, &vec], storage);
+    let _un: Vec<_> = res
+        .range(None, None, Order::Ascending)
+        .map(|item| {
+            let (k, _) = item.unwrap();
+            let epoch: u64 = from_slice(&k).unwrap();
+            amount.push(epoch)
+        })
+        .collect();
+    Ok(amount)
+}
+
+pub fn get_burn_epochs<'a, S: ReadonlyStorage>(
+    storage: &'a S,
+    sender_addr: HumanAddr,
+    epoc_id: u64,
+) -> StdResult<Vec<u64>> {
+    let vec = to_vec(&sender_addr)?;
+    let mut deprecated_epochs: Vec<u64> = vec![];
+    let res: ReadonlyBucket<'a, S, Uint128> =
+        ReadonlyBucket::multilevel(&[PREFIX_WAIT_MAP, &vec], storage);
+    let _un: Vec<_> = res
+        .range(None, None, Order::Ascending)
+        .map(|item| {
+            let (k, _) = item.unwrap();
+            let user_epoch: u64 = from_slice(&k).unwrap();
+            if user_epoch < epoc_id {
+                deprecated_epochs.push(user_epoch);
+            }
+        })
+        .collect();
+    Ok(deprecated_epochs)
+}
+
+//return all requested burn amount that has been requested from 24 days ago.
 pub fn get_finished_amount<'a, S: ReadonlyStorage>(
     storage: &'a S,
     epoc_id: u64,
@@ -145,7 +206,7 @@ pub fn get_finished_amount<'a, S: ReadonlyStorage>(
             let (k, v) = item.unwrap();
             let user_epoch: u64 = from_slice(&k).unwrap();
             if user_epoch < epoc_id {
-                amount = v;
+                amount += v;
             }
         })
         .collect();
@@ -223,10 +284,10 @@ pub fn get_all_delegations<S: ReadonlyStorage>(storage: &S) -> ReadonlySingleton
     singleton_read(storage, SLASHING)
 }
 
-pub fn set_minted<S: Storage>(storage: &mut S) -> Singleton<S, Uint128> {
-    singleton(storage, MINTED)
+pub fn set_bonded<S: Storage>(storage: &mut S) -> Singleton<S, Uint128> {
+    singleton(storage, BONDED)
 }
 
-pub fn get_minted<S: ReadonlyStorage>(storage: &S) -> ReadonlySingleton<S, Uint128> {
-    singleton_read(storage, MINTED)
+pub fn get_bonded<S: ReadonlyStorage>(storage: &S) -> ReadonlySingleton<S, Uint128> {
+    singleton_read(storage, BONDED)
 }

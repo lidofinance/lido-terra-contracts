@@ -10,8 +10,6 @@ pub struct PoolInfo {
     pub total_issued: Uint128,
     pub last_index_modification: u64,
     pub reward_account: CanonicalAddr,
-    // This helps to control Register message.
-    // Register message should be called once
     pub is_reward_exist: bool,
     pub is_token_exist: bool,
     pub token_account: CanonicalAddr,
@@ -19,8 +17,11 @@ pub struct PoolInfo {
 
 impl PoolInfo {
     pub fn update_exchange_rate(&mut self) {
-        //FIXME: Is total supply equal to total issued?
-        self.exchange_rate = Decimal::from_ratio(self.total_bond_amount, self.total_issued);
+        if self.total_bond_amount.is_zero() || self.total_issued.is_zero() {
+            self.exchange_rate = Decimal::one()
+        } else {
+            self.exchange_rate = Decimal::from_ratio(self.total_bond_amount, self.total_issued);
+        }
     }
 }
 
@@ -37,9 +38,7 @@ pub enum HandleMsg {
     /// Update general index
     UpdateGlobalIndex {},
     /// FinishBurn is suppose to ask for liquidated luna
-    FinishBurn {
-        amount: Uint128,
-    },
+    FinishBurn {},
     // Register receives the reward contract address
     RegisterSubContracts {
         contract: Registration,
