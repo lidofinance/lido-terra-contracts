@@ -17,7 +17,7 @@
 //!      });
 //! 4. Anywhere you see query(&deps, ...) you must replace it with query(&mut deps, ...)
 use cosmwasm_std::{
-    coin, from_binary, Api, BankMsg, CanonicalAddr, Coin, CosmosMsg, Decimal, Extern,
+    coin, from_binary, to_binary, Api, BankMsg, CanonicalAddr, Coin, CosmosMsg, Decimal, Extern,
     FullDelegation, HumanAddr, InitResponse, Querier, StakingMsg, StdResult, Storage, Uint128,
     Validator,
 };
@@ -40,7 +40,9 @@ use anchor_basset_token::msg::QueryMsg::{Balance, TokenInfo};
 use anchor_basset_token::msg::TokenInitMsg;
 use anchor_basset_token::state::{MinterData, TokenInfo as TokenConfig};
 use cosmwasm_storage::Singleton;
-use cw20::{BalanceResponse, MinterResponse, TokenInfoResponse};
+use cw20::{BalanceResponse, Cw20ReceiveMsg, MinterResponse, TokenInfoResponse};
+use gov_courier::Cw20HookMsg::InitBurn;
+use gov_courier::HandleMsg::Receive;
 use gov_courier::Registration::{Reward, Token};
 
 const DEFAULT_VALIDATOR: &str = "default-validator";
@@ -355,7 +357,12 @@ pub fn proper_init_burn() {
     let owner = HumanAddr::from("owner");
     let token_contract = HumanAddr::from("token");
     let reward_contract = HumanAddr::from("reward");
-    init_all(&mut deps, owner.clone(), reward_contract, token_contract);
+    init_all(
+        &mut deps,
+        owner.clone(),
+        reward_contract,
+        token_contract.clone(),
+    );
 
     let env = mock_env(&owner, &[]);
     let msg = HandleMsg::RegisterValidator {
@@ -394,6 +401,16 @@ pub fn proper_init_burn() {
 
     let env = mock_env(&bob, &[]);
     let res = handle_burn(&mut deps, env, Uint128(1), bob).unwrap();
+    assert_eq!(1, res.messages.len());
+
+    let burn = InitBurn {};
+    let receive = Receive(Cw20ReceiveMsg {
+        sender: token_contract.clone(),
+        amount: Uint128(5),
+        msg: Some(to_binary(&burn).unwrap()),
+    });
+    let token_env = mock_env(&token_contract, &[]);
+    let res = handle(&mut deps, token_env, receive).unwrap();
     assert_eq!(1, res.messages.len());
 }
 

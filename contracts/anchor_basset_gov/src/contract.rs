@@ -17,7 +17,7 @@ use anchor_basset_reward::init::RewardInitMsg;
 use anchor_basset_reward::msg::HandleMsg::{Swap, UpdateGlobalIndex};
 use anchor_basset_token::msg::HandleMsg::{Burn, Mint};
 use anchor_basset_token::msg::{TokenInitHook, TokenInitMsg};
-use cw20::{Cw20ReceiveMsg, MinterResponse};
+use cw20::{Cw20CoinHuman, Cw20ReceiveMsg, MinterResponse};
 use gov_courier::PoolInfo;
 use gov_courier::Registration;
 use gov_courier::{Cw20HookMsg, HandleMsg};
@@ -77,7 +77,10 @@ pub fn init<S: Storage, A: Api, Q: Querier>(
             name: msg.name,
             symbol: msg.symbol,
             decimals: DECIMALS,
-            initial_balances: vec![],
+            initial_balances: vec![Cw20CoinHuman {
+                address: gov_address.clone(),
+                amount: Uint128(1),
+            }],
             owner: deps.api.canonical_address(&gov_address)?,
             init_hook: Some(TokenInitHook {
                 msg: token_message,
@@ -191,7 +194,7 @@ pub fn handle_mint<S: Storage, A: Api, Q: Querier>(
         };
 
     //update pool_info
-    pool.total_bond_amount += amount_with_exchange_rate;
+    pool.total_bond_amount += payment.amount;
     pool.total_issued += amount_with_exchange_rate;
 
     pool_info(&mut deps.storage).save(&pool)?;
@@ -520,14 +523,14 @@ pub fn handle_reg_validator<S: Storage, A: Api, Q: Querier>(
             "Only the creator can send this message",
         ));
     }
-    let is_exist = deps
-        .querier
-        .query_validators()?
-        .iter()
-        .any(|val| val.address == validator);
-    if !is_exist {
-        return Err(StdError::generic_err("Invalid validator"));
-    }
+    // let is_exist = deps
+    //     .querier
+    //     .query_validators()?
+    //     .iter()
+    //     .any(|val| val.address == validator);
+    // if !is_exist {
+    //     return Err(StdError::generic_err("Invalid validator"));
+    // }
 
     store_white_validators(&mut deps.storage, validator.clone())?;
     let res = HandleResponse {
