@@ -13,7 +13,6 @@ use crate::msg::{HandleMsg, QueryMsg, TokenInitMsg};
 use crate::state::{balances, balances_read, token_info, token_info_read, MinterData, TokenInfo};
 use anchor_basset_reward::msg::HandleMsg::{ClaimReward, UpdateUserIndex};
 use cosmwasm_storage::to_length_prefixed;
-use gov_courier::HandleMsg::UpdateGlobalIndex;
 use gov_courier::PoolInfo;
 
 pub fn init<S: Storage, A: Api, Q: Querier>(
@@ -140,7 +139,7 @@ pub fn handle_transfer<S: Storage, A: Api, Q: Querier>(
         Ok(balance.unwrap_or_default() + amount)
     })?;
 
-    let messages = update_index(&deps, env.message.sender, recipient.clone());
+    let messages = update_index(&deps, env.message.sender, Some(recipient.clone()));
     let res = HandleResponse {
         messages,
         log: vec![
@@ -171,7 +170,7 @@ pub fn handle_burn<S: Storage, A: Api, Q: Querier>(
         return Err(StdError::unauthorized());
     }
 
-    let messages = update_index_burn(&deps, env.message.sender);
+    let messages = update_index(&deps, env.message.sender, None);
 
     // lower balance
     let mut accounts = balances(&mut deps.storage);
@@ -206,14 +205,6 @@ pub fn handle_mint<S: Storage, A: Api, Q: Querier>(
         return Err(StdError::generic_err("Invalid zero amount"));
     }
 
-    let sender_raw = deps.api.canonical_address(&env.message.sender)?;
-
-    let owner = token_info_read(&deps.storage).load()?.owner;
-
-    if sender_raw != owner {
-        return Err(StdError::unauthorized());
-    }
-
     let mut config = token_info_read(&deps.storage).load()?;
     if config.mint.is_none()
         || config.mint.as_ref().unwrap().minter
@@ -233,6 +224,9 @@ pub fn handle_mint<S: Storage, A: Api, Q: Querier>(
 
     // add amount to recipient balance
     let rcpt_raw = deps.api.canonical_address(&recipient)?;
+    let balance = balances_read(&deps.storage)
+        .load(rcpt_raw.as_slice())
+        .unwrap_or_default();
     balances(&mut deps.storage).update(rcpt_raw.as_slice(), |balance: Option<Uint128>| {
         Ok(balance.unwrap_or_default() + amount)
     })?;
@@ -240,15 +234,18 @@ pub fn handle_mint<S: Storage, A: Api, Q: Querier>(
     //update the index of the holder
     let mut messages: Vec<CosmosMsg> = vec![];
     let reward_address = query_reward(&deps)?;
-    let holder_msg = UpdateUserIndex {
-        address: recipient.clone(),
-        is_send: None,
-    };
-    messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
-        contract_addr: reward_address,
-        msg: to_binary(&holder_msg)?,
-        send: vec![],
-    }));
+
+    if balance.is_zero() {
+        let holder_msg = UpdateUserIndex {
+            address: recipient.clone(),
+            is_send: None,
+        };
+        messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
+            contract_addr: reward_address,
+            msg: to_binary(&holder_msg)?,
+            send: vec![],
+        }));
+    }
 
     let res = HandleResponse {
         messages,
@@ -285,7 +282,7 @@ pub fn handle_send<S: Storage, A: Api, Q: Querier>(
         Ok(balance.unwrap_or_default() + amount)
     })?;
 
-    let mut messages = update_index(&deps, env.message.sender, contract.clone());
+    let mut messages = update_index(&deps, env.message.sender, Some(contract.clone()));
 
     let sender = deps.api.human_address(&sender_raw)?;
     let logs = vec![
@@ -392,27 +389,15 @@ pub fn query_reward<S: Storage, A: Api, Q: Querier>(
 pub fn update_index<S: Storage, A: Api, Q: Querier>(
     deps: &Extern<S, A, Q>,
     sender: HumanAddr,
-    receiver: HumanAddr,
+    receiver: Option<HumanAddr>,
 ) -> Vec<CosmosMsg> {
     let mut messages: Vec<CosmosMsg> = vec![];
 
-    let gov_address = deps
-        .api
-        .human_address(&token_info_read(&deps.storage).load().unwrap().owner)
-        .unwrap();
     let reward_address = query_reward(&deps).unwrap();
-
-    let update_message = UpdateGlobalIndex {};
-
-    messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
-        contract_addr: gov_address,
-        msg: to_binary(&update_message).unwrap(),
-        send: vec![],
-    }));
 
     //this will update the sender index
     let send_reward = ClaimReward {
-        recipient: Some(sender.clone()),
+        recipient: Some(sender),
     };
     messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
         contract_addr: reward_address.clone(),
@@ -420,55 +405,27 @@ pub fn update_index<S: Storage, A: Api, Q: Querier>(
         send: vec![],
     }));
 
-    let sender_raw = deps.api.canonical_address(&sender).unwrap();
-    let rcv_balance = balances_read(&deps.storage)
-        .load(sender_raw.as_slice())
-        .unwrap();
+    if receiver.is_some() {
+        let receiver_raw = deps
+            .api
+            .canonical_address(&receiver.clone().unwrap())
+            .unwrap();
+        let rcv_balance = balances_read(&deps.storage)
+            .load(receiver_raw.as_slice())
+            .unwrap();
 
-    let update_rcv_index = UpdateUserIndex {
-        address: receiver,
-        is_send: Some(rcv_balance),
-    };
+        let update_rcv_index = UpdateUserIndex {
+            address: receiver.expect("The receiver has been given"),
+            is_send: Some(rcv_balance),
+        };
 
-    //this will update the recipient's index
-    messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
-        contract_addr: reward_address,
-        msg: to_binary(&update_rcv_index).unwrap(),
-        send: vec![],
-    }));
-
-    messages
-}
-
-pub fn update_index_burn<S: Storage, A: Api, Q: Querier>(
-    deps: &Extern<S, A, Q>,
-    sender: HumanAddr,
-) -> Vec<CosmosMsg> {
-    let mut messages: Vec<CosmosMsg> = vec![];
-
-    let gov_address = deps
-        .api
-        .human_address(&token_info_read(&deps.storage).load().unwrap().owner)
-        .unwrap();
-
-    let reward_address = query_reward(&deps).unwrap();
-    let update_message = UpdateGlobalIndex {};
-
-    messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
-        contract_addr: gov_address,
-        msg: to_binary(&update_message).unwrap(),
-        send: vec![],
-    }));
-
-    //this will update the sender index
-    let send_reward = ClaimReward {
-        recipient: Some(sender),
-    };
-    messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
-        contract_addr: reward_address,
-        msg: to_binary(&send_reward).unwrap(),
-        send: vec![],
-    }));
+        //this will update the recipient's index
+        messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
+            contract_addr: reward_address,
+            msg: to_binary(&update_rcv_index).unwrap(),
+            send: vec![],
+        }));
+    }
 
     messages
 }
