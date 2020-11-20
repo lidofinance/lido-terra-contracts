@@ -313,11 +313,13 @@ pub fn handle_burn<S: Storage, A: Api, Q: Querier>(
     let mut messages: Vec<CosmosMsg> = vec![];
 
     //update pool info and calculate the new exchange rate.
+    slashing(deps, env.clone())?;
+
     let mut exchange_rate = Decimal::zero();
     pool_info(&mut deps.storage).update(|mut pool_inf| {
-        pool_inf.total_bond_amount = Uint128(pool_inf.total_bond_amount.0 - amount.0);
+        let amount_with_exchange = pool_inf.exchange_rate * amount;
+        pool_inf.total_bond_amount = (pool_inf.total_bond_amount - amount_with_exchange)?;
         pool_inf.total_issued = (pool_inf.total_issued - amount)?;
-        pool_inf.update_exchange_rate();
         exchange_rate = pool_inf.exchange_rate;
         Ok(pool_inf)
     })?;
@@ -345,8 +347,9 @@ pub fn handle_burn<S: Storage, A: Api, Q: Querier>(
         let delegator = env.contract.address;
 
         // send undelegated requests
-        undelegated_so_far += amount;
-        let undelegated_amount = exchange_rate * undelegated_so_far;
+        let undelegatable = amount * exchange_rate;
+        undelegated_so_far += undelegatable;
+        let undelegated_amount = undelegated_so_far;
         let all_validators = read_validators(&deps.storage).unwrap();
         let block_height = env.block.height;
         let mut undelegated_msgs = pick_validator(
@@ -367,18 +370,35 @@ pub fn handle_burn<S: Storage, A: Api, Q: Querier>(
             delegated_before += delegation.amount.amount
         }
 
-        let delegated_after_burn = (delegated_before - undelegated_so_far)?;
+        let delegated_after_burn = (delegated_before - undelegatable)?;
 
         set_all_delegations(&mut deps.storage).save(&delegated_after_burn)?;
 
         //store the sender for the previous epoch
-        store_undelegated_wait_list(&mut deps.storage, last_epoch, sender.clone(), amount)?;
+        store_undelegated_wait_list(&mut deps.storage, last_epoch, sender.clone(), undelegatable)?;
     } else {
-        undelegated_so_far += amount;
+        let luna_amount = amount * exchange_rate;
+        undelegated_so_far += luna_amount;
 
-        store_undelegated_wait_list(&mut deps.storage, epoch.epoch_id, sender.clone(), amount)?;
+        store_undelegated_wait_list(
+            &mut deps.storage,
+            epoch.epoch_id,
+            sender.clone(),
+            luna_amount,
+        )?;
         //store the claimed_so_far for the current epoch;
         store_total_amount(&mut deps.storage, epoch.epoch_id, undelegated_so_far)?;
+
+        let delegator = env.contract.address;
+        let all_delegations = deps.querier.query_all_delegations(delegator)?;
+        let mut delegated_before = Uint128::zero();
+        for delegation in all_delegations {
+            delegated_before += delegation.amount.amount
+        }
+
+        let delegated_after_burn = (delegated_before - luna_amount)?;
+
+        set_all_delegations(&mut deps.storage).save(&delegated_after_burn)?;
     }
 
     let res = HandleResponse {
@@ -423,10 +443,7 @@ pub fn handle_finish<S: Storage, A: Api, Q: Querier>(
     let deprecated_epochs = get_burn_epochs(&deps.storage, sender_human.clone(), epoch_id)?;
     remove_undelegated_wait_list(&mut deps.storage, deprecated_epochs, sender_human.clone())?;
 
-    slashing(deps, env)?;
-
-    let exchange_rate = pool_info_read(&deps.storage).load()?.exchange_rate;
-    let final_amount = payable_amount * exchange_rate;
+    let final_amount = payable_amount;
     send_undelegated_luna(final_amount, sender_human, contract_address)
 }
 
@@ -596,17 +613,13 @@ pub fn slashing<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
     env: Env,
 ) -> StdResult<()> {
-    let validators = read_validators(&deps.storage)?;
     let mut amount = Uint128::zero();
     let all_delegations = get_all_delegations(&deps.storage).load()?;
     let bonded = get_bonded(&deps.storage).load()?;
-    for validator in validators {
-        let all_delegated = deps
-            .querier
-            .query_delegation(env.contract.address.clone(), validator)?
-            .unwrap();
-        if all_delegated.amount.denom == LUNA {
-            amount += all_delegated.amount.amount;
+    let all_delegated_amount = deps.querier.query_all_delegations(env.contract.address)?;
+    for delegate in all_delegated_amount {
+        if delegate.amount.denom == LUNA {
+            amount += delegate.amount.amount
         }
     }
     let all_changes = (amount - all_delegations)?;
