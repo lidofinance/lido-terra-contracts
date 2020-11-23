@@ -73,7 +73,7 @@ impl WasmMockQuerier {
             _ => self.base.handle_query(request),
         }
     }
-    pub fn update_staking(
+    pub fn _update_staking(
         &mut self,
         denom: &str,
         validators: &[Validator],

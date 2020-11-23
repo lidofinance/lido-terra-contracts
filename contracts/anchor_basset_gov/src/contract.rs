@@ -16,11 +16,10 @@ use crate::state::{
 use anchor_basset_reward::hook::InitHook;
 use anchor_basset_reward::init::RewardInitMsg;
 use anchor_basset_reward::msg::HandleMsg::{Swap, UpdateGlobalIndex};
-use anchor_basset_token::msg::HandleMsg::{Burn, Mint};
 use anchor_basset_token::msg::{TokenInitHook, TokenInitMsg};
 use anchor_basset_token::state::TokenInfo;
 use cosmwasm_storage::to_length_prefixed;
-use cw20::{Cw20CoinHuman, Cw20ReceiveMsg, MinterResponse};
+use cw20::{Cw20CoinHuman, Cw20HandleMsg, Cw20ReceiveMsg, MinterResponse};
 use gov_courier::PoolInfo;
 use gov_courier::Registration;
 use gov_courier::{Cw20HookMsg, HandleMsg};
@@ -81,7 +80,7 @@ pub fn init<S: Storage, A: Api, Q: Querier>(
             decimals: DECIMALS,
             initial_balances: vec![Cw20CoinHuman {
                 address: gov_address.clone(),
-                amount: Uint128(1),
+                amount: Uint128(0),
             }],
             owner: deps.api.canonical_address(&gov_address)?,
             init_hook: Some(TokenInitHook {
@@ -189,6 +188,7 @@ pub fn handle_mint<S: Storage, A: Api, Q: Querier>(
     //update the exchange rate
     let total_issued = query_total_issued(&deps)?;
     if slashing(deps, env.clone()).is_ok() {
+        slashing(deps, env.clone())?;
         pool.update_exchange_rate(total_issued);
     }
     let amount_with_exchange_rate = decimal_division(payment.amount, pool.exchange_rate);
@@ -201,7 +201,7 @@ pub fn handle_mint<S: Storage, A: Api, Q: Querier>(
     let mut messages: Vec<CosmosMsg> = vec![];
 
     // Issue the bluna token for sender
-    let mint_msg = Mint {
+    let mint_msg = Cw20HandleMsg::Mint {
         recipient: sender.clone(),
         amount: amount_with_exchange_rate,
     };
@@ -327,7 +327,7 @@ pub fn handle_burn<S: Storage, A: Api, Q: Querier>(
 
     //send Burn message to token contract
     let token_address = deps.api.human_address(&pool.token_account)?;
-    let burn_msg = Burn { amount };
+    let burn_msg = Cw20HandleMsg::Burn { amount };
     messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
         contract_addr: token_address,
         msg: to_binary(&burn_msg)?,
@@ -346,7 +346,7 @@ pub fn handle_burn<S: Storage, A: Api, Q: Querier>(
         let delegator = env.contract.address;
 
         // send undelegated requests
-        let undelegatable = amount * exchange_rate;
+        let undelegatable = amount;
         undelegated_so_far += undelegatable;
         let undelegated_amount = undelegated_so_far;
         let all_validators = read_validators(&deps.storage).unwrap();
@@ -355,25 +355,19 @@ pub fn handle_burn<S: Storage, A: Api, Q: Querier>(
             deps,
             all_validators,
             undelegated_amount,
-            delegator.clone(),
+            delegator,
             block_height,
         );
         //messages.append(&mut undelegated_msgs);
         messages.append(&mut undelegated_msgs);
         save_epoch(&mut deps.storage).save(&epoch)?;
 
-        //update all_delegation
-        let mut delegated_before = Uint128::zero();
-        let all_delegations = deps.querier.query_all_delegations(delegator)?;
-        for delegation in all_delegations {
-            delegated_before += delegation.amount.amount
-        }
+        //update all delegations
+        set_all_delegations(&mut deps.storage).update(|mut past| {
+            past = (past - undelegated_so_far)?;
+            Ok(past)
+        })?;
 
-        let delegated_after_burn = (delegated_before - undelegatable)?;
-
-        set_all_delegations(&mut deps.storage).save(&delegated_after_burn)?;
-
-        //store the sender for the previous epoch
         store_undelegated_wait_list(&mut deps.storage, last_epoch, sender.clone(), undelegatable)?;
     } else {
         let luna_amount = amount * exchange_rate;
@@ -388,16 +382,10 @@ pub fn handle_burn<S: Storage, A: Api, Q: Querier>(
         //store the claimed_so_far for the current epoch;
         store_total_amount(&mut deps.storage, epoch.epoch_id, undelegated_so_far)?;
 
-        let delegator = env.contract.address;
-        let all_delegations = deps.querier.query_all_delegations(delegator)?;
-        let mut delegated_before = Uint128::zero();
-        for delegation in all_delegations {
-            delegated_before += delegation.amount.amount
-        }
-
-        let delegated_after_burn = (delegated_before - luna_amount)?;
-
-        set_all_delegations(&mut deps.storage).save(&delegated_after_burn)?;
+        set_all_delegations(&mut deps.storage).update(|mut past| {
+            past = (past - luna_amount)?;
+            Ok(past)
+        })?;
     }
 
     let res = HandleResponse {
