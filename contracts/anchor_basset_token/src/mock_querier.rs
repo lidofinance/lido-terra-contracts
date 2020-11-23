@@ -59,7 +59,6 @@ impl WasmMockQuerier {
                     let pool = PoolInfo {
                         exchange_rate: Default::default(),
                         total_bond_amount: Default::default(),
-                        total_issued: Default::default(),
                         last_index_modification: 0,
                         reward_account: api.canonical_address(&HumanAddr::from("reward")).unwrap(),
                         is_reward_exist: true,

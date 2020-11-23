@@ -187,14 +187,14 @@ pub fn handle_mint<S: Storage, A: Api, Q: Querier>(
     let sender = env.message.sender.clone();
 
     //update the exchange rate
+    let total_issued = query_total_issued(&deps)?;
     if slashing(deps, env.clone()).is_ok() {
-        pool.update_exchange_rate();
+        pool.update_exchange_rate(total_issued);
     }
     let amount_with_exchange_rate = decimal_division(payment.amount, pool.exchange_rate);
 
     //update pool_info
     pool.total_bond_amount += payment.amount;
-    pool.total_issued += amount_with_exchange_rate;
 
     pool_info(&mut deps.storage).save(&pool)?;
 
@@ -319,7 +319,6 @@ pub fn handle_burn<S: Storage, A: Api, Q: Querier>(
     pool_info(&mut deps.storage).update(|mut pool_inf| {
         let amount_with_exchange = pool_inf.exchange_rate * amount;
         pool_inf.total_bond_amount = (pool_inf.total_bond_amount - amount_with_exchange)?;
-        pool_inf.total_issued = (pool_inf.total_issued - amount)?;
         exchange_rate = pool_inf.exchange_rate;
         Ok(pool_inf)
     })?;
@@ -623,10 +622,11 @@ pub fn slashing<S: Storage, A: Api, Q: Querier>(
         }
     }
     let all_changes = (amount - all_delegations)?;
+    let total_issued = query_total_issued(&deps)?;
     if bonded.0 > all_changes.0 {
         pool_info(&mut deps.storage).update(|mut pool| {
             pool.total_bond_amount = amount;
-            pool.update_exchange_rate();
+            pool.update_exchange_rate(total_issued);
             Ok(pool)
         })?;
     }
@@ -730,7 +730,7 @@ fn query_reward<S: Storage, A: Api, Q: Querier>(deps: &Extern<S, A, Q>) -> StdRe
     deps.api.human_address(&pool.reward_account)
 }
 
-fn _query_total_issued<S: Storage, A: Api, Q: Querier>(
+fn query_total_issued<S: Storage, A: Api, Q: Querier>(
     deps: &Extern<S, A, Q>,
 ) -> StdResult<Uint128> {
     let token_address = deps

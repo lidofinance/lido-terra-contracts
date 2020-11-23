@@ -7,7 +7,6 @@ use serde::{Deserialize, Serialize};
 pub struct PoolInfo {
     pub exchange_rate: Decimal,
     pub total_bond_amount: Uint128,
-    pub total_issued: Uint128,
     pub last_index_modification: u64,
     pub reward_account: CanonicalAddr,
     pub is_reward_exist: bool,
@@ -16,11 +15,11 @@ pub struct PoolInfo {
 }
 
 impl PoolInfo {
-    pub fn update_exchange_rate(&mut self) {
-        if self.total_bond_amount.is_zero() || self.total_issued.is_zero() {
+    pub fn update_exchange_rate(&mut self, total_issued: Uint128) {
+        if self.total_bond_amount.is_zero() || total_issued.is_zero() {
             self.exchange_rate = Decimal::one()
         } else {
-            self.exchange_rate = Decimal::from_ratio(self.total_bond_amount, self.total_issued);
+            self.exchange_rate = Decimal::from_ratio(self.total_bond_amount, total_issued);
         }
     }
 }

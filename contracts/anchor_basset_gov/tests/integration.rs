@@ -222,6 +222,10 @@ fn proper_mint() {
 
     let env = mock_env(&bob, &[coin(10, "uluna")]);
 
+    //set bob's balance to 10 in token contract
+    deps.querier
+        .with_token_balances(&[(&HumanAddr::from("token"), &[(&bob, &Uint128(10u128))])]);
+
     let res = handle(&mut deps, env.clone(), mint_msg).unwrap();
     assert_eq!(2, res.messages.len());
 
@@ -317,6 +321,10 @@ pub fn proper_claim_reward() {
 
     let env = mock_env(&bob, &[coin(10, "uluna")]);
 
+    //set bob's balance to 10 in token contract
+    deps.querier
+        .with_token_balances(&[(&HumanAddr::from("token"), &[(&bob, &Uint128(10u128))])]);
+
     let res = handle(&mut deps, env, mint_msg).unwrap();
     assert_eq!(2, res.messages.len());
 
@@ -374,6 +382,10 @@ pub fn proper_init_burn() {
     };
 
     let env = mock_env(&bob, &[coin(10, "uluna")]);
+
+    //set bob's balance to 10 in token contract
+    deps.querier
+        .with_token_balances(&[(&HumanAddr::from("token"), &[(&bob, &Uint128(10u128))])]);
 
     let res = handle(&mut deps, env, mint_msg).unwrap();
     assert_eq!(2, res.messages.len());
@@ -524,6 +536,10 @@ pub fn proper_slashing() {
         validator: validator.address.clone(),
     };
 
+    //this will set the balance of the user in token contract
+    deps.querier
+        .with_token_balances(&[(&HumanAddr::from("token"), &[(&bob, &Uint128(1000u128))])]);
+
     let env = mock_env(&bob, &[coin(1000, "uluna")]);
 
     let res = handle(&mut deps, env.clone(), mint_msg).unwrap();
@@ -631,6 +647,10 @@ pub fn proper_finish() {
 
     let env = mock_env(&bob, &[coin(10, "uluna")]);
 
+    //set bob's balance to 10 in token contract
+    deps.querier
+        .with_token_balances(&[(&HumanAddr::from("token"), &[(&bob, &Uint128(10u128))])]);
+
     let res = handle(&mut deps, env.clone(), mint_msg).unwrap();
     assert_eq!(2, res.messages.len());
 
@@ -707,14 +727,12 @@ pub fn set_pool_info<S: Storage>(
     storage: &mut S,
     ex_rate: Decimal,
     total_boned: Uint128,
-    total_issued: Uint128,
     reward_account: CanonicalAddr,
     token_account: CanonicalAddr,
 ) -> StdResult<()> {
     Singleton::new(storage, POOL_INFO).save(&PoolInfo {
         exchange_rate: ex_rate,
         total_bond_amount: total_boned,
-        total_issued,
         last_index_modification: 0,
         reward_account,
         is_reward_exist: true,
