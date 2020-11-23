@@ -1,6 +1,7 @@
 pub mod allowances;
 pub mod contract;
 pub mod enumerable;
+pub mod mock_querier;
 pub mod msg;
 pub mod state;
 
