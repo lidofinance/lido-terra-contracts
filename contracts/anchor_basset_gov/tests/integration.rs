@@ -25,7 +25,7 @@ use cosmwasm_std::{
 use cosmwasm_std::testing::{mock_dependencies, mock_env};
 
 use anchor_bluna::msg::InitMsg;
-use gov_courier::{HandleMsg, PoolInfo};
+use gov_courier::{Deactivated, HandleMsg, PoolInfo};
 
 use anchor_bluna::contract::{handle, handle_burn, init, query};
 
@@ -42,7 +42,7 @@ use anchor_basset_token::state::{MinterData, TokenInfo as TokenConfig};
 use cosmwasm_storage::Singleton;
 use cw20::{BalanceResponse, Cw20ReceiveMsg, MinterResponse, TokenInfoResponse};
 use gov_courier::Cw20HookMsg::InitBurn;
-use gov_courier::HandleMsg::{Receive, ReportSlashing, UpdateParams};
+use gov_courier::HandleMsg::{DeactivateMsg, Receive, ReportSlashing, UpdateParams};
 use gov_courier::Registration::{Reward, Token};
 
 mod common;
@@ -767,6 +767,56 @@ pub fn test_update_params() {
     assert_eq!(query.epoch_time, 30);
     assert_eq!(query.supported_coin_denom, "uluna");
     assert_eq!(query.undelegated_epoch, 2);
+}
+
+#[test]
+pub fn test_deactivate() {
+    let mut deps = dependencies(20, &[]);
+    let deactivate = DeactivateMsg {
+        msg: Deactivated::Slashing,
+    };
+
+    let owner = HumanAddr::from("owner1");
+    let token_contract = HumanAddr::from("token");
+    let reward_contract = HumanAddr::from("reward");
+
+    init_all(&mut deps, owner, reward_contract, token_contract);
+
+    let invalid_env = mock_env(HumanAddr::from("invalid"), &[]);
+    let res = handle(&mut deps, invalid_env, deactivate.clone());
+    assert_eq!(res.unwrap_err(), StdError::unauthorized());
+    let creator_env = mock_env(HumanAddr::from("owner1"), &[]);
+    let res = handle(&mut deps, creator_env, deactivate).unwrap();
+    assert_eq!(res.messages.len(), 0);
+
+    //should not be able to run slashing
+    let report_slashing = ReportSlashing {};
+    let creator_env = mock_env(HumanAddr::from("addr1000"), &[]);
+    let res = handle(&mut deps, creator_env, report_slashing);
+    assert_eq!(
+        res.unwrap_err(),
+        (StdError::generic_err("this message is temporarily deactivated",))
+    );
+
+    let deactivate_burn = DeactivateMsg {
+        msg: Deactivated::Burn,
+    };
+
+    let invalid_env = mock_env(HumanAddr::from("invalid"), &[]);
+    let res = handle(&mut deps, invalid_env, deactivate_burn.clone());
+    assert_eq!(res.unwrap_err(), StdError::unauthorized());
+    let creator_env = mock_env(HumanAddr::from("owner1"), &[]);
+    let res = handle(&mut deps, creator_env, deactivate_burn).unwrap();
+    assert_eq!(res.messages.len(), 0);
+
+    //should not be able to run slashing
+    let sender = HumanAddr::from("addr1000");
+    let creator_env = mock_env(&sender, &[]);
+    let res = handle_burn(&mut deps, creator_env, Uint128(10), sender);
+    assert_eq!(
+        res.unwrap_err(),
+        (StdError::generic_err("this message is temporarily deactivated",))
+    );
 }
 
 pub fn set_pool_info<S: Storage>(

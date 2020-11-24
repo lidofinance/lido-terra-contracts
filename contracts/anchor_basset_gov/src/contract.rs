@@ -4,15 +4,16 @@ use cosmwasm_std::{
     StdResult, Storage, Uint128, WasmMsg, WasmQuery,
 };
 
-use crate::config::handle_update_params;
+use crate::config::{handle_deactivate, handle_update_params};
 use crate::math::decimal_division;
 use crate::msg::{InitMsg, QueryMsg};
 use crate::state::{
     config, config_read, epoch_read, get_all_delegations, get_bonded, get_burn_epochs,
-    get_finished_amount, is_valid_validator, parameters_read, pool_info, pool_info_read,
-    read_total_amount, read_valid_validators, read_validators, remove_undelegated_wait_list,
-    remove_white_validators, save_epoch, set_all_delegations, set_bonded, store_total_amount,
-    store_undelegated_wait_list, store_white_validators, EpochId, GovConfig, Parameters,
+    get_finished_amount, is_valid_validator, msg_status, msg_status_read, parameters_read,
+    pool_info, pool_info_read, read_total_amount, read_valid_validators, read_validators,
+    remove_undelegated_wait_list, remove_white_validators, save_epoch, set_all_delegations,
+    set_bonded, store_total_amount, store_undelegated_wait_list, store_white_validators, EpochId,
+    GovConfig, MsgStatus, Parameters,
 };
 use anchor_basset_reward::hook::InitHook;
 use anchor_basset_reward::init::RewardInitMsg;
@@ -58,6 +59,13 @@ pub fn init<S: Storage, A: Api, Q: Querier>(
 
     //store total amount zero for the first epoc
     store_total_amount(&mut deps.storage, first_epoch.epoch_id, Uint128::zero())?;
+
+    //store none for burn and finish deactivate status
+    let msg_state = MsgStatus {
+        slashing: None,
+        burn: None,
+    };
+    msg_status(&mut deps.storage).save(&msg_state)?;
 
     let mut messages: Vec<CosmosMsg> = vec![];
 
@@ -142,6 +150,7 @@ pub fn handle<S: Storage, A: Api, Q: Querier>(
             coin_denom,
             undelegated_epoch,
         } => handle_update_params(deps, env, epoch_time, coin_denom, undelegated_epoch),
+        HandleMsg::DeactivateMsg { msg } => handle_deactivate(deps, env, msg),
     }
 }
 
@@ -182,6 +191,9 @@ pub fn handle_mint<S: Storage, A: Api, Q: Querier>(
     let params = parameters_read(&deps.storage).load()?;
     let coin_denom = params.supported_coin_denom;
 
+    //read msg_status
+    let msg_status = msg_status_read(&deps.storage).load()?;
+
     //Check whether the account has sent the native coin in advance.
     let payment = env
         .message
@@ -190,15 +202,14 @@ pub fn handle_mint<S: Storage, A: Api, Q: Querier>(
         .find(|x| x.denom == coin_denom && x.amount > Uint128::zero())
         .ok_or_else(|| StdError::generic_err(format!("No {} tokens sent", coin_denom)))?;
 
+    //update the exchange rate
+    if msg_status.slashing.is_none() && slashing(deps, env.clone()).is_ok() {
+        slashing(deps, env.clone())?;
+    }
+
     let mut pool = pool_info_read(&deps.storage).load()?;
     let sender = env.message.sender.clone();
 
-    //update the exchange rate
-    let total_issued = query_total_issued(&deps)?;
-    if slashing(deps, env.clone()).is_ok() {
-        slashing(deps, env.clone())?;
-        pool.update_exchange_rate(total_issued);
-    }
     let amount_with_exchange_rate = decimal_division(payment.amount, pool.exchange_rate);
 
     //update pool_info
@@ -310,6 +321,14 @@ pub fn handle_burn<S: Storage, A: Api, Q: Querier>(
     amount: Uint128,
     sender: HumanAddr,
 ) -> StdResult<HandleResponse> {
+    //read msg_status
+    let msg_status = msg_status_read(&deps.storage).load()?;
+    if msg_status.burn.is_some() {
+        return Err(StdError::generic_err(
+            "this message is temporarily deactivated",
+        ));
+    }
+
     if amount == Uint128::zero() {
         return Err(StdError::generic_err("Invalid zero amount"));
     }
@@ -325,7 +344,9 @@ pub fn handle_burn<S: Storage, A: Api, Q: Querier>(
     let mut messages: Vec<CosmosMsg> = vec![];
 
     //update pool info and calculate the new exchange rate.
-    slashing(deps, env.clone())?;
+    if msg_status.slashing.is_none() {
+        slashing(deps, env.clone())?;
+    }
 
     let mut exchange_rate = Decimal::zero();
     pool_info(&mut deps.storage).update(|mut pool_inf| {
@@ -657,6 +678,13 @@ pub fn handle_slashing<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
     env: Env,
 ) -> StdResult<HandleResponse> {
+    //read msg_status
+    let msg_status = msg_status_read(&deps.storage).load()?;
+    if msg_status.slashing.is_some() {
+        return Err(StdError::generic_err(
+            "this message is temporarily deactivated",
+        ));
+    }
     slashing(deps, env)?;
     Ok(HandleResponse::default())
 }
