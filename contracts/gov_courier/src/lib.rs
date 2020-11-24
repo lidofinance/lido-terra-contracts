@@ -54,6 +54,12 @@ pub enum HandleMsg {
     Receive(Cw20ReceiveMsg),
     //check whether the slashing has happened or not
     ReportSlashing {},
+    //update the parameters that is needed for the contract
+    UpdateParams {
+        epoch_time: u64,
+        coin_denom: String,
+        undelegated_epoch: u64,
+    },
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
