@@ -40,13 +40,13 @@ use anchor_basset_token::msg::QueryMsg::{Balance, TokenInfo};
 use anchor_basset_token::msg::TokenInitMsg;
 use anchor_basset_token::state::{MinterData, TokenInfo as TokenConfig};
 use cosmwasm_storage::Singleton;
-use cw20::{BalanceResponse, Cw20ReceiveMsg, MinterResponse, TokenInfoResponse};
+use cw20::{BalanceResponse, Cw20HandleMsg, Cw20ReceiveMsg, MinterResponse, TokenInfoResponse};
 use gov_courier::Cw20HookMsg::InitBurn;
 use gov_courier::HandleMsg::{DeactivateMsg, Receive, ReportSlashing, UpdateParams};
 use gov_courier::Registration::{Reward, Token};
 
 mod common;
-use anchor_basset_reward::msg::HandleMsg::ClaimReward;
+use anchor_basset_reward::msg::HandleMsg::{ClaimReward, Swap, UpdateGlobalIndex};
 use anchor_bluna::msg::QueryMsg::{ExchangeRate, GetParams};
 use anchor_bluna::state::Parameters;
 use common::mock_querier::{mock_dependencies as dependencies, WasmMockQuerier};
@@ -168,7 +168,7 @@ fn proper_initialization() {
         .unwrap();
     let gov_env = mock_env(MOCK_CONTRACT_ADDR, &[]);
 
-    let owner = HumanAddr::from("addr0000");
+    let owner = HumanAddr::from("owner1");
     let owner_raw = deps.api.canonical_address(&owner).unwrap();
 
     let env = mock_env(owner, &[]);
@@ -239,8 +239,28 @@ fn proper_mint() {
     deps.querier
         .with_token_balances(&[(&HumanAddr::from("token"), &[(&bob, &Uint128(10u128))])]);
 
-    let res = handle(&mut deps, env.clone(), mint_msg).unwrap();
+    let res = handle(&mut deps, env, mint_msg).unwrap();
     assert_eq!(2, res.messages.len());
+
+    let mint = &res.messages[0];
+    match mint {
+        CosmosMsg::Wasm(WasmMsg::Execute {
+            contract_addr,
+            msg,
+            send: _,
+        }) => {
+            assert_eq!(contract_addr, &HumanAddr::from("token"));
+            assert_eq!(
+                msg,
+                &to_binary(&Cw20HandleMsg::Mint {
+                    recipient: bob,
+                    amount: Uint128(10)
+                })
+                .unwrap()
+            )
+        }
+        _ => panic!("Unexpected message: {:?}", mint),
+    }
 
     let delegate = &res.messages[1];
     match delegate {
@@ -250,6 +270,34 @@ fn proper_mint() {
         }
         _ => panic!("Unexpected message: {:?}", delegate),
     }
+
+    //test unsupported validator
+    let invalid_validator = sample_validator("invalid");
+    let bob = HumanAddr::from("bob");
+    let mint_msg = HandleMsg::Mint {
+        validator: invalid_validator.address,
+    };
+
+    let env = mock_env(&bob, &[coin(10, "uluna")]);
+    let res = handle(&mut deps, env, mint_msg);
+    assert_eq!(
+        res.unwrap_err(),
+        StdError::generic_err("Unsupported validator")
+    );
+
+    //test no-send funds
+    let validator = sample_validator(DEFAULT_VALIDATOR);
+    let bob = HumanAddr::from("bob");
+    let mint_msg = HandleMsg::Mint {
+        validator: validator.address,
+    };
+
+    let env = mock_env(&bob, &[]);
+    let res = handle(&mut deps, env.clone(), mint_msg);
+    assert_eq!(
+        res.unwrap_err(),
+        StdError::generic_err("No uluna tokens sent")
+    );
 
     let token_mint = Mint {
         recipient: bob.clone(),
@@ -301,15 +349,54 @@ fn proper_deregister() {
     set_delegation(&mut deps.querier, 10, "uluna");
 
     let msg = HandleMsg::DeRegisterValidator {
-        validator: validator.address,
+        validator: validator.address.clone(),
     };
 
     let res = handle(&mut deps, owner_env, msg).unwrap();
     assert_eq!(2, res.messages.len());
+
+    let redelegate_msg = &res.messages[0];
+    match redelegate_msg {
+        CosmosMsg::Staking(StakingMsg::Redelegate {
+            src_validator,
+            dst_validator,
+            amount,
+        }) => {
+            assert_eq!(src_validator.0, DEFAULT_VALIDATOR);
+            assert_eq!(dst_validator.0, DEFAULT_VALIDATOR2);
+            assert_eq!(amount, &coin(10, "uluna"));
+        }
+        _ => panic!("Unexpected message: {:?}", redelegate_msg),
+    }
+
+    let global_index = &res.messages[1];
+    match global_index {
+        CosmosMsg::Wasm(WasmMsg::Execute {
+            contract_addr,
+            msg,
+            send: _,
+        }) => {
+            assert_eq!(contract_addr.0, MOCK_CONTRACT_ADDR);
+            assert_eq!(msg, &to_binary(&HandleMsg::UpdateGlobalIndex {}).unwrap())
+        }
+        _ => panic!("Unexpected message: {:?}", redelegate_msg),
+    }
+
+    //check invalid sender
+    let msg = HandleMsg::DeRegisterValidator {
+        validator: validator.address,
+    };
+
+    let invalid_env = mock_env(HumanAddr::from("invalid"), &[]);
+    let res = handle(&mut deps, invalid_env, msg);
+    assert_eq!(
+        res.unwrap_err(),
+        StdError::generic_err("Only the creator can send this message",)
+    );
 }
 
 #[test]
-pub fn proper_claim_reward() {
+pub fn proper_update_global_index() {
     let mut deps = dependencies(20, &[]);
     let validator = sample_validator(DEFAULT_VALIDATOR);
     set_validator_mock(&mut deps.querier);
@@ -318,7 +405,12 @@ pub fn proper_claim_reward() {
     let token_contract = HumanAddr::from("token");
     let reward_contract = HumanAddr::from("reward");
 
-    init_all(&mut deps, owner.clone(), reward_contract, token_contract);
+    init_all(
+        &mut deps,
+        owner.clone(),
+        reward_contract.clone(),
+        token_contract,
+    );
     set_params(&mut deps);
 
     let env = mock_env(&owner, &[]);
@@ -331,7 +423,7 @@ pub fn proper_claim_reward() {
 
     let bob = HumanAddr::from("bob");
     let mint_msg = HandleMsg::Mint {
-        validator: validator.address,
+        validator: validator.address.clone(),
     };
 
     let env = mock_env(&bob, &[coin(10, "uluna")]);
@@ -365,6 +457,141 @@ pub fn proper_claim_reward() {
     let env = mock_env(&bob, &[]);
     let res = handle(&mut deps, env, reward_msg).unwrap();
     assert_eq!(3, res.messages.len());
+
+    let withdraw = &res.messages[0];
+    match withdraw {
+        CosmosMsg::Staking(StakingMsg::Withdraw {
+            validator: val,
+            recipient,
+        }) => {
+            assert_eq!(val, &validator.address);
+            assert_eq!(recipient.is_none(), true);
+        }
+        _ => panic!("Unexpected message: {:?}", withdraw),
+    }
+
+    let swap = &res.messages[1];
+    match swap {
+        CosmosMsg::Wasm(WasmMsg::Execute {
+            contract_addr,
+            msg,
+            send: _,
+        }) => {
+            assert_eq!(contract_addr, &reward_contract);
+            assert_eq!(msg, &to_binary(&Swap {}).unwrap())
+        }
+        _ => panic!("Unexpected message: {:?}", swap),
+    }
+
+    let update_g_index = &res.messages[2];
+    match update_g_index {
+        CosmosMsg::Wasm(WasmMsg::Execute {
+            contract_addr,
+            msg,
+            send: _,
+        }) => {
+            assert_eq!(contract_addr, &reward_contract);
+            assert_eq!(msg, &to_binary(&UpdateGlobalIndex {}).unwrap())
+        }
+        _ => panic!("Unexpected message: {:?}", update_g_index),
+    }
+}
+
+#[test]
+pub fn propeer_update_global_index2() {
+    let mut deps = dependencies(20, &[]);
+    let validator = sample_validator(DEFAULT_VALIDATOR);
+    set_validator_mock(&mut deps.querier);
+
+    let owner = HumanAddr::from("owner1");
+    let token_contract = HumanAddr::from("token");
+    let reward_contract = HumanAddr::from("reward");
+
+    init_all(&mut deps, owner.clone(), reward_contract, token_contract);
+    set_params(&mut deps);
+
+    let env = mock_env(&owner, &[]);
+    let msg = HandleMsg::RegisterValidator {
+        validator: validator.address.clone(),
+    };
+
+    let res = handle(&mut deps, env, msg).unwrap();
+    assert_eq!(0, res.messages.len());
+
+    let bob = HumanAddr::from("bob");
+    let mint_msg = HandleMsg::Mint {
+        validator: validator.address.clone(),
+    };
+
+    let env = mock_env(&bob, &[coin(10, "uluna")]);
+
+    //set bob's balance to 10 in token contract
+    deps.querier
+        .with_token_balances(&[(&HumanAddr::from("token"), &[(&bob, &Uint128(10u128))])]);
+
+    let res = handle(&mut deps, env, mint_msg).unwrap();
+    assert_eq!(2, res.messages.len());
+
+    let validator2 = sample_validator(DEFAULT_VALIDATOR2);
+    let env = mock_env(&owner, &[]);
+    let msg = HandleMsg::RegisterValidator {
+        validator: validator2.address.clone(),
+    };
+
+    let res = handle(&mut deps, env, msg).unwrap();
+    assert_eq!(0, res.messages.len());
+
+    let bob = HumanAddr::from("bob");
+    let mint_msg = HandleMsg::Mint {
+        validator: validator2.address.clone(),
+    };
+
+    let env = mock_env(&bob, &[coin(10, "uluna")]);
+
+    //set bob's balance to 10 in token contract
+    deps.querier
+        .with_token_balances(&[(&HumanAddr::from("token"), &[(&bob, &Uint128(20u128))])]);
+
+    let res = handle(&mut deps, env, mint_msg).unwrap();
+    assert_eq!(2, res.messages.len());
+
+    let token_mint = Mint {
+        recipient: bob.clone(),
+        amount: Uint128(10),
+    };
+    let gov_env = mock_env(MOCK_CONTRACT_ADDR, &[]);
+    let token_res = token_handle(&mut deps, gov_env, token_mint).unwrap();
+    assert_eq!(1, token_res.messages.len());
+
+    let reward_msg = HandleMsg::UpdateGlobalIndex {};
+
+    let env = mock_env(&bob, &[]);
+    let res = handle(&mut deps, env, reward_msg).unwrap();
+    assert_eq!(4, res.messages.len());
+
+    let withdraw = &res.messages[0];
+    match withdraw {
+        CosmosMsg::Staking(StakingMsg::Withdraw {
+            validator: val,
+            recipient,
+        }) => {
+            assert_eq!(val, &validator.address);
+            assert_eq!(recipient.is_none(), true);
+        }
+        _ => panic!("Unexpected message: {:?}", withdraw),
+    }
+
+    let withdraw = &res.messages[1];
+    match withdraw {
+        CosmosMsg::Staking(StakingMsg::Withdraw {
+            validator: val,
+            recipient,
+        }) => {
+            assert_eq!(val, &validator2.address);
+            assert_eq!(recipient.is_none(), true);
+        }
+        _ => panic!("Unexpected message: {:?}", withdraw),
+    }
 }
 
 #[test]
@@ -428,6 +655,21 @@ pub fn proper_init_burn() {
     let res = handle_burn(&mut deps, env, Uint128(1), bob.clone()).unwrap();
     assert_eq!(1, res.messages.len());
 
+    //invalid zero
+    let burn = InitBurn {};
+    let receive = Receive(Cw20ReceiveMsg {
+        sender: token_contract.clone(),
+        amount: Uint128(0),
+        msg: Some(to_binary(&burn).unwrap()),
+    });
+    let token_env = mock_env(&token_contract, &[]);
+    let res = handle(&mut deps, token_env, receive);
+    assert_eq!(
+        res.unwrap_err(),
+        StdError::generic_err("Invalid zero amount")
+    );
+
+    //successful call
     let burn = InitBurn {};
     let receive = Receive(Cw20ReceiveMsg {
         sender: token_contract.clone(),
