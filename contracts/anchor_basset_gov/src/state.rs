@@ -12,11 +12,9 @@ use cosmwasm_storage::{
 
 use gov_courier::PoolInfo;
 
-//FIXME: should be changed to three days
-pub const EPOCH: u64 = 30;
-
 pub static CONFIG: &[u8] = b"gov_config";
 pub static POOL_INFO: &[u8] = b"pool_info";
+pub static PARAMETERS: &[u8] = b"parameteres";
 
 pub static PREFIX_UNBONDED_PER_EPOCH: &[u8] = b"unbond";
 pub static VALIDATORS: &[u8] = b"validators";
@@ -31,6 +29,13 @@ pub struct GovConfig {
     pub creator: CanonicalAddr,
 }
 
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct Parameters {
+    pub epoch_time: u64,
+    pub supported_coin_denom: String,
+    pub undelegated_epoch: u64,
+}
+
 #[derive(
     PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, Clone, JsonSchema, Debug, Copy,
 )]
@@ -40,17 +45,17 @@ pub struct EpochId {
 }
 
 impl EpochId {
-    pub fn compute_current_epoch(&mut self, block_time: u64) {
+    pub fn compute_current_epoch(&mut self, block_time: u64, epoch_time: u64) {
         let epoc = self.epoch_id;
         let time = self.current_block_time;
 
         self.current_block_time = block_time;
-        self.epoch_id = epoc + (block_time - time) / EPOCH;
+        self.epoch_id = epoc + (block_time - time) / epoch_time;
     }
 
-    pub fn is_epoch_passed(&self, block_time: u64) -> bool {
+    pub fn is_epoch_passed(&self, block_time: u64, epoch_time: u64) -> bool {
         let time = self.current_block_time;
-        if (block_time - time) < EPOCH {
+        if (block_time - time) < epoch_time {
             return false;
         }
         true
@@ -63,6 +68,14 @@ pub fn config<S: Storage>(storage: &mut S) -> Singleton<S, GovConfig> {
 
 pub fn config_read<S: ReadonlyStorage>(storage: &S) -> ReadonlySingleton<S, GovConfig> {
     singleton_read(storage, CONFIG)
+}
+
+pub fn parameter<S: Storage>(storage: &mut S) -> Singleton<S, Parameters> {
+    singleton(storage, PARAMETERS)
+}
+
+pub fn parameters_read<S: ReadonlyStorage>(storage: &S) -> ReadonlySingleton<S, Parameters> {
+    singleton_read(storage, PARAMETERS)
 }
 
 pub fn save_epoch<S: Storage>(storage: &mut S) -> Singleton<S, EpochId> {

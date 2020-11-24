@@ -61,4 +61,5 @@ pub enum QueryMsg {
     WithdrawableUnbonded { address: HumanAddr },
     GetToken {},
     GetReward {},
+    GetParams {},
 }

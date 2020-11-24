@@ -4,14 +4,15 @@ use cosmwasm_std::{
     StdResult, Storage, Uint128, WasmMsg, WasmQuery,
 };
 
+use crate::config::handle_update_params;
 use crate::math::decimal_division;
 use crate::msg::{InitMsg, QueryMsg};
 use crate::state::{
     config, config_read, epoch_read, get_all_delegations, get_bonded, get_burn_epochs,
-    get_finished_amount, is_valid_validator, pool_info, pool_info_read, read_total_amount,
-    read_valid_validators, read_validators, remove_undelegated_wait_list, remove_white_validators,
-    save_epoch, set_all_delegations, set_bonded, store_total_amount, store_undelegated_wait_list,
-    store_white_validators, EpochId, GovConfig, EPOCH,
+    get_finished_amount, is_valid_validator, parameters_read, pool_info, pool_info_read,
+    read_total_amount, read_valid_validators, read_validators, remove_undelegated_wait_list,
+    remove_white_validators, save_epoch, set_all_delegations, set_bonded, store_total_amount,
+    store_undelegated_wait_list, store_white_validators, EpochId, GovConfig, Parameters,
 };
 use anchor_basset_reward::hook::InitHook;
 use anchor_basset_reward::init::RewardInitMsg;
@@ -25,8 +26,6 @@ use gov_courier::Registration;
 use gov_courier::{Cw20HookMsg, HandleMsg};
 use rand::{Rng, SeedableRng, XorShiftRng};
 
-const LUNA: &str = "uluna";
-const EPOCH_PER_UNDELEGATION_PERIOD: u64 = 2;
 const DECIMALS: u8 = 6;
 
 pub fn init<S: Storage, A: Api, Q: Querier>(
@@ -138,6 +137,11 @@ pub fn handle<S: Storage, A: Api, Q: Querier>(
             handle_dereg_validator(deps, env, validator)
         }
         HandleMsg::ReportSlashing {} => handle_slashing(deps, env),
+        HandleMsg::UpdateParams {
+            epoch_time,
+            coin_denom,
+            undelegated_epoch,
+        } => handle_update_params(deps, env, epoch_time, coin_denom, undelegated_epoch),
     }
 }
 
@@ -174,13 +178,17 @@ pub fn handle_mint<S: Storage, A: Api, Q: Querier>(
         return Err(StdError::generic_err("Unsupported validator"));
     }
 
+    //read params
+    let params = parameters_read(&deps.storage).load()?;
+    let coin_denom = params.supported_coin_denom;
+
     //Check whether the account has sent the native coin in advance.
     let payment = env
         .message
         .sent_funds
         .iter()
-        .find(|x| x.denom == LUNA && x.amount > Uint128::zero())
-        .ok_or_else(|| StdError::generic_err(format!("No {} tokens sent", LUNA)))?;
+        .find(|x| x.denom == coin_denom && x.amount > Uint128::zero())
+        .ok_or_else(|| StdError::generic_err(format!("No {} tokens sent", coin_denom)))?;
 
     let mut pool = pool_info_read(&deps.storage).load()?;
     let sender = env.message.sender.clone();
@@ -306,6 +314,10 @@ pub fn handle_burn<S: Storage, A: Api, Q: Querier>(
         return Err(StdError::generic_err("Invalid zero amount"));
     }
 
+    //read params
+    let params = parameters_read(&deps.storage).load()?;
+    let epoch_time = params.epoch_time;
+
     let mut epoch = epoch_read(&deps.storage).load()?;
     // get all amount that is gathered in a epoch.
     let mut undelegated_so_far = read_total_amount(&deps.storage, epoch.epoch_id)?;
@@ -336,9 +348,9 @@ pub fn handle_burn<S: Storage, A: Api, Q: Querier>(
 
     //compute Epoch time
     let block_time = env.block.time;
-    if epoch.is_epoch_passed(block_time) {
+    if epoch.is_epoch_passed(block_time, epoch_time) {
         let last_epoch = epoch.epoch_id;
-        epoch.compute_current_epoch(block_time);
+        epoch.compute_current_epoch(block_time, epoch_time);
 
         //this will store the user request for the past epoch.
         store_total_amount(&mut deps.storage, epoch.epoch_id, Uint128::zero())?;
@@ -357,7 +369,7 @@ pub fn handle_burn<S: Storage, A: Api, Q: Querier>(
             undelegated_amount,
             delegator,
             block_height,
-        );
+        )?;
         //messages.append(&mut undelegated_msgs);
         messages.append(&mut undelegated_msgs);
         save_epoch(&mut deps.storage).save(&epoch)?;
@@ -404,6 +416,10 @@ pub fn handle_finish<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
     env: Env,
 ) -> StdResult<HandleResponse> {
+    //read params
+    let params = parameters_read(&deps.storage).load()?;
+    let epoch_time = params.epoch_time;
+
     let sender_human = env.message.sender.clone();
     let contract_address = env.contract.address.clone();
 
@@ -412,11 +428,20 @@ pub fn handle_finish<S: Storage, A: Api, Q: Querier>(
     let block_time = env.block.time;
 
     // get current epoch id.
-    let current_epoch_id =
-        compute_current_epoch(epoch.epoch_id, epoch.current_block_time, block_time);
+    let current_epoch_id = compute_current_epoch(
+        epoch.epoch_id,
+        epoch.current_block_time,
+        block_time,
+        epoch_time,
+    );
+
+    //read params
+    let params = parameters_read(&deps.storage).load()?;
+    let undelegated_epoch = params.undelegated_epoch;
+    let coin_denom = params.supported_coin_denom;
 
     // Compute all of burn requests with epoch Id corresponding to 21 (can be changed to arbitrary value) days ago
-    let epoch_id = get_past_epoch(current_epoch_id);
+    let epoch_id = get_past_epoch(current_epoch_id, undelegated_epoch);
 
     let payable_amount = get_finished_amount(&deps.storage, epoch_id, sender_human.clone())?;
 
@@ -431,26 +456,27 @@ pub fn handle_finish<S: Storage, A: Api, Q: Querier>(
     remove_undelegated_wait_list(&mut deps.storage, deprecated_epochs, sender_human.clone())?;
 
     let final_amount = payable_amount;
-    send_undelegated_luna(final_amount, sender_human, contract_address)
+    send_undelegated_luna(final_amount, sender_human, contract_address, &*coin_denom)
 }
 
 //return the epoch-id of the 21 days ago.
-fn get_past_epoch(current_epoch: u64) -> u64 {
-    if current_epoch < EPOCH_PER_UNDELEGATION_PERIOD {
+fn get_past_epoch(current_epoch: u64, undelegated_period: u64) -> u64 {
+    if current_epoch < undelegated_period {
         return 0;
     }
-    current_epoch - EPOCH_PER_UNDELEGATION_PERIOD
+    current_epoch - undelegated_period
 }
 
 fn send_undelegated_luna(
     amount: Uint128,
     to_address: HumanAddr,
     contract_address: HumanAddr,
+    coin_denom: &str,
 ) -> StdResult<HandleResponse> {
     let msgs = vec![BankMsg::Send {
         from_address: contract_address.clone(),
         to_address,
-        amount: coins(Uint128::u128(&amount), LUNA),
+        amount: coins(Uint128::u128(&amount), &*coin_denom),
     }
     .into()];
 
@@ -600,12 +626,16 @@ pub fn slashing<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
     env: Env,
 ) -> StdResult<()> {
+    //read params
+    let params = parameters_read(&deps.storage).load()?;
+    let coin_denom = params.supported_coin_denom;
+
     let mut amount = Uint128::zero();
     let all_delegations = get_all_delegations(&deps.storage).load()?;
     let bonded = get_bonded(&deps.storage).load()?;
     let all_delegated_amount = deps.querier.query_all_delegations(env.contract.address)?;
     for delegate in all_delegated_amount {
-        if delegate.amount.denom == LUNA {
+        if delegate.amount.denom == coin_denom {
             amount += delegate.amount.amount
         }
     }
@@ -637,7 +667,11 @@ fn pick_validator<S: Storage, A: Api, Q: Querier>(
     claim: Uint128,
     delegator: HumanAddr,
     block_height: u64,
-) -> Vec<CosmosMsg> {
+) -> StdResult<Vec<CosmosMsg>> {
+    //read params
+    let params = parameters_read(&deps.storage).load()?;
+    let coin_denom = params.supported_coin_denom;
+
     let mut messages: Vec<CosmosMsg> = vec![];
     let mut claimed = claim;
     let mut rng = XorShiftRng::seed_from_u64(block_height);
@@ -662,15 +696,20 @@ fn pick_validator<S: Storage, A: Api, Q: Querier>(
         }
         let msgs: CosmosMsg = CosmosMsg::Staking(StakingMsg::Undelegate {
             validator,
-            amount: coin(undelegated_amount.0, LUNA),
+            amount: coin(undelegated_amount.0, &*coin_denom),
         });
         messages.push(msgs);
     }
-    messages
+    Ok(messages)
 }
 
-fn compute_current_epoch(mut epoch_id: u64, prev_time: u64, current_time: u64) -> u64 {
-    epoch_id += (current_time - prev_time) / EPOCH;
+fn compute_current_epoch(
+    mut epoch_id: u64,
+    prev_time: u64,
+    current_time: u64,
+    epoch_time: u64,
+) -> u64 {
+    epoch_id += (current_time - prev_time) / epoch_time;
     epoch_id
 }
 
@@ -686,6 +725,7 @@ pub fn query<S: Storage, A: Api, Q: Querier>(
         }
         QueryMsg::GetToken {} => to_binary(&query_token(&deps)?),
         QueryMsg::GetReward {} => to_binary(&query_reward(&deps)?),
+        QueryMsg::GetParams {} => to_binary(&query_params(&deps)?),
     }
 }
 
@@ -716,6 +756,10 @@ fn query_token<S: Storage, A: Api, Q: Querier>(deps: &Extern<S, A, Q>) -> StdRes
 fn query_reward<S: Storage, A: Api, Q: Querier>(deps: &Extern<S, A, Q>) -> StdResult<HumanAddr> {
     let pool = pool_info_read(&deps.storage).load()?;
     deps.api.human_address(&pool.reward_account)
+}
+
+fn query_params<S: Storage, A: Api, Q: Querier>(deps: &Extern<S, A, Q>) -> StdResult<Parameters> {
+    parameters_read(&deps.storage).load()
 }
 
 fn query_total_issued<S: Storage, A: Api, Q: Querier>(
