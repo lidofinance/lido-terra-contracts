@@ -60,6 +60,9 @@ pub enum HandleMsg {
         coin_denom: String,
         undelegated_epoch: u64,
     },
+    DeactivateMsg {
+        msg: Deactivated,
+    },
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -67,6 +70,13 @@ pub enum HandleMsg {
 pub enum Registration {
     Token,
     Reward,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum Deactivated {
+    Slashing,
+    Burn,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

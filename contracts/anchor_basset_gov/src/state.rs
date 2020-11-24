@@ -10,11 +10,12 @@ use cosmwasm_storage::{
     ReadonlySingleton, Singleton,
 };
 
-use gov_courier::PoolInfo;
+use gov_courier::{Deactivated, PoolInfo};
 
 pub static CONFIG: &[u8] = b"gov_config";
 pub static POOL_INFO: &[u8] = b"pool_info";
 pub static PARAMETERS: &[u8] = b"parameteres";
+pub static MSG_STATUS: &[u8] = b"msg_status";
 
 pub static PREFIX_UNBONDED_PER_EPOCH: &[u8] = b"unbond";
 pub static VALIDATORS: &[u8] = b"validators";
@@ -34,6 +35,12 @@ pub struct Parameters {
     pub epoch_time: u64,
     pub supported_coin_denom: String,
     pub undelegated_epoch: u64,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct MsgStatus {
+    pub slashing: Option<Deactivated>,
+    pub burn: Option<Deactivated>,
 }
 
 #[derive(
@@ -76,6 +83,14 @@ pub fn parameter<S: Storage>(storage: &mut S) -> Singleton<S, Parameters> {
 
 pub fn parameters_read<S: ReadonlyStorage>(storage: &S) -> ReadonlySingleton<S, Parameters> {
     singleton_read(storage, PARAMETERS)
+}
+
+pub fn msg_status<S: Storage>(storage: &mut S) -> Singleton<S, MsgStatus> {
+    singleton(storage, MSG_STATUS)
+}
+
+pub fn msg_status_read<S: ReadonlyStorage>(storage: &S) -> ReadonlySingleton<S, MsgStatus> {
+    singleton_read(storage, MSG_STATUS)
 }
 
 pub fn save_epoch<S: Storage>(storage: &mut S) -> Singleton<S, EpochId> {
