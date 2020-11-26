@@ -889,6 +889,12 @@ pub fn proper_slashing() {
 #[test]
 pub fn proper_finish() {
     let mut deps = dependencies(20, &[]);
+    //add tax
+    deps.querier.with_tax(
+        Decimal::percent(1),
+        &[(&"uluna".to_string(), &Uint128::from(1000000u128))],
+    );
+
     let validator = sample_validator(DEFAULT_VALIDATOR);
     set_validator_mock(&mut deps.querier);
 
@@ -912,7 +918,7 @@ pub fn proper_finish() {
         validator: validator.address,
     };
 
-    let env = mock_env(&bob, &[coin(10, "uluna")]);
+    let env = mock_env(&bob, &[coin(100, "uluna")]);
 
     //set bob's balance to 10 in token contract
     deps.querier
@@ -925,28 +931,28 @@ pub fn proper_finish() {
     match delegate {
         CosmosMsg::Staking(StakingMsg::Delegate { validator, amount }) => {
             assert_eq!(validator.as_str(), DEFAULT_VALIDATOR);
-            assert_eq!(amount, &coin(10, "uluna"));
+            assert_eq!(amount, &coin(100, "uluna"));
         }
         _ => panic!("Unexpected message: {:?}", delegate),
     }
 
     let token_mint = Mint {
         recipient: bob.clone(),
-        amount: Uint128(10),
+        amount: Uint128(100),
     };
 
     let gov_env = mock_env(MOCK_CONTRACT_ADDR, &[]);
     let token_res = token_handle(&mut deps, gov_env, token_mint).unwrap();
     assert_eq!(1, token_res.messages.len());
-    set_delegation(&mut deps.querier, 10, "uluna");
+    set_delegation(&mut deps.querier, 100, "uluna");
 
-    let res = handle_burn(&mut deps, env, Uint128(1), bob.clone()).unwrap();
+    let res = handle_burn(&mut deps, env, Uint128(10), bob.clone()).unwrap();
     assert_eq!(1, res.messages.len());
 
     let finish_msg = HandleMsg::FinishBurn {};
 
     let mut env = mock_env(&bob, &[]);
-    //set the block time 30 hours from now.
+    //set the block time 30 seconds from now.
     env.block.time += 30;
     let finish_res = handle(&mut deps, env.clone(), finish_msg.clone());
 
@@ -970,23 +976,12 @@ pub fn proper_finish() {
         }) => {
             assert_eq!(from_address.0, MOCK_CONTRACT_ADDR);
             assert_eq!(to_address, &bob);
-            assert_eq!(amount[0].amount, Uint128(1))
+            // 1 would be deducted as tax.
+            // the result is 10 - 1 => 9
+            assert_eq!(amount[0].amount, Uint128(9))
         }
 
         _ => panic!("Unexpected message: {:?}", sent_message),
-    }
-
-    let delegate = &finish_res.messages[0];
-    match delegate {
-        CosmosMsg::Bank(BankMsg::Send {
-            from_address: _,
-            to_address,
-            amount,
-        }) => {
-            assert_eq!(to_address, &bob);
-            assert_eq!(amount.get(0).unwrap().amount, Uint128(1))
-        }
-        _ => panic!("Unexpected message: {:?}", delegate),
     }
 }
 

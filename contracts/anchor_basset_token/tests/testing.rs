@@ -10,6 +10,7 @@ use anchor_basset_token::allowances::query_allowance;
 use anchor_basset_token::contract::{
     handle, init, query, query_balance, query_minter, query_token_info,
 };
+use anchor_basset_token::msg::QueryMsg::TokenInfo;
 use anchor_basset_token::msg::{HandleMsg, QueryMsg, TokenInitHook, TokenInitMsg};
 use common::mock_querier::mock_dependencies as dependencies;
 use cw20::{
@@ -273,13 +274,24 @@ fn queries_work() {
         CosmosMsg::Wasm(WasmMsg::Execute {
             contract_addr: HumanAddr::from("reward"),
             msg: to_binary(&UpdateUserIndex {
-                address: addr1,
+                address: addr1.clone(),
                 is_send: Some(Uint128(200))
             })
             .unwrap(),
             send: vec![]
         })
     );
+
+    // check balance query (full)
+    let data = query(&deps, QueryMsg::Balance { address: addr1 }).unwrap();
+    let loaded: BalanceResponse = from_binary(&data).unwrap();
+    assert_eq!(loaded.balance, Uint128(400));
+
+    let token = TokenInfo {};
+    let data = query(&deps, token).unwrap();
+    let token: TokenInfoResponse = from_binary(&data).unwrap();
+    assert_eq!(token.total_supply, Uint128(400));
+
     // check balance query (empty)
     let data = query(
         &deps,

@@ -461,6 +461,13 @@ pub fn proper_update_user_index() {
 #[test]
 pub fn integrated_transfer() {
     let mut deps = dependencies(20, &[]);
+
+    //add tax
+    deps.querier.with_tax(
+        Decimal::percent(1),
+        &[(&"uusd".to_string(), &Uint128::from(1000000u128))],
+    );
+
     let addr1 = HumanAddr::from("addr0001");
     let addr2 = HumanAddr::from("addr0002");
     let amount1 = Uint128::from(10u128);
@@ -541,7 +548,8 @@ pub fn integrated_transfer() {
         }) => {
             assert_eq!(from_address, &HumanAddr::from("reward"));
             assert_eq!(to_address, &addr1);
-            assert_eq!(amount.get(0).unwrap().amount, Uint128(1000));
+            //the tax is 1 percent there fore 1000 - 10 = 990
+            assert_eq!(amount.get(0).unwrap().amount, Uint128(990));
         }
         _ => panic!("Unexpected message: {:?}", send),
     }
@@ -580,6 +588,13 @@ pub fn integrated_transfer() {
 #[test]
 pub fn integrated_send() {
     let mut deps = dependencies(20, &[]);
+
+    //add tax
+    deps.querier.with_tax(
+        Decimal::percent(1),
+        &[(&"uusd".to_string(), &Uint128::from(1000000u128))],
+    );
+
     let addr1 = HumanAddr::from("addr0001");
     let contract = HumanAddr::from(MOCK_CONTRACT_ADDR);
     let amount1 = Uint128::from(10u128);
@@ -642,7 +657,8 @@ pub fn integrated_send() {
         }) => {
             assert_eq!(from_address, &HumanAddr::from("reward"));
             assert_eq!(to_address, &addr1);
-            assert_eq!(amount.get(0).unwrap().amount, Uint128(1000));
+            //the tax is 1 percent there fore 1000 - 10 = 990
+            assert_eq!(amount.get(0).unwrap().amount, Uint128(990));
         }
         _ => panic!("Unexpected message: {:?}", send),
     }
@@ -675,6 +691,13 @@ pub fn integrated_send() {
 #[test]
 pub fn integrated_burn() {
     let mut deps = dependencies(20, &[]);
+
+    //add tax
+    deps.querier.with_tax(
+        Decimal::percent(1),
+        &[(&"uusd".to_string(), &Uint128::from(1000000u128))],
+    );
+
     let contract = HumanAddr::from(MOCK_CONTRACT_ADDR);
     let amount1 = Uint128::from(10u128);
 
@@ -727,7 +750,8 @@ pub fn integrated_burn() {
         }) => {
             assert_eq!(from_address, &HumanAddr::from("reward"));
             assert_eq!(to_address, &contract);
-            assert_eq!(amount.get(0).unwrap().amount, Uint128(2000));
+            //the tax is 1 percent there fore 2000 - 20 = 1980
+            assert_eq!(amount.get(0).unwrap().amount, Uint128(1980));
         }
         _ => panic!("Unexpected message: {:?}", send),
     }

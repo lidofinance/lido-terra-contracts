@@ -5,11 +5,12 @@ use crate::state::{
     prev_balance, prev_balance_read, read_holder_map, store_holder_map, Config, Index,
 };
 use cosmwasm_std::{
-    coins, from_binary, log, to_binary, Api, BankMsg, Binary, CanonicalAddr, CosmosMsg, Decimal,
+    from_binary, log, to_binary, Api, BankMsg, Binary, CanonicalAddr, Coin, CosmosMsg, Decimal,
     Env, Extern, HandleResponse, HumanAddr, InitResponse, Querier, QueryRequest, StdError,
     StdResult, Storage, Uint128, WasmMsg, WasmQuery,
 };
 
+use basset::deduct_tax;
 use cosmwasm_storage::to_length_prefixed;
 use gov_courier::PoolInfo;
 use std::ops::Add;
@@ -134,7 +135,13 @@ pub fn handle_send_reward<S: Storage, A: Api, Q: Querier>(
             BankMsg::Send {
                 from_address: contr_addr.clone(),
                 to_address: receiver,
-                amount: coins(final_reward.into(), SWAP_DENOM),
+                amount: vec![deduct_tax(
+                    &deps,
+                    Coin {
+                        denom: SWAP_DENOM.to_string(),
+                        amount: final_reward,
+                    },
+                )?],
             }
             .into(),
         );

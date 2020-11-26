@@ -1,14 +1,15 @@
-use anchor_basset_token::state::{MinterData, TokenInfo};
 use cosmwasm_std::testing::{MockApi, MockQuerier, MockStorage};
 use cosmwasm_std::{
     from_slice, to_binary, AllBalanceResponse, Api, BalanceResponse, BankQuery, CanonicalAddr,
-    Coin, Decimal, Extern, FullDelegation, HumanAddr, Querier, QuerierResult, QueryRequest,
-    SystemError, Uint128, Validator, WasmQuery,
+    Coin, Decimal, Extern, HumanAddr, Querier, QuerierResult, QueryRequest, SystemError, Uint128,
+    WasmQuery,
 };
 use cosmwasm_storage::to_length_prefixed;
 use gov_courier::PoolInfo;
 use std::collections::HashMap;
 
+use schemars::JsonSchema;
+use serde::{Deserialize, Serialize};
 use terra_cosmwasm::{TaxCapResponse, TaxRateResponse, TerraQuery, TerraQueryWrapper, TerraRoute};
 
 pub const MOCK_CONTRACT_ADDR: &str = "cosmos2contract";
@@ -57,7 +58,6 @@ pub(crate) fn caps_to_map(caps: &[(&String, &Uint128)]) -> HashMap<String, Uint1
 pub struct WasmMockQuerier {
     base: MockQuerier<TerraQueryWrapper>,
     canonical_length: usize,
-    token_querier: TokenQuerier,
     tax_querier: TaxQuerier,
 }
 
@@ -105,10 +105,11 @@ impl WasmMockQuerier {
                     panic!("DO NOT ENTER HERE")
                 }
             }
-            QueryRequest::Wasm(WasmQuery::Raw { contract_addr, key }) => {
+            QueryRequest::Wasm(WasmQuery::Raw {
+                contract_addr: _,
+                key,
+            }) => {
                 let prefix_pool = to_length_prefixed(b"pool_info").to_vec();
-                let prefix_token_inf = to_length_prefixed(b"token_info").to_vec();
-                let prefix_balance = to_length_prefixed(b"balance").to_vec();
                 let api: MockApi = MockApi::new(self.canonical_length);
 
                 if key.as_slice().to_vec() == prefix_pool {
@@ -122,78 +123,6 @@ impl WasmMockQuerier {
                         token_account: api.canonical_address(&HumanAddr::from("token")).unwrap(),
                     };
                     Ok(to_binary(&to_binary(&pool).unwrap()))
-                } else if key.as_slice().to_vec() == prefix_token_inf {
-                    let balances: &HashMap<HumanAddr, Uint128> =
-                        match self.token_querier.balances.get(contract_addr) {
-                            Some(balances) => balances,
-                            None => {
-                                return Err(SystemError::InvalidRequest {
-                                    error: format!(
-                                        "No balance info exists for the contract {}",
-                                        contract_addr
-                                    ),
-                                    request: key.as_slice().into(),
-                                })
-                            }
-                        };
-                    let mut total_supply = Uint128::zero();
-
-                    for balance in balances {
-                        total_supply += *balance.1;
-                    }
-                    let api: MockApi = MockApi::new(self.canonical_length);
-                    let token_inf: TokenInfo = TokenInfo {
-                        name: "bluna".to_string(),
-                        symbol: "BLUNA".to_string(),
-                        decimals: 6,
-                        total_supply,
-                        mint: Some(MinterData {
-                            minter: api
-                                .canonical_address(&HumanAddr::from("governance"))
-                                .unwrap(),
-                            cap: None,
-                        }),
-                        owner: api
-                            .canonical_address(&HumanAddr::from("governance"))
-                            .unwrap(),
-                    };
-                    Ok(to_binary(&to_binary(&token_inf).unwrap()))
-                } else if key.as_slice()[..prefix_balance.len()].to_vec() == prefix_balance {
-                    let key_address: &[u8] = &key.as_slice()[prefix_balance.len()..];
-                    let address_raw: CanonicalAddr = CanonicalAddr::from(key_address);
-                    let balances: &HashMap<HumanAddr, Uint128> =
-                        match self.token_querier.balances.get(contract_addr) {
-                            Some(balances) => balances,
-                            None => {
-                                return Err(SystemError::InvalidRequest {
-                                    error: format!(
-                                        "No balance info exists for the contract {}",
-                                        contract_addr
-                                    ),
-                                    request: key.as_slice().into(),
-                                })
-                            }
-                        };
-                    let api: MockApi = MockApi::new(self.canonical_length);
-                    let address: HumanAddr = match api.human_address(&address_raw) {
-                        Ok(v) => v,
-                        Err(e) => {
-                            return Err(SystemError::InvalidRequest {
-                                error: format!("Parsing query request: {}", e),
-                                request: key.as_slice().into(),
-                            })
-                        }
-                    };
-                    let balance = match balances.get(&address) {
-                        Some(v) => v,
-                        None => {
-                            return Err(SystemError::InvalidRequest {
-                                error: "Balance not found".to_string(),
-                                request: key.as_slice().into(),
-                            })
-                        }
-                    };
-                    Ok(to_binary(&to_binary(&balance).unwrap()))
                 } else {
                     unimplemented!()
                 }
@@ -233,42 +162,11 @@ impl WasmMockQuerier {
             _ => self.base.handle_query(request),
         }
     }
-    pub fn update_staking(
-        &mut self,
-        denom: &str,
-        validators: &[Validator],
-        delegations: &[FullDelegation],
-    ) {
-        self.base.update_staking(denom, validators, delegations);
-    }
 }
 
 #[derive(Clone, Default)]
 pub struct TokenQuerier {
     balances: HashMap<HumanAddr, HashMap<HumanAddr, Uint128>>,
-}
-
-impl TokenQuerier {
-    pub fn new(balances: &[(&HumanAddr, &[(&HumanAddr, &Uint128)])]) -> Self {
-        TokenQuerier {
-            balances: balances_to_map(balances),
-        }
-    }
-}
-
-pub(crate) fn balances_to_map(
-    balances: &[(&HumanAddr, &[(&HumanAddr, &Uint128)])],
-) -> HashMap<HumanAddr, HashMap<HumanAddr, Uint128>> {
-    let mut balances_map: HashMap<HumanAddr, HashMap<HumanAddr, Uint128>> = HashMap::new();
-    for (contract_addr, balances) in balances.iter() {
-        let mut contract_balances_map: HashMap<HumanAddr, Uint128> = HashMap::new();
-        for (addr, balance) in balances.iter() {
-            contract_balances_map.insert(HumanAddr::from(addr), **balance);
-        }
-
-        balances_map.insert(HumanAddr::from(contract_addr), contract_balances_map);
-    }
-    balances_map
 }
 
 impl WasmMockQuerier {
@@ -279,19 +177,31 @@ impl WasmMockQuerier {
     ) -> Self {
         WasmMockQuerier {
             base,
-            token_querier: TokenQuerier::default(),
             canonical_length,
             tax_querier: TaxQuerier::default(),
         }
-    }
-
-    // configure the mint whitelist mock basset
-    pub fn with_token_balances(&mut self, balances: &[(&HumanAddr, &[(&HumanAddr, &Uint128)])]) {
-        self.token_querier = TokenQuerier::new(balances);
     }
 
     // configure the tax mock querier
     pub fn with_tax(&mut self, rate: Decimal, caps: &[(&String, &Uint128)]) {
         self.tax_querier = TaxQuerier::new(rate, caps);
     }
+}
+
+#[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
+#[serde(rename_all = "snake_case")]
+pub struct TokenInfo {
+    pub name: String,
+    pub symbol: String,
+    pub decimals: u8,
+    pub total_supply: Uint128,
+    pub mint: Option<MinterData>,
+    pub owner: CanonicalAddr,
+}
+
+#[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
+pub struct MinterData {
+    pub minter: CanonicalAddr,
+    /// cap is how many more tokens can be issued by the minter
+    pub cap: Option<Uint128>,
 }
