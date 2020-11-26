@@ -33,5 +33,6 @@ pub struct TokenInfoResponse {
 pub enum QueryMsg {
     AccruedRewards { address: HumanAddr },
     GetIndex {},
-    GetUserIn { address: HumanAddr },
+    GetUserIndex { address: HumanAddr },
+    GetPending { address: HumanAddr },
 }

@@ -165,12 +165,6 @@ pub fn handle_burn<S: Storage, A: Api, Q: Querier>(
 
     let sender_raw = deps.api.canonical_address(&env.message.sender)?;
 
-    let owner = token_info_read(&deps.storage).load()?.owner;
-
-    if sender_raw != owner {
-        return Err(StdError::unauthorized());
-    }
-
     let messages = update_index(&deps, env.message.sender, None)?;
 
     // lower balance
@@ -236,17 +230,23 @@ pub fn handle_mint<S: Storage, A: Api, Q: Querier>(
     let mut messages: Vec<CosmosMsg> = vec![];
     let reward_address = query_reward(&deps)?;
 
-    if balance.is_zero() {
-        let holder_msg = UpdateUserIndex {
+    let holder_msg = if balance.is_zero() {
+        UpdateUserIndex {
             address: recipient.clone(),
             is_send: None,
-        };
-        messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
-            contract_addr: reward_address,
-            msg: to_binary(&holder_msg)?,
-            send: vec![],
-        }));
-    }
+        }
+    } else {
+        UpdateUserIndex {
+            address: recipient.clone(),
+            is_send: Some(balance),
+        }
+    };
+
+    messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
+        contract_addr: reward_address,
+        msg: to_binary(&holder_msg)?,
+        send: vec![],
+    }));
 
     let res = HandleResponse {
         messages,
@@ -420,7 +420,6 @@ pub fn update_index<S: Storage, A: Api, Q: Querier>(
         let rcv_balance = balances_read(&deps.storage)
             .load(receiver_raw.as_slice())
             .unwrap();
-        println!("I am here {}", rcv_balance);
         let update_rcv_index = UpdateUserIndex {
             address: receiver.expect("The receiver has been given"),
             is_send: Some(rcv_balance),

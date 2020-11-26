@@ -1,8 +1,9 @@
 use anchor_basset_token::state::{MinterData, TokenInfo};
 use cosmwasm_std::testing::{MockApi, MockQuerier, MockStorage};
 use cosmwasm_std::{
-    from_slice, to_binary, Api, Coin, Empty, Extern, FullDelegation, HumanAddr, Querier,
-    QuerierResult, QueryRequest, SystemError, Uint128, Validator, WasmQuery,
+    from_slice, to_binary, AllBalanceResponse, Api, BalanceResponse, BankQuery, CanonicalAddr,
+    Coin, Empty, Extern, FullDelegation, HumanAddr, Querier, QuerierResult, QueryRequest,
+    SystemError, Uint128, Validator, WasmQuery,
 };
 use cosmwasm_storage::to_length_prefixed;
 use gov_courier::PoolInfo;
@@ -56,7 +57,9 @@ impl WasmMockQuerier {
             QueryRequest::Wasm(WasmQuery::Raw { contract_addr, key }) => {
                 let prefix_pool = to_length_prefixed(b"pool_info").to_vec();
                 let prefix_token_inf = to_length_prefixed(b"token_info").to_vec();
+                let prefix_balance = to_length_prefixed(b"balance").to_vec();
                 let api: MockApi = MockApi::new(self.canonical_length);
+
                 if key.as_slice().to_vec() == prefix_pool {
                     let pool = PoolInfo {
                         exchange_rate: Default::default(),
@@ -104,6 +107,74 @@ impl WasmMockQuerier {
                             .unwrap(),
                     };
                     Ok(to_binary(&to_binary(&token_inf).unwrap()))
+                } else if key.as_slice()[..prefix_balance.len()].to_vec() == prefix_balance {
+                    let key_address: &[u8] = &key.as_slice()[prefix_balance.len()..];
+                    let address_raw: CanonicalAddr = CanonicalAddr::from(key_address);
+                    let balances: &HashMap<HumanAddr, Uint128> =
+                        match self.token_querier.balances.get(contract_addr) {
+                            Some(balances) => balances,
+                            None => {
+                                return Err(SystemError::InvalidRequest {
+                                    error: format!(
+                                        "No balance info exists for the contract {}",
+                                        contract_addr
+                                    ),
+                                    request: key.as_slice().into(),
+                                })
+                            }
+                        };
+                    let api: MockApi = MockApi::new(self.canonical_length);
+                    let address: HumanAddr = match api.human_address(&address_raw) {
+                        Ok(v) => v,
+                        Err(e) => {
+                            return Err(SystemError::InvalidRequest {
+                                error: format!("Parsing query request: {}", e),
+                                request: key.as_slice().into(),
+                            })
+                        }
+                    };
+                    let balance = match balances.get(&address) {
+                        Some(v) => v,
+                        None => {
+                            return Err(SystemError::InvalidRequest {
+                                error: "Balance not found".to_string(),
+                                request: key.as_slice().into(),
+                            })
+                        }
+                    };
+                    Ok(to_binary(&to_binary(&balance).unwrap()))
+                } else {
+                    unimplemented!()
+                }
+            }
+            QueryRequest::Bank(BankQuery::AllBalances { address }) => {
+                if address == &HumanAddr::from("reward") {
+                    let mut coins: Vec<Coin> = vec![];
+                    let luna = Coin {
+                        denom: "uluna".to_string(),
+                        amount: Uint128(1000u128),
+                    };
+                    coins.push(luna);
+                    let krt = Coin {
+                        denom: "ukrt".to_string(),
+                        amount: Uint128(1000u128),
+                    };
+                    coins.push(krt);
+                    let all_balances = AllBalanceResponse { amount: coins };
+                    Ok(to_binary(&to_binary(&all_balances).unwrap()))
+                } else {
+                    unimplemented!()
+                }
+            }
+            QueryRequest::Bank(BankQuery::Balance { address, denom }) => {
+                if address == &HumanAddr::from("reward") && denom == "uusd" {
+                    let bank_res = BalanceResponse {
+                        amount: Coin {
+                            amount: Uint128(2000u128),
+                            denom: denom.to_string(),
+                        },
+                    };
+                    Ok(to_binary(&bank_res))
                 } else {
                     unimplemented!()
                 }
