@@ -249,10 +249,37 @@ fn queries_work() {
     assert_eq!(1, res.messages.len());
 
     // check balance query (full)
-    let data = query(&deps, QueryMsg::Balance { address: addr1 }).unwrap();
+    let data = query(
+        &deps,
+        QueryMsg::Balance {
+            address: addr1.clone(),
+        },
+    )
+    .unwrap();
     let loaded: BalanceResponse = from_binary(&data).unwrap();
     assert_eq!(loaded.balance, Uint128(200));
 
+    let msg = HandleMsg::Mint {
+        recipient: addr1.clone(),
+        amount: Uint128(200),
+    };
+    let owner = HumanAddr::from("governance");
+    let env = mock_env(&owner, &[]);
+    let res = handle(&mut deps, env, msg).unwrap();
+    assert_eq!(1, res.messages.len());
+
+    assert_eq!(
+        res.messages[0],
+        CosmosMsg::Wasm(WasmMsg::Execute {
+            contract_addr: HumanAddr::from("reward"),
+            msg: to_binary(&UpdateUserIndex {
+                address: addr1,
+                is_send: Some(Uint128(200))
+            })
+            .unwrap(),
+            send: vec![]
+        })
+    );
     // check balance query (empty)
     let data = query(
         &deps,
@@ -405,12 +432,12 @@ fn burn() {
     do_mint(&mut deps, addr1.clone(), amount1);
     do_mint(&mut deps, HumanAddr::from("governance"), Uint128(1));
 
-    //unauthorized
+    //underflow
     let env = mock_env(addr1.clone(), &[]);
     let msg = HandleMsg::Burn { amount: too_much };
     let res = handle(&mut deps, env, msg);
     match res.unwrap_err() {
-        StdError::Unauthorized { .. } => {}
+        StdError::Underflow { .. } => {}
         e => panic!("Unexpected error: {}", e),
     }
     assert_eq!(

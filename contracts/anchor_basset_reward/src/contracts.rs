@@ -22,7 +22,9 @@ pub fn init<S: Storage, A: Api, Q: Querier>(
     env: Env,
     msg: RewardInitMsg,
 ) -> StdResult<InitResponse> {
-    let conf = Config { owner: msg.owner };
+    let conf = Config {
+        owner: deps.api.canonical_address(&env.message.sender)?,
+    };
     config(&mut deps.storage).save(&conf)?;
 
     let index = Index {
@@ -210,11 +212,9 @@ pub fn handle_global_index<S: Storage, A: Api, Q: Querier>(
         .query_balance(env.contract.address, SWAP_DENOM)
         .unwrap();
 
-    let token_address = query_token_contract(&deps, owner_human)?;
-    let address = deps.api.human_address(&token_address)?;
     let total_supply = {
         let res = deps.querier.query(&QueryRequest::Wasm(WasmQuery::Raw {
-            contract_addr: address,
+            contract_addr: token_address,
             key: Binary::from(to_length_prefixed(b"token_info")),
         }))?;
         let token_info: TokenInfoResponse = from_binary(&res)?;
@@ -343,7 +343,8 @@ pub fn query<S: Storage, A: Api, Q: Querier>(
     match msg {
         QueryMsg::AccruedRewards { address } => to_binary(&query_accrued_rewards(&deps, address)?),
         QueryMsg::GetIndex {} => to_binary(&query_index(&deps)?),
-        QueryMsg::GetUserIn { address } => to_binary(&query_user_index(&deps, address)?),
+        QueryMsg::GetUserIndex { address } => to_binary(&query_user_index(&deps, address)?),
+        QueryMsg::GetPending { address } => to_binary(&query_user_pending(&deps, address)?),
     }
 }
 
@@ -377,4 +378,15 @@ fn query_user_index<S: Storage, A: Api, Q: Querier>(
 ) -> StdResult<Decimal> {
     let holder = read_holder_map(&deps.storage, address)?;
     Ok(holder)
+}
+
+fn query_user_pending<S: Storage, A: Api, Q: Querier>(
+    deps: &Extern<S, A, Q>,
+    address: HumanAddr,
+) -> StdResult<Uint128> {
+    let address_raw = deps.api.canonical_address(&address).unwrap();
+    let pending_reward = pending_reward_read(&deps.storage)
+        .load(address_raw.as_slice())
+        .unwrap_or_default();
+    Ok(pending_reward)
 }
