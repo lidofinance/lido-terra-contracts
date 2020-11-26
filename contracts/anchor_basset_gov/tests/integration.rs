@@ -230,6 +230,8 @@ pub fn set_params<S: Storage, A: Api, Q: Querier>(mut deps: &mut Extern<S, A, Q>
         epoch_time: 30,
         coin_denom: "uluna".to_string(),
         undelegated_epoch: 2,
+        peg_recovery_fee: Decimal::zero(),
+        er_threshold: Decimal::one(),
     };
     let creator_env = mock_env(HumanAddr::from("owner1"), &[]);
     let res = handle(&mut deps, creator_env, update_prams).unwrap();

@@ -1,5 +1,7 @@
 use crate::state::{config_read, msg_status, parameter, Parameters};
-use cosmwasm_std::{log, Api, Env, Extern, HandleResponse, Querier, StdError, StdResult, Storage};
+use cosmwasm_std::{
+    log, Api, Decimal, Env, Extern, HandleResponse, Querier, StdError, StdResult, Storage,
+};
 use gov_courier::Deactivated;
 
 pub fn handle_update_params<S: Storage, A: Api, Q: Querier>(
@@ -8,6 +10,8 @@ pub fn handle_update_params<S: Storage, A: Api, Q: Querier>(
     epoch_time: u64,
     coin_denom: String,
     undelegated_epoch: u64,
+    peg_recovery_fee: Decimal,
+    er_threshold: Decimal,
 ) -> StdResult<HandleResponse> {
     let config = config_read(&deps.storage).load()?;
     let sender_raw = deps.api.canonical_address(&env.message.sender)?;
@@ -18,6 +22,8 @@ pub fn handle_update_params<S: Storage, A: Api, Q: Querier>(
         epoch_time,
         supported_coin_denom: coin_denom,
         undelegated_epoch,
+        peg_recovery_fee,
+        er_threshold,
     };
 
     parameter(&mut deps.storage).save(&params)?;
