@@ -5,7 +5,7 @@ use cosmwasm_std::{
 };
 
 use crate::config::{handle_deactivate, handle_update_params};
-use crate::math::decimal_division;
+use crate::math::{decimal_division, decimal_subtraction};
 use crate::msg::{InitMsg, QueryMsg};
 use crate::state::{
     config, config_read, epoch_read, get_all_delegations, get_bonded, get_burn_epochs,
@@ -149,7 +149,17 @@ pub fn handle<S: Storage, A: Api, Q: Querier>(
             epoch_time,
             coin_denom,
             undelegated_epoch,
-        } => handle_update_params(deps, env, epoch_time, coin_denom, undelegated_epoch),
+            peg_recovery_fee,
+            er_threshold,
+        } => handle_update_params(
+            deps,
+            env,
+            epoch_time,
+            coin_denom,
+            undelegated_epoch,
+            peg_recovery_fee,
+            er_threshold,
+        ),
         HandleMsg::DeactivateMsg { msg } => handle_deactivate(deps, env, msg),
     }
 }
@@ -190,6 +200,8 @@ pub fn handle_mint<S: Storage, A: Api, Q: Querier>(
     //read params
     let params = parameters_read(&deps.storage).load()?;
     let coin_denom = params.supported_coin_denom;
+    let threshold = params.er_threshold;
+    let recovery_fee = params.peg_recovery_fee;
 
     //read msg_status
     let msg_status = msg_status_read(&deps.storage).load()?;
@@ -210,7 +222,12 @@ pub fn handle_mint<S: Storage, A: Api, Q: Querier>(
     let mut pool = pool_info_read(&deps.storage).load()?;
     let sender = env.message.sender.clone();
 
-    let amount_with_exchange_rate = decimal_division(payment.amount, pool.exchange_rate);
+    //apply recovery fee if it is necessary
+    let mut amount_with_exchange_rate = decimal_division(payment.amount, pool.exchange_rate);
+    if pool.exchange_rate < threshold {
+        let peg_fee = decimal_subtraction(Decimal::one(), recovery_fee);
+        amount_with_exchange_rate = amount_with_exchange_rate * peg_fee;
+    }
 
     //update pool_info
     pool.total_bond_amount += payment.amount;
@@ -336,6 +353,8 @@ pub fn handle_burn<S: Storage, A: Api, Q: Querier>(
     //read params
     let params = parameters_read(&deps.storage).load()?;
     let epoch_time = params.epoch_time;
+    let threshold = params.er_threshold;
+    let recovery_fee = params.peg_recovery_fee;
 
     let mut epoch = epoch_read(&deps.storage).load()?;
     // get all amount that is gathered in a epoch.
@@ -357,7 +376,6 @@ pub fn handle_burn<S: Storage, A: Api, Q: Querier>(
     })?;
 
     let pool = pool_info_read(&deps.storage).load()?;
-
     //send Burn message to token contract
     let token_address = deps.api.human_address(&pool.token_account)?;
     let burn_msg = Cw20HandleMsg::Burn { amount };
@@ -379,7 +397,13 @@ pub fn handle_burn<S: Storage, A: Api, Q: Querier>(
         let delegator = env.contract.address;
 
         // send undelegated requests
-        let undelegatable = amount;
+        let mut undelegatable = amount * exchange_rate;
+        //apply recovery fee if it is necessary
+        if exchange_rate < threshold {
+            let peg_fee = decimal_subtraction(Decimal::one(), recovery_fee);
+            undelegatable = undelegatable * peg_fee;
+        }
+
         undelegated_so_far += undelegatable;
         let undelegated_amount = undelegated_so_far;
         let all_validators = read_validators(&deps.storage).unwrap();
@@ -403,7 +427,14 @@ pub fn handle_burn<S: Storage, A: Api, Q: Querier>(
 
         store_undelegated_wait_list(&mut deps.storage, last_epoch, sender.clone(), undelegatable)?;
     } else {
-        let luna_amount = amount * exchange_rate;
+        let mut luna_amount = amount * exchange_rate;
+
+        //apply recovery fee if it is necessary
+        if exchange_rate < threshold {
+            let peg_fee = decimal_subtraction(Decimal::one(), recovery_fee);
+            luna_amount = luna_amount * peg_fee;
+        }
+
         undelegated_so_far += luna_amount;
 
         store_undelegated_wait_list(

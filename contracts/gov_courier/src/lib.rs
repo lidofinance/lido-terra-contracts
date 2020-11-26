@@ -59,6 +59,8 @@ pub enum HandleMsg {
         epoch_time: u64,
         coin_denom: String,
         undelegated_epoch: u64,
+        peg_recovery_fee: Decimal,
+        er_threshold: Decimal,
     },
     DeactivateMsg {
         msg: Deactivated,

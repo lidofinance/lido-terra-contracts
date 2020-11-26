@@ -2,8 +2,8 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use cosmwasm_std::{
-    from_slice, to_vec, CanonicalAddr, HumanAddr, Order, ReadonlyStorage, StdError, StdResult,
-    Storage, Uint128,
+    from_slice, to_vec, CanonicalAddr, Decimal, HumanAddr, Order, ReadonlyStorage, StdError,
+    StdResult, Storage, Uint128,
 };
 use cosmwasm_storage::{
     singleton, singleton_read, Bucket, PrefixedStorage, ReadonlyBucket, ReadonlyPrefixedStorage,
@@ -35,6 +35,8 @@ pub struct Parameters {
     pub epoch_time: u64,
     pub supported_coin_denom: String,
     pub undelegated_epoch: u64,
+    pub peg_recovery_fee: Decimal,
+    pub er_threshold: Decimal,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

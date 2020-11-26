@@ -112,6 +112,8 @@ pub fn set_params<S: Storage, A: Api, Q: Querier>(mut deps: &mut Extern<S, A, Q>
         epoch_time: 30,
         coin_denom: "uluna".to_string(),
         undelegated_epoch: 2,
+        peg_recovery_fee: Decimal::zero(),
+        er_threshold: Decimal::one(),
     };
     let creator_env = mock_env(HumanAddr::from("owner1"), &[]);
     let res = handle(&mut deps, creator_env, update_prams).unwrap();
@@ -995,6 +997,8 @@ pub fn test_update_params() {
         epoch_time: 30,
         coin_denom: "uluna".to_string(),
         undelegated_epoch: 2,
+        peg_recovery_fee: Decimal::zero(),
+        er_threshold: Decimal::one(),
     };
     let owner = HumanAddr::from("owner1");
     let token_contract = HumanAddr::from("token");
@@ -1014,6 +1018,8 @@ pub fn test_update_params() {
     assert_eq!(query.epoch_time, 30);
     assert_eq!(query.supported_coin_denom, "uluna");
     assert_eq!(query.undelegated_epoch, 2);
+    assert_eq!(query.peg_recovery_fee, Decimal::zero());
+    assert_eq!(query.er_threshold, Decimal::one());
 }
 
 #[test]
@@ -1064,6 +1070,140 @@ pub fn test_deactivate() {
         res.unwrap_err(),
         (StdError::generic_err("this message is temporarily deactivated",))
     );
+}
+
+#[test]
+pub fn proper_recovery_fee() {
+    let mut deps = dependencies(20, &[]);
+    let validator = sample_validator(DEFAULT_VALIDATOR);
+    set_validator_mock(&mut deps.querier);
+
+    let update_prams = UpdateParams {
+        epoch_time: 30,
+        coin_denom: "uluna".to_string(),
+        undelegated_epoch: 2,
+        peg_recovery_fee: Decimal::from_ratio(Uint128(1), Uint128(1000)),
+        er_threshold: Decimal::from_ratio(Uint128(99), Uint128(100)),
+    };
+    let owner = HumanAddr::from("owner1");
+    let token_contract = HumanAddr::from("token");
+    let reward_contract = HumanAddr::from("reward");
+
+    init_all(
+        &mut deps,
+        owner.clone(),
+        reward_contract,
+        token_contract.clone(),
+    );
+
+    let creator_env = mock_env(HumanAddr::from("owner1"), &[]);
+    let res = handle(&mut deps, creator_env, update_prams).unwrap();
+    assert_eq!(res.messages.len(), 0);
+
+    let get_params = GetParams {};
+    let parmas: Parameters = from_binary(&query(&deps, get_params).unwrap()).unwrap();
+    assert_eq!(parmas.epoch_time, 30);
+    assert_eq!(parmas.supported_coin_denom, "uluna");
+    assert_eq!(parmas.undelegated_epoch, 2);
+    assert_eq!(parmas.peg_recovery_fee.to_string(), "0.001");
+    assert_eq!(parmas.er_threshold.to_string(), "0.99");
+
+    let env = mock_env(&owner, &[]);
+    let msg = HandleMsg::RegisterValidator {
+        validator: validator.address.clone(),
+    };
+
+    let res = handle(&mut deps, env, msg).unwrap();
+    assert_eq!(0, res.messages.len());
+
+    let bob = HumanAddr::from("bob");
+    let mint_msg = HandleMsg::Mint {
+        validator: validator.address.clone(),
+    };
+
+    //this will set the balance of the user in token contract
+    deps.querier
+        .with_token_balances(&[(&HumanAddr::from("token"), &[(&bob, &Uint128(1000u128))])]);
+
+    let env = mock_env(&bob, &[coin(1000, "uluna")]);
+
+    let res = handle(&mut deps, env.clone(), mint_msg).unwrap();
+    assert_eq!(2, res.messages.len());
+
+    set_delegation(&mut deps.querier, 900, "uluna");
+
+    let report_slashing = ReportSlashing {};
+    let res = handle(&mut deps, env, report_slashing).unwrap();
+    assert_eq!(0, res.messages.len());
+
+    let ex_rate = ExchangeRate {};
+    let query_exchange_rate: Decimal = from_binary(&query(&deps, ex_rate).unwrap()).unwrap();
+    assert_eq!(query_exchange_rate.to_string(), "0.9");
+
+    //Mint again to see the applied result
+    let bob = HumanAddr::from("bob");
+    let mint_msg = HandleMsg::Mint {
+        validator: validator.address.clone(),
+    };
+
+    deps.querier
+        .with_token_balances(&[(&HumanAddr::from("token"), &[(&bob, &Uint128(1000u128))])]);
+
+    let env = mock_env(&bob, &[coin(1000, "uluna")]);
+
+    let res = handle(&mut deps, env, mint_msg).unwrap();
+    assert_eq!(2, res.messages.len());
+
+    let mint_msg = &res.messages[0];
+    match mint_msg {
+        CosmosMsg::Wasm(WasmMsg::Execute {
+            contract_addr: _,
+            msg,
+            send: _,
+        }) => assert_eq!(
+            msg,
+            &to_binary(&Mint {
+                recipient: bob,
+                amount: Uint128(1109)
+            })
+            .unwrap()
+        ),
+        _ => panic!("Unexpected message: {:?}", mint_msg),
+    }
+
+    // check burn message
+    let burn = InitBurn {};
+    let receive = Receive(Cw20ReceiveMsg {
+        sender: token_contract.clone(),
+        amount: Uint128(100),
+        msg: Some(to_binary(&burn).unwrap()),
+    });
+    let mut token_env = mock_env(&token_contract, &[]);
+    let res = handle(&mut deps, token_env.clone(), receive).unwrap();
+    assert_eq!(1, res.messages.len());
+
+    token_env.block.time += 60;
+
+    let burn = InitBurn {};
+    let receive = Receive(Cw20ReceiveMsg {
+        sender: token_contract,
+        amount: Uint128(100),
+        msg: Some(to_binary(&burn).unwrap()),
+    });
+    let res = handle(&mut deps, token_env, receive).unwrap();
+    assert_eq!(2, res.messages.len());
+
+    let undelegate_message = &res.messages[1];
+    match undelegate_message {
+        CosmosMsg::Staking(StakingMsg::Undelegate {
+            validator: val,
+            amount,
+        }) => {
+            assert_eq!(&validator.address, val);
+            assert_eq!(amount.amount, Uint128(178));
+        }
+        _ => panic!("Unexpected message: {:?}", mint_msg),
+    }
 }
 
 pub fn set_pool_info<S: Storage>(
