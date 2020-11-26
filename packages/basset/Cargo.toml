@@ -1,0 +1,27 @@
+[package]
+name = "basset"
+version = "0.1.0"
+authors = ["MSNTCS <najafi@codechain.io>"]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[features]
+default = ["cranelift"]
+# for quicker tests, cargo test --lib
+# for more explicit tests, cargo test --features=backtraces
+backtraces = ["cosmwasm-std/backtraces", "cosmwasm-vm/backtraces"]
+cranelift = ["cosmwasm-vm/default-cranelift"]
+singlepass = ["cosmwasm-vm/default-singlepass"]
+
+[dependencies]
+cw20 = { version = "0.2" }
+cosmwasm-storage = { version = "0.10.1" }
+terra-cosmwasm = { version = "1.2.2" }
+cosmwasm-std = { version = "0.10.1" }
+schemars = "0.7"
+serde = { version = "1.0.103", default-features = false, features = ["derive"] }
+gov_courier = {path = "../../contracts/gov_courier" }
+
+[dev-dependencies]
+cosmwasm-vm = { version = "0.10.1", default-features = false }
