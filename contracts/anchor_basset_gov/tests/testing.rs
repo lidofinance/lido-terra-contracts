@@ -24,10 +24,11 @@ use cosmwasm_std::{
 
 use cosmwasm_std::testing::{mock_dependencies, mock_env};
 
-use anchor_bluna::msg::InitMsg;
+use anchor_basset_gov::msg::InitMsg;
 use gov_courier::{Deactivated, HandleMsg, PoolInfo, Registration};
 
-use anchor_bluna::contract::{handle, handle_burn, init, query};
+use anchor_basset_gov::burn::handle_burn;
+use anchor_basset_gov::contract::{handle, init, query};
 
 use anchor_basset_reward::contracts::init as reward_init;
 use anchor_basset_reward::init::RewardInitMsg;
@@ -48,10 +49,10 @@ use gov_courier::HandleMsg::{
 use gov_courier::Registration::{Reward, Token};
 
 mod common;
+use anchor_basset_gov::msg::QueryMsg::{ExchangeRate, GetParams};
+use anchor_basset_gov::state::Parameters;
 use anchor_basset_reward::hook::InitHook;
 use anchor_basset_reward::msg::HandleMsg::{Swap, UpdateGlobalIndex, UpdateUserIndex};
-use anchor_bluna::msg::QueryMsg::{ExchangeRate, GetParams};
-use anchor_bluna::state::Parameters;
 use common::mock_querier::{mock_dependencies as dependencies, WasmMockQuerier};
 
 const DEFAULT_VALIDATOR: &str = "default-validator";

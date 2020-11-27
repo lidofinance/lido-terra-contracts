@@ -58,7 +58,7 @@ pub fn handle<S: Storage, A: Api, Q: Querier>(
     msg: HandleMsg,
 ) -> StdResult<HandleResponse<TerraMsgWrapper>> {
     match msg {
-        HandleMsg::ClaimReward { recipient } => handle_send_reward(deps, env, recipient),
+        HandleMsg::ClaimReward { recipient } => handle_claim_rewards(deps, env, recipient),
         HandleMsg::Swap {} => handle_swap(deps, env),
         HandleMsg::UpdateGlobalIndex {} => handle_global_index(deps, env),
         HandleMsg::UpdateUserIndex { address, is_send } => {
@@ -67,7 +67,7 @@ pub fn handle<S: Storage, A: Api, Q: Querier>(
     }
 }
 
-pub fn handle_send_reward<S: Storage, A: Api, Q: Querier>(
+pub fn handle_claim_rewards<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
     env: Env,
     recipient: Option<HumanAddr>,

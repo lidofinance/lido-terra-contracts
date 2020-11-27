@@ -3,8 +3,8 @@ use std::fs::create_dir_all;
 
 use cosmwasm_schema::{export_schema, remove_schemas, schema_for};
 
-use anchor_bluna::msg::InitMsg;
-use anchor_bluna::state::GovConfig;
+use anchor_basset_gov::msg::InitMsg;
+use anchor_basset_gov::state::GovConfig;
 use gov_courier::{HandleMsg, PoolInfo};
 
 fn main() {
