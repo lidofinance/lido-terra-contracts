@@ -27,34 +27,57 @@ impl PoolInfo {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum HandleMsg {
-    /// Mint is a message to work as follows:
+    ////////////////////
+    /// User's operations
+    ////////////////////
     /// Receives `amount` Luna from sender.
     /// Delegate `amount` to a specific `validator`.
     /// Issue the same `amount` of bLuna to sender.
-    Mint {
-        validator: HumanAddr,
-    },
-    /// Update general index
+    Mint { validator: HumanAddr },
+
+    ////////////////////
+    /// User's operations
+    ////////////////////
+    /// Update global index
     UpdateGlobalIndex {},
+
+    ////////////////////
+    /// User's operations
+    ////////////////////
     /// FinishBurn is suppose to ask for liquidated luna
     FinishBurn {},
-    // Register receives the reward contract address
-    RegisterSubContracts {
-        contract: Registration,
-    },
-    // Register receives the reward contract address
-    RegisterValidator {
-        validator: HumanAddr,
-    },
+
+    ////////////////////
+    /// Owner's operations
+    ////////////////////
+    /// Register receives the reward contract address
+    RegisterSubContracts { contract: Registration },
+
+    ////////////////////
+    /// Owner's operations
+    ////////////////////
+    /// Register receives the reward contract address
+    RegisterValidator { validator: HumanAddr },
+
+    ////////////////////
+    /// Owner's operations
+    ////////////////////
     // Remove the validator from validators whitelist
-    DeRegisterValidator {
-        validator: HumanAddr,
-    },
-    //Receive interface for send token
+    DeRegisterValidator { validator: HumanAddr },
+
+    /// (internal) Receive interface for send token
     Receive(Cw20ReceiveMsg),
-    //check whether the slashing has happened or not
+
+    ////////////////////
+    /// User's operations
+    ////////////////////
+    /// check whether the slashing has happened or not
     ReportSlashing {},
-    //update the parameters that is needed for the contract
+
+    ////////////////////
+    /// Owner's operations
+    ////////////////////
+    /// update the parameters that is needed for the contract
     UpdateParams {
         epoch_time: u64,
         coin_denom: String,
@@ -62,9 +85,12 @@ pub enum HandleMsg {
         peg_recovery_fee: Decimal,
         er_threshold: Decimal,
     },
-    DeactivateMsg {
-        msg: Deactivated,
-    },
+
+    ////////////////////
+    /// Owner's operations
+    ////////////////////
+    /// switch of the message
+    DeactivateMsg { msg: Deactivated },
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

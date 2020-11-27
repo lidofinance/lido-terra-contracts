@@ -16,6 +16,26 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ee2a4ec343196209d6594e19543ae87a39f96d5534d7174822a3ad825dd6ed7e"
 
 [[package]]
+name = "anchor_basset_gov"
+version = "0.1.0"
+dependencies = [
+ "anchor_basset_reward",
+ "anchor_basset_token",
+ "basset",
+ "cosmwasm-schema 0.10.1",
+ "cosmwasm-std",
+ "cosmwasm-storage",
+ "cosmwasm-vm",
+ "cw20",
+ "gov_courier",
+ "rand",
+ "schemars",
+ "serde",
+ "snafu",
+ "terra-cosmwasm",
+]
+
+[[package]]
 name = "anchor_basset_reward"
 version = "0.1.0"
 dependencies = [
@@ -44,26 +64,6 @@ dependencies = [
  "schemars",
  "serde",
  "snafu",
-]
-
-[[package]]
-name = "anchor_bluna"
-version = "0.1.0"
-dependencies = [
- "anchor_basset_reward",
- "anchor_basset_token",
- "basset",
- "cosmwasm-schema 0.10.1",
- "cosmwasm-std",
- "cosmwasm-storage",
- "cosmwasm-vm",
- "cw20",
- "gov_courier",
- "rand",
- "schemars",
- "serde",
- "snafu",
- "terra-cosmwasm",
 ]
 
 [[package]]

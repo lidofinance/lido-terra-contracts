@@ -1,3 +1,6 @@
+use anchor_basset_gov::contract::{handle, init};
+use anchor_basset_gov::msg::InitMsg;
+use anchor_basset_gov::state::POOL_INFO;
 use anchor_basset_reward::contracts::{
     handle as reward_handle, init as reward_init, query as reward_query,
 };
@@ -10,9 +13,6 @@ use anchor_basset_token::msg::HandleMsg::{Burn, Mint, Send, Transfer};
 use anchor_basset_token::msg::TokenInitMsg;
 use anchor_basset_token::state::MinterData;
 use anchor_basset_token::state::TokenInfo as TokenConfig;
-use anchor_bluna::contract::{handle, init};
-use anchor_bluna::msg::InitMsg;
-use anchor_bluna::state::POOL_INFO;
 use cosmwasm_std::testing::{mock_env, MOCK_CONTRACT_ADDR};
 use cosmwasm_std::{
     coin, from_binary, to_binary, Api, BankMsg, CanonicalAddr, CosmosMsg, Decimal, Extern,

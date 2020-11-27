@@ -1,3 +1,4 @@
+pub mod burn;
 pub mod config;
 pub mod contract;
 pub mod math;
