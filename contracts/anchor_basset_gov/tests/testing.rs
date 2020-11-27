@@ -49,7 +49,7 @@ use gov_courier::Registration::{Reward, Token};
 
 mod common;
 use anchor_basset_reward::hook::InitHook;
-use anchor_basset_reward::msg::HandleMsg::{ClaimReward, Swap, UpdateGlobalIndex};
+use anchor_basset_reward::msg::HandleMsg::{Swap, UpdateGlobalIndex, UpdateUserIndex};
 use anchor_bluna::msg::QueryMsg::{ExchangeRate, GetParams};
 use anchor_bluna::state::Parameters;
 use common::mock_querier::{mock_dependencies as dependencies, WasmMockQuerier};
@@ -639,8 +639,13 @@ pub fn proper_init_burn() {
     let env = mock_env(&bob, &[coin(10, "uluna")]);
 
     //set bob's balance to 10 in token contract
-    deps.querier
-        .with_token_balances(&[(&HumanAddr::from("token"), &[(&bob, &Uint128(10u128))])]);
+    deps.querier.with_token_balances(&[(
+        &HumanAddr::from("token"),
+        &[
+            (&bob, &Uint128(10u128)),
+            (&HumanAddr::from("governance"), &Uint128(0)),
+        ],
+    )]);
 
     let res = handle(&mut deps, env, mint_msg).unwrap();
     assert_eq!(2, res.messages.len());
@@ -670,7 +675,7 @@ pub fn proper_init_burn() {
     //invalid zero
     let burn = InitBurn {};
     let receive = Receive(Cw20ReceiveMsg {
-        sender: token_contract.clone(),
+        sender: bob.clone(),
         amount: Uint128(0),
         msg: Some(to_binary(&burn).unwrap()),
     });
@@ -684,7 +689,7 @@ pub fn proper_init_burn() {
     //successful call
     let burn = InitBurn {};
     let receive = Receive(Cw20ReceiveMsg {
-        sender: token_contract.clone(),
+        sender: bob.clone(),
         amount: Uint128(5),
         msg: Some(to_binary(&burn).unwrap()),
     });
@@ -709,11 +714,7 @@ pub fn proper_init_burn() {
     let underflow_error = token_handle(&mut deps, gov_env, burn.clone());
     assert_eq!(
         underflow_error.unwrap_err(),
-        StdError::Underflow {
-            minuend: "0".to_string(),
-            subtrahend: "5".to_string(),
-            backtrace: None
-        }
+        StdError::generic_err("Sender does not have any cw20 token yet")
     );
 
     //mint for governance contract first
@@ -755,8 +756,9 @@ pub fn proper_init_burn() {
             assert_eq!(contract_addr.0, "reward");
             assert_eq!(
                 msg,
-                &to_binary(&ClaimReward {
-                    recipient: Some(HumanAddr::from(MOCK_CONTRACT_ADDR))
+                &to_binary(&UpdateUserIndex {
+                    address: HumanAddr::from(MOCK_CONTRACT_ADDR),
+                    is_send: Some(Uint128(15))
                 })
                 .unwrap()
             )
@@ -770,6 +772,11 @@ pub fn proper_init_burn() {
     let query_balance: BalanceResponse =
         from_binary(&token_query(&deps, balance).unwrap()).unwrap();
     assert_eq!(query_balance.balance, Uint128(10));
+
+    let balance = Balance { address: bob };
+    let query_balance: BalanceResponse =
+        from_binary(&token_query(&deps, balance).unwrap()).unwrap();
+    assert_eq!(query_balance.balance, Uint128(5));
 }
 
 #[test]
