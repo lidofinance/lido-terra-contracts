@@ -233,6 +233,11 @@ pub fn handle_global_index<S: Storage, A: Api, Q: Querier>(
 
     prev_balance(&mut deps.storage).save(&balance.amount)?;
 
+    //error if there is no reward yet
+    if claimed_reward.is_zero() {
+        return Err(StdError::generic_err("There is no reward yet"));
+    }
+
     //update the global index
     index_store(&mut deps.storage).update(|mut index| {
         index.global_index = index
