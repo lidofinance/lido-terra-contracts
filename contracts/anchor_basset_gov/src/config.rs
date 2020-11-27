@@ -3,7 +3,6 @@ use cosmwasm_std::{
     log, Api, Decimal, Env, Extern, HandleResponse, Querier, StdError, StdResult, Storage,
 };
 use gov_courier::Deactivated;
-use terra_cosmwasm::TerraMsgWrapper;
 
 pub fn handle_update_params<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
@@ -13,7 +12,7 @@ pub fn handle_update_params<S: Storage, A: Api, Q: Querier>(
     undelegated_epoch: u64,
     peg_recovery_fee: Decimal,
     er_threshold: Decimal,
-) -> StdResult<HandleResponse<TerraMsgWrapper>> {
+) -> StdResult<HandleResponse> {
     let config = config_read(&deps.storage).load()?;
     let sender_raw = deps.api.canonical_address(&env.message.sender)?;
     if sender_raw != config.creator {
@@ -40,7 +39,7 @@ pub fn handle_deactivate<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
     env: Env,
     msg: Deactivated,
-) -> StdResult<HandleResponse<TerraMsgWrapper>> {
+) -> StdResult<HandleResponse> {
     let config = config_read(&deps.storage).load()?;
     let sender_raw = deps.api.canonical_address(&env.message.sender)?;
     if sender_raw != config.creator {

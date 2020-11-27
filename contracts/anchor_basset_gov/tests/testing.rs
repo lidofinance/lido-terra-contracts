@@ -896,11 +896,6 @@ pub fn proper_slashing() {
 #[test]
 pub fn proper_finish() {
     let mut deps = dependencies(20, &[]);
-    //add tax
-    deps.querier.with_tax(
-        Decimal::percent(1),
-        &[(&"uluna".to_string(), &Uint128::from(1000000u128))],
-    );
 
     let validator = sample_validator(DEFAULT_VALIDATOR);
     set_validator_mock(&mut deps.querier);
@@ -985,7 +980,7 @@ pub fn proper_finish() {
             assert_eq!(to_address, &bob);
             // 1 would be deducted as tax.
             // the result is 10 - 1 => 9
-            assert_eq!(amount[0].amount, Uint128(9))
+            assert_eq!(amount[0].amount, Uint128(10))
         }
 
         _ => panic!("Unexpected message: {:?}", sent_message),
