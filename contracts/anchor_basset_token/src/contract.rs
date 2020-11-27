@@ -11,7 +11,7 @@ use crate::allowances::{
 use crate::enumerable::{query_all_accounts, query_all_allowances};
 use crate::msg::{HandleMsg, QueryMsg, TokenInitMsg};
 use crate::state::{balances, balances_read, token_info, token_info_read, MinterData, TokenInfo};
-use anchor_basset_reward::msg::HandleMsg::{ClaimReward, UpdateUserIndex};
+use anchor_basset_reward::msg::HandleMsg::UpdateUserIndex;
 use cosmwasm_storage::to_length_prefixed;
 use gov_courier::PoolInfo;
 
@@ -396,15 +396,28 @@ pub fn update_index<S: Storage, A: Api, Q: Querier>(
 
     let reward_address = query_reward(&deps).unwrap();
 
-    //this will update the sender index
-    let send_reward = ClaimReward {
-        recipient: Some(sender),
-    };
-    messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
-        contract_addr: reward_address.clone(),
-        msg: to_binary(&send_reward).unwrap(),
-        send: vec![],
-    }));
+    //update the index of the sender and send the reward to pending reward.
+    let sender_raw = deps.api.canonical_address(&sender).unwrap();
+    let sender_balance = balances_read(&deps.storage)
+        .load(sender_raw.as_slice())
+        .unwrap_or_default();
+    if sender_balance.is_zero() {
+        return Err(StdError::generic_err(
+            "Sender does not have any cw20 token yet",
+        ));
+    }
+    if !sender_balance.is_zero() {
+        let update_sender_index = UpdateUserIndex {
+            address: sender,
+            is_send: Some(sender_balance),
+        };
+
+        messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
+            contract_addr: reward_address.clone(),
+            msg: to_binary(&update_sender_index).unwrap(),
+            send: vec![],
+        }));
+    }
 
     if receiver.is_some() {
         let receiver_raw = deps

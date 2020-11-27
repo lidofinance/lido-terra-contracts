@@ -5,7 +5,7 @@ use cosmwasm_std::{
 };
 
 mod common;
-use anchor_basset_reward::msg::HandleMsg::{ClaimReward, UpdateUserIndex};
+use anchor_basset_reward::msg::HandleMsg::UpdateUserIndex;
 use anchor_basset_token::allowances::query_allowance;
 use anchor_basset_token::contract::{
     handle, init, query, query_balance, query_minter, query_token_info,
@@ -367,8 +367,8 @@ fn transfer() {
 
     let res = handle(&mut deps, env, msg).unwrap();
     assert_eq!(res.messages.len(), 2);
-    let claim_reward = &res.messages[0];
-    match claim_reward {
+    let update_addr1_index = &res.messages[0];
+    match update_addr1_index {
         CosmosMsg::Wasm(WasmMsg::Execute {
             contract_addr,
             msg,
@@ -377,17 +377,18 @@ fn transfer() {
             assert_eq!(contract_addr, &HumanAddr::from("reward"));
             assert_eq!(
                 msg,
-                &to_binary(&ClaimReward {
-                    recipient: Some(addr1.clone())
+                &to_binary(&UpdateUserIndex {
+                    address: addr1.clone(),
+                    is_send: Some(amount1)
                 })
                 .unwrap()
             )
         }
-        _ => panic!("Unexpected message: {:?}", claim_reward),
+        _ => panic!("Unexpected message: {:?}", update_addr1_index),
     }
 
-    let claim_reward = &res.messages[1];
-    match claim_reward {
+    let updat_user_index = &res.messages[1];
+    match updat_user_index {
         CosmosMsg::Wasm(WasmMsg::Execute {
             contract_addr,
             msg,
@@ -403,7 +404,7 @@ fn transfer() {
                 .unwrap()
             )
         }
-        _ => panic!("Unexpected message: {:?}", claim_reward),
+        _ => panic!("Unexpected message: {:?}", updat_user_index),
     }
 
     let remainder = (amount1 - transfer).unwrap();
@@ -564,8 +565,9 @@ fn send() {
         res.messages[0],
         CosmosMsg::Wasm(WasmMsg::Execute {
             contract_addr: HumanAddr::from("reward"),
-            msg: to_binary(&ClaimReward {
-                recipient: Some(addr1.clone())
+            msg: to_binary(&UpdateUserIndex {
+                address: addr1.clone(),
+                is_send: Some(amount1)
             })
             .unwrap(),
             send: vec![]
