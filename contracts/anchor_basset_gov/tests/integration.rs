@@ -463,7 +463,7 @@ pub fn integrated_transfer() {
     let mut deps = dependencies(20, &[]);
 
     //add tax
-    deps.querier.with_tax(
+    deps.querier._with_tax(
         Decimal::percent(1),
         &[(&"uusd".to_string(), &Uint128::from(1000000u128))],
     );
@@ -590,7 +590,7 @@ pub fn integrated_send() {
     let mut deps = dependencies(20, &[]);
 
     //add tax
-    deps.querier.with_tax(
+    deps.querier._with_tax(
         Decimal::percent(1),
         &[(&"uusd".to_string(), &Uint128::from(1000000u128))],
     );
@@ -693,7 +693,7 @@ pub fn integrated_burn() {
     let mut deps = dependencies(20, &[]);
 
     //add tax
-    deps.querier.with_tax(
+    deps.querier._with_tax(
         Decimal::percent(1),
         &[(&"uusd".to_string(), &Uint128::from(1000000u128))],
     );

@@ -1,6 +1,6 @@
 use cosmwasm_std::{
-    coin, from_binary, log, to_binary, Api, BankMsg, Binary, Coin, CosmosMsg, Decimal, Env, Extern,
-    HandleResponse, HumanAddr, InitResponse, Querier, QueryRequest, StakingMsg, StdError,
+    coin, coins, from_binary, log, to_binary, Api, BankMsg, Binary, CosmosMsg, Decimal, Env,
+    Extern, HandleResponse, HumanAddr, InitResponse, Querier, QueryRequest, StakingMsg, StdError,
     StdResult, Storage, Uint128, WasmMsg, WasmQuery,
 };
 
@@ -20,14 +20,12 @@ use anchor_basset_reward::init::RewardInitMsg;
 use anchor_basset_reward::msg::HandleMsg::{Swap, UpdateGlobalIndex};
 use anchor_basset_token::msg::{TokenInitHook, TokenInitMsg};
 use anchor_basset_token::state::TokenInfo;
-use basset::deduct_tax;
 use cosmwasm_storage::to_length_prefixed;
 use cw20::{Cw20CoinHuman, Cw20HandleMsg, Cw20ReceiveMsg, MinterResponse};
 use gov_courier::PoolInfo;
 use gov_courier::Registration;
 use gov_courier::{Cw20HookMsg, HandleMsg};
 use rand::{Rng, SeedableRng, XorShiftRng};
-use terra_cosmwasm::TerraMsgWrapper;
 
 const DECIMALS: u8 = 6;
 
@@ -133,7 +131,7 @@ pub fn handle<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
     env: Env,
     msg: HandleMsg,
-) -> StdResult<HandleResponse<TerraMsgWrapper>> {
+) -> StdResult<HandleResponse> {
     match msg {
         HandleMsg::Receive(msg) => receive_cw20(deps, env, msg),
         HandleMsg::Mint { validator } => handle_mint(deps, env, validator),
@@ -170,7 +168,7 @@ pub fn receive_cw20<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
     env: Env,
     cw20_msg: Cw20ReceiveMsg,
-) -> StdResult<HandleResponse<TerraMsgWrapper>> {
+) -> StdResult<HandleResponse> {
     let contract_addr = env.message.sender.clone();
 
     if let Some(msg) = cw20_msg.msg {
@@ -193,7 +191,7 @@ pub fn handle_mint<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
     env: Env,
     validator: HumanAddr,
-) -> StdResult<HandleResponse<TerraMsgWrapper>> {
+) -> StdResult<HandleResponse> {
     let is_valid = is_valid_validator(&deps.storage, validator.clone())?;
     if !is_valid {
         return Err(StdError::generic_err("Unsupported validator"));
@@ -236,7 +234,7 @@ pub fn handle_mint<S: Storage, A: Api, Q: Querier>(
 
     pool_info(&mut deps.storage).save(&pool)?;
 
-    let mut messages: Vec<CosmosMsg<TerraMsgWrapper>> = vec![];
+    let mut messages: Vec<CosmosMsg> = vec![];
 
     // Issue the bluna token for sender
     let mint_msg = Cw20HandleMsg::Mint {
@@ -244,14 +242,11 @@ pub fn handle_mint<S: Storage, A: Api, Q: Querier>(
         amount: amount_with_exchange_rate,
     };
     let token_address = deps.api.human_address(&pool.token_account)?;
-    messages.push(
-        WasmMsg::Execute {
-            contract_addr: token_address,
-            msg: to_binary(&mint_msg)?,
-            send: vec![],
-        }
-        .into(),
-    );
+    messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
+        contract_addr: token_address,
+        msg: to_binary(&mint_msg)?,
+        send: vec![],
+    }));
 
     //delegate the amount
     messages.push(CosmosMsg::Staking(StakingMsg::Delegate {
@@ -281,8 +276,8 @@ pub fn handle_mint<S: Storage, A: Api, Q: Querier>(
 pub fn handle_update_global<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
     env: Env,
-) -> StdResult<HandleResponse<TerraMsgWrapper>> {
-    let mut messages: Vec<CosmosMsg<TerraMsgWrapper>> = vec![];
+) -> StdResult<HandleResponse> {
+    let mut messages: Vec<CosmosMsg> = vec![];
 
     let pool = pool_info_read(&deps.storage).load()?;
     let reward_addr = deps.api.human_address(&pool.reward_account)?;
@@ -325,10 +320,10 @@ pub fn handle_update_global<S: Storage, A: Api, Q: Querier>(
 }
 
 //create withdraw requests for all validators
-fn withdraw_all_rewards(validators: Vec<HumanAddr>) -> Vec<CosmosMsg<TerraMsgWrapper>> {
-    let mut messages: Vec<CosmosMsg<TerraMsgWrapper>> = vec![];
+fn withdraw_all_rewards(validators: Vec<HumanAddr>) -> Vec<CosmosMsg> {
+    let mut messages: Vec<CosmosMsg> = vec![];
     for val in validators {
-        let msg: CosmosMsg<TerraMsgWrapper> = CosmosMsg::Staking(StakingMsg::Withdraw {
+        let msg: CosmosMsg = CosmosMsg::Staking(StakingMsg::Withdraw {
             validator: val,
             recipient: None,
         });
@@ -342,7 +337,7 @@ pub fn handle_burn<S: Storage, A: Api, Q: Querier>(
     env: Env,
     amount: Uint128,
     sender: HumanAddr,
-) -> StdResult<HandleResponse<TerraMsgWrapper>> {
+) -> StdResult<HandleResponse> {
     //read msg_status
     let msg_status = msg_status_read(&deps.storage).load()?;
     if msg_status.burn.is_some() {
@@ -365,7 +360,7 @@ pub fn handle_burn<S: Storage, A: Api, Q: Querier>(
     // get all amount that is gathered in a epoch.
     let mut undelegated_so_far = read_total_amount(&deps.storage, epoch.epoch_id)?;
 
-    let mut messages: Vec<CosmosMsg<TerraMsgWrapper>> = vec![];
+    let mut messages: Vec<CosmosMsg> = vec![];
 
     //update pool info and calculate the new exchange rate.
     if msg_status.slashing.is_none() {
@@ -472,7 +467,7 @@ pub fn handle_burn<S: Storage, A: Api, Q: Querier>(
 pub fn handle_finish<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
     env: Env,
-) -> StdResult<HandleResponse<TerraMsgWrapper>> {
+) -> StdResult<HandleResponse> {
     //read params
     let params = parameters_read(&deps.storage).load()?;
     let epoch_time = params.epoch_time;
@@ -517,13 +512,7 @@ pub fn handle_finish<S: Storage, A: Api, Q: Querier>(
     let msgs = vec![BankMsg::Send {
         from_address: contract_address.clone(),
         to_address: sender_human,
-        amount: vec![deduct_tax(
-            &deps,
-            Coin {
-                denom: coin_denom,
-                amount: final_amount,
-            },
-        )?],
+        amount: coins(final_amount.u128(), &*coin_denom),
     }
     .into()];
 
@@ -551,9 +540,9 @@ pub fn handle_register_contracts<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
     env: Env,
     contract: Registration,
-) -> StdResult<HandleResponse<TerraMsgWrapper>> {
+) -> StdResult<HandleResponse> {
     let raw_sender = deps.api.canonical_address(&env.message.sender)?;
-    let mut messages: Vec<CosmosMsg<TerraMsgWrapper>> = vec![];
+    let mut messages: Vec<CosmosMsg> = vec![];
     match contract {
         Registration::Reward => {
             let mut pool = pool_info_read(&deps.storage).load()?;
@@ -564,7 +553,7 @@ pub fn handle_register_contracts<S: Storage, A: Api, Q: Querier>(
             pool.is_reward_exist = true;
             pool_info(&mut deps.storage).save(&pool)?;
 
-            let msg: CosmosMsg<TerraMsgWrapper> = CosmosMsg::Staking(StakingMsg::Withdraw {
+            let msg: CosmosMsg = CosmosMsg::Staking(StakingMsg::Withdraw {
                 validator: HumanAddr::default(),
                 recipient: Some(deps.api.human_address(&raw_sender)?),
             });
@@ -593,7 +582,7 @@ pub fn handle_reg_validator<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
     env: Env,
     validator: HumanAddr,
-) -> StdResult<HandleResponse<TerraMsgWrapper>> {
+) -> StdResult<HandleResponse> {
     let gov_conf = config_read(&deps.storage).load()?;
 
     let sender_raw = deps.api.canonical_address(&env.message.sender)?;
@@ -628,7 +617,7 @@ pub fn handle_dereg_validator<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
     env: Env,
     validator: HumanAddr,
-) -> StdResult<HandleResponse<TerraMsgWrapper>> {
+) -> StdResult<HandleResponse> {
     let token = config_read(&deps.storage).load()?;
 
     let sender_raw = deps.api.canonical_address(&env.message.sender)?;
@@ -645,7 +634,7 @@ pub fn handle_dereg_validator<S: Storage, A: Api, Q: Querier>(
         .unwrap();
     let delegated_amount = query.amount;
 
-    let mut messages: Vec<CosmosMsg<TerraMsgWrapper>> = vec![];
+    let mut messages: Vec<CosmosMsg> = vec![];
     let validators = read_validators(&deps.storage)?;
 
     //redelegate the amount to a random validator.
@@ -711,7 +700,7 @@ pub fn slashing<S: Storage, A: Api, Q: Querier>(
 pub fn handle_slashing<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
     env: Env,
-) -> StdResult<HandleResponse<TerraMsgWrapper>> {
+) -> StdResult<HandleResponse> {
     //read msg_status
     let msg_status = msg_status_read(&deps.storage).load()?;
     if msg_status.slashing.is_some() {
@@ -729,12 +718,12 @@ fn pick_validator<S: Storage, A: Api, Q: Querier>(
     claim: Uint128,
     delegator: HumanAddr,
     block_height: u64,
-) -> StdResult<Vec<CosmosMsg<TerraMsgWrapper>>> {
+) -> StdResult<Vec<CosmosMsg>> {
     //read params
     let params = parameters_read(&deps.storage).load()?;
     let coin_denom = params.supported_coin_denom;
 
-    let mut messages: Vec<CosmosMsg<TerraMsgWrapper>> = vec![];
+    let mut messages: Vec<CosmosMsg> = vec![];
     let mut claimed = claim;
     let mut rng = XorShiftRng::seed_from_u64(block_height);
 
@@ -756,7 +745,7 @@ fn pick_validator<S: Storage, A: Api, Q: Querier>(
             undelegated_amount = val;
             claimed = Uint128(claimed.0 - val.0);
         }
-        let msgs: CosmosMsg<TerraMsgWrapper> = CosmosMsg::Staking(StakingMsg::Undelegate {
+        let msgs: CosmosMsg = CosmosMsg::Staking(StakingMsg::Undelegate {
             validator,
             amount: coin(undelegated_amount.0, &*coin_denom),
         });

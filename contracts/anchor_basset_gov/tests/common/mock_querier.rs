@@ -38,15 +38,15 @@ pub struct TaxQuerier {
 }
 
 impl TaxQuerier {
-    pub fn new(rate: Decimal, caps: &[(&String, &Uint128)]) -> Self {
+    pub fn _new(rate: Decimal, caps: &[(&String, &Uint128)]) -> Self {
         TaxQuerier {
             rate,
-            caps: caps_to_map(caps),
+            caps: _caps_to_map(caps),
         }
     }
 }
 
-pub(crate) fn caps_to_map(caps: &[(&String, &Uint128)]) -> HashMap<String, Uint128> {
+pub(crate) fn _caps_to_map(caps: &[(&String, &Uint128)]) -> HashMap<String, Uint128> {
     let mut owner_map: HashMap<String, Uint128> = HashMap::new();
     for (denom, cap) in caps.iter() {
         owner_map.insert(denom.to_string(), **cap);
@@ -291,7 +291,7 @@ impl WasmMockQuerier {
     }
 
     // configure the tax mock querier
-    pub fn with_tax(&mut self, rate: Decimal, caps: &[(&String, &Uint128)]) {
-        self.tax_querier = TaxQuerier::new(rate, caps);
+    pub fn _with_tax(&mut self, rate: Decimal, caps: &[(&String, &Uint128)]) {
+        self.tax_querier = TaxQuerier::_new(rate, caps);
     }
 }
