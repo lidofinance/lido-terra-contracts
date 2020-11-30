@@ -84,6 +84,7 @@ pub enum HandleMsg {
         undelegated_epoch: u64,
         peg_recovery_fee: Decimal,
         er_threshold: Decimal,
+        swap_denom: Option<String>,
     },
 
     ////////////////////

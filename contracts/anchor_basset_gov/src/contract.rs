@@ -150,6 +150,7 @@ pub fn handle<S: Storage, A: Api, Q: Querier>(
             undelegated_epoch,
             peg_recovery_fee,
             er_threshold,
+            swap_denom,
         } => handle_update_params(
             deps,
             env,
@@ -158,6 +159,7 @@ pub fn handle<S: Storage, A: Api, Q: Querier>(
             undelegated_epoch,
             peg_recovery_fee,
             er_threshold,
+            swap_denom,
         ),
         HandleMsg::DeactivateMsg { msg } => handle_deactivate(deps, env, msg),
     }

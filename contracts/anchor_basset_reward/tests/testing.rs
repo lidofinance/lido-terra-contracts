@@ -17,7 +17,7 @@
 //!      });
 //! 4. Anywhere you see query(&deps, ...) you must replace it with query(&mut deps, ...)
 
-use cosmwasm_std::{coin, Api, CanonicalAddr, HumanAddr};
+use cosmwasm_std::{Api, CanonicalAddr, HumanAddr, StdError};
 
 use cosmwasm_std::testing::{mock_dependencies, mock_env};
 
@@ -26,6 +26,7 @@ use anchor_basset_reward::init::RewardInitMsg;
 use anchor_basset_reward::contracts::{handle, init};
 
 use anchor_basset_reward::msg::HandleMsg;
+use anchor_basset_reward::msg::HandleMsg::UpdateParams;
 
 fn default_init(owner: CanonicalAddr) -> RewardInitMsg {
     RewardInitMsg {
@@ -41,7 +42,7 @@ pub fn proper_init() {
     let owner_raw = deps.api.canonical_address(&owner).unwrap();
     let init_msg = default_init(owner_raw);
 
-    let env = mock_env("addr0000", &[]);
+    let env = mock_env("owner", &[]);
 
     let res = init(&mut deps, env, init_msg).unwrap();
     assert_eq!(0, res.messages.len());
@@ -54,15 +55,56 @@ pub fn proper_swap() {
     let owner_raw = deps.api.canonical_address(&owner).unwrap();
     let init_msg = default_init(owner_raw);
 
-    let env = mock_env("addr0000", &[]);
+    let env = mock_env(owner, &[]);
 
     let res = init(&mut deps, env, init_msg).unwrap();
     assert_eq!(0, res.messages.len());
 
-    let env = mock_env(&owner, &[coin(10, "uluna"), coin(1000, "uluna")]);
+    let update_params = UpdateParams {
+        swap_denom: "uusd".to_string(),
+    };
 
+    let owner = HumanAddr::from("owner");
+    let env = mock_env(&owner, &[]);
+
+    let res = handle(&mut deps, env, update_params).unwrap();
+    assert_eq!(0, res.messages.len());
+
+    let env = mock_env(&owner, &[]);
     let msg = HandleMsg::Swap {};
 
     let res = handle(&mut deps, env, msg).unwrap();
+    assert_eq!(0, res.messages.len());
+}
+
+#[test]
+pub fn proper_update_params() {
+    let mut deps = mock_dependencies(20, &[]);
+    let owner = HumanAddr::from("owner");
+    let owner_raw = deps.api.canonical_address(&owner).unwrap();
+    let init_msg = default_init(owner_raw);
+    let env = mock_env(owner, &[]);
+    let res = init(&mut deps, env, init_msg).unwrap();
+    assert_eq!(0, res.messages.len());
+
+    //send an invalid user
+    let update_params = UpdateParams {
+        swap_denom: "uusd".to_string(),
+    };
+
+    let fake = HumanAddr::from("invalid");
+    let env = mock_env(&fake, &[]);
+
+    let res = handle(&mut deps, env, update_params);
+    assert_eq!(res.unwrap_err(), StdError::unauthorized());
+
+    let update_params = UpdateParams {
+        swap_denom: "uusd".to_string(),
+    };
+
+    let owner = HumanAddr::from("owner");
+    let env = mock_env(&owner, &[]);
+
+    let res = handle(&mut deps, env, update_params).unwrap();
     assert_eq!(0, res.messages.len());
 }

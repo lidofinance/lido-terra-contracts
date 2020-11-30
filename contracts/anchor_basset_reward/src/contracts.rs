@@ -1,8 +1,9 @@
 use crate::init::RewardInitMsg;
 use crate::msg::{HandleMsg, QueryMsg, TokenInfoResponse};
 use crate::state::{
-    config, config_read, index_read, index_store, pending_reward_read, pending_reward_store,
-    prev_balance, prev_balance_read, read_holder_map, store_holder_map, Config, Index,
+    config, config_read, index_read, index_store, params, params_read, pending_reward_read,
+    pending_reward_store, prev_balance, prev_balance_read, read_holder_map, store_holder_map,
+    Config, Index, Parameters,
 };
 use cosmwasm_std::{
     from_binary, log, to_binary, Api, BankMsg, Binary, CanonicalAddr, Coin, CosmosMsg, Decimal,
@@ -15,8 +16,6 @@ use cosmwasm_storage::to_length_prefixed;
 use gov_courier::PoolInfo;
 use std::ops::Add;
 use terra_cosmwasm::{create_swap_msg, TerraMsgWrapper};
-
-const SWAP_DENOM: &str = "uusd";
 
 pub fn init<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
@@ -64,6 +63,7 @@ pub fn handle<S: Storage, A: Api, Q: Querier>(
         HandleMsg::UpdateUserIndex { address, is_send } => {
             handle_update_index(deps, env, address, is_send)
         }
+        HandleMsg::UpdateParams { swap_denom } => handle_update_params(deps, env, swap_denom),
     }
 }
 
@@ -131,6 +131,8 @@ pub fn handle_claim_rewards<S: Storage, A: Api, Q: Querier>(
 
         prev_balance(&mut deps.storage).update(|prev_bal| prev_bal - final_reward)?;
 
+        let swap_denom = params_read(&deps.storage).load()?.swap_denom;
+
         msgs.push(
             BankMsg::Send {
                 from_address: contr_addr.clone(),
@@ -138,7 +140,7 @@ pub fn handle_claim_rewards<S: Storage, A: Api, Q: Querier>(
                 amount: vec![deduct_tax(
                     &deps,
                     Coin {
-                        denom: SWAP_DENOM.to_string(),
+                        denom: swap_denom,
                         amount: final_reward,
                     },
                 )?],
@@ -177,14 +179,16 @@ pub fn handle_swap<S: Storage, A: Api, Q: Querier>(
     let balance = deps.querier.query_all_balances(env.contract.address)?;
     let mut msgs: Vec<CosmosMsg<TerraMsgWrapper>> = Vec::new();
 
+    let swap_denom = params_read(&deps.storage).load()?.swap_denom;
+
     for coin in balance {
-        if coin.denom == SWAP_DENOM {
+        if coin.denom == swap_denom {
             continue;
         }
         msgs.push(create_swap_msg(
             contr_addr.clone(),
             coin,
-            SWAP_DENOM.to_string(),
+            swap_denom.to_string(),
         ));
     }
 
@@ -213,10 +217,12 @@ pub fn handle_global_index<S: Storage, A: Api, Q: Querier>(
         return Err(StdError::unauthorized());
     }
 
+    let swap_denom = params_read(&deps.storage).load()?.swap_denom;
+
     //check the balance of the reward contract.
     let balance = deps
         .querier
-        .query_balance(env.contract.address, SWAP_DENOM)
+        .query_balance(env.contract.address, &*swap_denom)
         .unwrap();
 
     let total_supply = {
@@ -302,6 +308,31 @@ pub fn handle_update_index<S: Storage, A: Api, Q: Querier>(
         data: None,
     };
 
+    Ok(res)
+}
+
+pub fn handle_update_params<S: Storage, A: Api, Q: Querier>(
+    deps: &mut Extern<S, A, Q>,
+    env: Env,
+    swap_denom: String,
+) -> StdResult<HandleResponse<TerraMsgWrapper>> {
+    let config = config_read(&deps.storage).load()?;
+    let owner_human = deps.api.human_address(&config.owner)?;
+    let sender = env.message.sender;
+
+    if sender != owner_human {
+        return Err(StdError::unauthorized());
+    }
+
+    let parameter = Parameters { swap_denom };
+
+    params(&mut deps.storage).save(&parameter)?;
+
+    let res = HandleResponse {
+        messages: vec![],
+        log: vec![log("action", "update_params")],
+        data: None,
+    };
     Ok(res)
 }
 

@@ -10,6 +10,8 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 pub static CONFIG: &[u8] = b"config";
+pub static PARAMS: &[u8] = b"params";
+
 pub static INDEX: &[u8] = b"index";
 pub static PREFIX_HOLDERS_MAP: &[u8] = b"holders";
 static PENDING_REWARD: &[u8] = b"pending_reward";
@@ -20,12 +22,25 @@ pub struct Config {
     pub owner: CanonicalAddr,
 }
 
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct Parameters {
+    pub swap_denom: String,
+}
+
 pub fn config<S: Storage>(storage: &mut S) -> Singleton<S, Config> {
     singleton(storage, CONFIG)
 }
 
 pub fn config_read<S: ReadonlyStorage>(storage: &S) -> ReadonlySingleton<S, Config> {
     singleton_read(storage, CONFIG)
+}
+
+pub fn params<S: Storage>(storage: &mut S) -> Singleton<S, Parameters> {
+    singleton(storage, PARAMS)
+}
+
+pub fn params_read<S: ReadonlyStorage>(storage: &S) -> ReadonlySingleton<S, Parameters> {
+    singleton_read(storage, PARAMS)
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

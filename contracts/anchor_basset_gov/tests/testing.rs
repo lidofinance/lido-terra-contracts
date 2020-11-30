@@ -115,6 +115,7 @@ pub fn set_params<S: Storage, A: Api, Q: Querier>(mut deps: &mut Extern<S, A, Q>
         undelegated_epoch: 2,
         peg_recovery_fee: Decimal::zero(),
         er_threshold: Decimal::one(),
+        swap_denom: None,
     };
     let creator_env = mock_env(HumanAddr::from("owner1"), &[]);
     let res = handle(&mut deps, creator_env, update_prams).unwrap();
@@ -991,12 +992,14 @@ pub fn proper_finish() {
 #[test]
 pub fn test_update_params() {
     let mut deps = dependencies(20, &[]);
+    //test with no swap denom.
     let update_prams = UpdateParams {
         epoch_time: 30,
         coin_denom: "uluna".to_string(),
         undelegated_epoch: 2,
         peg_recovery_fee: Decimal::zero(),
         er_threshold: Decimal::one(),
+        swap_denom: None,
     };
     let owner = HumanAddr::from("owner1");
     let token_contract = HumanAddr::from("token");
@@ -1018,6 +1021,21 @@ pub fn test_update_params() {
     assert_eq!(query.undelegated_epoch, 2);
     assert_eq!(query.peg_recovery_fee, Decimal::zero());
     assert_eq!(query.er_threshold, Decimal::one());
+
+    //test with some swap_denom.
+    let update_prams = UpdateParams {
+        epoch_time: 30,
+        coin_denom: "uluna".to_string(),
+        undelegated_epoch: 2,
+        peg_recovery_fee: Decimal::zero(),
+        er_threshold: Decimal::one(),
+        swap_denom: Some("uusd".to_string()),
+    };
+
+    //the result must be 1
+    let creator_env = mock_env(HumanAddr::from("owner1"), &[]);
+    let res = handle(&mut deps, creator_env, update_prams).unwrap();
+    assert_eq!(res.messages.len(), 1);
 }
 
 #[test]
@@ -1082,6 +1100,7 @@ pub fn proper_recovery_fee() {
         undelegated_epoch: 2,
         peg_recovery_fee: Decimal::from_ratio(Uint128(1), Uint128(1000)),
         er_threshold: Decimal::from_ratio(Uint128(99), Uint128(100)),
+        swap_denom: None,
     };
     let owner = HumanAddr::from("owner1");
     let token_contract = HumanAddr::from("token");

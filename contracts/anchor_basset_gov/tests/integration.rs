@@ -5,7 +5,9 @@ use anchor_basset_reward::contracts::{
     handle as reward_handle, init as reward_init, query as reward_query,
 };
 use anchor_basset_reward::init::RewardInitMsg;
-use anchor_basset_reward::msg::HandleMsg::{ClaimReward, Swap, UpdateGlobalIndex, UpdateUserIndex};
+use anchor_basset_reward::msg::HandleMsg::{
+    ClaimReward, Swap, UpdateGlobalIndex, UpdateParams as UpdateRewardParams, UpdateUserIndex,
+};
 use anchor_basset_reward::msg::QueryMsg::{GetIndex, GetPending, GetUserIndex};
 use anchor_basset_reward::state::Config;
 use anchor_basset_token::contract::{handle as token_handle, init as token_init};
@@ -232,10 +234,19 @@ pub fn set_params<S: Storage, A: Api, Q: Querier>(mut deps: &mut Extern<S, A, Q>
         undelegated_epoch: 2,
         peg_recovery_fee: Decimal::zero(),
         er_threshold: Decimal::one(),
+        swap_denom: Some("uusd".to_string()),
     };
     let creator_env = mock_env(HumanAddr::from("owner1"), &[]);
     let res = handle(&mut deps, creator_env, update_prams).unwrap();
-    assert_eq!(res.messages.len(), 0);
+    assert_eq!(res.messages.len(), 1);
+
+    let reward_params = UpdateRewardParams {
+        swap_denom: "uusd".to_string(),
+    };
+
+    let owner = mock_env(HumanAddr::from(MOCK_CONTRACT_ADDR), &[]);
+    let reward_res = reward_handle(&mut deps, owner, reward_params).unwrap();
+    assert_eq!(reward_res.messages.len(), 0);
 }
 
 pub fn set_reward_config<S: Storage>(storage: &mut S, owner: CanonicalAddr) -> StdResult<()> {
