@@ -32,6 +32,12 @@ pub enum HandleMsg {
         address: HumanAddr,
         is_send: Option<Uint128>,
     },
+
+    ////////////////////
+    /// Owner's operations
+    ///////////////////
+    //Register bluna holders
+    UpdateParams { swap_denom: String },
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
