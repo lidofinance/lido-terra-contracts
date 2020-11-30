@@ -522,6 +522,7 @@ pub fn query<S: Storage, A: Api, Q: Querier>(
         QueryMsg::GetToken {} => to_binary(&query_token(&deps)?),
         QueryMsg::GetReward {} => to_binary(&query_reward(&deps)?),
         QueryMsg::GetParams {} => to_binary(&query_params(&deps)?),
+        QueryMsg::GetTotalBonded {} => to_binary(&query_total_bonded(&deps)?),
     }
 }
 
@@ -556,6 +557,12 @@ fn query_reward<S: Storage, A: Api, Q: Querier>(deps: &Extern<S, A, Q>) -> StdRe
 
 fn query_params<S: Storage, A: Api, Q: Querier>(deps: &Extern<S, A, Q>) -> StdResult<Parameters> {
     parameters_read(&deps.storage).load()
+}
+
+fn query_total_bonded<S: Storage, A: Api, Q: Querier>(
+    deps: &Extern<S, A, Q>,
+) -> StdResult<Uint128> {
+    Ok(pool_info_read(&deps.storage).load()?.total_bond_amount)
 }
 
 fn query_total_issued<S: Storage, A: Api, Q: Querier>(

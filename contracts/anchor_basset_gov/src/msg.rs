@@ -62,4 +62,5 @@ pub enum QueryMsg {
     GetToken {},
     GetReward {},
     GetParams {},
+    GetTotalBonded {},
 }
