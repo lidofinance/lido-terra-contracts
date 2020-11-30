@@ -372,11 +372,18 @@ fn query_accrued_rewards<S: Storage, A: Api, Q: Querier>(
         .api
         .human_address(&query_token_contract(&deps, owner_human)?)?;
     let user_balance = query_balance(&deps, &address, token_address)?;
-    let sender_reward_index = read_holder_map(&deps.storage, address);
+    let sender_reward_index = read_holder_map(&deps.storage, address.clone());
     if sender_reward_index.is_err() {
         return Err(StdError::generic_err("There is no user with this address"));
     }
-    calculate_reward(global_index, sender_reward_index.unwrap(), user_balance)
+    let reward = calculate_reward(global_index, sender_reward_index.unwrap(), user_balance)?;
+
+    let address_raw = deps.api.canonical_address(&address).unwrap();
+    let pending_reward = pending_reward_read(&deps.storage)
+        .load(address_raw.as_slice())
+        .unwrap_or_default();
+
+    Ok(pending_reward + reward)
 }
 
 fn query_index<S: Storage, A: Api, Q: Querier>(deps: &Extern<S, A, Q>) -> StdResult<Decimal> {
