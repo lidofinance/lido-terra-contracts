@@ -4,7 +4,6 @@ use cosmwasm_std::{
     Uint128, WasmMsg, WasmQuery,
 };
 
-use crate::burn::{handle_burn, handle_finish};
 use crate::config::{handle_deactivate, handle_update_params};
 use crate::math::{decimal_division, decimal_subtraction};
 use crate::msg::{InitMsg, QueryMsg};
@@ -14,9 +13,10 @@ use crate::state::{
     read_validators, remove_white_validators, save_epoch, set_all_delegations, set_bonded,
     store_total_amount, store_white_validators, EpochId, GovConfig, MsgStatus, Parameters,
 };
+use crate::unbond::{handle_withdraw_unbonded, handle_unbond};
 use anchor_basset_reward::hook::InitHook;
 use anchor_basset_reward::init::RewardInitMsg;
-use anchor_basset_reward::msg::HandleMsg::{Swap, UpdateGlobalIndex};
+use anchor_basset_reward::msg::HandleMsg::{SwapToRewardDenom, UpdateGlobalIndex};
 use anchor_basset_token::msg::{TokenInitHook, TokenInitMsg};
 use anchor_basset_token::state::TokenInfo;
 use cosmwasm_storage::to_length_prefixed;
@@ -69,7 +69,7 @@ pub fn init<S: Storage, A: Api, Q: Querier>(
     let mut messages: Vec<CosmosMsg> = vec![];
 
     let gov_address = env.contract.address;
-    let token_message = to_binary(&HandleMsg::RegisterSubContracts {
+    let token_message = to_binary(&HandleMsg::RegisterSubcontracts {
         contract: Registration::Token,
     })?;
 
@@ -103,7 +103,7 @@ pub fn init<S: Storage, A: Api, Q: Querier>(
     }));
 
     //instantiate reward contract
-    let reward_message = to_binary(&HandleMsg::RegisterSubContracts {
+    let reward_message = to_binary(&HandleMsg::RegisterSubcontracts {
         contract: Registration::Reward,
     })?;
     messages.push(CosmosMsg::Wasm(WasmMsg::Instantiate {
@@ -133,17 +133,17 @@ pub fn handle<S: Storage, A: Api, Q: Querier>(
 ) -> StdResult<HandleResponse> {
     match msg {
         HandleMsg::Receive(msg) => receive_cw20(deps, env, msg),
-        HandleMsg::Mint { validator } => handle_mint(deps, env, validator),
+        HandleMsg::Bond { validator } => handle_bond(deps, env, validator),
         HandleMsg::UpdateGlobalIndex {} => handle_update_global(deps, env),
-        HandleMsg::FinishBurn {} => handle_finish(deps, env),
-        HandleMsg::RegisterSubContracts { contract } => {
+        HandleMsg::WithdrawUnbonded {} => handle_withdraw_unbonded(deps, env),
+        HandleMsg::RegisterSubcontracts { contract } => {
             handle_register_contracts(deps, env, contract)
         }
         HandleMsg::RegisterValidator { validator } => handle_reg_validator(deps, env, validator),
-        HandleMsg::DeRegisterValidator { validator } => {
+        HandleMsg::DeregisterValidator { validator } => {
             handle_dereg_validator(deps, env, validator)
         }
-        HandleMsg::ReportSlashing {} => handle_slashing(deps, env),
+        HandleMsg::CheckSlashing {} => handle_slashing(deps, env),
         HandleMsg::UpdateParams {
             epoch_time,
             coin_denom,
@@ -174,13 +174,13 @@ pub fn receive_cw20<S: Storage, A: Api, Q: Querier>(
 
     if let Some(msg) = cw20_msg.msg {
         match from_binary(&msg)? {
-            Cw20HookMsg::InitBurn {} => {
+            Cw20HookMsg::Unbond {} => {
                 // only token contract can execute this message
                 let pool = pool_info_read(&deps.storage).load()?;
                 if deps.api.canonical_address(&contract_addr)? != pool.token_account {
                     return Err(StdError::unauthorized());
                 }
-                handle_burn(deps, env, cw20_msg.amount, cw20_msg.sender)
+                handle_unbond(deps, env, cw20_msg.amount, cw20_msg.sender)
             }
         }
     } else {
@@ -188,7 +188,7 @@ pub fn receive_cw20<S: Storage, A: Api, Q: Querier>(
     }
 }
 
-pub fn handle_mint<S: Storage, A: Api, Q: Querier>(
+pub fn handle_bond<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
     env: Env,
     validator: HumanAddr,
@@ -293,7 +293,7 @@ pub fn handle_update_global<S: Storage, A: Api, Q: Querier>(
     messages.append(&mut withdraw_msgs);
 
     //send Swap message to reward contract
-    let swap_msg = Swap {};
+    let swap_msg = SwapToRewardDenom {};
     messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
         contract_addr: reward_addr.clone(),
         msg: to_binary(&swap_msg).unwrap(),
@@ -517,14 +517,14 @@ pub fn query<S: Storage, A: Api, Q: Querier>(
 ) -> StdResult<Binary> {
     match msg {
         QueryMsg::ExchangeRate {} => to_binary(&query_exg_rate(&deps)?),
-        QueryMsg::WhiteListedValidators {} => to_binary(&query_white_validators(&deps)?),
+        QueryMsg::WhitelistedValidators {} => to_binary(&query_white_validators(&deps)?),
         QueryMsg::WithdrawableUnbonded { address } => {
             to_binary(&query_withdrawable_unbonded(&deps, address)?)
         }
-        QueryMsg::GetToken {} => to_binary(&query_token(&deps)?),
-        QueryMsg::GetReward {} => to_binary(&query_reward(&deps)?),
-        QueryMsg::GetParams {} => to_binary(&query_params(&deps)?),
-        QueryMsg::GetTotalBonded {} => to_binary(&query_total_bonded(&deps)?),
+        QueryMsg::TokenContract {} => to_binary(&query_token(&deps)?),
+        QueryMsg::RewardContract {} => to_binary(&query_reward(&deps)?),
+        QueryMsg::Parameters {} => to_binary(&query_params(&deps)?),
+        QueryMsg::TotalBonded {} => to_binary(&query_total_bonded(&deps)?),
     }
 }
 

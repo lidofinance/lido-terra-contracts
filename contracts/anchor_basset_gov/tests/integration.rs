@@ -6,9 +6,10 @@ use anchor_basset_reward::contracts::{
 };
 use anchor_basset_reward::init::RewardInitMsg;
 use anchor_basset_reward::msg::HandleMsg::{
-    ClaimReward, Swap, UpdateGlobalIndex, UpdateParams as UpdateRewardParams, UpdateUserIndex,
+    ClaimRewards, SwapToRewardDenom, UpdateGlobalIndex, UpdateParams as UpdateRewardParams,
+    UpdateUserIndex,
 };
-use anchor_basset_reward::msg::QueryMsg::{GetIndex, GetPending, GetUserIndex};
+use anchor_basset_reward::msg::QueryMsg::{GlobalIndex, PendingRewards, UserIndex};
 use anchor_basset_reward::state::Config;
 use anchor_basset_token::contract::{handle as token_handle, init as token_init};
 use anchor_basset_token::msg::HandleMsg::{Burn, Mint, Send, Transfer};
@@ -64,11 +65,11 @@ pub fn init_all<S: Storage, A: Api, Q: Querier>(
     let token_int = default_token(gov_address.clone(), owner);
     token_init(&mut deps, gov_env, token_int).unwrap();
 
-    let register_msg = HandleMsg::RegisterSubContracts { contract: Reward };
+    let register_msg = HandleMsg::RegisterSubcontracts { contract: Reward };
     let register_env = mock_env(reward_contract, &[]);
     handle(&mut deps, register_env, register_msg).unwrap();
 
-    let register_msg = HandleMsg::RegisterSubContracts { contract: Token };
+    let register_msg = HandleMsg::RegisterSubcontracts { contract: Token };
     let register_env = mock_env(token_contract, &[]);
     handle(&mut deps, register_env, register_msg).unwrap();
 
@@ -76,7 +77,7 @@ pub fn init_all<S: Storage, A: Api, Q: Querier>(
     set_token_info(&mut deps.storage, gov_address).unwrap();
 }
 
-pub fn do_mint<S: Storage, A: Api, Q: Querier>(
+pub fn do_bond<S: Storage, A: Api, Q: Querier>(
     mut deps: &mut Extern<S, A, Q>,
     addr: HumanAddr,
     amount: Uint128,
@@ -93,12 +94,12 @@ pub fn do_mint<S: Storage, A: Api, Q: Querier>(
     let res = handle(&mut deps, owner_env, msg).unwrap();
     assert_eq!(0, res.messages.len());
 
-    let mint = HandleMsg::Mint {
+    let bond = HandleMsg::Bond {
         validator: validator.address,
     };
 
     let env = mock_env(&addr, &[coin(amount.0, "uluna")]);
-    let _res = handle(&mut deps, env, mint);
+    let _res = handle(&mut deps, env, bond);
     let msg = Mint {
         recipient: addr.clone(),
         amount,
@@ -176,7 +177,7 @@ pub fn reward_update_global<S: Storage, A: Api, Q: Querier>(
     let reward_update = reward_handle(deps, env, update_global_index).unwrap();
     assert_eq!(reward_update.messages.len(), 0);
 
-    let query = GetIndex {};
+    let query = GlobalIndex {};
     let qry = reward_query(&deps, query).unwrap();
     let res: Decimal = from_binary(&qry).unwrap();
     assert_eq!(res.to_string(), expected_res);
@@ -334,7 +335,7 @@ fn send_update_global_index() {
     assert_eq!(0, res.messages.len());
 
     let bob = HumanAddr::from("bob");
-    let mint_msg = HandleMsg::Mint {
+    let bond_msg = HandleMsg::Bond {
         validator: validator.address.clone(),
     };
 
@@ -344,7 +345,7 @@ fn send_update_global_index() {
     deps.querier
         .with_token_balances(&[(&HumanAddr::from("token"), &[(&bob, &Uint128(10u128))])]);
 
-    let res = handle(&mut deps, env, mint_msg).unwrap();
+    let res = handle(&mut deps, env, bond_msg).unwrap();
     assert_eq!(2, res.messages.len());
 
     let token_mint = Mint {
@@ -381,7 +382,7 @@ fn send_update_global_index() {
             send: _,
         }) => {
             assert_eq!(contract_addr, &reward_contract);
-            assert_eq!(msg, &to_binary(&Swap {}).unwrap())
+            assert_eq!(msg, &to_binary(&SwapToRewardDenom {}).unwrap())
         }
         _ => panic!("Unexpected message: {:?}", swap),
     }
@@ -416,8 +417,8 @@ pub fn proper_update_user_index() {
     set_params(&mut deps);
     let addr1 = HumanAddr::from("addr0001");
 
-    //first mint
-    do_mint(&mut deps, addr1.clone(), Uint128(10), val.clone(), false);
+    //first bond
+    do_bond(&mut deps, addr1.clone(), Uint128(10), val.clone(), false);
     let update_user_index = UpdateUserIndex {
         address: addr1.clone(),
         is_send: None,
@@ -427,7 +428,7 @@ pub fn proper_update_user_index() {
     let res = reward_handle(&mut deps, gov_env, update_user_index).unwrap();
     assert_eq!(res.messages.len(), 0);
 
-    let query_index = GetUserIndex {
+    let query_index = UserIndex {
         address: addr1.clone(),
     };
     let query_res = reward_query(&deps, query_index).unwrap();
@@ -441,8 +442,8 @@ pub fn proper_update_user_index() {
     //update global_index
     do_update_global(&mut deps, "200");
 
-    //second mint
-    do_mint(&mut deps, addr1.clone(), Uint128(10), val, true);
+    //second bond
+    do_bond(&mut deps, addr1.clone(), Uint128(10), val, true);
 
     //send update user index
     let update_user_index = UpdateUserIndex {
@@ -455,7 +456,7 @@ pub fn proper_update_user_index() {
     assert_eq!(res.messages.len(), 0);
 
     //get the index of the user
-    let query_index = GetUserIndex {
+    let query_index = UserIndex {
         address: addr1.clone(),
     };
     let query_res = reward_query(&deps, query_index).unwrap();
@@ -463,7 +464,7 @@ pub fn proper_update_user_index() {
     assert_eq!(index.to_string(), "200");
 
     //get the pending reward of the user
-    let query_pending = GetPending { address: addr1 };
+    let query_pending = PendingRewards { address: addr1 };
     let query_res = reward_query(&deps, query_pending).unwrap();
     let index: Uint128 = from_binary(&query_res).unwrap();
     assert_eq!(index, Uint128(2000));
@@ -494,9 +495,9 @@ pub fn integrated_transfer() {
     init_all(&mut deps, owner, reward_contract, token_contract);
     set_params(&mut deps);
 
-    //mint first
-    do_mint(&mut deps, addr1.clone(), amount1, val.clone(), false);
-    do_mint(&mut deps, addr2.clone(), amount1, val.clone(), false);
+    //bond first
+    do_bond(&mut deps, addr1.clone(), amount1, val.clone(), false);
+    do_bond(&mut deps, addr2.clone(), amount1, val.clone(), false);
 
     //update user index
     do_update_user_in(&mut deps, addr1.clone(), amount1, false);
@@ -511,8 +512,8 @@ pub fn integrated_transfer() {
     //update global_index
     do_update_global(&mut deps, "100");
 
-    //mint first
-    do_mint(&mut deps, addr1.clone(), amount1, val, true);
+    //bond first
+    do_bond(&mut deps, addr1.clone(), amount1, val, true);
 
     let env = mock_env(addr1.clone(), &[]);
     let msg = Transfer {
@@ -541,7 +542,7 @@ pub fn integrated_transfer() {
         _ => panic!("Unexpected message: {:?}",),
     }
 
-    let claim = ClaimReward {
+    let claim = ClaimRewards {
         recipient: Some(addr1.clone()),
     };
 
@@ -566,7 +567,7 @@ pub fn integrated_transfer() {
     }
 
     //get the index of the user
-    let query_index = GetUserIndex { address: addr1 };
+    let query_index = UserIndex { address: addr1 };
     let query_res = reward_query(&deps, query_index).unwrap();
     let index: Decimal = from_binary(&query_res).unwrap();
     assert_eq!(index.to_string(), "100");
@@ -582,7 +583,7 @@ pub fn integrated_transfer() {
     assert_eq!(res.messages.len(), 0);
 
     //get the index of the user
-    let query_index = GetUserIndex {
+    let query_index = UserIndex {
         address: addr2.clone(),
     };
     let query_res = reward_query(&deps, query_index).unwrap();
@@ -590,7 +591,7 @@ pub fn integrated_transfer() {
     assert_eq!(index.to_string(), "100");
 
     //get the pending reward of the user
-    let query_pending = GetPending { address: addr2 };
+    let query_pending = PendingRewards { address: addr2 };
     let query_res = reward_query(&deps, query_pending).unwrap();
     let index: Uint128 = from_binary(&query_res).unwrap();
     assert_eq!(index, Uint128(1000));
@@ -621,9 +622,9 @@ pub fn integrated_send() {
     init_all(&mut deps, owner, reward_contract, token_contract);
     set_params(&mut deps);
 
-    //mint first
-    do_mint(&mut deps, addr1.clone(), amount1, val.clone(), false);
-    do_mint(&mut deps, contract.clone(), amount1, val.clone(), false);
+    //bond first
+    do_bond(&mut deps, addr1.clone(), amount1, val.clone(), false);
+    do_bond(&mut deps, contract.clone(), amount1, val.clone(), false);
 
     //update user index
     do_update_user_in(&mut deps, addr1.clone(), amount1, false);
@@ -638,19 +639,19 @@ pub fn integrated_send() {
     //update global_index
     do_update_global(&mut deps, "100");
 
-    //mint first
-    do_mint(&mut deps, addr1.clone(), amount1, val, true);
+    //bond first
+    do_bond(&mut deps, addr1.clone(), amount1, val, true);
 
     let env = mock_env(addr1.clone(), &[]);
     let send_msg = Send {
         contract: contract.clone(),
         amount: transfer,
-        msg: Some(to_binary(&Cw20HookMsg::InitBurn {}).unwrap()),
+        msg: Some(to_binary(&Cw20HookMsg::Unbond {}).unwrap()),
     };
     let res = token_handle(&mut deps, env, send_msg).unwrap();
     assert_eq!(res.messages.len(), 3);
 
-    let claim = ClaimReward {
+    let claim = ClaimRewards {
         recipient: Some(addr1.clone()),
     };
 
@@ -685,7 +686,7 @@ pub fn integrated_send() {
     assert_eq!(res.messages.len(), 0);
 
     //get the index of the user
-    let query_index = GetUserIndex {
+    let query_index = UserIndex {
         address: contract.clone(),
     };
     let query_res = reward_query(&deps, query_index).unwrap();
@@ -693,7 +694,7 @@ pub fn integrated_send() {
     assert_eq!(index.to_string(), "100");
 
     //get the pending reward of the user
-    let query_pending = GetPending { address: contract };
+    let query_pending = PendingRewards { address: contract };
     let query_res = reward_query(&deps, query_pending).unwrap();
     let index: Uint128 = from_binary(&query_res).unwrap();
     assert_eq!(index, Uint128(1000));
@@ -722,8 +723,8 @@ pub fn integrated_burn() {
     init_all(&mut deps, owner, reward_contract, token_contract);
     set_params(&mut deps);
 
-    //mint first
-    do_mint(&mut deps, contract.clone(), amount1, val.clone(), false);
+    //bond first
+    do_bond(&mut deps, contract.clone(), amount1, val.clone(), false);
 
     //update user index
     do_update_user_in(&mut deps, contract.clone(), amount1, false);
@@ -735,15 +736,15 @@ pub fn integrated_burn() {
     //update global_index
     do_update_global(&mut deps, "200");
 
-    //mint first
-    do_mint(&mut deps, contract.clone(), amount1, val, true);
+    //bond first
+    do_bond(&mut deps, contract.clone(), amount1, val, true);
 
     let env = mock_env(contract.clone(), &[]);
     let burn = Burn { amount: amount1 };
     let res = token_handle(&mut deps, env, burn).unwrap();
     assert_eq!(res.messages.len(), 1);
 
-    let claim = ClaimReward {
+    let claim = ClaimRewards {
         recipient: Some(contract.clone()),
     };
 

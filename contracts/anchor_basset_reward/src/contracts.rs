@@ -57,8 +57,8 @@ pub fn handle<S: Storage, A: Api, Q: Querier>(
     msg: HandleMsg,
 ) -> StdResult<HandleResponse<TerraMsgWrapper>> {
     match msg {
-        HandleMsg::ClaimReward { recipient } => handle_claim_rewards(deps, env, recipient),
-        HandleMsg::Swap {} => handle_swap(deps, env),
+        HandleMsg::ClaimRewards { recipient } => handle_claim_rewards(deps, env, recipient),
+        HandleMsg::SwapToRewardDenom {} => handle_swap(deps, env),
         HandleMsg::UpdateGlobalIndex {} => handle_global_index(deps, env),
         HandleMsg::UpdateUserIndex { address, is_send } => {
             handle_update_index(deps, env, address, is_send)
@@ -385,9 +385,9 @@ pub fn query<S: Storage, A: Api, Q: Querier>(
 ) -> StdResult<Binary> {
     match msg {
         QueryMsg::AccruedRewards { address } => to_binary(&query_accrued_rewards(&deps, address)?),
-        QueryMsg::GetIndex {} => to_binary(&query_index(&deps)?),
-        QueryMsg::GetUserIndex { address } => to_binary(&query_user_index(&deps, address)?),
-        QueryMsg::GetPending { address } => to_binary(&query_user_pending(&deps, address)?),
+        QueryMsg::GlobalIndex {} => to_binary(&query_index(&deps)?),
+        QueryMsg::UserIndex { address } => to_binary(&query_user_index(&deps, address)?),
+        QueryMsg::PendingRewards { address } => to_binary(&query_user_pending(&deps, address)?),
     }
 }
 

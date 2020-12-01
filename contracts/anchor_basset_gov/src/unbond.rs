@@ -12,7 +12,7 @@ use cosmwasm_std::{
 use cw20::Cw20HandleMsg;
 use rand::{Rng, SeedableRng, XorShiftRng};
 
-pub fn handle_burn<S: Storage, A: Api, Q: Querier>(
+pub fn handle_unbond<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
     env: Env,
     amount: Uint128,
@@ -150,7 +150,7 @@ pub fn handle_burn<S: Storage, A: Api, Q: Querier>(
     Ok(res)
 }
 
-pub fn handle_finish<S: Storage, A: Api, Q: Querier>(
+pub fn handle_withdraw_unbonded<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
     env: Env,
 ) -> StdResult<HandleResponse> {
