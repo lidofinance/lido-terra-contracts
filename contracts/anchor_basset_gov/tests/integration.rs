@@ -19,7 +19,7 @@ use anchor_basset_token::state::TokenInfo as TokenConfig;
 use cosmwasm_std::testing::{mock_env, MOCK_CONTRACT_ADDR};
 use cosmwasm_std::{
     coin, from_binary, to_binary, Api, BankMsg, CanonicalAddr, CosmosMsg, Decimal, Extern,
-    HumanAddr, Querier, StakingMsg, StdResult, Storage, Uint128, Validator, WasmMsg,
+    HumanAddr, Querier, StakingMsg, StdError, StdResult, Storage, Uint128, Validator, WasmMsg,
 };
 use cosmwasm_storage::Singleton;
 use cw20::MinterResponse;
@@ -177,6 +177,7 @@ pub fn reward_update_global<S: Storage, A: Api, Q: Querier>(
     let reward_update = reward_handle(deps, env, update_global_index).unwrap();
     assert_eq!(reward_update.messages.len(), 0);
 
+    //check the expected index
     let query = GlobalIndex {};
     let qry = reward_query(&deps, query).unwrap();
     let res: Decimal = from_binary(&qry).unwrap();
@@ -314,6 +315,8 @@ fn send_update_global_index() {
     let validator = sample_validator(DEFAULT_VALIDATOR);
     set_validator_mock(&mut deps.querier);
 
+    let invalid_sender = HumanAddr::from("invalid");
+
     let owner = HumanAddr::from("owner1");
     let token_contract = HumanAddr::from("token");
     let reward_contract = HumanAddr::from("reward");
@@ -399,7 +402,15 @@ fn send_update_global_index() {
         }
         _ => panic!("Unexpected message: {:?}", update_g_index),
     }
+
+    //send update global index and check the expected reward
     reward_update_global(&mut deps, "200");
+
+    // sender is not gov contract
+    let update_global_index = UpdateGlobalIndex {};
+    let invalid_env = mock_env(&invalid_sender, &[]);
+    let reward_update = reward_handle(&mut deps, invalid_env, update_global_index);
+    assert_eq!(reward_update.unwrap_err(), StdError::unauthorized());
 }
 
 #[test]
@@ -445,6 +456,16 @@ pub fn proper_update_user_index() {
     //second bond
     do_bond(&mut deps, addr1.clone(), Uint128(10), val, true);
 
+    //send unauthorized update user index
+    let update_user_index = UpdateUserIndex {
+        address: addr1.clone(),
+        is_send: Some(Uint128(10)),
+    };
+    let invalid = HumanAddr::from("invalid");
+    let invalid_env = mock_env(invalid, &[]);
+    let res = reward_handle(&mut deps, invalid_env, update_user_index);
+    assert_eq!(res.unwrap_err(), StdError::unauthorized());
+
     //send update user index
     let update_user_index = UpdateUserIndex {
         address: addr1.clone(),
@@ -468,6 +489,132 @@ pub fn proper_update_user_index() {
     let query_res = reward_query(&deps, query_pending).unwrap();
     let index: Uint128 = from_binary(&query_res).unwrap();
     assert_eq!(index, Uint128(2000));
+}
+
+#[test]
+pub fn integrated_claim_rewards() {
+    let mut deps = dependencies(20, &[]);
+
+    //add tax
+    deps.querier._with_tax(
+        Decimal::percent(1),
+        &[(&"uusd".to_string(), &Uint128::from(1000000u128))],
+    );
+
+    let addr1 = HumanAddr::from("addr0001");
+    let addr2 = HumanAddr::from("addr0002");
+    let amount1 = Uint128::from(10u128);
+
+    let owner = HumanAddr::from("owner1");
+    let token_contract = HumanAddr::from("token");
+    let reward_contract = HumanAddr::from("reward");
+
+    let val = sample_validator(DEFAULT_VALIDATOR);
+    set_validator_mock(&mut deps.querier);
+
+    init_all(&mut deps, owner, reward_contract, token_contract);
+    set_params(&mut deps);
+
+    //failed ClaimRewards since there is no user yet
+    let failed_calim = ClaimRewards { recipient: None };
+
+    let mut env = mock_env(&addr1, &[]);
+    env.contract.address = HumanAddr::from("reward");
+    let res = reward_handle(&mut deps, env, failed_calim);
+    assert_eq!(
+        res.unwrap_err(),
+        StdError::generic_err("The sender has not requested any tokens")
+    );
+
+    //bond first
+    do_bond(&mut deps, addr1.clone(), amount1, val.clone(), false);
+    do_bond(&mut deps, addr2.clone(), amount1, val, false);
+
+    //update user index
+    do_update_user_in(&mut deps, addr1.clone(), amount1, false);
+    do_update_user_in(&mut deps, addr2.clone(), amount1, false);
+
+    //failed ClaimRewards since there is no reward yet
+    let failed_calim = ClaimRewards { recipient: None };
+
+    let mut env = mock_env(&addr1, &[]);
+    env.contract.address = HumanAddr::from("reward");
+    let res = reward_handle(&mut deps, env, failed_calim);
+    assert_eq!(
+        res.unwrap_err(),
+        StdError::generic_err("There is no reward yet for the user")
+    );
+
+    //set addr1's balance to 10 in token contract
+    deps.querier.with_token_balances(&[(
+        &HumanAddr::from("token"),
+        &[(&addr1, &Uint128(10u128)), (&addr2, &Uint128(10u128))],
+    )]);
+
+    //update global_index
+    do_update_global(&mut deps, "100");
+
+    //send ClaimRewards by the sender
+    let claim = ClaimRewards { recipient: None };
+
+    let mut env = mock_env(&addr1, &[]);
+    env.contract.address = HumanAddr::from("reward");
+    let res = reward_handle(&mut deps, env, claim).unwrap();
+    assert_eq!(res.messages.len(), 1);
+
+    let send = &res.messages[0];
+    // since the global index is 100 and the user balance is 10.
+    // user's rewards is 10 * 100 = 1000, but the user should receive 990 as a reward.
+    // 10 uusd is deducted because of tax.
+    match send {
+        CosmosMsg::Bank(BankMsg::Send {
+            from_address,
+            to_address,
+            amount,
+        }) => {
+            assert_eq!(from_address, &HumanAddr::from("reward"));
+            assert_eq!(to_address, &addr1);
+            //the tax is 1 percent there fore 1000 - 10 = 990
+            assert_eq!(amount.get(0).unwrap().amount, Uint128(990));
+        }
+        _ => panic!("Unexpected message: {:?}", send),
+    }
+
+    //get the index of the user
+    let query_index = UserIndex {
+        address: addr1.clone(),
+    };
+    let query_res = reward_query(&deps, query_index).unwrap();
+    let index: Decimal = from_binary(&query_res).unwrap();
+    assert_eq!(index.to_string(), "100");
+
+    //get the pending reward of the user
+    let query_index = PendingRewards { address: addr1 };
+    let query_res = reward_query(&deps, query_index).unwrap();
+    let pending: Uint128 = from_binary(&query_res).unwrap();
+    assert_eq!(pending, Uint128(0));
+}
+
+#[test]
+pub fn integrated_swap() {
+    let mut deps = dependencies(20, &[]);
+    let gov = HumanAddr::from(MOCK_CONTRACT_ADDR);
+
+    let owner = HumanAddr::from("owner1");
+    let token_contract = HumanAddr::from("token");
+    let reward_contract = HumanAddr::from("reward");
+
+    let mut env = mock_env(&gov, &[]);
+    env.contract.address = HumanAddr::from("reward");
+
+    init_all(&mut deps, owner, reward_contract, token_contract);
+    set_params(&mut deps);
+
+    let swap = SwapToRewardDenom {};
+    let reward_update = reward_handle(&mut deps, env, swap).unwrap();
+    // there is three coins including uusd, therefore we will have 2 swap messages.
+    // uusd should not be swapped.
+    assert_eq!(reward_update.messages.len(), 2);
 }
 
 #[test]

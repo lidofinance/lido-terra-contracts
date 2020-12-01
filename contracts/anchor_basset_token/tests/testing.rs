@@ -858,6 +858,34 @@ fn transfer_from_respects_limits() {
     let env = mock_env(spender.clone(), &[]);
     let res = handle(&mut deps, env, msg).unwrap();
     assert_eq!(res.log[0], log("action", "transfer_from"));
+    assert_eq!(res.messages.len(), 2);
+
+    //test invoke update_index
+    assert_eq!(
+        res.messages[0],
+        CosmosMsg::Wasm(WasmMsg::Execute {
+            contract_addr: HumanAddr::from("reward"),
+            msg: to_binary(&UpdateUserIndex {
+                address: owner.clone(),
+                is_send: Some(start)
+            })
+            .unwrap(),
+            send: vec![]
+        })
+    );
+
+    assert_eq!(
+        res.messages[1],
+        CosmosMsg::Wasm(WasmMsg::Execute {
+            contract_addr: HumanAddr::from("reward"),
+            msg: to_binary(&UpdateUserIndex {
+                address: rcpt.clone(),
+                is_send: Some(Uint128(1))
+            })
+            .unwrap(),
+            send: vec![]
+        })
+    );
 
     // make sure money arrived
     assert_eq!(get_balance(&deps, &owner), (start - transfer).unwrap());
@@ -939,9 +967,30 @@ fn burn_from_respects_limits() {
     let env = mock_env(spender.clone(), &[]);
     let res = handle(&mut deps, env, msg).unwrap();
     assert_eq!(res.log[0], log("action", "burn_from"));
+    assert_eq!(res.messages.len(), 1);
+
+    //test invoke update_index
+    assert_eq!(
+        res.messages[0],
+        CosmosMsg::Wasm(WasmMsg::Execute {
+            contract_addr: HumanAddr::from("reward"),
+            msg: to_binary(&UpdateUserIndex {
+                address: owner.clone(),
+                is_send: Some(start)
+            })
+            .unwrap(),
+            send: vec![]
+        })
+    );
 
     // make sure money burnt
     assert_eq!(get_balance(&deps, &owner), (start - transfer).unwrap());
+
+    //total_supply is 2 * start since we issued for the spender as well
+    assert_eq!(
+        query_token_info(&deps).unwrap().total_supply,
+        ((start.multiply_ratio(Uint128(2), Uint128(1))) - transfer).unwrap()
+    );
 
     // ensure it looks good
     let allowance = query_allowance(&deps, owner.clone(), spender.clone()).unwrap();
@@ -991,7 +1040,7 @@ fn send_from_respects_limits() {
     let mut deps = dependencies(20, &[]);
     let owner = HumanAddr::from("addr0001");
     let spender = HumanAddr::from("addr0002");
-    let contract = HumanAddr::from("cool-dex");
+    let contract = HumanAddr::from("governance");
     let send_msg = to_binary(&Some(123)).unwrap();
 
     let start = Uint128(999999);
@@ -1024,6 +1073,33 @@ fn send_from_respects_limits() {
     let res = handle(&mut deps, env, msg).unwrap();
     assert_eq!(res.log[0], log("action", "send_from"));
     assert_eq!(3, res.messages.len());
+
+    //test invoke update_index
+    assert_eq!(
+        res.messages[0],
+        CosmosMsg::Wasm(WasmMsg::Execute {
+            contract_addr: HumanAddr::from("reward"),
+            msg: to_binary(&UpdateUserIndex {
+                address: owner.clone(),
+                is_send: Some(start)
+            })
+            .unwrap(),
+            send: vec![]
+        })
+    );
+
+    assert_eq!(
+        res.messages[1],
+        CosmosMsg::Wasm(WasmMsg::Execute {
+            contract_addr: HumanAddr::from("reward"),
+            msg: to_binary(&UpdateUserIndex {
+                address: HumanAddr::from("governance"),
+                is_send: Some(start)
+            })
+            .unwrap(),
+            send: vec![]
+        })
+    );
 
     // we record this as sent by the one who requested, not the one who was paying
     let binary_msg = Cw20ReceiveMsg {

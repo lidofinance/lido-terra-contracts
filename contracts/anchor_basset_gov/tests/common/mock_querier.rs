@@ -211,8 +211,13 @@ impl WasmMockQuerier {
                         amount: Uint128(1000u128),
                     };
                     coins.push(krt);
+                    let usd = Coin {
+                        denom: "uusd".to_string(),
+                        amount: Uint128(1000u128),
+                    };
+                    coins.push(usd);
                     let all_balances = AllBalanceResponse { amount: coins };
-                    Ok(to_binary(&to_binary(&all_balances).unwrap()))
+                    Ok(to_binary(&all_balances))
                 } else {
                     unimplemented!()
                 }

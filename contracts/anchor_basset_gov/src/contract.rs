@@ -13,7 +13,7 @@ use crate::state::{
     read_validators, remove_white_validators, save_epoch, set_all_delegations, set_bonded,
     store_total_amount, store_white_validators, EpochId, GovConfig, MsgStatus, Parameters,
 };
-use crate::unbond::{handle_withdraw_unbonded, handle_unbond};
+use crate::unbond::{handle_unbond, handle_withdraw_unbonded};
 use anchor_basset_reward::hook::InitHook;
 use anchor_basset_reward::init::RewardInitMsg;
 use anchor_basset_reward::msg::HandleMsg::{SwapToRewardDenom, UpdateGlobalIndex};
@@ -579,4 +579,33 @@ fn query_total_issued<S: Storage, A: Api, Q: Querier>(
     }))?;
     let token_info: TokenInfo = from_binary(&res)?;
     Ok(token_info.total_supply)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use cosmwasm_std::HumanAddr;
+
+    #[test]
+    pub fn proper_withdraw_all() {
+        let mut validators: Vec<HumanAddr> = vec![];
+        for i in 0..10 {
+            let address = format!("{}{}", "addr", i.to_string());
+            validators.push(HumanAddr::from(address));
+        }
+        let res = withdraw_all_rewards(validators);
+        assert_eq!(res.len(), 10);
+        for i in 1..10 {
+            match res.get(i).unwrap() {
+                CosmosMsg::Staking(StakingMsg::Withdraw {
+                    validator: val,
+                    recipient: _,
+                }) => {
+                    let address = format!("{}{}", "addr", i.to_string());
+                    assert_eq!(val, &HumanAddr::from(address));
+                }
+                _ => panic!("Unexpected message: {:?}", res.get(i).unwrap()),
+            }
+        }
+    }
 }
