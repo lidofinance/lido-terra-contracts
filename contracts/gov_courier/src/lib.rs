@@ -33,7 +33,7 @@ pub enum HandleMsg {
     /// Receives `amount` Luna from sender.
     /// Delegate `amount` to a specific `validator`.
     /// Issue the same `amount` of bLuna to sender.
-    Mint { validator: HumanAddr },
+    Bond { validator: HumanAddr },
 
     ////////////////////
     /// User's operations
@@ -44,14 +44,14 @@ pub enum HandleMsg {
     ////////////////////
     /// User's operations
     ////////////////////
-    /// FinishBurn is suppose to ask for liquidated luna
-    FinishBurn {},
+    /// WithdrawUnbonded is suppose to ask for liquidated luna
+    WithdrawUnbonded {},
 
     ////////////////////
     /// Owner's operations
     ////////////////////
     /// Register receives the reward contract address
-    RegisterSubContracts { contract: Registration },
+    RegisterSubcontracts { contract: Registration },
 
     ////////////////////
     /// Owner's operations
@@ -63,7 +63,7 @@ pub enum HandleMsg {
     /// Owner's operations
     ////////////////////
     // Remove the validator from validators whitelist
-    DeRegisterValidator { validator: HumanAddr },
+    DeregisterValidator { validator: HumanAddr },
 
     /// (internal) Receive interface for send token
     Receive(Cw20ReceiveMsg),
@@ -72,7 +72,7 @@ pub enum HandleMsg {
     /// User's operations
     ////////////////////
     /// check whether the slashing has happened or not
-    ReportSlashing {},
+    CheckSlashing {},
 
     ////////////////////
     /// Owner's operations
@@ -105,11 +105,11 @@ pub enum Registration {
 #[serde(rename_all = "snake_case")]
 pub enum Deactivated {
     Slashing,
-    Burn,
+    Unbond,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum Cw20HookMsg {
-    InitBurn {},
+    Unbond {},
 }

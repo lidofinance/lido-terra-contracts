@@ -57,10 +57,10 @@ fn is_valid_symbol(symbol: &str) -> bool {
 #[serde(rename_all = "snake_case")]
 pub enum QueryMsg {
     ExchangeRate {},
-    WhiteListedValidators {},
+    WhitelistedValidators {},
     WithdrawableUnbonded { address: HumanAddr },
-    GetToken {},
-    GetReward {},
-    GetParams {},
-    GetTotalBonded {},
+    TokenContract {},
+    RewardContract {},
+    Parameters {},
+    TotalBonded {},
 }

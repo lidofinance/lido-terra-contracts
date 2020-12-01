@@ -10,13 +10,13 @@ pub enum HandleMsg {
     /// User's operations
     ///////////////////
     /// return the accrued reward in uusd to the user.
-    ClaimReward { recipient: Option<HumanAddr> },
+    ClaimRewards { recipient: Option<HumanAddr> },
 
     ////////////////////
     /// Owner's operations
     ///////////////////
     //Swap all of the balances to uusd.
-    Swap {},
+    SwapToRewardDenom {},
 
     ////////////////////
     /// Owner's operations
@@ -52,7 +52,7 @@ pub struct TokenInfoResponse {
 #[serde(rename_all = "snake_case")]
 pub enum QueryMsg {
     AccruedRewards { address: HumanAddr },
-    GetIndex {},
-    GetUserIndex { address: HumanAddr },
-    GetPending { address: HumanAddr },
+    GlobalIndex {},
+    UserIndex { address: HumanAddr },
+    PendingRewards { address: HumanAddr },
 }

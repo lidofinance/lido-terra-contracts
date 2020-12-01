@@ -72,7 +72,7 @@ pub fn handle_deactivate<S: Storage, A: Api, Q: Querier>(
                 Ok(msg_status)
             })?;
         }
-        Deactivated::Burn => {
+        Deactivated::Unbond => {
             msg_status(&mut deps.storage).update(|mut msg_status| {
                 msg_status.burn = Some(msg);
                 Ok(msg_status)

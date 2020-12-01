@@ -17,7 +17,7 @@ use cw20::{
     AllowanceResponse, BalanceResponse, Cw20ReceiveMsg, Expiration, MinterResponse,
     TokenInfoResponse,
 };
-use gov_courier::HandleMsg::RegisterSubContracts;
+use gov_courier::HandleMsg::RegisterSubcontracts;
 use gov_courier::{Cw20HookMsg, Registration};
 
 const CANONICAL_LENGTH: usize = 20;
@@ -61,7 +61,7 @@ fn _do_init<S: Storage, A: Api, Q: Querier>(
 ) -> TokenInfoResponse {
     let owner = HumanAddr::from("governance");
     let owner_raw = deps.api.canonical_address(&owner).unwrap();
-    let token_message = to_binary(&RegisterSubContracts {
+    let token_message = to_binary(&RegisterSubcontracts {
         contract: Registration::Token,
     })
     .unwrap();
@@ -115,7 +115,7 @@ fn proper_initialization() {
     let mut deps = mock_dependencies(CANONICAL_LENGTH, &[]);
     let owner = HumanAddr::from("governance");
     let owner_raw = deps.api.canonical_address(&owner).unwrap();
-    let token_message = to_binary(&RegisterSubContracts {
+    let token_message = to_binary(&RegisterSubcontracts {
         contract: Registration::Token,
     })
     .unwrap();
@@ -154,7 +154,7 @@ fn init_mintable() {
     let mut deps = mock_dependencies(CANONICAL_LENGTH, &[]);
     let owner = HumanAddr::from("governance");
     let owner_raw = deps.api.canonical_address(&owner).unwrap();
-    let token_message = to_binary(&RegisterSubContracts {
+    let token_message = to_binary(&RegisterSubcontracts {
         contract: Registration::Token,
     })
     .unwrap();
@@ -475,7 +475,7 @@ fn burn() {
     let msg = HandleMsg::Send {
         contract: HumanAddr::from("governance"),
         amount: burn,
-        msg: Some(to_binary(&Cw20HookMsg::InitBurn {}).unwrap()),
+        msg: Some(to_binary(&Cw20HookMsg::Unbond {}).unwrap()),
     };
     let env = mock_env(addr1.clone(), &[]);
     let res = handle(&mut deps, env, msg).unwrap();
@@ -507,7 +507,7 @@ fn send() {
     let amount1 = Uint128::from(12340000u128);
     let transfer = Uint128::from(76543u128);
     let too_much = Uint128::from(12340321u128);
-    let send_msg = to_binary(&Cw20HookMsg::InitBurn {}).unwrap();
+    let send_msg = to_binary(&Cw20HookMsg::Unbond {}).unwrap();
 
     do_init(&mut deps);
 

@@ -71,7 +71,7 @@ pub fn proper_swap() {
     assert_eq!(0, res.messages.len());
 
     let env = mock_env(&owner, &[]);
-    let msg = HandleMsg::Swap {};
+    let msg = HandleMsg::SwapToRewardDenom {};
 
     let res = handle(&mut deps, env, msg).unwrap();
     assert_eq!(0, res.messages.len());
