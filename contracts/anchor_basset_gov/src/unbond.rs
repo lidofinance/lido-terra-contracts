@@ -273,3 +273,32 @@ fn compute_current_epoch(
     epoch_id += (current_time - prev_time) / epoch_time;
     epoch_id
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    pub fn proper_compute_epoch() {
+        let prev_time = 1000u64;
+        let current_time = 1060u64;
+        let epoch_time = 30u64;
+        let epoch_id = 0;
+        let res = compute_current_epoch(epoch_id, prev_time, current_time, epoch_time);
+        assert_eq!(res, 2u64);
+    }
+
+    #[test]
+    pub fn proper_get_past_epoch() {
+        //return 0
+        let current_epoch = 3;
+        let undelegation_period = 24;
+        let past_epoch = get_past_epoch(current_epoch, undelegation_period);
+        assert_eq!(past_epoch, 0);
+
+        let current_epoch = 1024;
+        let undelegation_period = 24;
+        let past_epoch = get_past_epoch(current_epoch, undelegation_period);
+        assert_eq!(past_epoch, 1000)
+    }
+}

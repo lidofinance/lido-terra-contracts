@@ -440,3 +440,17 @@ fn query_user_pending<S: Storage, A: Api, Q: Querier>(
         .unwrap_or_default();
     Ok(pending_reward)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    pub fn proper_calculate_reward() {
+        let global_index = Decimal::from_ratio(Uint128(9), Uint128(100));
+        let user_index = Decimal::zero();
+        let user_balance = Uint128(1000);
+        let reward = calculate_reward(global_index, user_index, user_balance).unwrap();
+        assert_eq!(reward, Uint128(90));
+    }
+}
