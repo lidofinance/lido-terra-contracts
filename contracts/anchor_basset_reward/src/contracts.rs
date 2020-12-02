@@ -1,5 +1,8 @@
 use crate::init::RewardInitMsg;
-use crate::msg::{HandleMsg, QueryMsg, TokenInfoResponse};
+use crate::msg::{
+    AccruedRewardsResponse, HandleMsg, IndexResponse, PendingRewardsResponse, QueryMsg,
+    TokenInfoResponse,
+};
 use crate::state::{
     config, config_read, index_read, index_store, params, params_read, pending_reward_read,
     pending_reward_store, prev_balance, prev_balance_read, read_holder_map, store_holder_map,
@@ -394,7 +397,7 @@ pub fn query<S: Storage, A: Api, Q: Querier>(
 fn query_accrued_rewards<S: Storage, A: Api, Q: Querier>(
     deps: &Extern<S, A, Q>,
     address: HumanAddr,
-) -> StdResult<Uint128> {
+) -> StdResult<AccruedRewardsResponse> {
     let global_index = index_read(&deps.storage).load()?.global_index;
     let owner_human = deps
         .api
@@ -414,31 +417,43 @@ fn query_accrued_rewards<S: Storage, A: Api, Q: Querier>(
         .load(address_raw.as_slice())
         .unwrap_or_default();
 
-    Ok(pending_reward + reward)
+    let final_reward = pending_reward + reward;
+    let accrued_reward = AccruedRewardsResponse {
+        rewards: final_reward,
+    };
+
+    Ok(accrued_reward)
 }
 
-fn query_index<S: Storage, A: Api, Q: Querier>(deps: &Extern<S, A, Q>) -> StdResult<Decimal> {
-    let a = index_read(&deps.storage).load()?;
-    Ok(a.global_index)
+fn query_index<S: Storage, A: Api, Q: Querier>(deps: &Extern<S, A, Q>) -> StdResult<IndexResponse> {
+    let index = index_read(&deps.storage).load()?;
+    let index_response = IndexResponse {
+        index: index.global_index,
+    };
+    Ok(index_response)
 }
 
 fn query_user_index<S: Storage, A: Api, Q: Querier>(
     deps: &Extern<S, A, Q>,
     address: HumanAddr,
-) -> StdResult<Decimal> {
+) -> StdResult<IndexResponse> {
     let holder = read_holder_map(&deps.storage, address)?;
-    Ok(holder)
+    let index_response = IndexResponse { index: holder };
+    Ok(index_response)
 }
 
 fn query_user_pending<S: Storage, A: Api, Q: Querier>(
     deps: &Extern<S, A, Q>,
     address: HumanAddr,
-) -> StdResult<Uint128> {
+) -> StdResult<PendingRewardsResponse> {
     let address_raw = deps.api.canonical_address(&address).unwrap();
     let pending_reward = pending_reward_read(&deps.storage)
         .load(address_raw.as_slice())
         .unwrap_or_default();
-    Ok(pending_reward)
+    let pending = PendingRewardsResponse {
+        rewards: pending_reward,
+    };
+    Ok(pending)
 }
 
 #[cfg(test)]

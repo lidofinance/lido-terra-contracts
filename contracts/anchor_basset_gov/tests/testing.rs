@@ -24,7 +24,9 @@ use cosmwasm_std::{
 
 use cosmwasm_std::testing::{mock_dependencies, mock_env};
 
-use anchor_basset_gov::msg::InitMsg;
+use anchor_basset_gov::msg::{
+    ExchangeRateResponse, InitMsg, WhiteListedValidatorsResponse, TotalBondedResponse,
+};
 use gov_courier::{Deactivated, HandleMsg, PoolInfo, Registration};
 
 use anchor_basset_gov::contract::{handle, init, query};
@@ -239,8 +241,9 @@ fn proper_exchange_rate() {
 
     //check exchange_rate when total bonded is zero
     let ex_rate = ExchangeRate {};
-    let query_exchange_rate: Decimal = from_binary(&query(&deps, ex_rate).unwrap()).unwrap();
-    assert_eq!(query_exchange_rate.to_string(), "1");
+    let query_exchange_rate: ExchangeRateResponse =
+        from_binary(&query(&deps, ex_rate).unwrap()).unwrap();
+    assert_eq!(query_exchange_rate.rate.to_string(), "1");
 
     do_register_validator(&mut deps, validator.clone());
 
@@ -252,8 +255,9 @@ fn proper_exchange_rate() {
 
     //check exchange_rate when total bonded is equal to total issued
     let ex_rate = ExchangeRate {};
-    let query_exchange_rate: Decimal = from_binary(&query(&deps, ex_rate).unwrap()).unwrap();
-    assert_eq!(query_exchange_rate.to_string(), "1");
+    let query_exchange_rate: ExchangeRateResponse =
+        from_binary(&query(&deps, ex_rate).unwrap()).unwrap();
+    assert_eq!(query_exchange_rate.rate.to_string(), "1");
 
     set_delegation(&mut deps.querier, validator, 900, "uluna");
 
@@ -264,8 +268,9 @@ fn proper_exchange_rate() {
 
     // test exchange rate after slashing.
     let ex_rate = ExchangeRate {};
-    let query_exchange_rate: Decimal = from_binary(&query(&deps, ex_rate).unwrap()).unwrap();
-    assert_eq!(query_exchange_rate.to_string(), "0.9");
+    let query_exchange_rate: ExchangeRateResponse =
+        from_binary(&query(&deps, ex_rate).unwrap()).unwrap();
+    assert_eq!(query_exchange_rate.rate.to_string(), "0.9");
 }
 
 #[test]
@@ -376,16 +381,17 @@ fn proper_register_validator() {
     assert_eq!(0, res.messages.len());
 
     let query_validatator = WhitelistedValidators {};
-    let query_res: Vec<HumanAddr> = from_binary(&query(&deps, query_validatator).unwrap()).unwrap();
-    assert_eq!(query_res.get(0).unwrap(), &validator.address);
+    let query_res: WhiteListedValidatorsResponse =
+        from_binary(&query(&deps, query_validatator).unwrap()).unwrap();
+    assert_eq!(query_res.validators.get(0).unwrap(), &validator.address);
 
     // another validator
     do_register_validator(&mut deps, validator2.clone());
 
     let query_validatator2 = WhitelistedValidators {};
-    let query_res: Vec<HumanAddr> =
+    let query_res: WhiteListedValidatorsResponse =
         from_binary(&query(&deps, query_validatator2).unwrap()).unwrap();
-    assert_eq!(query_res.get(1).unwrap(), &validator2.address);
+    assert_eq!(query_res.validators.get(1).unwrap(), &validator2.address);
 }
 
 #[test]
@@ -451,8 +457,8 @@ fn proper_bond() {
 
     //get total bonded
     let bonded = TotalBonded {};
-    let query_bonded: Uint128 = from_binary(&query(&deps, bonded).unwrap()).unwrap();
-    assert_eq!(query_bonded, Uint128(10));
+    let query_bonded: TotalBondedResponse = from_binary(&query(&deps, bonded).unwrap()).unwrap();
+    assert_eq!(query_bonded.total_bonded, Uint128(10));
 
     //test unsupported validator
     let invalid_validator = sample_validator("invalid");
@@ -572,9 +578,10 @@ fn proper_deregister() {
         _ => panic!("Unexpected message: {:?}", redelegate_msg),
     }
 
-    let query_validatator = WhitelistedValidators {};
-    let query_res: Vec<HumanAddr> = from_binary(&query(&deps, query_validatator).unwrap()).unwrap();
-    assert_eq!(query_res.get(0).unwrap(), &validator2.address);
+    let query_validator = WhitelistedValidators {};
+    let query_res: WhiteListedValidatorsResponse =
+        from_binary(&query(&deps, query_validator).unwrap()).unwrap();
+    assert_eq!(query_res.validators.get(0).unwrap(), &validator2.address);
 
     //check invalid sender
     let msg = HandleMsg::DeregisterValidator {
@@ -887,8 +894,8 @@ pub fn proper_unbond() {
 
     //get total bonded
     let bonded = TotalBonded {};
-    let query_bonded: Uint128 = from_binary(&query(&deps, bonded).unwrap()).unwrap();
-    assert_eq!(query_bonded, Uint128(4));
+    let query_bonded: TotalBondedResponse = from_binary(&query(&deps, bonded).unwrap()).unwrap();
+    assert_eq!(query_bonded.total_bonded, Uint128(4));
 
     let msg = &res.messages[0];
     match msg {
@@ -1103,8 +1110,9 @@ pub fn proper_slashing() {
     assert_eq!(0, res.messages.len());
 
     let ex_rate = ExchangeRate {};
-    let query_exchange_rate: Decimal = from_binary(&query(&deps, ex_rate).unwrap()).unwrap();
-    assert_eq!(query_exchange_rate.to_string(), "0.9");
+    let query_exchange_rate: ExchangeRateResponse =
+        from_binary(&query(&deps, ex_rate).unwrap()).unwrap();
+    assert_eq!(query_exchange_rate.rate.to_string(), "0.9");
 
     //bond again to see the final result
     let second_bond = HandleMsg::Bond {
@@ -1145,14 +1153,16 @@ pub fn proper_slashing() {
     set_delegation(&mut deps.querier, validator, 1000, "uluna");
 
     let ex_rate = ExchangeRate {};
-    let query_exchange_rate: Decimal = from_binary(&query(&deps, ex_rate).unwrap()).unwrap();
-    assert_eq!(query_exchange_rate.to_string(), "0.9");
+    let query_exchange_rate: ExchangeRateResponse =
+        from_binary(&query(&deps, ex_rate).unwrap()).unwrap();
+    assert_eq!(query_exchange_rate.rate.to_string(), "0.9");
 
     env.block.time += 90;
     let wdraw_unbonded_res = handle(&mut deps, env, withdraw_unbond_msg).unwrap();
     let ex_rate = ExchangeRate {};
-    let query_exchange_rate: Decimal = from_binary(&query(&deps, ex_rate).unwrap()).unwrap();
-    assert_eq!(query_exchange_rate.to_string(), "0.9");
+    let query_exchange_rate: ExchangeRateResponse =
+        from_binary(&query(&deps, ex_rate).unwrap()).unwrap();
+    assert_eq!(query_exchange_rate.rate.to_string(), "0.9");
 
     let sent_message = &wdraw_unbonded_res.messages[0];
     match sent_message {
@@ -1414,8 +1424,9 @@ pub fn proper_recovery_fee() {
     assert_eq!(0, res.messages.len());
 
     let ex_rate = ExchangeRate {};
-    let query_exchange_rate: Decimal = from_binary(&query(&deps, ex_rate).unwrap()).unwrap();
-    assert_eq!(query_exchange_rate.to_string(), "0.9");
+    let query_exchange_rate: ExchangeRateResponse =
+        from_binary(&query(&deps, ex_rate).unwrap()).unwrap();
+    assert_eq!(query_exchange_rate.rate.to_string(), "0.9");
 
     //Bond again to see the applied result
     let bob = HumanAddr::from("bob");

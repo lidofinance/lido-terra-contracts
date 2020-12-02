@@ -1,4 +1,4 @@
-use cosmwasm_std::{HumanAddr, StdError, StdResult};
+use cosmwasm_std::{Decimal, HumanAddr, StdError, StdResult, Uint128};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -63,4 +63,19 @@ pub enum QueryMsg {
     RewardContract {},
     Parameters {},
     TotalBonded {},
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct ExchangeRateResponse {
+    pub rate: Decimal,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct WhiteListedValidatorsResponse {
+    pub validators: Vec<HumanAddr>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct TotalBondedResponse {
+    pub total_bonded: Uint128,
 }

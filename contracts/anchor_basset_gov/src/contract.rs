@@ -6,7 +6,9 @@ use cosmwasm_std::{
 
 use crate::config::{handle_deactivate, handle_update_params};
 use crate::math::{decimal_division, decimal_subtraction};
-use crate::msg::{InitMsg, QueryMsg};
+use crate::msg::{
+    ExchangeRateResponse, InitMsg, WhiteListedValidatorsResponse, QueryMsg, TotalBondedResponse,
+};
 use crate::state::{
     config, config_read, get_all_delegations, get_bonded, is_valid_validator, msg_status,
     msg_status_read, parameters_read, pool_info, pool_info_read, read_valid_validators,
@@ -528,16 +530,22 @@ pub fn query<S: Storage, A: Api, Q: Querier>(
     }
 }
 
-fn query_exg_rate<S: Storage, A: Api, Q: Querier>(deps: &Extern<S, A, Q>) -> StdResult<Decimal> {
+fn query_exg_rate<S: Storage, A: Api, Q: Querier>(
+    deps: &Extern<S, A, Q>,
+) -> StdResult<ExchangeRateResponse> {
     let pool = pool_info_read(&deps.storage).load()?;
-    Ok(pool.exchange_rate)
+    let ex_rate = ExchangeRateResponse {
+        rate: pool.exchange_rate,
+    };
+    Ok(ex_rate)
 }
 
 fn query_white_validators<S: Storage, A: Api, Q: Querier>(
     deps: &Extern<S, A, Q>,
-) -> StdResult<Vec<HumanAddr>> {
+) -> StdResult<WhiteListedValidatorsResponse> {
     let validators = read_valid_validators(&deps.storage)?;
-    Ok(validators)
+    let response = WhiteListedValidatorsResponse { validators };
+    Ok(response)
 }
 
 fn query_withdrawable_unbonded<S: Storage, A: Api, Q: Querier>(
@@ -563,8 +571,10 @@ fn query_params<S: Storage, A: Api, Q: Querier>(deps: &Extern<S, A, Q>) -> StdRe
 
 fn query_total_bonded<S: Storage, A: Api, Q: Querier>(
     deps: &Extern<S, A, Q>,
-) -> StdResult<Uint128> {
-    Ok(pool_info_read(&deps.storage).load()?.total_bond_amount)
+) -> StdResult<TotalBondedResponse> {
+    let total_bonded = pool_info_read(&deps.storage).load()?.total_bond_amount;
+    let response = TotalBondedResponse { total_bonded };
+    Ok(response)
 }
 
 fn query_total_issued<S: Storage, A: Api, Q: Querier>(
