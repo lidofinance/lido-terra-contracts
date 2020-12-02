@@ -1,6 +1,6 @@
-use anchor_basset_gov::contract::{handle, init};
-use anchor_basset_gov::msg::InitMsg;
-use anchor_basset_gov::state::POOL_INFO;
+use anchor_basset_hub::contract::{handle, init};
+use anchor_basset_hub::msg::InitMsg;
+use anchor_basset_hub::state::POOL_INFO;
 use anchor_basset_reward::contracts::{
     handle as reward_handle, init as reward_init, query as reward_query,
 };

@@ -7,7 +7,7 @@ use cosmwasm_std::{
 use crate::config::{handle_deactivate, handle_update_params};
 use crate::math::{decimal_division, decimal_subtraction};
 use crate::msg::{
-    ExchangeRateResponse, InitMsg, WhiteListedValidatorsResponse, QueryMsg, TotalBondedResponse,
+    ExchangeRateResponse, InitMsg, QueryMsg, TotalBondedResponse, WhiteListedValidatorsResponse,
 };
 use crate::state::{
     config, config_read, get_all_delegations, get_bonded, is_valid_validator, msg_status,
