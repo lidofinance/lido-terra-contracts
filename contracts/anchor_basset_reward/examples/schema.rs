@@ -3,7 +3,10 @@ use std::fs::create_dir_all;
 
 use anchor_basset_reward::hook::InitHook;
 use anchor_basset_reward::init::RewardInitMsg;
-use anchor_basset_reward::msg::{HandleMsg, QueryMsg, TokenInfoResponse};
+use anchor_basset_reward::msg::{
+    AccruedRewardsResponse, HandleMsg, IndexResponse, PendingRewardsResponse, QueryMsg,
+    TokenInfoResponse,
+};
 use anchor_basset_reward::state::{Config, Index, Parameters};
 use cosmwasm_schema::{export_schema, remove_schemas, schema_for};
 
@@ -21,4 +24,7 @@ fn main() {
     export_schema(&schema_for!(Parameters), &out_dir);
     export_schema(&schema_for!(Index), &out_dir);
     export_schema(&schema_for!(Config), &out_dir);
+    export_schema(&schema_for!(PendingRewardsResponse), &out_dir);
+    export_schema(&schema_for!(AccruedRewardsResponse), &out_dir);
+    export_schema(&schema_for!(IndexResponse), &out_dir);
 }

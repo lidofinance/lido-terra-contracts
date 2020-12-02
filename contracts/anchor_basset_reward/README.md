@@ -14,7 +14,7 @@ The reward contract is responsible for two main jobs:
 ## Initialization
 
 
-The instantiation is supposed to register the owner of the reward contract. The instantiation also sends `Register` [message](https://github.com/Anchor-Protocol/anchor-bAsset-contracts/tree/master/contracts/anchor_basset_gov#RegisterSubContracts) to the governance contract. 
+The instantiation is supposed to register the owner of the reward contract. The instantiation also sends `Register` [message](https://github.com/Anchor-Protocol/anchor-bAsset-contracts/tree/master/contracts/anchor_basset_hub#RegisterSubContracts) to the governance contract. 
 
 ## State
  ``` rust

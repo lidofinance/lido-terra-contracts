@@ -1,5 +1,5 @@
 [package]
-name = "anchor_basset_gov"
+name = "anchor_basset_hub"
 version = "0.1.0"
 authors = ["MSNTCS <mohammad@terra.money>"]
 edition = "2018"

@@ -7,7 +7,7 @@ This repository contains smart contracts for bLuna. For more information about b
 
 | Name                                                         | Description                      |
 | ------------------------------------------------------------ | -------------------------------- |
-| [`anchor_basset_gov`](https://github.com/Anchor-Protocol/anchor-bAsset-contracts/tree/master/contracts/anchor_basset_gov/README.md) | control governance               |
+| [`anchor_basset_hub`](https://github.com/Anchor-Protocol/anchor-bAsset-contracts/tree/master/contracts/anchor_basset_hub/README.md) | control governance               |
 | [`anchor_basset_reward`](https://github.com/Anchor-Protocol/anchor-bAsset-contracts/tree/master/contracts/anchor_basset_reward/README.md) | control reward distribution               |
 | [`anchor_basset_token`](https://github.com/Anchor-Protocol/anchor-bAsset-contracts/tree/master/contracts/anchor_basset_token/README.md) | CW20 compliance |
 

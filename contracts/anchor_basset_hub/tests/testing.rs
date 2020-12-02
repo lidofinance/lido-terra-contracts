@@ -24,13 +24,13 @@ use cosmwasm_std::{
 
 use cosmwasm_std::testing::{mock_dependencies, mock_env};
 
-use anchor_basset_gov::msg::{
-    ExchangeRateResponse, InitMsg, WhiteListedValidatorsResponse, TotalBondedResponse,
+use anchor_basset_hub::msg::{
+    ExchangeRateResponse, InitMsg, TotalBondedResponse, WhiteListedValidatorsResponse,
 };
 use gov_courier::{Deactivated, HandleMsg, PoolInfo, Registration};
 
-use anchor_basset_gov::contract::{handle, init, query};
-use anchor_basset_gov::unbond::handle_unbond;
+use anchor_basset_hub::contract::{handle, init, query};
+use anchor_basset_hub::unbond::handle_unbond;
 
 use anchor_basset_reward::contracts::init as reward_init;
 use anchor_basset_reward::init::RewardInitMsg;
@@ -51,10 +51,10 @@ use gov_courier::HandleMsg::{
 use gov_courier::Registration::{Reward, Token};
 
 mod common;
-use anchor_basset_gov::msg::QueryMsg::{
+use anchor_basset_hub::msg::QueryMsg::{
     ExchangeRate, Parameters as Params, TotalBonded, WhitelistedValidators,
 };
-use anchor_basset_gov::state::Parameters;
+use anchor_basset_hub::state::Parameters;
 use anchor_basset_reward::hook::InitHook;
 use anchor_basset_reward::msg::HandleMsg::{SwapToRewardDenom, UpdateGlobalIndex, UpdateUserIndex};
 use common::mock_querier::{mock_dependencies as dependencies, WasmMockQuerier};

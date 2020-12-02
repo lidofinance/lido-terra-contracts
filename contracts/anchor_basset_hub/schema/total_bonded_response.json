@@ -1,0 +1,18 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "TotalBondedResponse",
+  "type": "object",
+  "required": [
+    "total_bonded"
+  ],
+  "properties": {
+    "total_bonded": {
+      "$ref": "#/definitions/Uint128"
+    }
+  },
+  "definitions": {
+    "Uint128": {
+      "type": "string"
+    }
+  }
+}
