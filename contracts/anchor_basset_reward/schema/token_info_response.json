@@ -1,13 +1,12 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "title": "InitMsg",
+  "title": "TokenInfoResponse",
   "type": "object",
   "required": [
     "decimals",
     "name",
-    "reward_code_id",
     "symbol",
-    "token_code_id"
+    "total_supply"
   ],
   "properties": {
     "decimals": {
@@ -18,18 +17,16 @@
     "name": {
       "type": "string"
     },
-    "reward_code_id": {
-      "type": "integer",
-      "format": "uint64",
-      "minimum": 0.0
-    },
     "symbol": {
       "type": "string"
     },
-    "token_code_id": {
-      "type": "integer",
-      "format": "uint64",
-      "minimum": 0.0
+    "total_supply": {
+      "$ref": "#/definitions/Uint128"
+    }
+  },
+  "definitions": {
+    "Uint128": {
+      "type": "string"
     }
   }
 }

@@ -3,35 +3,254 @@
   "title": "HandleMsg",
   "anyOf": [
     {
+      "description": "User's operations Receives `amount` Luna from sender. Delegate `amount` to a specific `validator`. Issue the same `amount` of bLuna to sender.",
       "type": "object",
       "required": [
-        "increment"
+        "bond"
       ],
       "properties": {
-        "increment": {
+        "bond": {
+          "type": "object",
+          "required": [
+            "validator"
+          ],
+          "properties": {
+            "validator": {
+              "$ref": "#/definitions/HumanAddr"
+            }
+          }
+        }
+      }
+    },
+    {
+      "description": "User's operations Update global index",
+      "type": "object",
+      "required": [
+        "update_global_index"
+      ],
+      "properties": {
+        "update_global_index": {
           "type": "object"
         }
       }
     },
     {
+      "description": "User's operations WithdrawUnbonded is suppose to ask for liquidated luna",
       "type": "object",
       "required": [
-        "reset"
+        "withdraw_unbonded"
       ],
       "properties": {
-        "reset": {
+        "withdraw_unbonded": {
+          "type": "object"
+        }
+      }
+    },
+    {
+      "description": "Owner's operations Register receives the reward contract address",
+      "type": "object",
+      "required": [
+        "register_subcontracts"
+      ],
+      "properties": {
+        "register_subcontracts": {
           "type": "object",
           "required": [
-            "count"
+            "contract"
           ],
           "properties": {
-            "count": {
+            "contract": {
+              "$ref": "#/definitions/Registration"
+            }
+          }
+        }
+      }
+    },
+    {
+      "description": "Owner's operations Register receives the reward contract address",
+      "type": "object",
+      "required": [
+        "register_validator"
+      ],
+      "properties": {
+        "register_validator": {
+          "type": "object",
+          "required": [
+            "validator"
+          ],
+          "properties": {
+            "validator": {
+              "$ref": "#/definitions/HumanAddr"
+            }
+          }
+        }
+      }
+    },
+    {
+      "description": "Owner's operations",
+      "type": "object",
+      "required": [
+        "deregister_validator"
+      ],
+      "properties": {
+        "deregister_validator": {
+          "type": "object",
+          "required": [
+            "validator"
+          ],
+          "properties": {
+            "validator": {
+              "$ref": "#/definitions/HumanAddr"
+            }
+          }
+        }
+      }
+    },
+    {
+      "description": "(internal) Receive interface for send token",
+      "type": "object",
+      "required": [
+        "receive"
+      ],
+      "properties": {
+        "receive": {
+          "$ref": "#/definitions/Cw20ReceiveMsg"
+        }
+      }
+    },
+    {
+      "description": "User's operations check whether the slashing has happened or not",
+      "type": "object",
+      "required": [
+        "check_slashing"
+      ],
+      "properties": {
+        "check_slashing": {
+          "type": "object"
+        }
+      }
+    },
+    {
+      "description": "Owner's operations update the parameters that is needed for the contract",
+      "type": "object",
+      "required": [
+        "update_params"
+      ],
+      "properties": {
+        "update_params": {
+          "type": "object",
+          "required": [
+            "coin_denom",
+            "epoch_time",
+            "er_threshold",
+            "peg_recovery_fee",
+            "undelegated_epoch"
+          ],
+          "properties": {
+            "coin_denom": {
+              "type": "string"
+            },
+            "epoch_time": {
               "type": "integer",
-              "format": "int32"
+              "format": "uint64",
+              "minimum": 0.0
+            },
+            "er_threshold": {
+              "$ref": "#/definitions/Decimal"
+            },
+            "peg_recovery_fee": {
+              "$ref": "#/definitions/Decimal"
+            },
+            "swap_denom": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "undelegated_epoch": {
+              "type": "integer",
+              "format": "uint64",
+              "minimum": 0.0
+            }
+          }
+        }
+      }
+    },
+    {
+      "description": "Owner's operations switch of the message",
+      "type": "object",
+      "required": [
+        "deactivate_msg"
+      ],
+      "properties": {
+        "deactivate_msg": {
+          "type": "object",
+          "required": [
+            "msg"
+          ],
+          "properties": {
+            "msg": {
+              "$ref": "#/definitions/Deactivated"
             }
           }
         }
       }
     }
-  ]
+  ],
+  "definitions": {
+    "Binary": {
+      "description": "Binary is a wrapper around Vec<u8> to add base64 de/serialization with serde. It also adds some helper methods to help encode inline.\n\nThis is only needed as serde-json-{core,wasm} has a horrible encoding for Vec<u8>",
+      "type": "string"
+    },
+    "Cw20ReceiveMsg": {
+      "description": "Cw20ReceiveMsg should be de/serialized under `Receive()` variant in a HandleMsg",
+      "type": "object",
+      "required": [
+        "amount",
+        "sender"
+      ],
+      "properties": {
+        "amount": {
+          "$ref": "#/definitions/Uint128"
+        },
+        "msg": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/Binary"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "sender": {
+          "$ref": "#/definitions/HumanAddr"
+        }
+      }
+    },
+    "Deactivated": {
+      "type": "string",
+      "enum": [
+        "slashing",
+        "unbond"
+      ]
+    },
+    "Decimal": {
+      "description": "A fixed-point decimal value with 18 fractional digits, i.e. Decimal(1_000_000_000_000_000_000) == 1.0\n\nThe greatest possible value that can be represented is 340282366920938463463.374607431768211455 (which is (2^128 - 1) / 10^18)",
+      "type": "string"
+    },
+    "HumanAddr": {
+      "type": "string"
+    },
+    "Registration": {
+      "type": "string",
+      "enum": [
+        "token",
+        "reward"
+      ]
+    },
+    "Uint128": {
+      "type": "string"
+    }
+  }
 }
