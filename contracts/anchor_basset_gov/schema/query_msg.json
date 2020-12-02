@@ -5,13 +5,92 @@
     {
       "type": "object",
       "required": [
-        "get_count"
+        "exchange_rate"
       ],
       "properties": {
-        "get_count": {
+        "exchange_rate": {
+          "type": "object"
+        }
+      }
+    },
+    {
+      "type": "object",
+      "required": [
+        "whitelisted_validators"
+      ],
+      "properties": {
+        "whitelisted_validators": {
+          "type": "object"
+        }
+      }
+    },
+    {
+      "type": "object",
+      "required": [
+        "withdrawable_unbonded"
+      ],
+      "properties": {
+        "withdrawable_unbonded": {
+          "type": "object",
+          "required": [
+            "address"
+          ],
+          "properties": {
+            "address": {
+              "$ref": "#/definitions/HumanAddr"
+            }
+          }
+        }
+      }
+    },
+    {
+      "type": "object",
+      "required": [
+        "token_contract"
+      ],
+      "properties": {
+        "token_contract": {
+          "type": "object"
+        }
+      }
+    },
+    {
+      "type": "object",
+      "required": [
+        "reward_contract"
+      ],
+      "properties": {
+        "reward_contract": {
+          "type": "object"
+        }
+      }
+    },
+    {
+      "type": "object",
+      "required": [
+        "parameters"
+      ],
+      "properties": {
+        "parameters": {
+          "type": "object"
+        }
+      }
+    },
+    {
+      "type": "object",
+      "required": [
+        "total_bonded"
+      ],
+      "properties": {
+        "total_bonded": {
           "type": "object"
         }
       }
     }
-  ]
+  ],
+  "definitions": {
+    "HumanAddr": {
+      "type": "string"
+    }
+  }
 }

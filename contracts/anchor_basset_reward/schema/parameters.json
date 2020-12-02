@@ -1,14 +1,13 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "title": "CountResponse",
+  "title": "Parameters",
   "type": "object",
   "required": [
-    "count"
+    "swap_denom"
   ],
   "properties": {
-    "count": {
-      "type": "integer",
-      "format": "int32"
+    "swap_denom": {
+      "type": "string"
     }
   }
 }

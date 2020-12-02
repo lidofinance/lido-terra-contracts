@@ -22,7 +22,7 @@ dependencies = [
  "anchor_basset_reward",
  "anchor_basset_token",
  "basset",
- "cosmwasm-schema 0.10.1",
+ "cosmwasm-schema",
  "cosmwasm-std",
  "cosmwasm-storage",
  "cosmwasm-vm",
@@ -40,7 +40,7 @@ name = "anchor_basset_reward"
 version = "0.1.0"
 dependencies = [
  "basset",
- "cosmwasm-schema 0.11.1",
+ "cosmwasm-schema",
  "cosmwasm-std",
  "cosmwasm-storage",
  "gov_courier",
@@ -55,7 +55,7 @@ name = "anchor_basset_token"
 version = "0.1.0"
 dependencies = [
  "anchor_basset_reward",
- "cosmwasm-schema 0.10.1",
+ "cosmwasm-schema",
  "cosmwasm-std",
  "cosmwasm-storage",
  "cw2",
@@ -196,16 +196,6 @@ name = "constant_time_eq"
 version = "0.1.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "245097e9a4535ee1e3e3931fcfcd55a796a44c643e8596ff6566d68f09b87bbc"
-
-[[package]]
-name = "cosmwasm-schema"
-version = "0.10.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2196586ea197eaa21129d09c84a19e2eb80bdce239eec8e6a4f108cb644c295f"
-dependencies = [
- "schemars",
- "serde_json",
-]
 
 [[package]]
 name = "cosmwasm-schema"
@@ -546,7 +536,7 @@ checksum = "aaf91faf136cb47367fa430cd46e37a788775e7fa104f8b4bcb3861dc389b724"
 name = "gov_courier"
 version = "0.1.0"
 dependencies = [
- "cosmwasm-schema 0.11.1",
+ "cosmwasm-schema",
  "cosmwasm-std",
  "cosmwasm-storage",
  "cw20",

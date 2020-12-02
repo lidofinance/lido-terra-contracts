@@ -1,18 +1,17 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "title": "State",
+  "title": "InitHook",
   "type": "object",
   "required": [
-    "count",
-    "owner"
+    "contract_addr",
+    "msg"
   ],
   "properties": {
-    "count": {
-      "type": "integer",
-      "format": "int32"
+    "contract_addr": {
+      "$ref": "#/definitions/HumanAddr"
     },
-    "owner": {
-      "$ref": "#/definitions/CanonicalAddr"
+    "msg": {
+      "$ref": "#/definitions/Binary"
     }
   },
   "definitions": {
@@ -20,8 +19,8 @@
       "description": "Binary is a wrapper around Vec<u8> to add base64 de/serialization with serde. It also adds some helper methods to help encode inline.\n\nThis is only needed as serde-json-{core,wasm} has a horrible encoding for Vec<u8>",
       "type": "string"
     },
-    "CanonicalAddr": {
-      "$ref": "#/definitions/Binary"
+    "HumanAddr": {
+      "type": "string"
     }
   }
 }
