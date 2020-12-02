@@ -27,6 +27,7 @@ use gov_courier::Registration::{Reward, Token};
 use gov_courier::{Cw20HookMsg, HandleMsg, PoolInfo};
 
 mod common;
+use anchor_basset_reward::msg::{IndexResponse, PendingRewardsResponse};
 use common::mock_querier::{mock_dependencies as dependencies, WasmMockQuerier};
 use gov_courier::HandleMsg::UpdateParams;
 
@@ -180,8 +181,8 @@ pub fn reward_update_global<S: Storage, A: Api, Q: Querier>(
     //check the expected index
     let query = GlobalIndex {};
     let qry = reward_query(&deps, query).unwrap();
-    let res: Decimal = from_binary(&qry).unwrap();
-    assert_eq!(res.to_string(), expected_res);
+    let res: IndexResponse = from_binary(&qry).unwrap();
+    assert_eq!(res.index.to_string(), expected_res);
 }
 
 fn sample_validator<U: Into<HumanAddr>>(addr: U) -> Validator {
@@ -443,8 +444,8 @@ pub fn proper_update_user_index() {
         address: addr1.clone(),
     };
     let query_res = reward_query(&deps, query_index).unwrap();
-    let index: Decimal = from_binary(&query_res).unwrap();
-    assert_eq!(index.to_string(), "0");
+    let index: IndexResponse = from_binary(&query_res).unwrap();
+    assert_eq!(index.index.to_string(), "0");
 
     //set bob's balance to 10 in token contract
     deps.querier
@@ -481,14 +482,14 @@ pub fn proper_update_user_index() {
         address: addr1.clone(),
     };
     let query_res = reward_query(&deps, query_index).unwrap();
-    let index: Decimal = from_binary(&query_res).unwrap();
-    assert_eq!(index.to_string(), "200");
+    let index: IndexResponse = from_binary(&query_res).unwrap();
+    assert_eq!(index.index.to_string(), "200");
 
     //get the pending reward of the user
     let query_pending = PendingRewards { address: addr1 };
     let query_res = reward_query(&deps, query_pending).unwrap();
-    let index: Uint128 = from_binary(&query_res).unwrap();
-    assert_eq!(index, Uint128(2000));
+    let pending: PendingRewardsResponse = from_binary(&query_res).unwrap();
+    assert_eq!(pending.rewards, Uint128(2000));
 }
 
 #[test]
@@ -585,14 +586,14 @@ pub fn integrated_claim_rewards() {
         address: addr1.clone(),
     };
     let query_res = reward_query(&deps, query_index).unwrap();
-    let index: Decimal = from_binary(&query_res).unwrap();
-    assert_eq!(index.to_string(), "100");
+    let index: IndexResponse = from_binary(&query_res).unwrap();
+    assert_eq!(index.index.to_string(), "100");
 
     //get the pending reward of the user
     let query_index = PendingRewards { address: addr1 };
     let query_res = reward_query(&deps, query_index).unwrap();
-    let pending: Uint128 = from_binary(&query_res).unwrap();
-    assert_eq!(pending, Uint128(0));
+    let pending: PendingRewardsResponse = from_binary(&query_res).unwrap();
+    assert_eq!(pending.rewards, Uint128(0));
 }
 
 #[test]
@@ -716,8 +717,8 @@ pub fn integrated_transfer() {
     //get the index of the user
     let query_index = UserIndex { address: addr1 };
     let query_res = reward_query(&deps, query_index).unwrap();
-    let index: Decimal = from_binary(&query_res).unwrap();
-    assert_eq!(index.to_string(), "100");
+    let index: IndexResponse = from_binary(&query_res).unwrap();
+    assert_eq!(index.index.to_string(), "100");
 
     //send update user index
     let update_user_index = UpdateUserIndex {
@@ -734,14 +735,14 @@ pub fn integrated_transfer() {
         address: addr2.clone(),
     };
     let query_res = reward_query(&deps, query_index).unwrap();
-    let index: Decimal = from_binary(&query_res).unwrap();
-    assert_eq!(index.to_string(), "100");
+    let index: IndexResponse = from_binary(&query_res).unwrap();
+    assert_eq!(index.index.to_string(), "100");
 
     //get the pending reward of the user
     let query_pending = PendingRewards { address: addr2 };
     let query_res = reward_query(&deps, query_pending).unwrap();
-    let index: Uint128 = from_binary(&query_res).unwrap();
-    assert_eq!(index, Uint128(1000));
+    let pending: PendingRewardsResponse = from_binary(&query_res).unwrap();
+    assert_eq!(pending.rewards, Uint128(1000));
 }
 
 #[test]
@@ -837,14 +838,14 @@ pub fn integrated_send() {
         address: contract.clone(),
     };
     let query_res = reward_query(&deps, query_index).unwrap();
-    let index: Decimal = from_binary(&query_res).unwrap();
-    assert_eq!(index.to_string(), "100");
+    let index: IndexResponse = from_binary(&query_res).unwrap();
+    assert_eq!(index.index.to_string(), "100");
 
     //get the pending reward of the user
     let query_pending = PendingRewards { address: contract };
     let query_res = reward_query(&deps, query_pending).unwrap();
-    let index: Uint128 = from_binary(&query_res).unwrap();
-    assert_eq!(index, Uint128(1000));
+    let pending: PendingRewardsResponse = from_binary(&query_res).unwrap();
+    assert_eq!(pending.rewards, Uint128(1000));
 }
 
 #[test]
