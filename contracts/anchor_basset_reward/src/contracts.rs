@@ -216,7 +216,7 @@ pub fn handle_global_index<S: Storage, A: Api, Q: Querier>(
         .api
         .human_address(&query_token_contract(&deps, owner_human.clone())?)?;
 
-    if sender != owner_human && sender != token_address {
+    if sender != owner_human {
         return Err(StdError::unauthorized());
     }
 
@@ -277,9 +277,9 @@ pub fn handle_update_index<S: Storage, A: Api, Q: Querier>(
 
     let token_address = deps
         .api
-        .human_address(&query_token_contract(&deps, owner_human.clone())?)?;
+        .human_address(&query_token_contract(&deps, owner_human)?)?;
 
-    if sender != owner_human && sender != token_address {
+    if sender != token_address {
         return Err(StdError::unauthorized());
     }
 
