@@ -411,7 +411,6 @@ pub fn update_index<S: Storage, A: Api, Q: Querier>(
             address: sender,
             is_send: Some(sender_balance),
         };
-
         messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
             contract_addr: reward_address.clone(),
             msg: to_binary(&update_sender_index).unwrap(),

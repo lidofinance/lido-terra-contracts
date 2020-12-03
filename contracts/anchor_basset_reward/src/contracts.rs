@@ -108,9 +108,6 @@ pub fn handle_claim_rewards<S: Storage, A: Api, Q: Querier>(
         .load(rcvr_raw.as_slice())
         .unwrap_or_default();
 
-    // if the recipient is none  which means the message is send by a user and
-    // the receiver index has not been changed, it means there is not reward
-    // this will help to manage transfers while the global index has not been updated
     if recipient.is_none() && global_index == recv_index && pending_reward.is_zero() {
         return Err(StdError::generic_err("There is no reward yet for the user"));
     }
