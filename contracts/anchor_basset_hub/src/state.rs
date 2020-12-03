@@ -79,7 +79,7 @@ pub fn config_read<S: ReadonlyStorage>(storage: &S) -> ReadonlySingleton<S, GovC
     singleton_read(storage, CONFIG)
 }
 
-pub fn parameter<S: Storage>(storage: &mut S) -> Singleton<S, Parameters> {
+pub fn parameters<S: Storage>(storage: &mut S) -> Singleton<S, Parameters> {
     singleton(storage, PARAMETERS)
 }
 
@@ -264,7 +264,7 @@ pub fn remove_white_validators<S: Storage>(
     Ok(())
 }
 
-// Returns all validators and their delegated amount
+// Returns all validators
 pub fn read_validators<S: Storage>(storage: &S) -> StdResult<Vec<HumanAddr>> {
     let mut validators: Vec<HumanAddr> = Vec::new();
     let res = ReadonlyPrefixedStorage::new(VALIDATORS, storage);
