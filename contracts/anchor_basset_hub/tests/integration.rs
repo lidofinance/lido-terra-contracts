@@ -293,18 +293,18 @@ pub fn do_update_user_in<S: Storage, A: Api, Q: Querier>(
             address: addr1,
             is_send: None,
         };
-        let gov = HumanAddr::from(MOCK_CONTRACT_ADDR);
-        let gov_env = mock_env(gov, &[]);
-        let res = reward_handle(&mut deps, gov_env, update_user_index).unwrap();
+        let token = HumanAddr::from("token");
+        let token_env = mock_env(token, &[]);
+        let res = reward_handle(&mut deps, token_env, update_user_index).unwrap();
         assert_eq!(res.messages.len(), 0);
     } else {
         let update_user_index = UpdateUserIndex {
             address: addr1,
             is_send: Some(amount),
         };
-        let gov = HumanAddr::from(MOCK_CONTRACT_ADDR);
-        let gov_env = mock_env(gov, &[]);
-        let res = reward_handle(&mut deps, gov_env, update_user_index).unwrap();
+        let token = HumanAddr::from("token");
+        let token_env = mock_env(token, &[]);
+        let res = reward_handle(&mut deps, token_env, update_user_index).unwrap();
         assert_eq!(res.messages.len(), 0);
     }
 }
@@ -435,9 +435,9 @@ pub fn proper_update_user_index() {
         address: addr1.clone(),
         is_send: None,
     };
-    let gov = HumanAddr::from(MOCK_CONTRACT_ADDR);
-    let gov_env = mock_env(gov, &[]);
-    let res = reward_handle(&mut deps, gov_env, update_user_index).unwrap();
+    let token = HumanAddr::from("token");
+    let token_env = mock_env(token, &[]);
+    let res = reward_handle(&mut deps, token_env, update_user_index).unwrap();
     assert_eq!(res.messages.len(), 0);
 
     let query_index = UserIndex {
@@ -472,9 +472,9 @@ pub fn proper_update_user_index() {
         address: addr1.clone(),
         is_send: Some(Uint128(10)),
     };
-    let gov = HumanAddr::from(MOCK_CONTRACT_ADDR);
-    let gov_env = mock_env(gov, &[]);
-    let res = reward_handle(&mut deps, gov_env, update_user_index).unwrap();
+    let token = HumanAddr::from("token");
+    let token_env = mock_env(token, &[]);
+    let res = reward_handle(&mut deps, token_env, update_user_index).unwrap();
     assert_eq!(res.messages.len(), 0);
 
     //get the index of the user
@@ -725,9 +725,9 @@ pub fn integrated_transfer() {
         address: addr2.clone(),
         is_send: Some(Uint128(10)),
     };
-    let gov = HumanAddr::from(MOCK_CONTRACT_ADDR);
-    let gov_env = mock_env(gov, &[]);
-    let res = reward_handle(&mut deps, gov_env, update_user_index).unwrap();
+    let token = HumanAddr::from("token");
+    let token_env = mock_env(token, &[]);
+    let res = reward_handle(&mut deps, token_env, update_user_index).unwrap();
     assert_eq!(res.messages.len(), 0);
 
     //get the index of the user
@@ -828,9 +828,9 @@ pub fn integrated_send() {
         address: contract.clone(),
         is_send: Some(Uint128(10)),
     };
-    let gov = HumanAddr::from(MOCK_CONTRACT_ADDR);
-    let gov_env = mock_env(gov, &[]);
-    let res = reward_handle(&mut deps, gov_env, update_user_index).unwrap();
+    let token = HumanAddr::from("token");
+    let token_env = mock_env(token, &[]);
+    let res = reward_handle(&mut deps, token_env, update_user_index).unwrap();
     assert_eq!(res.messages.len(), 0);
 
     //get the index of the user
