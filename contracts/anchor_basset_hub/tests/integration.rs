@@ -233,7 +233,7 @@ pub fn set_pool_info<S: Storage>(
 pub fn set_params<S: Storage, A: Api, Q: Querier>(mut deps: &mut Extern<S, A, Q>) {
     let update_prams = UpdateParams {
         epoch_time: 30,
-        coin_denom: "uluna".to_string(),
+        underlying_coin_denom: "uluna".to_string(),
         undelegated_epoch: 2,
         peg_recovery_fee: Decimal::zero(),
         er_threshold: Decimal::one(),

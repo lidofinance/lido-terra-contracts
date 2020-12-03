@@ -12,7 +12,7 @@ pub fn handle_update_params<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
     env: Env,
     epoch_time: u64,
-    coin_denom: String,
+    underlying_coin_denom: String,
     undelegated_epoch: u64,
     peg_recovery_fee: Decimal,
     er_threshold: Decimal,
@@ -25,7 +25,7 @@ pub fn handle_update_params<S: Storage, A: Api, Q: Querier>(
     }
     let params = Parameters {
         epoch_time,
-        supported_coin_denom: coin_denom,
+        underlying_coin_denom,
         undelegated_epoch,
         peg_recovery_fee,
         er_threshold,

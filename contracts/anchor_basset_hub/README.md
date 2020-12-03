@@ -64,14 +64,14 @@ pub struct GovConfig {
 ### Parameters
 Parameters are general variables that the contract needs for couple of operations:
 * `epoch_time`: determines the epoch window time period. For example, if it is 30, the contract collects all the `Receive` messages in 30-seconds time frame.
-* `supported_coin_denom`: determines the native coin the the contract is suppose to be driven from.
+* `coin_denom`: determines the native coin the the contract is suppose to be driven from.
 *  `undelegated_epoch`: determines the number of epochs that is equal to 21 days (undelegation period).
 * `peg_recovery_fee`: determines the fee helping stabilize the exchange rate. 
 * `er_threshold`: determines the threshold below of which the peg fee would need to be considered. 
 ```rust
 pub struct Parameters {
     pub epoch_time: u64,
-    pub supported_coin_denom: String,
+    pub coin_denom: String,
     pub undelegated_epoch: u64,
     pub peg_recovery_fee: Decimal,
     pub er_threshold: Decimal,
