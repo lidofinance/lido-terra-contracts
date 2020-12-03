@@ -148,7 +148,7 @@ pub fn handle<S: Storage, A: Api, Q: Querier>(
         HandleMsg::CheckSlashing {} => handle_slashing(deps, env),
         HandleMsg::UpdateParams {
             epoch_time,
-            coin_denom,
+            underlying_coin_denom: coin_denom,
             undelegated_epoch,
             peg_recovery_fee,
             er_threshold,
@@ -202,7 +202,7 @@ pub fn handle_bond<S: Storage, A: Api, Q: Querier>(
 
     //read params
     let params = parameters_read(&deps.storage).load()?;
-    let coin_denom = params.supported_coin_denom;
+    let coin_denom = params.underlying_coin_denom;
     let threshold = params.er_threshold;
     let recovery_fee = params.peg_recovery_fee;
 
@@ -473,7 +473,7 @@ pub fn slashing<S: Storage, A: Api, Q: Querier>(
 ) -> StdResult<()> {
     //read params
     let params = parameters_read(&deps.storage).load()?;
-    let coin_denom = params.supported_coin_denom;
+    let coin_denom = params.underlying_coin_denom;
 
     let mut amount = Uint128::zero();
     let all_delegations = get_all_delegations(&deps.storage).load()?;

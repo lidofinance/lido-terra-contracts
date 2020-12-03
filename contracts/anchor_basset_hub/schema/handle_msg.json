@@ -140,16 +140,13 @@
         "update_params": {
           "type": "object",
           "required": [
-            "coin_denom",
             "epoch_time",
             "er_threshold",
             "peg_recovery_fee",
-            "undelegated_epoch"
+            "undelegated_epoch",
+            "underlying_coin_denom"
           ],
           "properties": {
-            "coin_denom": {
-              "type": "string"
-            },
             "epoch_time": {
               "type": "integer",
               "format": "uint64",
@@ -171,6 +168,9 @@
               "type": "integer",
               "format": "uint64",
               "minimum": 0.0
+            },
+            "underlying_coin_denom": {
+              "type": "string"
             }
           }
         }

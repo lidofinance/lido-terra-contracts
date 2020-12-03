@@ -118,7 +118,7 @@ fn default_reward(owner: CanonicalAddr) -> RewardInitMsg {
 pub fn set_params<S: Storage, A: Api, Q: Querier>(mut deps: &mut Extern<S, A, Q>) {
     let update_prams = UpdateParams {
         epoch_time: 30,
-        coin_denom: "uluna".to_string(),
+        underlying_coin_denom: "uluna".to_string(),
         undelegated_epoch: 2,
         peg_recovery_fee: Decimal::zero(),
         er_threshold: Decimal::one(),
@@ -1275,7 +1275,7 @@ pub fn test_update_params() {
     //test with no swap denom.
     let update_prams = UpdateParams {
         epoch_time: 30,
-        coin_denom: "uluna".to_string(),
+        underlying_coin_denom: "uluna".to_string(),
         undelegated_epoch: 2,
         peg_recovery_fee: Decimal::zero(),
         er_threshold: Decimal::one(),
@@ -1297,7 +1297,7 @@ pub fn test_update_params() {
     let get_params = Params {};
     let query: Parameters = from_binary(&query(&deps, get_params).unwrap()).unwrap();
     assert_eq!(query.epoch_time, 30);
-    assert_eq!(query.supported_coin_denom, "uluna");
+    assert_eq!(query.underlying_coin_denom, "uluna");
     assert_eq!(query.undelegated_epoch, 2);
     assert_eq!(query.peg_recovery_fee, Decimal::zero());
     assert_eq!(query.er_threshold, Decimal::one());
@@ -1305,7 +1305,7 @@ pub fn test_update_params() {
     //test with some swap_denom.
     let update_prams = UpdateParams {
         epoch_time: 30,
-        coin_denom: "uluna".to_string(),
+        underlying_coin_denom: "uluna".to_string(),
         undelegated_epoch: 2,
         peg_recovery_fee: Decimal::zero(),
         er_threshold: Decimal::one(),
@@ -1376,7 +1376,7 @@ pub fn proper_recovery_fee() {
 
     let update_prams = UpdateParams {
         epoch_time: 30,
-        coin_denom: "uluna".to_string(),
+        underlying_coin_denom: "uluna".to_string(),
         undelegated_epoch: 2,
         peg_recovery_fee: Decimal::from_ratio(Uint128(1), Uint128(1000)),
         er_threshold: Decimal::from_ratio(Uint128(99), Uint128(100)),
@@ -1395,7 +1395,7 @@ pub fn proper_recovery_fee() {
     let get_params = Params {};
     let parmas: Parameters = from_binary(&query(&deps, get_params).unwrap()).unwrap();
     assert_eq!(parmas.epoch_time, 30);
-    assert_eq!(parmas.supported_coin_denom, "uluna");
+    assert_eq!(parmas.underlying_coin_denom, "uluna");
     assert_eq!(parmas.undelegated_epoch, 2);
     assert_eq!(parmas.peg_recovery_fee.to_string(), "0.001");
     assert_eq!(parmas.er_threshold.to_string(), "0.99");

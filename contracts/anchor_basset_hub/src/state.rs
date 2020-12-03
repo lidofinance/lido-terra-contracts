@@ -33,7 +33,7 @@ pub struct GovConfig {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct Parameters {
     pub epoch_time: u64,
-    pub supported_coin_denom: String,
+    pub underlying_coin_denom: String,
     pub undelegated_epoch: u64,
     pub peg_recovery_fee: Decimal,
     pub er_threshold: Decimal,

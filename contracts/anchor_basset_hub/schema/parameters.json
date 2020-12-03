@@ -6,8 +6,8 @@
     "epoch_time",
     "er_threshold",
     "peg_recovery_fee",
-    "supported_coin_denom",
-    "undelegated_epoch"
+    "undelegated_epoch",
+    "underlying_coin_denom"
   ],
   "properties": {
     "epoch_time": {
@@ -21,13 +21,13 @@
     "peg_recovery_fee": {
       "$ref": "#/definitions/Decimal"
     },
-    "supported_coin_denom": {
-      "type": "string"
-    },
     "undelegated_epoch": {
       "type": "integer",
       "format": "uint64",
       "minimum": 0.0
+    },
+    "underlying_coin_denom": {
+      "type": "string"
     }
   },
   "definitions": {

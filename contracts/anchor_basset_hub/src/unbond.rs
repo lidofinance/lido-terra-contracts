@@ -176,7 +176,7 @@ pub fn handle_withdraw_unbonded<S: Storage, A: Api, Q: Querier>(
     // read params
     let params = parameters_read(&deps.storage).load()?;
     let undelegated_epoch = params.undelegated_epoch;
-    let coin_denom = params.supported_coin_denom;
+    let coin_denom = params.underlying_coin_denom;
 
     // Compute all of burn requests with epoch Id corresponding to 21 (can be changed to arbitrary value) days ago
     let epoch_id = get_past_epoch(current_epoch_id, undelegated_epoch);
@@ -223,7 +223,7 @@ fn pick_validator<S: Storage, A: Api, Q: Querier>(
 ) -> StdResult<Vec<CosmosMsg>> {
     //read params
     let params = parameters_read(&deps.storage).load()?;
-    let coin_denom = params.supported_coin_denom;
+    let coin_denom = params.underlying_coin_denom;
 
     let mut messages: Vec<CosmosMsg> = vec![];
     let mut claimed = claim;

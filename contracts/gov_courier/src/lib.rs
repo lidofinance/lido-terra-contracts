@@ -80,7 +80,7 @@ pub enum HandleMsg {
     /// update the parameters that is needed for the contract
     UpdateParams {
         epoch_time: u64,
-        coin_denom: String,
+        underlying_coin_denom: String,
         undelegated_epoch: u64,
         peg_recovery_fee: Decimal,
         er_threshold: Decimal,
