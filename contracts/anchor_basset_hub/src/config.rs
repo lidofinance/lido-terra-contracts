@@ -1,4 +1,4 @@
-use crate::state::{config_read, msg_status, parameter, pool_info_read, Parameters};
+use crate::state::{config_read, msg_status, parameters, pool_info_read, Parameters};
 use anchor_basset_reward::msg::HandleMsg::UpdateParams;
 use cosmwasm_std::{
     log, to_binary, Api, CosmosMsg, Decimal, Env, Extern, HandleResponse, Querier, StdError,
@@ -45,7 +45,7 @@ pub fn handle_update_params<S: Storage, A: Api, Q: Querier>(
         }));
     }
 
-    parameter(&mut deps.storage).save(&params)?;
+    parameters(&mut deps.storage).save(&params)?;
     let res = HandleResponse {
         messages: msgs,
         log: vec![log("action", "update_params")],

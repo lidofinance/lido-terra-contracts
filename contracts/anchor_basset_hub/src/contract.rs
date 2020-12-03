@@ -393,12 +393,12 @@ pub fn handle_reg_validator<S: Storage, A: Api, Q: Querier>(
         ));
     }
 
-    let is_exist = deps
+    let exists = deps
         .querier
         .query_validators()?
         .iter()
         .any(|val| val.address == validator);
-    if !is_exist {
+    if !exists {
         return Err(StdError::generic_err("Invalid validator"));
     }
 
