@@ -9,7 +9,7 @@ use anchor_basset_reward::msg::HandleMsg::{
     ClaimRewards, SwapToRewardDenom, UpdateGlobalIndex, UpdateParams as UpdateRewardParams,
     UpdateUserIndex,
 };
-use anchor_basset_reward::msg::QueryMsg::{GlobalIndex, PendingRewards, UserIndex};
+use anchor_basset_reward::msg::QueryMsg::{AccruedRewards, GlobalIndex, PendingRewards, UserIndex};
 use anchor_basset_reward::state::Config;
 use anchor_basset_token::contract::{handle as token_handle, init as token_init};
 use anchor_basset_token::msg::HandleMsg::{Burn, Mint, Send, Transfer};
@@ -22,12 +22,12 @@ use cosmwasm_std::{
     HumanAddr, Querier, StakingMsg, StdError, StdResult, Storage, Uint128, Validator, WasmMsg,
 };
 use cosmwasm_storage::Singleton;
-use cw20::MinterResponse;
+use cw20::{Cw20ReceiveMsg, MinterResponse};
 use gov_courier::Registration::{Reward, Token};
 use gov_courier::{Cw20HookMsg, HandleMsg, PoolInfo};
 
 mod common;
-use anchor_basset_reward::msg::{IndexResponse, PendingRewardsResponse};
+use anchor_basset_reward::msg::{AccruedRewardsResponse, IndexResponse, PendingRewardsResponse};
 use common::mock_querier::{mock_dependencies as dependencies, WasmMockQuerier};
 use gov_courier::HandleMsg::UpdateParams;
 
@@ -645,7 +645,7 @@ pub fn integrated_transfer() {
 
     //bond first
     do_bond(&mut deps, addr1.clone(), amount1, val.clone(), false);
-    do_bond(&mut deps, addr2.clone(), amount1, val.clone(), false);
+    do_bond(&mut deps, addr2.clone(), amount1, val, false);
 
     //update user index
     do_update_user_in(&mut deps, addr1.clone(), amount1, false);
@@ -660,9 +660,6 @@ pub fn integrated_transfer() {
     //update global_index
     do_update_global(&mut deps, "100");
 
-    //bond first
-    do_bond(&mut deps, addr1.clone(), amount1, val, true);
-
     let env = mock_env(addr1.clone(), &[]);
     let msg = Transfer {
         recipient: addr2.clone(),
@@ -671,8 +668,27 @@ pub fn integrated_transfer() {
     let res = token_handle(&mut deps, env, msg).unwrap();
     assert_eq!(res.messages.len(), 2);
 
-    let update_user_index = &res.messages[1];
-    match update_user_index {
+    let update_addr1_index = &res.messages[0];
+    match update_addr1_index {
+        CosmosMsg::Wasm(WasmMsg::Execute {
+            contract_addr: _,
+            msg,
+            send: _,
+        }) => {
+            assert_eq!(
+                msg,
+                &to_binary(&UpdateUserIndex {
+                    address: addr1.clone(),
+                    is_send: Some(Uint128(10))
+                })
+                .unwrap()
+            );
+        }
+        _ => panic!("Unexpected message: {:?}",),
+    }
+
+    let update_addr2_index = &res.messages[1];
+    match update_addr2_index {
         CosmosMsg::Wasm(WasmMsg::Execute {
             contract_addr: _,
             msg,
@@ -772,7 +788,7 @@ pub fn integrated_send() {
 
     //bond first
     do_bond(&mut deps, addr1.clone(), amount1, val.clone(), false);
-    do_bond(&mut deps, contract.clone(), amount1, val.clone(), false);
+    do_bond(&mut deps, contract.clone(), amount1, val, false);
 
     //update user index
     do_update_user_in(&mut deps, addr1.clone(), amount1, false);
@@ -787,9 +803,6 @@ pub fn integrated_send() {
     //update global_index
     do_update_global(&mut deps, "100");
 
-    //bond first
-    do_bond(&mut deps, addr1.clone(), amount1, val, true);
-
     let env = mock_env(addr1.clone(), &[]);
     let send_msg = Send {
         contract: contract.clone(),
@@ -799,29 +812,62 @@ pub fn integrated_send() {
     let res = token_handle(&mut deps, env, send_msg).unwrap();
     assert_eq!(res.messages.len(), 3);
 
-    let claim = ClaimRewards {
-        recipient: Some(addr1.clone()),
-    };
-
-    let mut env = mock_env(HumanAddr::from("token"), &[]);
-    env.contract.address = HumanAddr::from("reward");
-    let res = reward_handle(&mut deps, env, claim).unwrap();
-    assert_eq!(res.messages.len(), 1);
-
-    let send = &res.messages[0];
-    match send {
-        CosmosMsg::Bank(BankMsg::Send {
-            from_address,
-            to_address,
-            amount,
+    let update_addr1_index = &res.messages[0];
+    match update_addr1_index {
+        CosmosMsg::Wasm(WasmMsg::Execute {
+            contract_addr: _,
+            msg,
+            send: _,
         }) => {
-            assert_eq!(from_address, &HumanAddr::from("reward"));
-            assert_eq!(to_address, &addr1);
-            //the tax is 1 percent there fore 1000 - 10 = 990
-            assert_eq!(amount.get(0).unwrap().amount, Uint128(990));
+            assert_eq!(
+                msg,
+                &to_binary(&UpdateUserIndex {
+                    address: addr1.clone(),
+                    is_send: Some(Uint128(10))
+                })
+                .unwrap()
+            );
         }
-        _ => panic!("Unexpected message: {:?}", send),
+        _ => panic!("Unexpected message: {:?}",),
     }
+
+    let update_addr1_index = &res.messages[1];
+    match update_addr1_index {
+        CosmosMsg::Wasm(WasmMsg::Execute {
+            contract_addr: _,
+            msg,
+            send: _,
+        }) => {
+            assert_eq!(
+                msg,
+                &to_binary(&UpdateUserIndex {
+                    address: contract.clone(),
+                    is_send: Some(Uint128(10))
+                })
+                .unwrap()
+            );
+        }
+        _ => panic!("Unexpected message: {:?}",),
+    }
+
+    let send_msg = to_binary(&Cw20HookMsg::Unbond {}).unwrap();
+
+    let binary_msg = Cw20ReceiveMsg {
+        sender: addr1,
+        amount: transfer,
+        msg: Some(send_msg),
+    }
+    .into_binary()
+    .unwrap();
+
+    assert_eq!(
+        res.messages[2],
+        CosmosMsg::Wasm(WasmMsg::Execute {
+            contract_addr: contract.clone(),
+            msg: binary_msg,
+            send: vec![],
+        })
+    );
 
     //send update user index
     let update_user_index = UpdateUserIndex {
@@ -842,9 +888,17 @@ pub fn integrated_send() {
     assert_eq!(index.index.to_string(), "100");
 
     //get the pending reward of the user
-    let query_pending = PendingRewards { address: contract };
+    let query_pending = PendingRewards {
+        address: contract.clone(),
+    };
     let query_res = reward_query(&deps, query_pending).unwrap();
     let pending: PendingRewardsResponse = from_binary(&query_res).unwrap();
+    assert_eq!(pending.rewards, Uint128(1000));
+
+    //get the accrued rewards
+    let query_accrued = AccruedRewards { address: contract };
+    let query_res = reward_query(&deps, query_accrued).unwrap();
+    let pending: AccruedRewardsResponse = from_binary(&query_res).unwrap();
     assert_eq!(pending.rewards, Uint128(1000));
 }
 
@@ -872,7 +926,7 @@ pub fn integrated_burn() {
     set_params(&mut deps);
 
     //bond first
-    do_bond(&mut deps, contract.clone(), amount1, val.clone(), false);
+    do_bond(&mut deps, contract.clone(), amount1, val, false);
 
     //update user index
     do_update_user_in(&mut deps, contract.clone(), amount1, false);
@@ -884,35 +938,27 @@ pub fn integrated_burn() {
     //update global_index
     do_update_global(&mut deps, "200");
 
-    //bond first
-    do_bond(&mut deps, contract.clone(), amount1, val, true);
-
     let env = mock_env(contract.clone(), &[]);
     let burn = Burn { amount: amount1 };
     let res = token_handle(&mut deps, env, burn).unwrap();
     assert_eq!(res.messages.len(), 1);
 
-    let claim = ClaimRewards {
-        recipient: Some(contract.clone()),
-    };
-
-    let mut env = mock_env(HumanAddr::from("token"), &[]);
-    env.contract.address = HumanAddr::from("reward");
-    let res = reward_handle(&mut deps, env, claim).unwrap();
-    assert_eq!(res.messages.len(), 1);
-
-    let send = &res.messages[0];
-    match send {
-        CosmosMsg::Bank(BankMsg::Send {
-            from_address,
-            to_address,
-            amount,
+    let update_contract_index = &res.messages[0];
+    match update_contract_index {
+        CosmosMsg::Wasm(WasmMsg::Execute {
+            contract_addr: _,
+            msg,
+            send: _,
         }) => {
-            assert_eq!(from_address, &HumanAddr::from("reward"));
-            assert_eq!(to_address, &contract);
-            //the tax is 1 percent there fore 2000 - 20 = 1980
-            assert_eq!(amount.get(0).unwrap().amount, Uint128(1980));
+            assert_eq!(
+                msg,
+                &to_binary(&UpdateUserIndex {
+                    address: contract,
+                    is_send: Some(Uint128(10))
+                })
+                .unwrap()
+            );
         }
-        _ => panic!("Unexpected message: {:?}", send),
+        _ => panic!("Unexpected message: {:?}",),
     }
 }
