@@ -275,7 +275,7 @@ fn queries_work() {
             contract_addr: HumanAddr::from("reward"),
             msg: to_binary(&UpdateUserIndex {
                 address: addr1.clone(),
-                is_send: Some(Uint128(200))
+                previous_balance: Some(Uint128(200))
             })
             .unwrap(),
             send: vec![]
@@ -379,7 +379,7 @@ fn transfer() {
                 msg,
                 &to_binary(&UpdateUserIndex {
                     address: addr1.clone(),
-                    is_send: Some(amount1)
+                    previous_balance: Some(amount1)
                 })
                 .unwrap()
             )
@@ -399,7 +399,7 @@ fn transfer() {
                 msg,
                 &to_binary(&UpdateUserIndex {
                     address: addr2.clone(),
-                    is_send: Some(Uint128(1))
+                    previous_balance: Some(Uint128(1))
                 })
                 .unwrap()
             )
@@ -567,7 +567,7 @@ fn send() {
             contract_addr: HumanAddr::from("reward"),
             msg: to_binary(&UpdateUserIndex {
                 address: addr1.clone(),
-                is_send: Some(amount1)
+                previous_balance: Some(amount1)
             })
             .unwrap(),
             send: vec![]
@@ -580,7 +580,7 @@ fn send() {
             contract_addr: HumanAddr::from("reward"),
             msg: to_binary(&UpdateUserIndex {
                 address: HumanAddr::from("governance"),
-                is_send: Some(Uint128(1))
+                previous_balance: Some(Uint128(1))
             })
             .unwrap(),
             send: vec![]
@@ -867,7 +867,7 @@ fn transfer_from_respects_limits() {
             contract_addr: HumanAddr::from("reward"),
             msg: to_binary(&UpdateUserIndex {
                 address: owner.clone(),
-                is_send: Some(start)
+                previous_balance: Some(start)
             })
             .unwrap(),
             send: vec![]
@@ -880,7 +880,7 @@ fn transfer_from_respects_limits() {
             contract_addr: HumanAddr::from("reward"),
             msg: to_binary(&UpdateUserIndex {
                 address: rcpt.clone(),
-                is_send: Some(Uint128(1))
+                previous_balance: Some(Uint128(1))
             })
             .unwrap(),
             send: vec![]
@@ -976,7 +976,7 @@ fn burn_from_respects_limits() {
             contract_addr: HumanAddr::from("reward"),
             msg: to_binary(&UpdateUserIndex {
                 address: owner.clone(),
-                is_send: Some(start)
+                previous_balance: Some(start)
             })
             .unwrap(),
             send: vec![]
@@ -1081,7 +1081,7 @@ fn send_from_respects_limits() {
             contract_addr: HumanAddr::from("reward"),
             msg: to_binary(&UpdateUserIndex {
                 address: owner.clone(),
-                is_send: Some(start)
+                previous_balance: Some(start)
             })
             .unwrap(),
             send: vec![]
@@ -1094,7 +1094,7 @@ fn send_from_respects_limits() {
             contract_addr: HumanAddr::from("reward"),
             msg: to_binary(&UpdateUserIndex {
                 address: HumanAddr::from("governance"),
-                is_send: Some(start)
+                previous_balance: Some(start)
             })
             .unwrap(),
             send: vec![]

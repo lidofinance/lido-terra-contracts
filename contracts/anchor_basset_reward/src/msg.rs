@@ -30,7 +30,7 @@ pub enum HandleMsg {
     //Register bluna holders
     UpdateUserIndex {
         address: HumanAddr,
-        is_send: Option<Uint128>,
+        previous_balance: Option<Uint128>,
     },
 
     ////////////////////

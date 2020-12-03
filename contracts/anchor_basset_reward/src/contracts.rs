@@ -63,9 +63,10 @@ pub fn handle<S: Storage, A: Api, Q: Querier>(
         HandleMsg::ClaimRewards { recipient } => handle_claim_rewards(deps, env, recipient),
         HandleMsg::SwapToRewardDenom {} => handle_swap(deps, env),
         HandleMsg::UpdateGlobalIndex {} => handle_global_index(deps, env),
-        HandleMsg::UpdateUserIndex { address, is_send } => {
-            handle_update_index(deps, env, address, is_send)
-        }
+        HandleMsg::UpdateUserIndex {
+            address,
+            previous_balance: is_send,
+        } => handle_update_index(deps, env, address, is_send),
         HandleMsg::UpdateParams { swap_denom } => handle_update_params(deps, env, swap_denom),
     }
 }

@@ -233,12 +233,12 @@ pub fn handle_mint<S: Storage, A: Api, Q: Querier>(
     let holder_msg = if balance.is_zero() {
         UpdateUserIndex {
             address: recipient.clone(),
-            is_send: None,
+            previous_balance: None,
         }
     } else {
         UpdateUserIndex {
             address: recipient.clone(),
-            is_send: Some(balance),
+            previous_balance: Some(balance),
         }
     };
 
@@ -409,7 +409,7 @@ pub fn update_index<S: Storage, A: Api, Q: Querier>(
     if !sender_balance.is_zero() {
         let update_sender_index = UpdateUserIndex {
             address: sender,
-            is_send: Some(sender_balance),
+            previous_balance: Some(sender_balance),
         };
         messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
             contract_addr: reward_address.clone(),
@@ -434,7 +434,7 @@ pub fn update_index<S: Storage, A: Api, Q: Querier>(
             .unwrap();
         let update_rcv_index = UpdateUserIndex {
             address: receiver.expect("The receiver has been given"),
-            is_send: Some(rcv_balance),
+            previous_balance: Some(rcv_balance),
         };
 
         //this will update the recipient's index

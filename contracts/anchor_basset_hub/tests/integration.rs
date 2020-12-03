@@ -123,7 +123,7 @@ pub fn do_bond<S: Storage, A: Api, Q: Querier>(
                     msg,
                     &to_binary(&UpdateUserIndex {
                         address: addr.clone(),
-                        is_send: None
+                        previous_balance: None
                     })
                     .unwrap()
                 )
@@ -143,7 +143,7 @@ pub fn do_bond<S: Storage, A: Api, Q: Querier>(
                     msg,
                     &to_binary(&UpdateUserIndex {
                         address: addr,
-                        is_send: Some(Uint128(10))
+                        previous_balance: Some(Uint128(10))
                     })
                     .unwrap()
                 )
@@ -291,7 +291,7 @@ pub fn do_update_user_in<S: Storage, A: Api, Q: Querier>(
     if !twice {
         let update_user_index = UpdateUserIndex {
             address: addr1,
-            is_send: None,
+            previous_balance: None,
         };
         let token = HumanAddr::from("token");
         let token_env = mock_env(token, &[]);
@@ -300,7 +300,7 @@ pub fn do_update_user_in<S: Storage, A: Api, Q: Querier>(
     } else {
         let update_user_index = UpdateUserIndex {
             address: addr1,
-            is_send: Some(amount),
+            previous_balance: Some(amount),
         };
         let token = HumanAddr::from("token");
         let token_env = mock_env(token, &[]);
@@ -433,7 +433,7 @@ pub fn proper_update_user_index() {
     do_bond(&mut deps, addr1.clone(), Uint128(10), val.clone(), false);
     let update_user_index = UpdateUserIndex {
         address: addr1.clone(),
-        is_send: None,
+        previous_balance: None,
     };
     let token = HumanAddr::from("token");
     let token_env = mock_env(token, &[]);
@@ -460,7 +460,7 @@ pub fn proper_update_user_index() {
     //send unauthorized update user index
     let update_user_index = UpdateUserIndex {
         address: addr1.clone(),
-        is_send: Some(Uint128(10)),
+        previous_balance: Some(Uint128(10)),
     };
     let invalid = HumanAddr::from("invalid");
     let invalid_env = mock_env(invalid, &[]);
@@ -470,7 +470,7 @@ pub fn proper_update_user_index() {
     //send update user index
     let update_user_index = UpdateUserIndex {
         address: addr1.clone(),
-        is_send: Some(Uint128(10)),
+        previous_balance: Some(Uint128(10)),
     };
     let token = HumanAddr::from("token");
     let token_env = mock_env(token, &[]);
@@ -679,7 +679,7 @@ pub fn integrated_transfer() {
                 msg,
                 &to_binary(&UpdateUserIndex {
                     address: addr1.clone(),
-                    is_send: Some(Uint128(10))
+                    previous_balance: Some(Uint128(10))
                 })
                 .unwrap()
             );
@@ -698,7 +698,7 @@ pub fn integrated_transfer() {
                 msg,
                 &to_binary(&UpdateUserIndex {
                     address: addr2.clone(),
-                    is_send: Some(Uint128(10))
+                    previous_balance: Some(Uint128(10))
                 })
                 .unwrap()
             );
@@ -739,7 +739,7 @@ pub fn integrated_transfer() {
     //send update user index
     let update_user_index = UpdateUserIndex {
         address: addr2.clone(),
-        is_send: Some(Uint128(10)),
+        previous_balance: Some(Uint128(10)),
     };
     let token = HumanAddr::from("token");
     let token_env = mock_env(token, &[]);
@@ -823,7 +823,7 @@ pub fn integrated_send() {
                 msg,
                 &to_binary(&UpdateUserIndex {
                     address: addr1.clone(),
-                    is_send: Some(Uint128(10))
+                    previous_balance: Some(Uint128(10))
                 })
                 .unwrap()
             );
@@ -842,7 +842,7 @@ pub fn integrated_send() {
                 msg,
                 &to_binary(&UpdateUserIndex {
                     address: contract.clone(),
-                    is_send: Some(Uint128(10))
+                    previous_balance: Some(Uint128(10))
                 })
                 .unwrap()
             );
@@ -872,7 +872,7 @@ pub fn integrated_send() {
     //send update user index
     let update_user_index = UpdateUserIndex {
         address: contract.clone(),
-        is_send: Some(Uint128(10)),
+        previous_balance: Some(Uint128(10)),
     };
     let token = HumanAddr::from("token");
     let token_env = mock_env(token, &[]);
@@ -954,7 +954,7 @@ pub fn integrated_burn() {
                 msg,
                 &to_binary(&UpdateUserIndex {
                     address: contract,
-                    is_send: Some(Uint128(10))
+                    previous_balance: Some(Uint128(10))
                 })
                 .unwrap()
             );
