@@ -958,7 +958,7 @@ pub fn proper_unbond() {
                 msg,
                 &to_binary(&UpdateUserIndex {
                     address: HumanAddr::from(MOCK_CONTRACT_ADDR),
-                    is_send: Some(Uint128(15))
+                    previous_balance: Some(Uint128(15))
                 })
                 .unwrap()
             )
