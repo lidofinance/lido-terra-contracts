@@ -403,7 +403,7 @@ pub fn update_index<S: Storage, A: Api, Q: Querier>(
         .unwrap_or_default();
     if sender_balance.is_zero() {
         return Err(StdError::generic_err(
-            "Sender does not have any cw20 token yet",
+            "Sender does not have any cw20 tokens yet",
         ));
     }
     if !sender_balance.is_zero() {
@@ -427,22 +427,31 @@ pub fn update_index<S: Storage, A: Api, Q: Querier>(
             .load(receiver_raw.as_slice())
             .is_err()
         {
-            return Err(StdError::generic_err("The user does not hold any token"));
-        };
-        let rcv_balance = balances_read(&deps.storage)
-            .load(receiver_raw.as_slice())
-            .unwrap();
-        let update_rcv_index = UpdateUserIndex {
-            address: receiver.expect("The receiver has been given"),
-            previous_balance: Some(rcv_balance),
-        };
+            let update_rcv_index = UpdateUserIndex {
+                address: receiver.expect("The receiver has been given"),
+                previous_balance: None,
+            };
+            messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
+                contract_addr: reward_address,
+                msg: to_binary(&update_rcv_index).unwrap(),
+                send: vec![],
+            }));
+        } else {
+            let rcv_balance = balances_read(&deps.storage)
+                .load(receiver_raw.as_slice())
+                .unwrap();
+            let update_rcv_index = UpdateUserIndex {
+                address: receiver.expect("The receiver has been given"),
+                previous_balance: Some(rcv_balance),
+            };
 
-        //this will update the recipient's index
-        messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
-            contract_addr: reward_address,
-            msg: to_binary(&update_rcv_index).unwrap(),
-            send: vec![],
-        }));
+            //this will update the recipient's index
+            messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
+                contract_addr: reward_address,
+                msg: to_binary(&update_rcv_index).unwrap(),
+                send: vec![],
+            }));
+        }
     }
 
     Ok(messages)
