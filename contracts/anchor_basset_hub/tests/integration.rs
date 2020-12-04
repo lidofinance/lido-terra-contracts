@@ -630,7 +630,11 @@ pub fn integrated_transfer() {
 
     let addr1 = HumanAddr::from("addr0001");
     let addr2 = HumanAddr::from("addr0002");
+    let addr3 = HumanAddr::from("addr0003");
+    let addr4 = HumanAddr::from("addr0004");
+
     let amount1 = Uint128::from(10u128);
+    let amount2 = Uint128(2).multiply_ratio(amount1, Uint128(1));
     let transfer = Uint128::from(1u128);
 
     let owner = HumanAddr::from("owner1");
@@ -645,20 +649,26 @@ pub fn integrated_transfer() {
 
     //bond first
     do_bond(&mut deps, addr1.clone(), amount1, val.clone(), false);
-    do_bond(&mut deps, addr2.clone(), amount1, val, false);
+    do_bond(&mut deps, addr2.clone(), amount1, val.clone(), false);
+    do_bond(&mut deps, addr4.clone(), amount2, val, false);
 
     //update user index
     do_update_user_in(&mut deps, addr1.clone(), amount1, false);
     do_update_user_in(&mut deps, addr2.clone(), amount1, false);
+    do_update_user_in(&mut deps, addr4.clone(), amount2, false);
 
     //set addr1's balance to 10 in token contract
     deps.querier.with_token_balances(&[(
         &HumanAddr::from("token"),
-        &[(&addr1, &Uint128(10u128)), (&addr2, &Uint128(10u128))],
+        &[
+            (&addr1, &Uint128(10u128)),
+            (&addr2, &Uint128(10u128)),
+            (&addr4, &Uint128(20u128)),
+        ],
     )]);
 
     //update global_index
-    do_update_global(&mut deps, "100");
+    do_update_global(&mut deps, "50");
 
     let env = mock_env(addr1.clone(), &[]);
     let msg = Transfer {
@@ -724,8 +734,8 @@ pub fn integrated_transfer() {
         }) => {
             assert_eq!(from_address, &HumanAddr::from("reward"));
             assert_eq!(to_address, &addr1);
-            //the tax is 1 percent there fore 1000 - 10 = 990
-            assert_eq!(amount.get(0).unwrap().amount, Uint128(990));
+            //the tax is 1 percent there fore 500 - 5 = 490
+            assert_eq!(amount.get(0).unwrap().amount, Uint128(495));
         }
         _ => panic!("Unexpected message: {:?}", send),
     }
@@ -734,7 +744,7 @@ pub fn integrated_transfer() {
     let query_index = UserIndex { address: addr1 };
     let query_res = reward_query(&deps, query_index).unwrap();
     let index: IndexResponse = from_binary(&query_res).unwrap();
-    assert_eq!(index.index.to_string(), "100");
+    assert_eq!(index.index.to_string(), "50");
 
     //send update user index
     let update_user_index = UpdateUserIndex {
@@ -752,13 +762,67 @@ pub fn integrated_transfer() {
     };
     let query_res = reward_query(&deps, query_index).unwrap();
     let index: IndexResponse = from_binary(&query_res).unwrap();
-    assert_eq!(index.index.to_string(), "100");
+    assert_eq!(index.index.to_string(), "50");
 
     //get the pending reward of the user
     let query_pending = PendingRewards { address: addr2 };
     let query_res = reward_query(&deps, query_pending).unwrap();
     let pending: PendingRewardsResponse = from_binary(&query_res).unwrap();
-    assert_eq!(pending.rewards, Uint128(1000));
+    assert_eq!(pending.rewards, Uint128(500));
+
+    let env = mock_env(addr4, &[]);
+    let msg = Transfer {
+        recipient: addr3.clone(),
+        amount: transfer,
+    };
+    let res = token_handle(&mut deps, env, msg).unwrap();
+    assert_eq!(res.messages.len(), 2);
+
+    let update_addr2_index = &res.messages[1];
+    match update_addr2_index {
+        CosmosMsg::Wasm(WasmMsg::Execute {
+            contract_addr: _,
+            msg,
+            send: _,
+        }) => {
+            assert_eq!(
+                msg,
+                &to_binary(&UpdateUserIndex {
+                    address: addr3.clone(),
+                    previous_balance: None
+                })
+                .unwrap()
+            );
+        }
+        _ => panic!("Unexpected message: {:?}",),
+    }
+    //get the index of user should be first error
+    let query_index = UserIndex {
+        address: addr3.clone(),
+    };
+    let query_res = reward_query(&deps, query_index);
+    assert_eq!(
+        query_res.unwrap_err(),
+        StdError::generic_err("no holder is found")
+    );
+
+    //send update user index
+    let update_user_index = UpdateUserIndex {
+        address: addr3.clone(),
+        previous_balance: None,
+    };
+    let token = HumanAddr::from("token");
+    let token_env = mock_env(token, &[]);
+    let res = reward_handle(&mut deps, token_env, update_user_index).unwrap();
+    assert_eq!(res.messages.len(), 0);
+
+    //get the index of the user
+    let query_index = UserIndex {
+        address: addr3,
+    };
+    let query_res = reward_query(&deps, query_index).unwrap();
+    let index: IndexResponse = from_binary(&query_res).unwrap();
+    assert_eq!(index.index.to_string(), "50");
 }
 
 #[test]

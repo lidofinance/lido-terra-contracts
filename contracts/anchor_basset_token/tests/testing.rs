@@ -309,6 +309,8 @@ fn transfer() {
     let mut deps = dependencies(20, &coins(2, "token"));
     let addr1 = HumanAddr::from("addr0001");
     let addr2 = HumanAddr::from("addr0002");
+    let addr3 = HumanAddr::from("addr003");
+    let addr4 = HumanAddr::from("addr004");
     let amount1 = Uint128::from(12340000u128);
     let transfer = Uint128::from(76543u128);
     let too_much = Uint128::from(12340321u128);
@@ -330,6 +332,7 @@ fn transfer() {
     //mint first
     do_mint(&mut deps, addr1.clone(), amount1);
     do_mint(&mut deps, addr2.clone(), Uint128(1));
+    do_mint(&mut deps, addr4.clone(), amount1);
 
     //cannot send
     let env = mock_env(addr1.clone(), &[]);
@@ -343,20 +346,28 @@ fn transfer() {
         e => panic!("Unexpected error: {}", e),
     }
 
-    // cannot send from empty account
-    let env = mock_env(addr2.clone(), &[]);
+    // can send to an account
+    let mut env = mock_env(addr4, &[]);
+    env.contract.address = HumanAddr::from("reward");
     let msg = HandleMsg::Transfer {
-        recipient: HumanAddr::from("addr3"),
+        recipient: addr3.clone(),
         amount: transfer,
     };
-    let res = handle(&mut deps, env, msg);
-    assert_eq!(res.is_err(), true);
-    match res.unwrap_err() {
-        StdError::GenericErr { msg, backtrace: _ } => {
-            assert_eq!(msg, "The user does not hold any token")
-        }
-        e => panic!("Unexpected error: {}", e),
-    }
+    let res = handle(&mut deps, env, msg).unwrap();
+    assert_eq!(res.messages.len(), 2);
+
+    assert_eq!(
+        res.messages[1],
+        CosmosMsg::Wasm(WasmMsg::Execute {
+            contract_addr: HumanAddr::from("reward"),
+            msg: to_binary(&UpdateUserIndex {
+                address: addr3.clone(),
+                previous_balance: None
+            })
+            .unwrap(),
+            send: vec![]
+        })
+    );
 
     // valid transfer
     let env = mock_env(addr1.clone(), &[]);
@@ -410,9 +421,10 @@ fn transfer() {
     let remainder = (amount1 - transfer).unwrap();
     assert_eq!(get_balance(&deps, &addr1), remainder);
     assert_eq!(get_balance(&deps, &addr2), transfer + Uint128(1));
+    assert_eq!(get_balance(&deps, &addr3), transfer);
     assert_eq!(
         query_token_info(&deps).unwrap().total_supply,
-        amount1 + Uint128(1)
+        amount1 + amount1 + Uint128(1)
     );
 }
 

@@ -914,7 +914,7 @@ pub fn proper_unbond() {
     let underflow_error = token_handle(&mut deps, gov_env, burn.clone());
     assert_eq!(
         underflow_error.unwrap_err(),
-        StdError::generic_err("Sender does not have any cw20 token yet")
+        StdError::generic_err("Sender does not have any cw20 tokens yet")
     );
 
     //mint for governance contract first
