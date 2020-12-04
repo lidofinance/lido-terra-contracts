@@ -817,9 +817,7 @@ pub fn integrated_transfer() {
     assert_eq!(res.messages.len(), 0);
 
     //get the index of the user
-    let query_index = UserIndex {
-        address: addr3,
-    };
+    let query_index = UserIndex { address: addr3 };
     let query_res = reward_query(&deps, query_index).unwrap();
     let index: IndexResponse = from_binary(&query_res).unwrap();
     assert_eq!(index.index.to_string(), "50");

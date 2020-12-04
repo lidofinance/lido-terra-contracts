@@ -257,14 +257,14 @@ fn pick_validator<S: Storage, A: Api, Q: Querier>(
 }
 
 //return the epoch-id of the 21 days ago.
-fn get_past_epoch(current_epoch: u64, undelegated_period: u64) -> u64 {
+pub fn get_past_epoch(current_epoch: u64, undelegated_period: u64) -> u64 {
     if current_epoch < undelegated_period {
         return 0;
     }
     current_epoch - undelegated_period
 }
 
-fn compute_current_epoch(
+pub fn compute_current_epoch(
     mut epoch_id: u64,
     prev_time: u64,
     current_time: u64,

@@ -8,14 +8,18 @@ use crate::config::{handle_deactivate, handle_update_params};
 use crate::math::{decimal_division, decimal_subtraction};
 use crate::msg::{
     ExchangeRateResponse, InitMsg, QueryMsg, TotalBondedResponse, WhiteListedValidatorsResponse,
+    WithdrawableUnbondedResponse,
 };
 use crate::state::{
-    config, config_read, get_all_delegations, get_bonded, is_valid_validator, msg_status,
-    msg_status_read, parameters_read, pool_info, pool_info_read, read_valid_validators,
-    read_validators, remove_white_validators, save_epoch, set_all_delegations, set_bonded,
-    store_total_amount, store_white_validators, EpochId, GovConfig, MsgStatus, Parameters,
+    config, config_read, epoch_read, get_all_delegations, get_bonded, get_finished_amount,
+    is_valid_validator, msg_status, msg_status_read, parameters_read, pool_info, pool_info_read,
+    read_valid_validators, read_validators, remove_white_validators, save_epoch,
+    set_all_delegations, set_bonded, store_total_amount, store_white_validators, EpochId,
+    GovConfig, MsgStatus, Parameters,
 };
-use crate::unbond::{handle_unbond, handle_withdraw_unbonded};
+use crate::unbond::{
+    compute_current_epoch, get_past_epoch, handle_unbond, handle_withdraw_unbonded,
+};
 use anchor_basset_reward::hook::InitHook;
 use anchor_basset_reward::init::RewardInitMsg;
 use anchor_basset_reward::msg::HandleMsg::{SwapToRewardDenom, UpdateGlobalIndex};
@@ -520,9 +524,10 @@ pub fn query<S: Storage, A: Api, Q: Querier>(
     match msg {
         QueryMsg::ExchangeRate {} => to_binary(&query_exg_rate(&deps)?),
         QueryMsg::WhitelistedValidators {} => to_binary(&query_white_validators(&deps)?),
-        QueryMsg::WithdrawableUnbonded { address } => {
-            to_binary(&query_withdrawable_unbonded(&deps, address)?)
-        }
+        QueryMsg::WithdrawableUnbonded {
+            address,
+            block_time,
+        } => to_binary(&query_withdrawable_unbonded(&deps, address, block_time)?),
         QueryMsg::TokenContract {} => to_binary(&query_token(&deps)?),
         QueryMsg::RewardContract {} => to_binary(&query_reward(&deps)?),
         QueryMsg::Parameters {} => to_binary(&query_params(&deps)?),
@@ -549,10 +554,37 @@ fn query_white_validators<S: Storage, A: Api, Q: Querier>(
 }
 
 fn query_withdrawable_unbonded<S: Storage, A: Api, Q: Querier>(
-    _deps: &Extern<S, A, Q>,
-    _address: HumanAddr,
-) -> StdResult<Uint128> {
-    unimplemented!()
+    deps: &Extern<S, A, Q>,
+    address: HumanAddr,
+    block_time: u64,
+) -> StdResult<WithdrawableUnbondedResponse> {
+    let params = parameters_read(&deps.storage).load()?;
+    let epoch_time = params.epoch_time;
+
+    // check the liquidation period.
+    let epoch = epoch_read(&deps.storage).load()?;
+
+    // get current epoch id.
+    let current_epoch_id = compute_current_epoch(
+        epoch.epoch_id,
+        epoch.current_block_time,
+        block_time,
+        epoch_time,
+    );
+
+    // read params
+    let params = parameters_read(&deps.storage).load()?;
+    let undelegated_epoch = params.undelegated_epoch;
+
+    // Compute all of burn requests with epoch Id corresponding to 21 (can be changed to arbitrary value) days ago
+    let epoch_id = get_past_epoch(current_epoch_id, undelegated_epoch);
+
+    let all_requests = get_finished_amount(&deps.storage, epoch_id, address)?;
+
+    let withdrawable = WithdrawableUnbondedResponse {
+        withdrawable: all_requests,
+    };
+    Ok(withdrawable)
 }
 
 fn query_token<S: Storage, A: Api, Q: Querier>(deps: &Extern<S, A, Q>) -> StdResult<HumanAddr> {

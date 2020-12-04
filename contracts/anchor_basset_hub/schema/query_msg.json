@@ -33,11 +33,17 @@
         "withdrawable_unbonded": {
           "type": "object",
           "required": [
-            "address"
+            "address",
+            "block_time"
           ],
           "properties": {
             "address": {
               "$ref": "#/definitions/HumanAddr"
+            },
+            "block_time": {
+              "type": "integer",
+              "format": "uint64",
+              "minimum": 0.0
             }
           }
         }
