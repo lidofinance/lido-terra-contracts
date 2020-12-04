@@ -25,7 +25,7 @@ use cosmwasm_std::{
 use cosmwasm_std::testing::{mock_dependencies, mock_env};
 
 use anchor_basset_hub::msg::{
-    ExchangeRateResponse, InitMsg, TotalBondedResponse, WhiteListedValidatorsResponse,
+    ExchangeRateResponse, InitMsg, TotalBondedResponse, WhitelistedValidatorsResponse,
     WithdrawableUnbondedResponse,
 };
 use gov_courier::{Deactivated, HandleMsg, PoolInfo, Registration};
@@ -382,7 +382,7 @@ fn proper_register_validator() {
     assert_eq!(0, res.messages.len());
 
     let query_validatator = WhitelistedValidators {};
-    let query_res: WhiteListedValidatorsResponse =
+    let query_res: WhitelistedValidatorsResponse =
         from_binary(&query(&deps, query_validatator).unwrap()).unwrap();
     assert_eq!(query_res.validators.get(0).unwrap(), &validator.address);
 
@@ -390,7 +390,7 @@ fn proper_register_validator() {
     do_register_validator(&mut deps, validator2.clone());
 
     let query_validatator2 = WhitelistedValidators {};
-    let query_res: WhiteListedValidatorsResponse =
+    let query_res: WhitelistedValidatorsResponse =
         from_binary(&query(&deps, query_validatator2).unwrap()).unwrap();
     assert_eq!(query_res.validators.get(1).unwrap(), &validator2.address);
 }
@@ -580,7 +580,7 @@ fn proper_deregister() {
     }
 
     let query_validator = WhitelistedValidators {};
-    let query_res: WhiteListedValidatorsResponse =
+    let query_res: WhitelistedValidatorsResponse =
         from_binary(&query(&deps, query_validator).unwrap()).unwrap();
     assert_eq!(query_res.validators.get(0).unwrap(), &validator2.address);
 
