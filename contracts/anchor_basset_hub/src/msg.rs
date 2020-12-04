@@ -71,7 +71,7 @@ pub struct ExchangeRateResponse {
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct WhiteListedValidatorsResponse {
+pub struct WhitelistedValidatorsResponse {
     pub validators: Vec<HumanAddr>,
 }
 

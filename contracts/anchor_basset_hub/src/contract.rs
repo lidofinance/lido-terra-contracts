@@ -7,7 +7,7 @@ use cosmwasm_std::{
 use crate::config::{handle_deactivate, handle_update_params};
 use crate::math::{decimal_division, decimal_subtraction};
 use crate::msg::{
-    ExchangeRateResponse, InitMsg, QueryMsg, TotalBondedResponse, WhiteListedValidatorsResponse,
+    ExchangeRateResponse, InitMsg, QueryMsg, TotalBondedResponse, WhitelistedValidatorsResponse,
     WithdrawableUnbondedResponse,
 };
 use crate::state::{
@@ -547,9 +547,9 @@ fn query_exg_rate<S: Storage, A: Api, Q: Querier>(
 
 fn query_white_validators<S: Storage, A: Api, Q: Querier>(
     deps: &Extern<S, A, Q>,
-) -> StdResult<WhiteListedValidatorsResponse> {
+) -> StdResult<WhitelistedValidatorsResponse> {
     let validators = read_valid_validators(&deps.storage)?;
-    let response = WhiteListedValidatorsResponse { validators };
+    let response = WhitelistedValidatorsResponse { validators };
     Ok(response)
 }
 
