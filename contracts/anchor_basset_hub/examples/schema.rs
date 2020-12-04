@@ -5,6 +5,7 @@ use cosmwasm_schema::{export_schema, remove_schemas, schema_for};
 
 use anchor_basset_hub::msg::{
     ExchangeRateResponse, InitMsg, QueryMsg, TotalBondedResponse, WhiteListedValidatorsResponse,
+    WithdrawableUnbondedResponse,
 };
 use anchor_basset_hub::state::{EpochId, GovConfig, MsgStatus, Parameters};
 use gov_courier::{HandleMsg, PoolInfo};
@@ -25,5 +26,6 @@ fn main() {
     export_schema(&schema_for!(EpochId), &out_dir);
     export_schema(&schema_for!(ExchangeRateResponse), &out_dir);
     export_schema(&schema_for!(WhiteListedValidatorsResponse), &out_dir);
+    export_schema(&schema_for!(WithdrawableUnbondedResponse), &out_dir);
     export_schema(&schema_for!(TotalBondedResponse), &out_dir);
 }

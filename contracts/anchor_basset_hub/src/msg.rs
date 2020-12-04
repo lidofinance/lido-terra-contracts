@@ -58,7 +58,7 @@ fn is_valid_symbol(symbol: &str) -> bool {
 pub enum QueryMsg {
     ExchangeRate {},
     WhitelistedValidators {},
-    WithdrawableUnbonded { address: HumanAddr },
+    WithdrawableUnbonded { address: HumanAddr, block_time: u64 },
     TokenContract {},
     RewardContract {},
     Parameters {},
@@ -78,4 +78,9 @@ pub struct WhiteListedValidatorsResponse {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct TotalBondedResponse {
     pub total_bonded: Uint128,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct WithdrawableUnbondedResponse {
+    pub withdrawable: Uint128,
 }

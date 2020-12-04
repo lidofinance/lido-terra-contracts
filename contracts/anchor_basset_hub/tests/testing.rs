@@ -26,6 +26,7 @@ use cosmwasm_std::testing::{mock_dependencies, mock_env};
 
 use anchor_basset_hub::msg::{
     ExchangeRateResponse, InitMsg, TotalBondedResponse, WhiteListedValidatorsResponse,
+    WithdrawableUnbondedResponse,
 };
 use gov_courier::{Deactivated, HandleMsg, PoolInfo, Registration};
 
@@ -52,7 +53,7 @@ use gov_courier::Registration::{Reward, Token};
 
 mod common;
 use anchor_basset_hub::msg::QueryMsg::{
-    ExchangeRate, Parameters as Params, TotalBonded, WhitelistedValidators,
+    ExchangeRate, Parameters as Params, TotalBonded, WhitelistedValidators, WithdrawableUnbonded,
 };
 use anchor_basset_hub::state::Parameters;
 use anchor_basset_reward::hook::InitHook;
@@ -1246,8 +1247,27 @@ pub fn proper_withdraw_unbonded() {
         StdError::generic_err("Previously requested amount is not ready yet")
     );
 
+    //this query should be zero since the undelegated period is not passed
+    let withdrawable = WithdrawableUnbonded {
+        address: bob.clone(),
+        block_time: env.block.time,
+    };
+    let query_with = query(&deps, withdrawable).unwrap();
+    let res: WithdrawableUnbondedResponse = from_binary(&query_with).unwrap();
+    assert_eq!(res.withdrawable, Uint128(0));
+
     env.block.time += 90;
-    let success_res = handle(&mut deps, env, wdraw_unbonded_msg).unwrap();
+
+    //check with query
+    let withdrawable = WithdrawableUnbonded {
+        address: bob.clone(),
+        block_time: env.block.time,
+    };
+    let query_with = query(&deps, withdrawable).unwrap();
+    let res: WithdrawableUnbondedResponse = from_binary(&query_with).unwrap();
+    assert_eq!(res.withdrawable, Uint128(10));
+
+    let success_res = handle(&mut deps, env.clone(), wdraw_unbonded_msg).unwrap();
 
     assert_eq!(success_res.messages.len(), 1);
 
@@ -1260,13 +1280,20 @@ pub fn proper_withdraw_unbonded() {
         }) => {
             assert_eq!(from_address.0, MOCK_CONTRACT_ADDR);
             assert_eq!(to_address, &bob);
-            // 1 would be deducted as tax.
-            // the result is 10 - 1 => 9
             assert_eq!(amount[0].amount, Uint128(10))
         }
 
         _ => panic!("Unexpected message: {:?}", sent_message),
     }
+
+    //it should be removed
+    let withdrawable = WithdrawableUnbonded {
+        address: bob,
+        block_time: env.block.time,
+    };
+    let query_with = query(&deps, withdrawable).unwrap();
+    let res: WithdrawableUnbondedResponse = from_binary(&query_with).unwrap();
+    assert_eq!(res.withdrawable, Uint128(0));
 }
 
 #[test]

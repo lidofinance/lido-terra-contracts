@@ -1,0 +1,18 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "WithdrawableUnbondedResponse",
+  "type": "object",
+  "required": [
+    "withdrawable"
+  ],
+  "properties": {
+    "withdrawable": {
+      "$ref": "#/definitions/Uint128"
+    }
+  },
+  "definitions": {
+    "Uint128": {
+      "type": "string"
+    }
+  }
+}
