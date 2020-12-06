@@ -85,7 +85,7 @@ pub fn handle_decrease_allowance<S: Storage, A: Api, Q: Querier>(
 }
 
 // this can be used to update a lower allowance - call bucket.update with proper keys
-fn deduct_allowance<S: Storage>(
+pub fn deduct_allowance<S: Storage>(
     storage: &mut S,
     owner: &CanonicalAddr,
     spender: &CanonicalAddr,
