@@ -8,7 +8,7 @@ mod common;
 use anchor_basset_reward::msg::HandleMsg::UpdateUserIndex;
 use anchor_basset_token::allowances::query_allowance;
 use anchor_basset_token::contract::{
-    handle, init, query, query_balance, query_minter, query_token_info,
+    handle, init, query, query_balance, query_minter, query_token_info, update_index,
 };
 use anchor_basset_token::msg::QueryMsg::TokenInfo;
 use anchor_basset_token::msg::{HandleMsg, QueryMsg, TokenInitHook, TokenInitMsg};
@@ -302,6 +302,90 @@ fn queries_work() {
     .unwrap();
     let loaded: BalanceResponse = from_binary(&data).unwrap();
     assert_eq!(loaded.balance, Uint128::zero());
+}
+
+#[test]
+fn proper_update_index() {
+    let mut deps = dependencies(20, &[]);
+    let addr1 = HumanAddr::from("addr0001");
+    let addr2 = HumanAddr::from("addr0002");
+    let amount1 = Uint128::from(10u128);
+
+    do_init(&mut deps);
+
+    //update indexes for 2 users without having bonded
+    let index = update_index(&deps, addr1.clone(), Some(addr2.clone()));
+    let intended_error = StdError::generic_err("Sender does not have any cw20 tokens yet");
+    assert_eq!(index.unwrap_err(), intended_error);
+
+    do_mint(&mut deps, addr1.clone(), amount1);
+
+    //update indexes for 1 user only, after minting
+    let updated_index = update_index(&deps, addr1.clone(), None).unwrap();
+    let msg0 = UpdateUserIndex {
+        address: addr1.clone(),
+        previous_balance: Some(amount1),
+    };
+    let sender_message0 = CosmosMsg::Wasm(WasmMsg::Execute {
+        contract_addr: HumanAddr::from("reward"),
+        msg: to_binary(&msg0).unwrap(),
+        send: vec![],
+    });
+    //Is 1 message sent?
+    assert_eq!(1, updated_index.len());
+    //Is that 1 message what we intend it to be?
+    assert_eq!(sender_message0, updated_index[0]);
+
+    //update indexes for 2 users only 1 of whom have bonded
+    let updated_indexes = update_index(&deps, addr1.clone(), Some(addr2.clone())).unwrap();
+    let msg1 = UpdateUserIndex {
+        address: addr1.clone(),
+        previous_balance: Some(amount1),
+    };
+    let sender_message1 = CosmosMsg::Wasm(WasmMsg::Execute {
+        contract_addr: HumanAddr::from("reward"),
+        msg: to_binary(&msg1).unwrap(),
+        send: vec![],
+    });
+    let msg2 = UpdateUserIndex {
+        address: addr2.clone(),
+        previous_balance: None,
+    };
+    let receiver_message1 = CosmosMsg::Wasm(WasmMsg::Execute {
+        contract_addr: HumanAddr::from("reward"),
+        msg: to_binary(&msg2).unwrap(),
+        send: vec![],
+    });
+    //Is our intended message sent to user 1? How about user 2?
+    assert_eq!(sender_message1, updated_indexes[0]);
+    assert_eq!(receiver_message1, updated_indexes[1]);
+
+    do_mint(&mut deps, addr2.clone(), amount1);
+
+    //updating indexes for 2 users both of whom have bonded
+    let updated_indexes2 = update_index(&deps, addr1.clone(), Some(addr2.clone())).unwrap();
+
+    let msg3 = UpdateUserIndex {
+        address: addr1,
+        previous_balance: Some(amount1),
+    };
+    let sender_message2 = CosmosMsg::Wasm(WasmMsg::Execute {
+        contract_addr: HumanAddr::from("reward"),
+        msg: to_binary(&msg3).unwrap(),
+        send: vec![],
+    });
+    let msg4 = UpdateUserIndex {
+        address: addr2,
+        previous_balance: Some(amount1),
+    };
+    let receiver_message2 = CosmosMsg::Wasm(WasmMsg::Execute {
+        contract_addr: HumanAddr::from("reward"),
+        msg: to_binary(&msg4).unwrap(),
+        send: vec![],
+    });
+    //Is our intended message sent to user 1? How about user 2?
+    assert_eq!(sender_message2, updated_indexes2[0]);
+    assert_eq!(receiver_message2, updated_indexes2[1]);
 }
 
 #[test]
@@ -697,6 +781,7 @@ fn increase_decrease_allowances() {
         expires: None,
     };
     handle(&mut deps, env, msg).unwrap();
+    //allowance entry is removed
     let allowance = query_allowance(&deps, owner, spender).unwrap();
     assert_eq!(allowance, AllowanceResponse::default());
 }
