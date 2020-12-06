@@ -6,7 +6,7 @@ use cosmwasm_std::{
 
 mod common;
 use anchor_basset_reward::msg::HandleMsg::UpdateUserIndex;
-use anchor_basset_token::allowances::query_allowance;
+use anchor_basset_token::allowances::{deduct_allowance, query_allowance};
 use anchor_basset_token::contract::{
     handle, init, query, query_balance, query_minter, query_token_info, update_index,
 };
@@ -1030,6 +1030,72 @@ fn transfer_from_respects_limits() {
         StdError::GenericErr { msg, .. } => assert_eq!(msg, "Allowance is expired"),
         e => panic!("Unexpected error: {}", e),
     }
+}
+
+#[test]
+fn proper_deduct_allowance() {
+    let mut deps = dependencies(20, &[]);
+    let addr1 = HumanAddr::from("addr0001");
+    let addr2 = HumanAddr::from("addr0002");
+    let amount1 = Uint128::from(100u128);
+    let amount2 = Uint128::from(30u128);
+    let amount3 = Uint128::from(10u128);
+    let mut env = mock_env(&addr1, &[]);
+
+    do_init(&mut deps);
+    do_mint(&mut deps, addr1.clone(), amount1);
+    do_mint(&mut deps, addr2.clone(), amount2);
+
+    //checking for no allowance
+    let no_allowance = deduct_allowance(
+        &mut deps.storage,
+        &deps.api.canonical_address(&addr1).unwrap(),
+        &deps.api.canonical_address(&addr2).unwrap(),
+        &env.block,
+        Uint128(0),
+    )
+    .unwrap_err();
+    let msg0 = StdError::generic_err("No allowance for this account");
+    assert_eq!(no_allowance, msg0);
+
+    //checking for an already expired allowance
+    let expiration1 = env.block.time + 10;
+    let message1 = HandleMsg::IncreaseAllowance {
+        spender: addr2.clone(),
+        amount: amount3,
+        expires: Some(Expiration::AtTime(expiration1)),
+    };
+    let _res1 = handle(&mut deps, env.clone(), message1);
+    env.block.time += 200;
+    let expired = deduct_allowance(
+        &mut deps.storage,
+        &deps.api.canonical_address(&addr1).unwrap(),
+        &deps.api.canonical_address(&addr2).unwrap(),
+        &env.block,
+        amount3,
+    )
+    .unwrap_err();
+    let msg1 = StdError::generic_err("Allowance is expired");
+    assert_eq!(expired, msg1);
+
+    //checking for a normal allowance (not expired)
+    let expiration2 = env.block.time + 10;
+    let message2 = HandleMsg::IncreaseAllowance {
+        spender: addr2.clone(),
+        amount: amount3,
+        expires: Some(Expiration::AtTime(expiration2)),
+    };
+    let _res2 = handle(&mut deps, env.clone(), message2);
+    let successful = deduct_allowance(
+        &mut deps.storage,
+        &deps.api.canonical_address(&addr1).unwrap(),
+        &deps.api.canonical_address(&addr2).unwrap(),
+        &env.block,
+        amount3,
+    )
+    .unwrap();
+    let msg2 = query_allowance(&deps, addr1, addr2).unwrap();
+    assert_eq!(successful, msg2);
 }
 
 #[test]
