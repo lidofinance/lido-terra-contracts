@@ -55,7 +55,9 @@ mod common;
 use anchor_basset_hub::msg::QueryMsg::{
     ExchangeRate, Parameters as Params, TotalBonded, WhitelistedValidators, WithdrawableUnbonded,
 };
-use anchor_basset_hub::state::Parameters;
+use anchor_basset_hub::state::{
+    epoch_read, read_total_amount, read_undelegated_wait_list, Parameters,
+};
 use anchor_basset_reward::hook::InitHook;
 use anchor_basset_reward::msg::HandleMsg::{SwapToRewardDenom, UpdateGlobalIndex, UpdateUserIndex};
 use common::mock_querier::{mock_dependencies as dependencies, WasmMockQuerier};
@@ -862,11 +864,15 @@ pub fn proper_unbond() {
     let gov_env = mock_env(MOCK_CONTRACT_ADDR, &[]);
     let token_res = token_handle(&mut deps, gov_env.clone(), token_mint).unwrap();
     assert_eq!(1, token_res.messages.len());
-    set_delegation(&mut deps.querier, validator, 10, "uluna");
+    set_delegation(&mut deps.querier, validator.clone(), 10, "uluna");
 
     let env = mock_env(&bob, &[]);
     let res = handle_unbond(&mut deps, env, Uint128(1), bob.clone()).unwrap();
     assert_eq!(1, res.messages.len());
+
+    //read the undelegated waitlist of the current epoch for the user bob
+    let waitlist = read_undelegated_wait_list(&deps.storage, 0, bob.clone()).unwrap();
+    assert_eq!(Uint128(1), waitlist);
 
     //invalid zero
     let failed_unbond = Unbond {};
@@ -889,9 +895,12 @@ pub fn proper_unbond() {
         amount: Uint128(5),
         msg: Some(to_binary(&successful_bond).unwrap()),
     });
-    let token_env = mock_env(&token_contract, &[]);
-    let res = handle(&mut deps, token_env, receive.clone()).unwrap();
+    let mut token_env = mock_env(&token_contract, &[]);
+    let res = handle(&mut deps, token_env.clone(), receive).unwrap();
     assert_eq!(1, res.messages.len());
+
+    let waitlist2 = read_undelegated_wait_list(&deps.storage, 0, bob.clone()).unwrap();
+    assert_eq!(Uint128(6), waitlist2);
 
     //get total bonded
     let bonded = TotalBonded {};
@@ -910,6 +919,36 @@ pub fn proper_unbond() {
         }
         _ => panic!("Unexpected message: {:?}", msg),
     }
+
+    //pushing time forward to check the unbond message
+    token_env.block.time += 31;
+
+    let successful_bond = Unbond {};
+    let receive = Receive(Cw20ReceiveMsg {
+        sender: bob.clone(),
+        amount: Uint128(2),
+        msg: Some(to_binary(&successful_bond).unwrap()),
+    });
+    let res = handle(&mut deps, token_env, receive.clone()).unwrap();
+    assert_eq!(2, res.messages.len());
+
+    //making sure the sent message (2nd) is undelegate
+    let msgs: CosmosMsg = CosmosMsg::Staking(StakingMsg::Undelegate {
+        validator: validator.address,
+        amount: coin(8, "uluna"),
+    });
+    assert_eq!(res.messages[1], msgs);
+
+    //making sure the epoch has passed
+    let epoch = epoch_read(&deps.storage).load().unwrap();
+    assert_eq!(epoch.epoch_id, 1);
+
+    //the last request (2) gets combined and processed with the previous requests (1, 5)
+    let waitlist = read_undelegated_wait_list(&deps.storage, 0, bob.clone()).unwrap();
+    assert_eq!(Uint128(8), waitlist);
+
+    let total_amount = read_total_amount(&deps.storage, 1).unwrap();
+    assert_eq!(total_amount, Uint128(0));
 
     let burn = Burn { amount: Uint128(5) };
     let underflow_error = token_handle(&mut deps, gov_env, burn.clone());
