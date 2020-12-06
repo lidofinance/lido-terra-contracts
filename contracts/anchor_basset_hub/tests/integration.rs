@@ -10,7 +10,7 @@ use anchor_basset_reward::msg::HandleMsg::{
     UpdateUserIndex,
 };
 use anchor_basset_reward::msg::QueryMsg::{AccruedRewards, GlobalIndex, PendingRewards, UserIndex};
-use anchor_basset_reward::state::Config;
+use anchor_basset_reward::state::{prev_balance_read, Config};
 use anchor_basset_token::contract::{handle as token_handle, init as token_init};
 use anchor_basset_token::msg::HandleMsg::{Burn, Mint, Send, Transfer};
 use anchor_basset_token::msg::TokenInitMsg;
@@ -312,7 +312,7 @@ pub fn do_update_user_in<S: Storage, A: Api, Q: Querier>(
 
 //this will check the update global index workflow
 #[test]
-fn send_update_global_index() {
+fn integrated_update_global_index() {
     let mut deps = dependencies(20, &[]);
     let validator = sample_validator(DEFAULT_VALIDATOR);
     set_validator_mock(&mut deps.querier);
@@ -407,6 +407,10 @@ fn send_update_global_index() {
 
     //send update global index and check the expected reward
     reward_update_global(&mut deps, "200");
+
+    //read the previous balance from the storage and check the amount
+    let previous_balance = prev_balance_read(&deps.storage).load().unwrap();
+    assert_eq!(previous_balance, Uint128(2000));
 
     // sender is not gov contract
     let update_global_index = UpdateGlobalIndex {};
