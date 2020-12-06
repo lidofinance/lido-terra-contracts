@@ -30,6 +30,7 @@ mod common;
 use anchor_basset_reward::msg::{AccruedRewardsResponse, IndexResponse, PendingRewardsResponse};
 use common::mock_querier::{mock_dependencies as dependencies, WasmMockQuerier};
 use gov_courier::HandleMsg::UpdateParams;
+use terra_cosmwasm::create_swap_msg;
 
 const TOKEN_INFO_KEY: &[u8] = b"token_info";
 const DEFAULT_VALIDATOR: &str = "default-validator";
@@ -608,14 +609,23 @@ pub fn integrated_swap() {
     let mut env = mock_env(&gov, &[]);
     env.contract.address = HumanAddr::from("reward");
 
-    init_all(&mut deps, owner, reward_contract, token_contract);
+    init_all(&mut deps, owner, reward_contract.clone(), token_contract);
     set_params(&mut deps);
 
     let swap = SwapToRewardDenom {};
     let reward_update = reward_handle(&mut deps, env, swap).unwrap();
-    // there is three coins including uusd, therefore we will have 2 swap messages.
+    // there are three coins including uusd, therefore we will have 2 swap messages.
     // uusd should not be swapped.
     assert_eq!(reward_update.messages.len(), 2);
+
+    let msg_luna = create_swap_msg(
+        reward_contract.clone(),
+        coin(1000, "uluna"),
+        "uusd".to_string(),
+    );
+    assert_eq!(reward_update.messages[0], msg_luna);
+    let msg_krt = create_swap_msg(reward_contract, coin(1000, "ukrt"), "uusd".to_string());
+    assert_eq!(reward_update.messages[1], msg_krt);
 }
 
 #[test]
