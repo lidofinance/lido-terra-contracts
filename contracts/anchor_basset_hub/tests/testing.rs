@@ -56,7 +56,8 @@ use anchor_basset_hub::msg::QueryMsg::{
     ExchangeRate, Parameters as Params, TotalBonded, WhitelistedValidators, WithdrawableUnbonded,
 };
 use anchor_basset_hub::state::{
-    epoch_read, read_total_amount, read_undelegated_wait_list, Parameters,
+    epoch_read, get_all_delegations, get_bonded, read_total_amount, read_undelegated_wait_list,
+    Parameters,
 };
 use anchor_basset_reward::hook::InitHook;
 use anchor_basset_reward::msg::HandleMsg::{SwapToRewardDenom, UpdateGlobalIndex, UpdateUserIndex};
@@ -1144,10 +1145,17 @@ pub fn proper_slashing() {
 
     set_delegation(&mut deps.querier, validator.clone(), 900, "uluna");
 
-    let env = mock_env(&addr1, &[coin(1000, "uluna")]);
+    let env = mock_env(&addr1, &[]);
     let report_slashing = CheckSlashing {};
     let res = handle(&mut deps, env, report_slashing).unwrap();
     assert_eq!(0, res.messages.len());
+
+    //read all the delegations stored and check them with the amount after slashing
+    let all_delegations = get_all_delegations(&deps.storage).load().unwrap();
+    assert_eq!(all_delegations, Uint128(900));
+
+    let bonded = get_bonded(&deps.storage).load().unwrap();
+    assert_eq!(Uint128(0), bonded);
 
     let ex_rate = ExchangeRate {};
     let query_exchange_rate: ExchangeRateResponse =
