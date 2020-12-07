@@ -4,7 +4,7 @@ use cosmwasm_std::{
     Uint128, WasmMsg, WasmQuery,
 };
 
-use crate::config::{handle_deactivate, handle_update_params};
+use crate::config::{handle_deactivate, handle_update_config, handle_update_params};
 use crate::math::{decimal_division, decimal_subtraction};
 use crate::msg::{
     ExchangeRateResponse, InitMsg, QueryMsg, TotalBondedResponse, WhitelistedValidatorsResponse,
@@ -168,6 +168,7 @@ pub fn handle<S: Storage, A: Api, Q: Querier>(
             swap_denom,
         ),
         HandleMsg::DeactivateMsg { msg } => handle_deactivate(deps, env, msg),
+        HandleMsg::UpdateConfig { owner } => handle_update_config(deps, env, owner),
     }
 }
 

@@ -46,7 +46,9 @@ use anchor_basset_token::state::{MinterData, TokenInfo as TokenConfig};
 use cosmwasm_storage::Singleton;
 use cw20::{BalanceResponse, Cw20HandleMsg, Cw20ReceiveMsg, MinterResponse, TokenInfoResponse};
 use gov_courier::Cw20HookMsg::Unbond;
-use gov_courier::HandleMsg::{CheckSlashing, DeactivateMsg, Receive, RegisterSubcontracts, UpdateParams, UpdateConfig};
+use gov_courier::HandleMsg::{
+    CheckSlashing, DeactivateMsg, Receive, RegisterSubcontracts, UpdateConfig, UpdateParams,
+};
 use gov_courier::Registration::{Reward, Token};
 
 mod common;
@@ -1569,6 +1571,70 @@ pub fn proper_recovery_fee() {
     let total_bonded_query = query(&deps, total_bonded).unwrap();
     let res: TotalBondedResponse = from_binary(&total_bonded_query).unwrap();
     assert_eq!(res.total_bonded, Uint128(722));
+}
+
+#[test]
+pub fn proper_update_config() {
+    let mut deps = dependencies(20, &[]);
+
+    let owner = HumanAddr::from("owner1");
+    let new_onwer = HumanAddr::from("new_owner");
+    let invalid_owner = HumanAddr::from("invalid_owner");
+    let token_contract = HumanAddr::from("token");
+    let reward_contract = HumanAddr::from("reward");
+
+    init_all(&mut deps, owner.clone(), reward_contract, token_contract);
+
+    //only the 'owner' can send send_params message.
+    set_params(&mut deps);
+
+    // only the owner can call this message
+    let update_config = UpdateConfig {
+        owner: new_onwer.clone(),
+    };
+    let env = mock_env(&invalid_owner, &[]);
+    let res = handle(&mut deps, env, update_config);
+    assert_eq!(res.unwrap_err(), StdError::unauthorized());
+
+    // change the owner
+    let update_config = UpdateConfig {
+        owner: new_onwer.clone(),
+    };
+    let env = mock_env(&owner, &[]);
+    let res = handle(&mut deps, env, update_config).unwrap();
+    assert_eq!(res.messages.len(), 0);
+
+    let config = config_read(&deps.storage).load().unwrap();
+    let new_owner_raw = deps.api.canonical_address(&new_onwer).unwrap();
+    assert_eq!(new_owner_raw, config.creator);
+
+    // new owner can send the owner related messages
+    let update_prams = UpdateParams {
+        epoch_time: 30,
+        underlying_coin_denom: "uluna".to_string(),
+        undelegated_epoch: 2,
+        peg_recovery_fee: Decimal::from_ratio(Uint128(1), Uint128(1000)),
+        er_threshold: Decimal::from_ratio(Uint128(99), Uint128(100)),
+        swap_denom: None,
+    };
+
+    let new_owner_env = mock_env(&new_onwer, &[]);
+    let res = handle(&mut deps, new_owner_env, update_prams).unwrap();
+    assert_eq!(res.messages.len(), 0);
+
+    //previous owner cannot send this message
+    let update_prams = UpdateParams {
+        epoch_time: 30,
+        underlying_coin_denom: "uluna".to_string(),
+        undelegated_epoch: 2,
+        peg_recovery_fee: Decimal::from_ratio(Uint128(1), Uint128(1000)),
+        er_threshold: Decimal::from_ratio(Uint128(99), Uint128(100)),
+        swap_denom: None,
+    };
+
+    let new_owner_env = mock_env(&owner, &[]);
+    let res = handle(&mut deps, new_owner_env, update_prams);
+    assert_eq!(res.unwrap_err(), StdError::unauthorized());
 }
 
 pub fn set_pool_info<S: Storage>(
