@@ -92,6 +92,11 @@ pub enum HandleMsg {
     ////////////////////
     /// switch of the message
     DeactivateMsg { msg: Deactivated },
+    ////////////////////
+    /// Owner's operations
+    ////////////////////
+    /// set the owener
+    UpdateConfig { owner: HumanAddr },
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

@@ -63,6 +63,8 @@ pub enum QueryMsg {
     RewardContract {},
     Parameters {},
     TotalBonded {},
+    UnbondRequests { address: HumanAddr },
+    UnbondEpochs { address: HumanAddr },
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -83,4 +85,13 @@ pub struct TotalBondedResponse {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct WithdrawableUnbondedResponse {
     pub withdrawable: Uint128,
+}
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct UnbondRequestsResponse {
+    pub unbond_requests: Vec<Uint128>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct UnbondEpochsResponse {
+    pub unbond_epochs: Vec<u64>,
 }
