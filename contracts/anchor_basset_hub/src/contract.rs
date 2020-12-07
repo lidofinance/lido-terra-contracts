@@ -7,15 +7,15 @@ use cosmwasm_std::{
 use crate::config::{handle_deactivate, handle_update_config, handle_update_params};
 use crate::math::{decimal_division, decimal_subtraction};
 use crate::msg::{
-    ExchangeRateResponse, InitMsg, QueryMsg, TotalBondedResponse, WhitelistedValidatorsResponse,
-    WithdrawableUnbondedResponse,
+    ExchangeRateResponse, InitMsg, QueryMsg, TotalBondedResponse, UnbondEpochsResponse,
+    UnbondRequestsResponse, WhitelistedValidatorsResponse, WithdrawableUnbondedResponse,
 };
 use crate::state::{
-    config, config_read, epoch_read, get_all_delegations, get_bonded, get_finished_amount,
-    is_valid_validator, msg_status, msg_status_read, parameters_read, pool_info, pool_info_read,
-    read_valid_validators, read_validators, remove_white_validators, save_epoch,
-    set_all_delegations, set_bonded, store_total_amount, store_white_validators, EpochId,
-    GovConfig, MsgStatus, Parameters,
+    config, config_read, epoch_read, get_all_delegations, get_bonded, get_burn_requests,
+    get_burn_requests_epochs, get_finished_amount, is_valid_validator, msg_status, msg_status_read,
+    parameters_read, pool_info, pool_info_read, read_valid_validators, read_validators,
+    remove_white_validators, save_epoch, set_all_delegations, set_bonded, store_total_amount,
+    store_white_validators, EpochId, GovConfig, MsgStatus, Parameters,
 };
 use crate::unbond::{
     compute_current_epoch, get_past_epoch, handle_unbond, handle_withdraw_unbonded,
@@ -533,6 +533,8 @@ pub fn query<S: Storage, A: Api, Q: Querier>(
         QueryMsg::RewardContract {} => to_binary(&query_reward(&deps)?),
         QueryMsg::Parameters {} => to_binary(&query_params(&deps)?),
         QueryMsg::TotalBonded {} => to_binary(&query_total_bonded(&deps)?),
+        QueryMsg::UnbondRequests { address } => to_binary(&query_unbond_requests(&deps, address)?),
+        QueryMsg::UnbondEpochs { address } => to_binary(&query_user_epochs(&deps, address)?),
     }
 }
 
@@ -622,6 +624,28 @@ fn query_total_issued<S: Storage, A: Api, Q: Querier>(
     }))?;
     let token_info: TokenInfo = from_binary(&res)?;
     Ok(token_info.total_supply)
+}
+
+fn query_user_epochs<S: Storage, A: Api, Q: Querier>(
+    deps: &Extern<S, A, Q>,
+    address: HumanAddr,
+) -> StdResult<UnbondEpochsResponse> {
+    let requests = get_burn_requests_epochs(&deps.storage, address)?;
+    let res = UnbondEpochsResponse {
+        unbond_epochs: requests,
+    };
+    Ok(res)
+}
+
+fn query_unbond_requests<S: Storage, A: Api, Q: Querier>(
+    deps: &Extern<S, A, Q>,
+    address: HumanAddr,
+) -> StdResult<UnbondRequestsResponse> {
+    let requests = get_burn_requests(&deps.storage, address)?;
+    let res = UnbondRequestsResponse {
+        unbond_requests: requests,
+    };
+    Ok(res)
 }
 
 #[cfg(test)]

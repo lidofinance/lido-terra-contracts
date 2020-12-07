@@ -179,7 +179,7 @@ pub fn read_undelegated_wait_list<'a, S: ReadonlyStorage>(
 }
 
 //this function is here for test purpose
-pub fn get_burn_requests<'a, S: ReadonlyStorage>(
+pub fn get_burn_requests_epochs<'a, S: ReadonlyStorage>(
     storage: &'a S,
     sender_addr: HumanAddr,
 ) -> StdResult<Vec<u64>> {
@@ -193,6 +193,24 @@ pub fn get_burn_requests<'a, S: ReadonlyStorage>(
             let (k, _) = item.unwrap();
             let epoch: u64 = from_slice(&k).unwrap();
             amount.push(epoch)
+        })
+        .collect();
+    Ok(amount)
+}
+
+pub fn get_burn_requests<'a, S: ReadonlyStorage>(
+    storage: &'a S,
+    sender_addr: HumanAddr,
+) -> StdResult<Vec<Uint128>> {
+    let vec = to_vec(&sender_addr)?;
+    let mut amount: Vec<Uint128> = vec![];
+    let res: ReadonlyBucket<'a, S, Uint128> =
+        ReadonlyBucket::multilevel(&[PREFIX_WAIT_MAP, &vec], storage);
+    let _un: Vec<_> = res
+        .range(None, None, Order::Ascending)
+        .map(|item| {
+            let (_, value) = item.unwrap();
+            amount.push(value);
         })
         .collect();
     Ok(amount)

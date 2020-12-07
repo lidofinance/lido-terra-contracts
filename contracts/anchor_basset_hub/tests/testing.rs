@@ -25,8 +25,8 @@ use cosmwasm_std::{
 use cosmwasm_std::testing::{mock_dependencies, mock_env};
 
 use anchor_basset_hub::msg::{
-    ExchangeRateResponse, InitMsg, TotalBondedResponse, WhitelistedValidatorsResponse,
-    WithdrawableUnbondedResponse,
+    ExchangeRateResponse, InitMsg, TotalBondedResponse, UnbondEpochsResponse,
+    UnbondRequestsResponse, WhitelistedValidatorsResponse, WithdrawableUnbondedResponse,
 };
 use gov_courier::{Deactivated, HandleMsg, PoolInfo, Registration};
 
@@ -53,11 +53,12 @@ use gov_courier::Registration::{Reward, Token};
 
 mod common;
 use anchor_basset_hub::msg::QueryMsg::{
-    ExchangeRate, Parameters as Params, TotalBonded, WhitelistedValidators, WithdrawableUnbonded,
+    ExchangeRate, Parameters as Params, TotalBonded, UnbondEpochs, UnbondRequests,
+    WhitelistedValidators, WithdrawableUnbonded,
 };
 use anchor_basset_hub::state::{
-    epoch_read, get_all_delegations, get_bonded, read_total_amount, read_undelegated_wait_list,
-    Parameters, config_read
+    config_read, epoch_read, get_all_delegations, get_bonded, read_total_amount,
+    read_undelegated_wait_list, Parameters,
 };
 use anchor_basset_reward::hook::InitHook;
 use anchor_basset_reward::msg::HandleMsg::{SwapToRewardDenom, UpdateGlobalIndex, UpdateUserIndex};
@@ -1304,6 +1305,27 @@ pub fn proper_withdraw_unbonded() {
     assert_eq!(res.withdrawable, Uint128(0));
 
     env.block.time += 90;
+
+    //first query AllUnbondedRequests
+    let all_unbonded = UnbondRequests {
+        address: bob.clone(),
+    };
+    let query_unbonded = query(&deps, all_unbonded).unwrap();
+    let res: UnbondRequestsResponse = from_binary(&query_unbonded).unwrap();
+    assert_eq!(res.unbond_requests.len(), 1);
+    //the amount should be 10
+    assert_eq!(res.unbond_requests[0], Uint128(10));
+
+    //first query AllUnbondedEpochs
+    let all_user_epochs = UnbondEpochs {
+        address: bob.clone(),
+    };
+
+    let query_epochs = query(&deps, all_user_epochs).unwrap();
+    let res: UnbondEpochsResponse = from_binary(&query_epochs).unwrap();
+    assert_eq!(res.unbond_epochs.len(), 1);
+    //the epoch should be zero
+    assert_eq!(res.unbond_epochs[0], 0);
 
     //check with query
     let withdrawable = WithdrawableUnbonded {

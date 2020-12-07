@@ -1,0 +1,21 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "UnbondRequestsResponse",
+  "type": "object",
+  "required": [
+    "unbond_requests"
+  ],
+  "properties": {
+    "unbond_requests": {
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/Uint128"
+      }
+    }
+  },
+  "definitions": {
+    "Uint128": {
+      "type": "string"
+    }
+  }
+}
