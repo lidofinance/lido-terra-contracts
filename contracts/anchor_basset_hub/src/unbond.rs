@@ -50,13 +50,19 @@ pub fn handle_unbond<S: Storage, A: Api, Q: Querier>(
     let mut exchange_rate = Decimal::zero();
     let mut amount_with_er = Uint128::zero();
     pool_info(&mut deps.storage).update(|mut pool_inf| {
-        amount_with_er = pool_inf.exchange_rate * amount;
+        if pool_inf.exchange_rate < threshold {
+            let peg_fee = decimal_subtraction(Decimal::one(), recovery_fee);
+            amount_with_er = pool_inf.exchange_rate * amount * peg_fee;
+        } else {
+            amount_with_er = pool_inf.exchange_rate * amount;
+        }
         pool_inf.total_bond_amount = (pool_inf.total_bond_amount - amount_with_er)?;
         exchange_rate = pool_inf.exchange_rate;
         Ok(pool_inf)
     })?;
 
     let pool = pool_info_read(&deps.storage).load()?;
+
     //send Burn message to token contract
     let token_address = deps.api.human_address(&pool.token_account)?;
     let burn_msg = Cw20HandleMsg::Burn { amount };
@@ -72,27 +78,21 @@ pub fn handle_unbond<S: Storage, A: Api, Q: Querier>(
         let last_epoch = epoch.epoch_id;
         epoch.compute_current_epoch(block_time, epoch_time);
 
-        //this will store the user request for the past epoch.
+        // store total amount for the next epoch to zero.
         store_total_amount(&mut deps.storage, epoch.epoch_id, Uint128::zero())?;
 
         let delegator = env.contract.address;
 
-        // send undelegated requests
-        let mut undelegatable = amount_with_er;
-        //apply recovery fee if it is necessary
-        if exchange_rate < threshold {
-            let peg_fee = decimal_subtraction(Decimal::one(), recovery_fee);
-            undelegatable = undelegatable * peg_fee;
-        }
+        undelegated_so_far += amount_with_er;
 
-        undelegated_so_far += undelegatable;
-        let undelegated_amount = undelegated_so_far;
         let all_validators = read_validators(&deps.storage).unwrap();
         let block_height = env.block.height;
+
+        // send undelegated requests
         let mut undelegated_msgs = pick_validator(
             deps,
             all_validators,
-            undelegated_amount,
+            undelegated_so_far,
             delegator,
             block_height,
         )?;
@@ -110,15 +110,14 @@ pub fn handle_unbond<S: Storage, A: Api, Q: Querier>(
         // since the sender triggered the Undelegate msg,
         // the contract store its request for the previous
         // epcoh_id
-        store_undelegated_wait_list(&mut deps.storage, last_epoch, sender.clone(), undelegatable)?;
+        store_undelegated_wait_list(
+            &mut deps.storage,
+            last_epoch,
+            sender.clone(),
+            amount_with_er,
+        )?;
     } else {
-        let mut luna_amount = amount_with_er;
-
-        //apply recovery fee if it is necessary
-        if exchange_rate < threshold {
-            let peg_fee = decimal_subtraction(Decimal::one(), recovery_fee);
-            luna_amount = luna_amount * peg_fee;
-        }
+        let luna_amount = amount_with_er;
 
         undelegated_so_far += luna_amount;
 

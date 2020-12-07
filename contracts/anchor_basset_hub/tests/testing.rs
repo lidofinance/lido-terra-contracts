@@ -46,9 +46,7 @@ use anchor_basset_token::state::{MinterData, TokenInfo as TokenConfig};
 use cosmwasm_storage::Singleton;
 use cw20::{BalanceResponse, Cw20HandleMsg, Cw20ReceiveMsg, MinterResponse, TokenInfoResponse};
 use gov_courier::Cw20HookMsg::Unbond;
-use gov_courier::HandleMsg::{
-    CheckSlashing, DeactivateMsg, Receive, RegisterSubcontracts, UpdateParams,
-};
+use gov_courier::HandleMsg::{CheckSlashing, DeactivateMsg, Receive, RegisterSubcontracts, UpdateParams, UpdateConfig};
 use gov_courier::Registration::{Reward, Token};
 
 mod common;
@@ -57,7 +55,7 @@ use anchor_basset_hub::msg::QueryMsg::{
 };
 use anchor_basset_hub::state::{
     epoch_read, get_all_delegations, get_bonded, read_total_amount, read_undelegated_wait_list,
-    Parameters,
+    Parameters, config_read
 };
 use anchor_basset_reward::hook::InitHook;
 use anchor_basset_reward::msg::HandleMsg::{SwapToRewardDenom, UpdateGlobalIndex, UpdateUserIndex};
@@ -1566,6 +1564,11 @@ pub fn proper_recovery_fee() {
         }
         _ => panic!("Unexpected message: {:?}", mint_msg),
     }
+
+    let total_bonded = TotalBonded {};
+    let total_bonded_query = query(&deps, total_bonded).unwrap();
+    let res: TotalBondedResponse = from_binary(&total_bonded_query).unwrap();
+    assert_eq!(res.total_bonded, Uint128(722));
 }
 
 pub fn set_pool_info<S: Storage>(
