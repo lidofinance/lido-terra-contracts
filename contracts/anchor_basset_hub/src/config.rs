@@ -1,8 +1,10 @@
-use crate::state::{config_read, msg_status, parameters, pool_info_read, Parameters};
+use crate::state::{
+    config, config_read, msg_status, parameters, pool_info_read, GovConfig, Parameters,
+};
 use anchor_basset_reward::msg::HandleMsg::UpdateParams;
 use cosmwasm_std::{
-    log, to_binary, Api, CosmosMsg, Decimal, Env, Extern, HandleResponse, Querier, StdError,
-    StdResult, Storage, WasmMsg,
+    log, to_binary, Api, CosmosMsg, Decimal, Env, Extern, HandleResponse, HumanAddr, Querier,
+    StdError, StdResult, Storage, WasmMsg,
 };
 use gov_courier::Deactivated;
 
@@ -83,6 +85,31 @@ pub fn handle_deactivate<S: Storage, A: Api, Q: Querier>(
     let res = HandleResponse {
         messages: vec![],
         log: vec![log("action", "deactivate_msg")],
+        data: None,
+    };
+    Ok(res)
+}
+
+pub fn handle_update_config<S: Storage, A: Api, Q: Querier>(
+    deps: &mut Extern<S, A, Q>,
+    env: Env,
+    owner: HumanAddr,
+) -> StdResult<HandleResponse> {
+    let conf = config_read(&deps.storage).load()?;
+    let sender_raw = deps.api.canonical_address(&env.message.sender)?;
+    if sender_raw != conf.creator {
+        return Err(StdError::unauthorized());
+    }
+
+    let owner_raw = deps.api.canonical_address(&owner)?;
+
+    let new_conf = GovConfig { creator: owner_raw };
+
+    config(&mut deps.storage).save(&new_conf)?;
+
+    let res = HandleResponse {
+        messages: vec![],
+        log: vec![log("action", "change_the_owner")],
         data: None,
     };
     Ok(res)
