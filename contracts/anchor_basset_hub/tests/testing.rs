@@ -282,9 +282,28 @@ fn proper_exchange_rate() {
 fn proper_initialization() {
     let mut deps = mock_dependencies(20, &[]);
 
+    //check the symbol and name
     let msg = InitMsg {
         name: "bluna".to_string(),
-        symbol: "BLUNA".to_string(),
+        symbol: "BL".to_string(),
+        decimals: 6,
+        reward_code_id: 0,
+        token_code_id: 0,
+    };
+    let owner = HumanAddr::from("owner1");
+    let env = mock_env(owner, &[]);
+
+    //wrong symbol
+    let res = init(&mut deps, env, msg);
+    assert_eq!(
+        res.unwrap_err(),
+        StdError::generic_err("Ticker symbol is not in expected format{3,6}",)
+    );
+
+    //successful call
+    let msg = InitMsg {
+        name: "bluna".to_string(),
+        symbol: "Bluna".to_string(),
         decimals: 6,
         reward_code_id: 0,
         token_code_id: 0,

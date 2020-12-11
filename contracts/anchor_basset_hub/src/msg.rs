@@ -21,7 +21,7 @@ impl InitMsg {
         }
         if !is_valid_symbol(&self.symbol) {
             return Err(StdError::generic_err(
-                "Ticker symbol is not in expected format [A-Z]{3,6}",
+                "Ticker symbol is not in expected format{3,6}",
             ));
         }
         //terra supports 6 decimals
@@ -44,11 +44,6 @@ fn is_valid_symbol(symbol: &str) -> bool {
     let bytes = symbol.as_bytes();
     if bytes.len() < 3 || bytes.len() > 6 {
         return false;
-    }
-    for byte in bytes.iter() {
-        if *byte < 65 || *byte > 90 {
-            return false;
-        }
     }
     true
 }
