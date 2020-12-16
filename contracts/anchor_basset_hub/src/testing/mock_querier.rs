@@ -6,7 +6,7 @@ use cosmwasm_std::{
 };
 use cosmwasm_storage::to_length_prefixed;
 use cw20_base::state::{MinterData, TokenInfo};
-use gov_courier::PoolInfo;
+use hub_courier::PoolInfo;
 use std::collections::HashMap;
 
 use terra_cosmwasm::{TaxCapResponse, TaxRateResponse, TerraQuery, TerraQueryWrapper, TerraRoute};
@@ -148,9 +148,7 @@ impl WasmMockQuerier {
                         decimals: 6,
                         total_supply,
                         mint: Some(MinterData {
-                            minter: api
-                                .canonical_address(&HumanAddr::from("governance"))
-                                .unwrap(),
+                            minter: api.canonical_address(&HumanAddr::from("hub")).unwrap(),
                             cap: None,
                         }),
                     };

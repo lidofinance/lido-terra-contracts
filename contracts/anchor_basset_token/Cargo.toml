@@ -21,7 +21,7 @@ cosmwasm-storage = { version = "0.10.1", features = ["iterator"] }
 schemars = "0.7"
 serde = { version = "1.0.103", default-features = false, features = ["derive"] }
 snafu = { version = "0.6.3" }
-gov_courier = {path = "../gov_courier" }
+hub_courier = {path = "../hub_courier" }
 anchor_basset_reward = {path = "../anchor_basset_reward"}
 
 [dev-dependencies]

@@ -15,7 +15,7 @@ use crate::state::{
     get_burn_requests_epochs, get_finished_amount, is_valid_validator, msg_status, msg_status_read,
     parameters, parameters_read, pool_info, pool_info_read, read_valid_validators, read_validators,
     remove_white_validators, save_epoch, set_all_delegations, set_bonded, store_total_amount,
-    store_white_validators, EpochId, GovConfig, MsgStatus, Parameters,
+    store_white_validators, Config, EpochId, MsgStatus, Parameters,
 };
 use crate::unbond::{
     compute_current_epoch, get_past_epoch, handle_unbond, handle_withdraw_unbonded,
@@ -25,9 +25,9 @@ use anchor_basset_reward::msg::HandleMsg::{SwapToRewardDenom, UpdateGlobalIndex}
 use cosmwasm_storage::to_length_prefixed;
 use cw20::{Cw20HandleMsg, Cw20ReceiveMsg};
 use cw20_base::state::TokenInfo;
-use gov_courier::PoolInfo;
-use gov_courier::Registration;
-use gov_courier::{Cw20HookMsg, HandleMsg};
+use hub_courier::PoolInfo;
+use hub_courier::Registration;
+use hub_courier::{Cw20HookMsg, HandleMsg};
 use rand::{Rng, SeedableRng, XorShiftRng};
 
 pub fn init<S: Storage, A: Api, Q: Querier>(
@@ -38,7 +38,7 @@ pub fn init<S: Storage, A: Api, Q: Querier>(
     // store token info
     let sender = env.message.sender;
     let sndr_raw = deps.api.canonical_address(&sender)?;
-    let data = GovConfig { creator: sndr_raw };
+    let data = Config { creator: sndr_raw };
     config(&mut deps.storage).save(&data)?;
 
     let pool = PoolInfo {
@@ -93,9 +93,10 @@ pub fn handle<S: Storage, A: Api, Q: Querier>(
         HandleMsg::Bond { validator } => handle_bond(deps, env, validator),
         HandleMsg::UpdateGlobalIndex {} => handle_update_global(deps, env),
         HandleMsg::WithdrawUnbonded {} => handle_withdraw_unbonded(deps, env),
-        HandleMsg::RegisterSubcontracts { contract } => {
-            handle_register_contracts(deps, env, contract)
-        }
+        HandleMsg::RegisterSubcontracts {
+            contract,
+            contract_address,
+        } => handle_register_contracts(deps, env, contract, contract_address),
         HandleMsg::RegisterValidator { validator } => handle_reg_validator(deps, env, validator),
         HandleMsg::DeregisterValidator { validator } => {
             handle_dereg_validator(deps, env, validator)
@@ -305,31 +306,42 @@ pub fn handle_register_contracts<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
     env: Env,
     contract: Registration,
+    contract_address: HumanAddr,
 ) -> StdResult<HandleResponse> {
-    let raw_sender = deps.api.canonical_address(&env.message.sender)?;
+    let config = config_read(&deps.storage).load()?;
+    let sender_raw = deps.api.canonical_address(&env.message.sender)?;
+    if sender_raw != config.creator {
+        return Err(StdError::unauthorized());
+    }
+
+    let raw_contract_addr = deps.api.canonical_address(&contract_address)?;
     let mut messages: Vec<CosmosMsg> = vec![];
+
     match contract {
         Registration::Reward => {
             let mut pool = pool_info_read(&deps.storage).load()?;
             if pool.is_reward_exist {
-                return Err(StdError::generic_err("The request is not valid"));
+                return Err(StdError::generic_err(
+                    "The reward contract is already registered",
+                ));
             }
-            pool.reward_account = raw_sender.clone();
+            pool.reward_account = raw_contract_addr.clone();
             pool.is_reward_exist = true;
             pool_info(&mut deps.storage).save(&pool)?;
-
             let msg: CosmosMsg = CosmosMsg::Staking(StakingMsg::Withdraw {
                 validator: HumanAddr::default(),
-                recipient: Some(deps.api.human_address(&raw_sender)?),
+                recipient: Some(deps.api.human_address(&raw_contract_addr)?),
             });
             messages.push(msg);
         }
         Registration::Token => {
             pool_info(&mut deps.storage).update(|mut pool| {
                 if pool.is_token_exist {
-                    return Err(StdError::generic_err("The request is not valid"));
+                    return Err(StdError::generic_err(
+                        "The token contract is already registered",
+                    ));
                 }
-                pool.token_account = raw_sender.clone();
+                pool.token_account = raw_contract_addr.clone();
                 pool.is_token_exist = true;
                 Ok(pool)
             })?;
@@ -337,7 +349,10 @@ pub fn handle_register_contracts<S: Storage, A: Api, Q: Querier>(
     }
     let res = HandleResponse {
         messages,
-        log: vec![log("action", "register"), log("sub_contract", raw_sender)],
+        log: vec![
+            log("action", "register"),
+            log("sub_contract", contract_address),
+        ],
         data: None,
     };
     Ok(res)
@@ -348,10 +363,10 @@ pub fn handle_reg_validator<S: Storage, A: Api, Q: Querier>(
     env: Env,
     validator: HumanAddr,
 ) -> StdResult<HandleResponse> {
-    let gov_conf = config_read(&deps.storage).load()?;
+    let hub_conf = config_read(&deps.storage).load()?;
 
     let sender_raw = deps.api.canonical_address(&env.message.sender)?;
-    if gov_conf.creator != sender_raw {
+    if hub_conf.creator != sender_raw {
         return Err(StdError::generic_err(
             "Only the creator can send this message",
         ));

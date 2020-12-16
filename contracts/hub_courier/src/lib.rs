@@ -51,7 +51,10 @@ pub enum HandleMsg {
     /// Owner's operations
     ////////////////////
     /// Register receives the reward contract address
-    RegisterSubcontracts { contract: Registration },
+    RegisterSubcontracts {
+        contract: Registration,
+        contract_address: HumanAddr,
+    },
 
     ////////////////////
     /// Owner's operations

@@ -3,7 +3,7 @@ use cosmwasm_std::{
     Storage, WasmQuery,
 };
 use cosmwasm_storage::to_length_prefixed;
-use gov_courier::PoolInfo;
+use hub_courier::PoolInfo;
 
 pub fn query_token_contract<S: Storage, A: Api, Q: Querier>(
     deps: &Extern<S, A, Q>,

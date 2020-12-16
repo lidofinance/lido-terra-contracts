@@ -1,12 +1,12 @@
 use crate::state::{
-    config, config_read, msg_status, parameters, pool_info_read, GovConfig, Parameters,
+    config, config_read, msg_status, parameters, pool_info_read, Config, Parameters,
 };
 use anchor_basset_reward::msg::HandleMsg::UpdateParams;
 use cosmwasm_std::{
     log, to_binary, Api, CosmosMsg, Decimal, Env, Extern, HandleResponse, HumanAddr, Querier,
     StdError, StdResult, Storage, WasmMsg,
 };
-use gov_courier::Deactivated;
+use hub_courier::Deactivated;
 
 #[allow(clippy::too_many_arguments)]
 pub fn handle_update_params<S: Storage, A: Api, Q: Querier>(
@@ -108,7 +108,7 @@ pub fn handle_update_config<S: Storage, A: Api, Q: Querier>(
 
     let owner_raw = deps.api.canonical_address(&owner)?;
 
-    let new_conf = GovConfig { creator: owner_raw };
+    let new_conf = Config { creator: owner_raw };
 
     config(&mut deps.storage).save(&new_conf)?;
 
