@@ -4,48 +4,85 @@ use serde::{Deserialize, Serialize};
 use cosmwasm_std::{Decimal, HumanAddr, Uint128};
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-#[serde(rename_all = "snake_case")]
-pub enum HandleMsg {
-    ////////////////////
-    /// User's operations
-    ///////////////////
-    /// return the accrued reward in uusd to the user.
-    ClaimRewards { recipient: Option<HumanAddr> },
-
-    ////////////////////
-    /// Owner's operations
-    ///////////////////
-    //Swap all of the balances to uusd.
-    SwapToRewardDenom {},
-
-    ////////////////////
-    /// Owner's operations
-    ///////////////////
-    //Update the global index
-    UpdateGlobalIndex {},
-
-    ////////////////////
-    /// Owner's operations
-    ///////////////////
-    //Register bluna holders
-    UpdateUserIndex {
-        address: HumanAddr,
-        previous_balance: Option<Uint128>,
-    },
-
-    ////////////////////
-    /// Owner's operations
-    ///////////////////
-    //Register bluna holders
-    UpdateParams { swap_denom: String },
+pub struct InitMsg {
+    pub hub_contract: HumanAddr,
+    pub swap_denom: String,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct TokenInfoResponse {
-    pub name: String,
-    pub symbol: String,
-    pub decimals: u8,
-    pub total_supply: Uint128,
+#[serde(rename_all = "snake_case")]
+pub enum HandleMsg {
+    ////////////////////
+    /// Owner's operations
+    ///////////////////
+
+    /// Swap all of the balances to uusd.
+    SwapToRewardDenom {},
+
+    /// Update the global index
+    UpdateGlobalIndex { prev_balance: Uint128 },
+
+    /// Update the config
+    UpdateConfig {
+        hub_contract: Option<HumanAddr>,
+        swap_denom: Option<String>,
+    },
+
+    ////////////////////
+    /// bAsset's operations
+    ///////////////////
+
+    /// Increase user staking balance
+    /// Withdraw rewards to pending rewards
+    /// Set current reward index to global index
+    IncreaseBalance { address: HumanAddr, amount: Uint128 },
+    /// Decrease user staking balance
+    /// Withdraw rewards to pending rewards
+    /// Set current reward index to global index
+    DecreaseBalance { address: HumanAddr, amount: Uint128 },
+
+    ////////////////////
+    /// User's operations
+    ///////////////////
+
+    /// return the accrued reward in uusd to the user.
+    ClaimRewards { recipient: Option<HumanAddr> },
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum QueryMsg {
+    Config {},
+    State {},
+    AccruedRewards {
+        address: HumanAddr,
+    },
+    Holder {
+        address: HumanAddr,
+    },
+    Holders {
+        start_after: Option<HumanAddr>,
+        limit: Option<u32>,
+    },
+    // Do we need this interface seperately?
+    // UserIndex {
+    //     address: HumanAddr,
+    // },
+    // PendingRewards {
+    //     address: HumanAddr,
+    // },
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct ConfigResponse {
+    pub hub_contract: HumanAddr,
+    pub swap_denom: String,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct StateResponse {
+    pub global_index: Decimal,
+    pub total_balance: Uint128,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -54,20 +91,14 @@ pub struct AccruedRewardsResponse {
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct IndexResponse {
+pub struct HolderResponse {
+    pub address: HumanAddr,
+    pub balance: Uint128,
     pub index: Decimal,
+    pub pending_rewards: Uint128,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct PendingRewardsResponse {
-    pub rewards: Uint128,
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-#[serde(rename_all = "snake_case")]
-pub enum QueryMsg {
-    AccruedRewards { address: HumanAddr },
-    GlobalIndex {},
-    UserIndex { address: HumanAddr },
-    PendingRewards { address: HumanAddr },
+pub struct HoldersResponse {
+    pub holders: Vec<HolderResponse>,
 }

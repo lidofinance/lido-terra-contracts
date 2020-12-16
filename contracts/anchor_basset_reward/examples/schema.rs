@@ -1,13 +1,10 @@
 use std::env::current_dir;
 use std::fs::create_dir_all;
 
-use anchor_basset_reward::hook::InitHook;
-use anchor_basset_reward::init::RewardInitMsg;
 use anchor_basset_reward::msg::{
-    AccruedRewardsResponse, HandleMsg, IndexResponse, PendingRewardsResponse, QueryMsg,
-    TokenInfoResponse,
+    AccruedRewardsResponse, ConfigResponse, HandleMsg, HolderResponse, HoldersResponse, InitMsg,
+    QueryMsg, StateResponse,
 };
-use anchor_basset_reward::state::{Config, Index, Parameters};
 use cosmwasm_schema::{export_schema, remove_schemas, schema_for};
 
 fn main() {
@@ -16,15 +13,12 @@ fn main() {
     create_dir_all(&out_dir).unwrap();
     remove_schemas(&out_dir).unwrap();
 
-    export_schema(&schema_for!(InitHook), &out_dir);
-    export_schema(&schema_for!(RewardInitMsg), &out_dir);
+    export_schema(&schema_for!(InitMsg), &out_dir);
     export_schema(&schema_for!(HandleMsg), &out_dir);
     export_schema(&schema_for!(QueryMsg), &out_dir);
-    export_schema(&schema_for!(TokenInfoResponse), &out_dir);
-    export_schema(&schema_for!(Parameters), &out_dir);
-    export_schema(&schema_for!(Index), &out_dir);
-    export_schema(&schema_for!(Config), &out_dir);
-    export_schema(&schema_for!(PendingRewardsResponse), &out_dir);
+    export_schema(&schema_for!(ConfigResponse), &out_dir);
+    export_schema(&schema_for!(StateResponse), &out_dir);
     export_schema(&schema_for!(AccruedRewardsResponse), &out_dir);
-    export_schema(&schema_for!(IndexResponse), &out_dir);
+    export_schema(&schema_for!(HolderResponse), &out_dir);
+    export_schema(&schema_for!(HoldersResponse), &out_dir);
 }
