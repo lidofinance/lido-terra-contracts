@@ -1,12 +1,14 @@
-use cosmwasm_std::testing::{MockApi, MockQuerier, MockStorage};
+use cosmwasm_std::testing::{MockApi, MockQuerier, MockStorage, MOCK_CONTRACT_ADDR};
 use cosmwasm_std::{
-    from_slice, to_binary, Api, Coin, Empty, Extern, FullDelegation, HumanAddr, Querier,
-    QuerierResult, QueryRequest, SystemError, Validator, WasmQuery,
+    from_slice, to_binary, Api, Coin, Empty, Extern, HumanAddr, Querier, QuerierResult,
+    QueryRequest, SystemError, WasmQuery,
 };
 use cosmwasm_storage::to_length_prefixed;
 use gov_courier::PoolInfo;
 
-pub const MOCK_CONTRACT_ADDR: &str = "governance";
+pub const MOCK_HUB_CONTRACT_ADDR: &str = "hub";
+pub const MOCK_REWARD_CONTRACT_ADDR: &str = "reward";
+pub const MOCK_TOKEN_CONTRACT_ADDR: &str = "token";
 
 pub fn mock_dependencies(
     canonical_length: usize,
@@ -49,37 +51,34 @@ impl Querier for WasmMockQuerier {
 impl WasmMockQuerier {
     pub fn handle_query(&self, request: &QueryRequest<Empty>) -> QuerierResult {
         match &request {
-            QueryRequest::Wasm(WasmQuery::Raw {
-                contract_addr: _,
-                key,
-            }) => {
-                let prefix_pool = to_length_prefixed(b"pool_info").to_vec();
-                let api: MockApi = MockApi::new(self.canonical_length);
-                if key.as_slice().to_vec() == prefix_pool {
-                    let pool = PoolInfo {
-                        exchange_rate: Default::default(),
-                        total_bond_amount: Default::default(),
-                        last_index_modification: 0,
-                        reward_account: api.canonical_address(&HumanAddr::from("reward")).unwrap(),
-                        is_reward_exist: true,
-                        is_token_exist: true,
-                        token_account: api.canonical_address(&HumanAddr::from("token")).unwrap(),
-                    };
-                    Ok(to_binary(&to_binary(&pool).unwrap()))
+            QueryRequest::Wasm(WasmQuery::Raw { contract_addr, key }) => {
+                if *contract_addr == HumanAddr::from(MOCK_HUB_CONTRACT_ADDR) {
+                    let prefix_pool = to_length_prefixed(b"pool_info").to_vec();
+                    let api: MockApi = MockApi::new(self.canonical_length);
+                    if key.as_slice().to_vec() == prefix_pool {
+                        let pool = PoolInfo {
+                            exchange_rate: Default::default(),
+                            total_bond_amount: Default::default(),
+                            last_index_modification: 0,
+                            reward_account: api
+                                .canonical_address(&HumanAddr::from(MOCK_REWARD_CONTRACT_ADDR))
+                                .unwrap(),
+                            is_reward_exist: true,
+                            is_token_exist: true,
+                            token_account: api
+                                .canonical_address(&HumanAddr::from(MOCK_TOKEN_CONTRACT_ADDR))
+                                .unwrap(),
+                        };
+                        Ok(to_binary(&to_binary(&pool).unwrap()))
+                    } else {
+                        unimplemented!()
+                    }
                 } else {
                     unimplemented!()
                 }
             }
             _ => self.base.handle_query(request),
         }
-    }
-    pub fn _update_staking(
-        &mut self,
-        denom: &str,
-        validators: &[Validator],
-        delegations: &[FullDelegation],
-    ) {
-        self.base.update_staking(denom, validators, delegations);
     }
 }
 
