@@ -1,94 +1,109 @@
 use cosmwasm_std::{
-    from_slice, to_vec, CanonicalAddr, Decimal, HumanAddr, ReadonlyStorage, StdError, StdResult,
-    Storage, Uint128,
+    Api, CanonicalAddr, Decimal, Extern, HumanAddr, Order, Querier, ReadonlyStorage, StdError,
+    StdResult, Storage, Uint128,
 };
-use cosmwasm_storage::{
-    bucket, bucket_read, singleton, singleton_read, Bucket, PrefixedStorage, ReadonlyBucket,
-    ReadonlyPrefixedStorage, ReadonlySingleton, Singleton,
-};
+use cosmwasm_storage::{bucket, bucket_read, singleton, singleton_read, ReadonlyBucket};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-pub static CONFIG: &[u8] = b"config";
-pub static PARAMS: &[u8] = b"params";
+use crate::msg::HolderResponse;
 
-pub static INDEX: &[u8] = b"index";
-pub static PREFIX_HOLDERS_MAP: &[u8] = b"holders";
-static PENDING_REWARD: &[u8] = b"pending_reward";
-static PREV_BALANCE: &[u8] = b"last_balance";
+pub static KEY_CONFIG: &[u8] = b"config";
+pub static KEY_STATE: &[u8] = b"state";
+
+pub static PREFIX_HOLDERS: &[u8] = b"holders";
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct Config {
-    pub owner: CanonicalAddr,
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct Parameters {
+    pub hub_contract: CanonicalAddr,
     pub swap_denom: String,
 }
 
-pub fn config<S: Storage>(storage: &mut S) -> Singleton<S, Config> {
-    singleton(storage, CONFIG)
+pub fn store_config<S: Storage>(storage: &mut S, config: &Config) -> StdResult<()> {
+    singleton(storage, KEY_CONFIG).save(config)
 }
 
-pub fn config_read<S: ReadonlyStorage>(storage: &S) -> ReadonlySingleton<S, Config> {
-    singleton_read(storage, CONFIG)
-}
-
-pub fn params<S: Storage>(storage: &mut S) -> Singleton<S, Parameters> {
-    singleton(storage, PARAMS)
-}
-
-pub fn params_read<S: ReadonlyStorage>(storage: &S) -> ReadonlySingleton<S, Parameters> {
-    singleton_read(storage, PARAMS)
+pub fn read_config<S: ReadonlyStorage>(storage: &S) -> StdResult<Config> {
+    singleton_read(storage, KEY_CONFIG).load()
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct Index {
+pub struct State {
     pub global_index: Decimal,
+    pub total_balance: Uint128,
 }
 
-pub fn index_store<S: Storage>(storage: &mut S) -> Singleton<S, Index> {
-    singleton(storage, INDEX)
+pub fn store_state<S: Storage>(storage: &mut S, state: &State) -> StdResult<()> {
+    singleton(storage, KEY_STATE).save(state)
 }
 
-pub fn index_read<S: ReadonlyStorage>(storage: &S) -> ReadonlySingleton<S, Index> {
-    singleton_read(storage, INDEX)
+pub fn read_state<S: ReadonlyStorage>(storage: &S) -> StdResult<State> {
+    singleton_read(storage, KEY_STATE).load()
 }
 
-// This is similar to HashMap<holder's address, reward_index>
-pub fn store_holder_map<S: Storage>(
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct Holder {
+    pub balance: Uint128,
+    pub index: Decimal,
+    pub pending_rewards: Uint128,
+}
+
+// This is similar to HashMap<holder's address, Hodler>
+pub fn store_holder<S: Storage>(
     storage: &mut S,
-    holder_address: HumanAddr,
-    index: Decimal,
+    holder_address: &CanonicalAddr,
+    holder: &Holder,
 ) -> StdResult<()> {
-    let vec = to_vec(&holder_address)?;
-    let value: Vec<u8> = to_vec(&index)?;
-    PrefixedStorage::new(PREFIX_HOLDERS_MAP, storage).set(&vec, &value);
-    Ok(())
+    bucket(PREFIX_HOLDERS, storage).save(holder_address.as_slice(), holder)
 }
 
-pub fn read_holder_map<S: Storage>(storage: &S, holder_address: HumanAddr) -> StdResult<Decimal> {
-    let vec = to_vec(&holder_address)?;
-    let res = ReadonlyPrefixedStorage::new(PREFIX_HOLDERS_MAP, storage).get(&vec);
+pub fn read_holder<S: Storage>(storage: &S, holder_address: &CanonicalAddr) -> StdResult<Holder> {
+    let res: Option<Holder> =
+        bucket_read(PREFIX_HOLDERS, storage).may_load(holder_address.as_slice())?;
     match res {
-        Some(data) => from_slice(&data),
-        None => Err(StdError::generic_err("no holder is found")),
+        Some(holder) => Ok(holder),
+        None => Ok(Holder {
+            balance: Uint128::zero(),
+            index: Decimal::zero(),
+            pending_rewards: Uint128::zero(),
+        }),
     }
 }
 
-pub fn pending_reward_store<S: Storage>(storage: &mut S) -> Bucket<S, Uint128> {
-    bucket(PENDING_REWARD, storage)
+// settings for pagination
+const MAX_LIMIT: u32 = 30;
+const DEFAULT_LIMIT: u32 = 10;
+pub fn read_holders<S: Storage, A: Api, Q: Querier>(
+    deps: &Extern<S, A, Q>,
+    start_after: Option<CanonicalAddr>,
+    limit: Option<u32>,
+) -> StdResult<Vec<HolderResponse>> {
+    let holder_bucket: ReadonlyBucket<S, Holder> = bucket_read(PREFIX_HOLDERS, &deps.storage);
+
+    let limit = limit.unwrap_or(DEFAULT_LIMIT).min(MAX_LIMIT) as usize;
+    let start = calc_range_start(start_after);
+
+    holder_bucket
+        .range(start.as_deref(), None, Order::Ascending)
+        .take(limit)
+        .map(|elem| {
+            let (k, v) = elem?;
+            let address: HumanAddr = deps.api.human_address(&CanonicalAddr::from(k))?;
+            Ok(HolderResponse {
+                address,
+                balance: v.balance,
+                index: v.index,
+                pending_rewards: v.pending_rewards,
+            })
+        })
+        .collect()
 }
 
-pub fn pending_reward_read<S: ReadonlyStorage>(storage: &S) -> ReadonlyBucket<S, Uint128> {
-    bucket_read(PENDING_REWARD, storage)
-}
-
-pub fn prev_balance<S: Storage>(storage: &mut S) -> Singleton<S, Uint128> {
-    singleton(storage, PREV_BALANCE)
-}
-
-pub fn prev_balance_read<S: ReadonlyStorage>(storage: &S) -> ReadonlySingleton<S, Uint128> {
-    singleton_read(storage, PREV_BALANCE)
+// this will set the first key after the provided key, by appending a 1 byte
+fn calc_range_start(start_after: Option<CanonicalAddr>) -> Option<Vec<u8>> {
+    start_after.map(|addr| {
+        let mut v = addr.as_slice().to_vec();
+        v.push(1);
+        v
+    })
 }

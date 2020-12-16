@@ -1,12 +1,21 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "title": "Parameters",
+  "title": "InitMsg",
   "type": "object",
   "required": [
+    "hub_contract",
     "swap_denom"
   ],
   "properties": {
+    "hub_contract": {
+      "$ref": "#/definitions/HumanAddr"
+    },
     "swap_denom": {
+      "type": "string"
+    }
+  },
+  "definitions": {
+    "HumanAddr": {
       "type": "string"
     }
   }

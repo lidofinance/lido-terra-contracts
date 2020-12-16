@@ -3,6 +3,116 @@
   "title": "HandleMsg",
   "anyOf": [
     {
+      "description": "Owner's operations Swap all of the balances to uusd.",
+      "type": "object",
+      "required": [
+        "swap_to_reward_denom"
+      ],
+      "properties": {
+        "swap_to_reward_denom": {
+          "type": "object"
+        }
+      }
+    },
+    {
+      "description": "Update the global index",
+      "type": "object",
+      "required": [
+        "update_global_index"
+      ],
+      "properties": {
+        "update_global_index": {
+          "type": "object",
+          "required": [
+            "prev_balance"
+          ],
+          "properties": {
+            "prev_balance": {
+              "$ref": "#/definitions/Uint128"
+            }
+          }
+        }
+      }
+    },
+    {
+      "description": "Update the config",
+      "type": "object",
+      "required": [
+        "update_config"
+      ],
+      "properties": {
+        "update_config": {
+          "type": "object",
+          "properties": {
+            "hub_contract": {
+              "anyOf": [
+                {
+                  "$ref": "#/definitions/HumanAddr"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "swap_denom": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "description": "bAsset's operations Increase user staking balance Withdraw rewards to pending rewards Set current reward index to global index",
+      "type": "object",
+      "required": [
+        "increase_balance"
+      ],
+      "properties": {
+        "increase_balance": {
+          "type": "object",
+          "required": [
+            "address",
+            "amount"
+          ],
+          "properties": {
+            "address": {
+              "$ref": "#/definitions/HumanAddr"
+            },
+            "amount": {
+              "$ref": "#/definitions/Uint128"
+            }
+          }
+        }
+      }
+    },
+    {
+      "description": "Decrease user staking balance Withdraw rewards to pending rewards Set current reward index to global index",
+      "type": "object",
+      "required": [
+        "decrease_balance"
+      ],
+      "properties": {
+        "decrease_balance": {
+          "type": "object",
+          "required": [
+            "address",
+            "amount"
+          ],
+          "properties": {
+            "address": {
+              "$ref": "#/definitions/HumanAddr"
+            },
+            "amount": {
+              "$ref": "#/definitions/Uint128"
+            }
+          }
+        }
+      }
+    },
+    {
       "description": "User's operations return the accrued reward in uusd to the user.",
       "type": "object",
       "required": [
@@ -21,80 +131,6 @@
                   "type": "null"
                 }
               ]
-            }
-          }
-        }
-      }
-    },
-    {
-      "description": "Owner's operations",
-      "type": "object",
-      "required": [
-        "swap_to_reward_denom"
-      ],
-      "properties": {
-        "swap_to_reward_denom": {
-          "type": "object"
-        }
-      }
-    },
-    {
-      "description": "Owner's operations",
-      "type": "object",
-      "required": [
-        "update_global_index"
-      ],
-      "properties": {
-        "update_global_index": {
-          "type": "object"
-        }
-      }
-    },
-    {
-      "description": "Owner's operations",
-      "type": "object",
-      "required": [
-        "update_user_index"
-      ],
-      "properties": {
-        "update_user_index": {
-          "type": "object",
-          "required": [
-            "address"
-          ],
-          "properties": {
-            "address": {
-              "$ref": "#/definitions/HumanAddr"
-            },
-            "previous_balance": {
-              "anyOf": [
-                {
-                  "$ref": "#/definitions/Uint128"
-                },
-                {
-                  "type": "null"
-                }
-              ]
-            }
-          }
-        }
-      }
-    },
-    {
-      "description": "Owner's operations",
-      "type": "object",
-      "required": [
-        "update_params"
-      ],
-      "properties": {
-        "update_params": {
-          "type": "object",
-          "required": [
-            "swap_denom"
-          ],
-          "properties": {
-            "swap_denom": {
-              "type": "string"
             }
           }
         }
