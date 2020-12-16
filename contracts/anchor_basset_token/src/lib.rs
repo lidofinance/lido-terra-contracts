@@ -1,7 +1,12 @@
-pub mod allowances;
 pub mod contract;
-pub mod enumerable;
 pub mod msg;
 pub mod state;
+
+mod handler;
+mod querier;
+
+#[cfg(test)]
+mod testing;
+
 #[cfg(target_arch = "wasm32")]
 cosmwasm_std::create_entry_points!(contract);
