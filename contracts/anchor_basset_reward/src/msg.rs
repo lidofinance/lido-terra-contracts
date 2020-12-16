@@ -6,7 +6,7 @@ use cosmwasm_std::{Decimal, HumanAddr, Uint128};
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct InitMsg {
     pub hub_contract: HumanAddr,
-    pub swap_denom: String,
+    pub reward_denom: String,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -22,11 +22,8 @@ pub enum HandleMsg {
     /// Update the global index
     UpdateGlobalIndex { prev_balance: Uint128 },
 
-    /// Update the config
-    UpdateConfig {
-        hub_contract: Option<HumanAddr>,
-        swap_denom: Option<String>,
-    },
+    /// Update the params
+    UpdateParams { reward_denom: Option<String> },
 
     ////////////////////
     /// bAsset's operations
@@ -76,7 +73,7 @@ pub enum QueryMsg {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct ConfigResponse {
     pub hub_contract: HumanAddr,
-    pub swap_denom: String,
+    pub reward_denom: String,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

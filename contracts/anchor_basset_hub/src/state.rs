@@ -37,6 +37,7 @@ pub struct Parameters {
     pub undelegated_epoch: u64,
     pub peg_recovery_fee: Decimal,
     pub er_threshold: Decimal,
+    pub reward_denom: String,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

@@ -28,27 +28,26 @@ use anchor_basset_hub::msg::{
     ExchangeRateResponse, InitMsg, TotalBondedResponse, UnbondEpochsResponse,
     UnbondRequestsResponse, WhitelistedValidatorsResponse, WithdrawableUnbondedResponse,
 };
-use gov_courier::{Deactivated, HandleMsg, PoolInfo, Registration};
+use gov_courier::{Deactivated, HandleMsg, PoolInfo};
 
 use anchor_basset_hub::contract::{handle, init, query};
 use anchor_basset_hub::unbond::handle_unbond;
 
 use anchor_basset_reward::contracts::init as reward_init;
-use anchor_basset_reward::init::RewardInitMsg;
-use anchor_basset_reward::state::Config;
+use anchor_basset_reward::msg::{
+    HandleMsg::UpdateParams as RewardUpdateParams, InitMsg as RewardInitMsg,
+};
 use anchor_basset_token::contract::{
     handle as token_handle, init as token_init, query as token_query,
 };
-use anchor_basset_token::msg::HandleMsg::{Burn, Mint, Send};
-use anchor_basset_token::msg::QueryMsg::{Balance, TokenInfo};
+
 use anchor_basset_token::msg::TokenInitMsg;
-use anchor_basset_token::state::{MinterData, TokenInfo as TokenConfig};
 use cosmwasm_storage::Singleton;
 use cw20::{BalanceResponse, Cw20HandleMsg, Cw20ReceiveMsg, MinterResponse, TokenInfoResponse};
+use cw20_base::msg::HandleMsg::{Burn, Mint, Send};
+use cw20_base::msg::QueryMsg::{Balance, TokenInfo};
 use gov_courier::Cw20HookMsg::Unbond;
-use gov_courier::HandleMsg::{
-    CheckSlashing, DeactivateMsg, Receive, RegisterSubcontracts, UpdateConfig, UpdateParams,
-};
+use gov_courier::HandleMsg::{CheckSlashing, DeactivateMsg, Receive, UpdateConfig, UpdateParams};
 use gov_courier::Registration::{Reward, Token};
 
 mod common;
@@ -60,8 +59,7 @@ use anchor_basset_hub::state::{
     config_read, epoch_read, get_all_delegations, get_bonded, read_total_amount,
     read_undelegated_wait_list, Parameters,
 };
-use anchor_basset_reward::hook::InitHook;
-use anchor_basset_reward::msg::HandleMsg::{SwapToRewardDenom, UpdateGlobalIndex, UpdateUserIndex};
+use anchor_basset_reward::msg::HandleMsg::{DecreaseBalance, SwapToRewardDenom, UpdateGlobalIndex};
 use common::mock_querier::{mock_dependencies as dependencies, WasmMockQuerier};
 
 const DEFAULT_VALIDATOR: &str = "default-validator";
@@ -72,7 +70,6 @@ pub const MOCK_CONTRACT_ADDR: &str = "cosmos2contract";
 
 pub static POOL_INFO: &[u8] = b"pool_info";
 pub static CONFIG: &[u8] = b"config";
-const TOKEN_INFO_KEY: &[u8] = b"token_info";
 
 fn sample_validator<U: Into<HumanAddr>>(addr: U) -> Validator {
     Validator {
@@ -95,43 +92,22 @@ fn set_validator_mock(querier: &mut WasmMockQuerier) {
     );
 }
 
-fn default_token(owner: CanonicalAddr, minter: HumanAddr) -> TokenInitMsg {
+fn default_token(hub_contract: HumanAddr, minter: HumanAddr) -> TokenInitMsg {
     TokenInitMsg {
         name: "bluna".to_string(),
         symbol: "BLUNA".to_string(),
         decimals: 6,
         initial_balances: vec![],
         mint: Some(MinterResponse { minter, cap: None }),
-        init_hook: None,
-        owner,
+        hub_contract,
     }
 }
 
-fn default_reward(owner: CanonicalAddr) -> RewardInitMsg {
+fn default_reward(hub_contract: HumanAddr, reward_denom: String) -> RewardInitMsg {
     RewardInitMsg {
-        owner,
-        init_hook: Some(InitHook {
-            msg: to_binary(&RegisterSubcontracts {
-                contract: Registration::Reward,
-            })
-            .unwrap(),
-            contract_addr: HumanAddr::from(MOCK_CONTRACT_ADDR),
-        }),
+        hub_contract,
+        reward_denom,
     }
-}
-
-pub fn set_params<S: Storage, A: Api, Q: Querier>(mut deps: &mut Extern<S, A, Q>) {
-    let update_prams = UpdateParams {
-        epoch_time: 30,
-        underlying_coin_denom: "uluna".to_string(),
-        undelegated_epoch: 2,
-        peg_recovery_fee: Decimal::zero(),
-        er_threshold: Decimal::one(),
-        swap_denom: None,
-    };
-    let creator_env = mock_env(HumanAddr::from("owner1"), &[]);
-    let res = handle(&mut deps, creator_env, update_prams).unwrap();
-    assert_eq!(res.messages.len(), 0);
 }
 
 pub fn init_all<S: Storage, A: Api, Q: Querier>(
@@ -141,26 +117,22 @@ pub fn init_all<S: Storage, A: Api, Q: Querier>(
     token_contract: HumanAddr,
 ) {
     let msg = InitMsg {
-        name: "bluna".to_string(),
-        symbol: "BLUNA".to_string(),
-        decimals: 6,
-        reward_code_id: 0,
-        token_code_id: 0,
+        epoch_time: 30,
+        underlying_coin_denom: "uluna".to_string(),
+        undelegated_epoch: 2,
+        peg_recovery_fee: Decimal::zero(),
+        er_threshold: Decimal::one(),
+        reward_denom: "uusd".to_string(),
     };
-
-    let gov_address = deps
-        .api
-        .canonical_address(&HumanAddr::from(MOCK_CONTRACT_ADDR))
-        .unwrap();
 
     let gov_env = mock_env(HumanAddr::from(MOCK_CONTRACT_ADDR), &[]);
     let env = mock_env(owner.clone(), &[]);
     init(&mut deps, env, msg).unwrap();
 
-    let reward_in = default_reward(gov_address.clone());
+    let reward_in = default_reward(HumanAddr::from(MOCK_CONTRACT_ADDR), "uusd".to_string());
     reward_init(&mut deps, gov_env.clone(), reward_in).unwrap();
 
-    let token_int = default_token(gov_address.clone(), owner);
+    let token_int = default_token(HumanAddr::from(MOCK_CONTRACT_ADDR), owner);
     token_init(&mut deps, gov_env, token_int).unwrap();
 
     let register_msg = HandleMsg::RegisterSubcontracts { contract: Reward };
@@ -170,9 +142,6 @@ pub fn init_all<S: Storage, A: Api, Q: Querier>(
     let register_msg = HandleMsg::RegisterSubcontracts { contract: Token };
     let register_env = mock_env(token_contract, &[]);
     handle(&mut deps, register_env, register_msg).unwrap();
-
-    set_reward_config(&mut deps.storage, gov_address.clone()).unwrap();
-    set_token_info(&mut deps.storage, gov_address).unwrap();
 }
 
 pub fn do_register_validator<S: Storage, A: Api, Q: Querier>(
@@ -242,7 +211,6 @@ fn proper_exchange_rate() {
     let token_contract = HumanAddr::from("token");
     let reward_contract = HumanAddr::from("reward");
     init_all(&mut deps, owner.clone(), reward_contract, token_contract);
-    set_params(&mut deps);
 
     //check exchange_rate when total bonded is zero
     let ex_rate = ExchangeRate {};
@@ -282,54 +250,33 @@ fn proper_exchange_rate() {
 fn proper_initialization() {
     let mut deps = mock_dependencies(20, &[]);
 
-    //check the symbol and name
-    let msg = InitMsg {
-        name: "bluna".to_string(),
-        symbol: "BL".to_string(),
-        decimals: 6,
-        reward_code_id: 0,
-        token_code_id: 0,
-    };
-    let owner = HumanAddr::from("owner1");
-    let env = mock_env(owner, &[]);
-
-    //wrong symbol
-    let res = init(&mut deps, env, msg);
-    assert_eq!(
-        res.unwrap_err(),
-        StdError::generic_err("Ticker symbol is not in expected format{3,6}",)
-    );
-
     //successful call
     let msg = InitMsg {
-        name: "bluna".to_string(),
-        symbol: "Bluna".to_string(),
-        decimals: 6,
-        reward_code_id: 0,
-        token_code_id: 0,
+        epoch_time: 30,
+        underlying_coin_denom: "uluna".to_string(),
+        undelegated_epoch: 2,
+        peg_recovery_fee: Decimal::zero(),
+        er_threshold: Decimal::one(),
+        reward_denom: "uusd".to_string(),
     };
 
-    let gov_address = deps
-        .api
-        .canonical_address(&HumanAddr::from(MOCK_CONTRACT_ADDR))
-        .unwrap();
     let gov_env = mock_env(MOCK_CONTRACT_ADDR, &[]);
 
     let owner = HumanAddr::from("owner1");
-    let owner_raw = deps.api.canonical_address(&owner).unwrap();
-
     let env = mock_env(owner, &[]);
 
     // we can just call .unwrap() to assert this was a success
     let res: InitResponse = init(&mut deps, env, msg).unwrap();
-    assert_eq!(2, res.messages.len());
+    assert_eq!(0, res.messages.len());
 
-    let reward_in = default_reward(gov_address.clone());
+    let reward_in = default_reward(HumanAddr::from(MOCK_CONTRACT_ADDR), "uusd".to_string());
     reward_init(&mut deps, gov_env.clone(), reward_in).unwrap();
 
-    let token_int = default_token(gov_address, HumanAddr::from(MOCK_CONTRACT_ADDR));
+    let token_int = default_token(
+        HumanAddr::from(MOCK_CONTRACT_ADDR),
+        HumanAddr::from(MOCK_CONTRACT_ADDR),
+    );
     token_init(&mut deps, gov_env, token_int).unwrap();
-    set_token_info(&mut deps.storage, owner_raw).unwrap();
 
     let other_contract = HumanAddr::from("other_contract");
     let register_msg = HandleMsg::RegisterSubcontracts { contract: Reward };
@@ -366,7 +313,6 @@ fn proper_register_validator() {
     let reward_contract = HumanAddr::from("reward");
 
     init_all(&mut deps, owner, reward_contract, token_contract);
-    set_params(&mut deps);
 
     // send by invalid user
     let owner = HumanAddr::from("invalid");
@@ -432,7 +378,6 @@ fn proper_bond() {
     let reward_contract = HumanAddr::from("reward");
 
     init_all(&mut deps, owner, reward_contract, token_contract);
-    set_params(&mut deps);
 
     // register_validator
     do_register_validator(&mut deps, validator.clone());
@@ -557,7 +502,6 @@ fn proper_deregister() {
     let reward_contract = HumanAddr::from("reward");
 
     init_all(&mut deps, owner.clone(), reward_contract, token_contract);
-    set_params(&mut deps);
 
     // register_validator
     do_register_validator(&mut deps, validator.clone());
@@ -633,7 +577,6 @@ pub fn proper_update_global_index() {
     let reward_contract = HumanAddr::from("reward");
 
     init_all(&mut deps, owner, reward_contract.clone(), token_contract);
-    set_params(&mut deps);
 
     // register_validator
     do_register_validator(&mut deps, validator.clone());
@@ -692,7 +635,13 @@ pub fn proper_update_global_index() {
             send: _,
         }) => {
             assert_eq!(contract_addr, &reward_contract);
-            assert_eq!(msg, &to_binary(&UpdateGlobalIndex {}).unwrap())
+            assert_eq!(
+                msg,
+                &to_binary(&UpdateGlobalIndex {
+                    prev_balance: Uint128::zero()
+                })
+                .unwrap()
+            )
         }
         _ => panic!("Unexpected message: {:?}", update_g_index),
     }
@@ -713,7 +662,6 @@ pub fn proper_update_global_index2() {
     let reward_contract = HumanAddr::from("reward");
 
     init_all(&mut deps, owner, reward_contract, token_contract);
-    set_params(&mut deps);
 
     // register_validator
     do_register_validator(&mut deps, validator.clone());
@@ -787,7 +735,6 @@ pub fn proper_receive() {
     let token_contract = HumanAddr::from("token");
     let reward_contract = HumanAddr::from("reward");
     init_all(&mut deps, owner, reward_contract, token_contract.clone());
-    set_params(&mut deps);
 
     // register_validator
     do_register_validator(&mut deps, validator.clone());
@@ -845,7 +792,6 @@ pub fn proper_unbond() {
     let token_contract = HumanAddr::from("token");
     let reward_contract = HumanAddr::from("reward");
     init_all(&mut deps, owner, reward_contract, token_contract.clone());
-    set_params(&mut deps);
 
     // register_validator
     do_register_validator(&mut deps, validator.clone());
@@ -1017,9 +963,9 @@ pub fn proper_unbond() {
             assert_eq!(contract_addr.0, "reward");
             assert_eq!(
                 msg,
-                &to_binary(&UpdateUserIndex {
+                &to_binary(&DecreaseBalance {
                     address: HumanAddr::from(MOCK_CONTRACT_ADDR),
-                    previous_balance: Some(Uint128(15))
+                    amount: Uint128(5),
                 })
                 .unwrap()
             )
@@ -1059,7 +1005,6 @@ pub fn proper_pick_validator() {
     let reward_contract = HumanAddr::from("reward");
 
     init_all(&mut deps, owner, reward_contract, token_contract.clone());
-    set_params(&mut deps);
 
     do_register_validator(&mut deps, validator.clone());
     do_register_validator(&mut deps, validator2.clone());
@@ -1151,7 +1096,6 @@ pub fn proper_slashing() {
     let token_contract = HumanAddr::from("token");
     let reward_contract = HumanAddr::from("reward");
     init_all(&mut deps, owner, reward_contract, token_contract.clone());
-    set_params(&mut deps);
 
     // register_validator
     do_register_validator(&mut deps, validator.clone());
@@ -1260,7 +1204,6 @@ pub fn proper_withdraw_unbonded() {
     let reward_contract = HumanAddr::from("reward");
 
     init_all(&mut deps, owner, reward_contract, token_contract);
-    set_params(&mut deps);
 
     // register_validator
     do_register_validator(&mut deps, validator.clone());
@@ -1389,18 +1332,18 @@ pub fn test_update_params() {
     let mut deps = dependencies(20, &[]);
     //test with no swap denom.
     let update_prams = UpdateParams {
-        epoch_time: 30,
-        underlying_coin_denom: "uluna".to_string(),
-        undelegated_epoch: 2,
-        peg_recovery_fee: Decimal::zero(),
-        er_threshold: Decimal::one(),
-        swap_denom: None,
+        epoch_time: Some(20),
+        underlying_coin_denom: None,
+        undelegated_epoch: None,
+        peg_recovery_fee: None,
+        er_threshold: None,
+        reward_denom: None,
     };
     let owner = HumanAddr::from("owner1");
     let token_contract = HumanAddr::from("token");
     let reward_contract = HumanAddr::from("reward");
 
-    init_all(&mut deps, owner, reward_contract, token_contract);
+    init_all(&mut deps, owner, reward_contract.clone(), token_contract);
 
     let invalid_env = mock_env(HumanAddr::from("invalid"), &[]);
     let res = handle(&mut deps, invalid_env, update_prams.clone());
@@ -1409,28 +1352,46 @@ pub fn test_update_params() {
     let res = handle(&mut deps, creator_env, update_prams).unwrap();
     assert_eq!(res.messages.len(), 0);
 
-    let get_params = Params {};
-    let query: Parameters = from_binary(&query(&deps, get_params).unwrap()).unwrap();
-    assert_eq!(query.epoch_time, 30);
-    assert_eq!(query.underlying_coin_denom, "uluna");
-    assert_eq!(query.undelegated_epoch, 2);
-    assert_eq!(query.peg_recovery_fee, Decimal::zero());
-    assert_eq!(query.er_threshold, Decimal::one());
+    let params: Parameters = from_binary(&query(&deps, Params {}).unwrap()).unwrap();
+    assert_eq!(params.epoch_time, 20);
+    assert_eq!(params.underlying_coin_denom, "uluna");
+    assert_eq!(params.undelegated_epoch, 2);
+    assert_eq!(params.peg_recovery_fee, Decimal::zero());
+    assert_eq!(params.er_threshold, Decimal::one());
+    assert_eq!(params.reward_denom, "uusd");
 
     //test with some swap_denom.
     let update_prams = UpdateParams {
-        epoch_time: 30,
-        underlying_coin_denom: "uluna".to_string(),
-        undelegated_epoch: 2,
-        peg_recovery_fee: Decimal::zero(),
-        er_threshold: Decimal::one(),
-        swap_denom: Some("uusd".to_string()),
+        epoch_time: None,
+        underlying_coin_denom: None,
+        undelegated_epoch: Some(3),
+        peg_recovery_fee: Some(Decimal::one()),
+        er_threshold: Some(Decimal::zero()),
+        reward_denom: Some("ukrw".to_string()),
     };
 
     //the result must be 1
     let creator_env = mock_env(HumanAddr::from("owner1"), &[]);
     let res = handle(&mut deps, creator_env, update_prams).unwrap();
-    assert_eq!(res.messages.len(), 1);
+    assert_eq!(
+        res.messages,
+        vec![CosmosMsg::Wasm(WasmMsg::Execute {
+            contract_addr: reward_contract,
+            send: vec![],
+            msg: to_binary(&RewardUpdateParams {
+                reward_denom: Some("ukrw".to_string()),
+            })
+            .unwrap()
+        })]
+    );
+
+    let params: Parameters = from_binary(&query(&deps, Params {}).unwrap()).unwrap();
+    assert_eq!(params.epoch_time, 20);
+    assert_eq!(params.underlying_coin_denom, "uluna");
+    assert_eq!(params.undelegated_epoch, 3);
+    assert_eq!(params.peg_recovery_fee, Decimal::one());
+    assert_eq!(params.er_threshold, Decimal::zero());
+    assert_eq!(params.reward_denom, "ukrw");
 }
 
 #[test]
@@ -1490,12 +1451,12 @@ pub fn proper_recovery_fee() {
     set_validator_mock(&mut deps.querier);
 
     let update_prams = UpdateParams {
-        epoch_time: 30,
-        underlying_coin_denom: "uluna".to_string(),
-        undelegated_epoch: 2,
-        peg_recovery_fee: Decimal::from_ratio(Uint128(1), Uint128(1000)),
-        er_threshold: Decimal::from_ratio(Uint128(99), Uint128(100)),
-        swap_denom: None,
+        epoch_time: None,
+        underlying_coin_denom: None,
+        undelegated_epoch: None,
+        peg_recovery_fee: Some(Decimal::from_ratio(Uint128(1), Uint128(1000))),
+        er_threshold: Some(Decimal::from_ratio(Uint128(99), Uint128(100))),
+        reward_denom: None,
     };
     let owner = HumanAddr::from("owner1");
     let token_contract = HumanAddr::from("token");
@@ -1626,9 +1587,6 @@ pub fn proper_update_config() {
 
     init_all(&mut deps, owner.clone(), reward_contract, token_contract);
 
-    //only the 'owner' can send send_params message.
-    set_params(&mut deps);
-
     // only the owner can call this message
     let update_config = UpdateConfig {
         owner: new_onwer.clone(),
@@ -1651,12 +1609,12 @@ pub fn proper_update_config() {
 
     // new owner can send the owner related messages
     let update_prams = UpdateParams {
-        epoch_time: 30,
-        underlying_coin_denom: "uluna".to_string(),
-        undelegated_epoch: 2,
-        peg_recovery_fee: Decimal::from_ratio(Uint128(1), Uint128(1000)),
-        er_threshold: Decimal::from_ratio(Uint128(99), Uint128(100)),
-        swap_denom: None,
+        epoch_time: None,
+        underlying_coin_denom: None,
+        undelegated_epoch: None,
+        peg_recovery_fee: None,
+        er_threshold: None,
+        reward_denom: None,
     };
 
     let new_owner_env = mock_env(&new_onwer, &[]);
@@ -1665,12 +1623,12 @@ pub fn proper_update_config() {
 
     //previous owner cannot send this message
     let update_prams = UpdateParams {
-        epoch_time: 30,
-        underlying_coin_denom: "uluna".to_string(),
-        undelegated_epoch: 2,
-        peg_recovery_fee: Decimal::from_ratio(Uint128(1), Uint128(1000)),
-        er_threshold: Decimal::from_ratio(Uint128(99), Uint128(100)),
-        swap_denom: None,
+        epoch_time: None,
+        underlying_coin_denom: None,
+        undelegated_epoch: None,
+        peg_recovery_fee: None,
+        er_threshold: None,
+        reward_denom: None,
     };
 
     let new_owner_env = mock_env(&owner, &[]);
@@ -1693,24 +1651,6 @@ pub fn set_pool_info<S: Storage>(
         is_reward_exist: true,
         is_token_exist: true,
         token_account,
-    })
-}
-
-pub fn set_reward_config<S: Storage>(storage: &mut S, owner: CanonicalAddr) -> StdResult<()> {
-    Singleton::new(storage, CONFIG).save(&Config { owner })
-}
-
-pub fn set_token_info<S: Storage>(storage: &mut S, owner: CanonicalAddr) -> StdResult<()> {
-    Singleton::new(storage, TOKEN_INFO_KEY).save(&TokenConfig {
-        name: "bluna".to_string(),
-        symbol: "BLUNA".to_string(),
-        decimals: 6,
-        total_supply: Default::default(),
-        mint: Some(MinterData {
-            minter: owner.clone(),
-            cap: None,
-        }),
-        owner,
     })
 }
 

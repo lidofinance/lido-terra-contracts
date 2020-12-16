@@ -47,7 +47,7 @@ pub fn handle_claim_rewards<S: Storage, A: Api, Q: Querier>(
             amount: vec![deduct_tax(
                 &deps,
                 Coin {
-                    denom: config.swap_denom,
+                    denom: config.reward_denom,
                     amount: rewards,
                 },
             )?],

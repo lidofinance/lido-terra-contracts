@@ -27,6 +27,7 @@ dependencies = [
  "cosmwasm-storage",
  "cosmwasm-vm",
  "cw20",
+ "cw20-base",
  "gov_courier",
  "rand",
  "schemars",
@@ -43,6 +44,7 @@ dependencies = [
  "cosmwasm-schema",
  "cosmwasm-std",
  "cosmwasm-storage",
+ "cw20",
  "gov_courier",
  "schemars",
  "serde",
@@ -60,6 +62,7 @@ dependencies = [
  "cosmwasm-storage",
  "cw2",
  "cw20",
+ "cw20-base",
  "gov_courier",
  "schemars",
  "serde",
@@ -407,6 +410,22 @@ dependencies = [
  "cw0",
  "schemars",
  "serde",
+]
+
+[[package]]
+name = "cw20-base"
+version = "0.2.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6c09657718df5243810b10d49359a352eed197966f578366624198fe1740fb52"
+dependencies = [
+ "cosmwasm-std",
+ "cosmwasm-storage",
+ "cw0",
+ "cw2",
+ "cw20",
+ "schemars",
+ "serde",
+ "snafu",
 ]
 
 [[package]]
