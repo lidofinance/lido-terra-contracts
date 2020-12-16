@@ -1,6 +1,6 @@
 use cosmwasm_std::{
-    Api, CanonicalAddr, Decimal, Extern, HumanAddr, Order, Querier, ReadonlyStorage, StdError,
-    StdResult, Storage, Uint128,
+    Api, CanonicalAddr, Decimal, Extern, HumanAddr, Order, Querier, ReadonlyStorage, StdResult,
+    Storage, Uint128,
 };
 use cosmwasm_storage::{bucket, bucket_read, singleton, singleton_read, ReadonlyBucket};
 use schemars::JsonSchema;
@@ -16,7 +16,7 @@ pub static PREFIX_HOLDERS: &[u8] = b"holders";
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct Config {
     pub hub_contract: CanonicalAddr,
-    pub swap_denom: String,
+    pub reward_denom: String,
 }
 
 pub fn store_config<S: Storage>(storage: &mut S, config: &Config) -> StdResult<()> {

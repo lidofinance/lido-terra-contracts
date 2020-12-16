@@ -1,7 +1,7 @@
 use cosmwasm_std::{
-    from_binary, log, to_binary, Api, Binary, CosmosMsg, Decimal, Env, Extern, HandleResponse,
-    HumanAddr, InitResponse, Querier, QueryRequest, StakingMsg, StdError, StdResult, Storage,
-    Uint128, WasmMsg, WasmQuery,
+    from_binary, log, to_binary, Api, Binary, Coin, CosmosMsg, Decimal, Env, Extern,
+    HandleResponse, HumanAddr, InitResponse, Querier, QueryRequest, StakingMsg, StdError,
+    StdResult, Storage, Uint128, WasmMsg, WasmQuery,
 };
 
 use crate::config::{handle_deactivate, handle_update_config, handle_update_params};
@@ -13,35 +13,28 @@ use crate::msg::{
 use crate::state::{
     config, config_read, epoch_read, get_all_delegations, get_bonded, get_burn_requests,
     get_burn_requests_epochs, get_finished_amount, is_valid_validator, msg_status, msg_status_read,
-    parameters_read, pool_info, pool_info_read, read_valid_validators, read_validators,
+    parameters, parameters_read, pool_info, pool_info_read, read_valid_validators, read_validators,
     remove_white_validators, save_epoch, set_all_delegations, set_bonded, store_total_amount,
     store_white_validators, EpochId, GovConfig, MsgStatus, Parameters,
 };
 use crate::unbond::{
     compute_current_epoch, get_past_epoch, handle_unbond, handle_withdraw_unbonded,
 };
-use anchor_basset_reward::hook::InitHook;
-use anchor_basset_reward::init::RewardInitMsg;
+
 use anchor_basset_reward::msg::HandleMsg::{SwapToRewardDenom, UpdateGlobalIndex};
-use anchor_basset_token::msg::{TokenInitHook, TokenInitMsg};
-use anchor_basset_token::state::TokenInfo;
 use cosmwasm_storage::to_length_prefixed;
-use cw20::{Cw20CoinHuman, Cw20HandleMsg, Cw20ReceiveMsg, MinterResponse};
+use cw20::{Cw20HandleMsg, Cw20ReceiveMsg};
+use cw20_base::state::TokenInfo;
 use gov_courier::PoolInfo;
 use gov_courier::Registration;
 use gov_courier::{Cw20HookMsg, HandleMsg};
 use rand::{Rng, SeedableRng, XorShiftRng};
-
-const DECIMALS: u8 = 6;
 
 pub fn init<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
     env: Env,
     msg: InitMsg,
 ) -> StdResult<InitResponse> {
-    // validate token info
-    msg.validate()?;
-
     // store token info
     let sender = env.message.sender;
     let sndr_raw = deps.api.canonical_address(&sender)?;
@@ -72,64 +65,22 @@ pub fn init<S: Storage, A: Api, Q: Querier>(
     };
     msg_status(&mut deps.storage).save(&msg_state)?;
 
-    let mut messages: Vec<CosmosMsg> = vec![];
-
-    let gov_address = env.contract.address;
-    let token_message = to_binary(&HandleMsg::RegisterSubcontracts {
-        contract: Registration::Token,
-    })?;
-
     //set minted and all_delegations to keep the record of slashing.
     set_bonded(&mut deps.storage).save(&Uint128::zero())?;
     set_all_delegations(&mut deps.storage).save(&Uint128::zero())?;
 
-    //instantiate token contract
-    messages.push(CosmosMsg::Wasm(WasmMsg::Instantiate {
-        code_id: msg.token_code_id,
-        msg: to_binary(&TokenInitMsg {
-            name: msg.name,
-            symbol: msg.symbol,
-            decimals: DECIMALS,
-            initial_balances: vec![Cw20CoinHuman {
-                address: gov_address.clone(),
-                amount: Uint128(0),
-            }],
-            owner: deps.api.canonical_address(&gov_address)?,
-            init_hook: Some(TokenInitHook {
-                msg: token_message,
-                contract_addr: gov_address.clone(),
-            }),
-            mint: Some(MinterResponse {
-                minter: gov_address.clone(),
-                cap: None,
-            }),
-        })?,
-        send: vec![],
-        label: None,
-    }));
-
-    //instantiate reward contract
-    let reward_message = to_binary(&HandleMsg::RegisterSubcontracts {
-        contract: Registration::Reward,
-    })?;
-    messages.push(CosmosMsg::Wasm(WasmMsg::Instantiate {
-        code_id: msg.reward_code_id,
-        msg: to_binary(&RewardInitMsg {
-            owner: deps.api.canonical_address(&gov_address)?,
-            init_hook: Some(InitHook {
-                msg: reward_message,
-                contract_addr: gov_address,
-            }),
-        })?,
-        send: vec![],
-        label: None,
-    }));
-
-    let res = InitResponse {
-        messages,
-        log: vec![],
+    let params = Parameters {
+        epoch_time: msg.epoch_time,
+        underlying_coin_denom: msg.underlying_coin_denom,
+        undelegated_epoch: msg.undelegated_epoch,
+        peg_recovery_fee: msg.peg_recovery_fee,
+        er_threshold: msg.er_threshold,
+        reward_denom: msg.reward_denom,
     };
-    Ok(res)
+
+    parameters(&mut deps.storage).save(&params)?;
+
+    Ok(InitResponse::default())
 }
 
 pub fn handle<S: Storage, A: Api, Q: Querier>(
@@ -156,7 +107,7 @@ pub fn handle<S: Storage, A: Api, Q: Querier>(
             undelegated_epoch,
             peg_recovery_fee,
             er_threshold,
-            swap_denom,
+            reward_denom,
         } => handle_update_params(
             deps,
             env,
@@ -165,7 +116,7 @@ pub fn handle<S: Storage, A: Api, Q: Querier>(
             undelegated_epoch,
             peg_recovery_fee,
             er_threshold,
-            swap_denom,
+            reward_denom,
         ),
         HandleMsg::DeactivateMsg { msg } => handle_deactivate(deps, env, msg),
         HandleMsg::UpdateConfig { owner } => handle_update_config(deps, env, owner),
@@ -292,14 +243,14 @@ pub fn handle_update_global<S: Storage, A: Api, Q: Querier>(
     let pool = pool_info_read(&deps.storage).load()?;
     let reward_addr = deps.api.human_address(&pool.reward_account)?;
 
-    //retrieve all validators
+    // Retrieve all validators
     let validators: Vec<HumanAddr> = read_validators(&deps.storage)?;
 
-    //send withdraw message
+    // Send withdraw message
     let mut withdraw_msgs = withdraw_all_rewards(validators);
     messages.append(&mut withdraw_msgs);
 
-    //send Swap message to reward contract
+    // Send Swap message to reward contract
     let swap_msg = SwapToRewardDenom {};
     messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
         contract_addr: reward_addr.clone(),
@@ -307,11 +258,19 @@ pub fn handle_update_global<S: Storage, A: Api, Q: Querier>(
         send: vec![],
     }));
 
-    //send update GlobalIndex message to reward contract
-    let global_msg = UpdateGlobalIndex {};
+    // Send UpdateGlobalIndex message to reward contract
+    // with prev_balance of reward denom
+    let params: Parameters = parameters_read(&deps.storage).load()?;
+    let prev_balance: Coin = deps
+        .querier
+        .query_balance(reward_addr.clone(), params.reward_denom.as_str())?;
+
     messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
         contract_addr: reward_addr,
-        msg: to_binary(&global_msg).unwrap(),
+        msg: to_binary(&UpdateGlobalIndex {
+            prev_balance: prev_balance.amount,
+        })
+        .unwrap(),
         send: vec![],
     }));
 

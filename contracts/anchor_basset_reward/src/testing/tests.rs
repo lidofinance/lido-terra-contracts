@@ -30,12 +30,12 @@ use crate::testing::mock_querier::{
     mock_dependencies, MOCK_HUB_CONTRACT_ADDR, MOCK_TOKEN_CONTRACT_ADDR,
 };
 
-const DEFAULT_SWAP_DENOM: &str = "uusd";
+const DEFAULT_REWARD_DENOM: &str = "uusd";
 
 fn default_init() -> InitMsg {
     InitMsg {
         hub_contract: HumanAddr::from(MOCK_HUB_CONTRACT_ADDR),
-        swap_denom: DEFAULT_SWAP_DENOM.to_string(),
+        reward_denom: DEFAULT_REWARD_DENOM.to_string(),
     }
 }
 
@@ -55,7 +55,7 @@ fn proper_init() {
         config_response,
         ConfigResponse {
             hub_contract: HumanAddr::from(MOCK_HUB_CONTRACT_ADDR),
-            swap_denom: DEFAULT_SWAP_DENOM.to_string(),
+            reward_denom: DEFAULT_REWARD_DENOM.to_string(),
         }
     );
 
@@ -71,45 +71,25 @@ fn proper_init() {
 }
 
 #[test]
-fn update_config() {
+fn update_params() {
     let mut deps = mock_dependencies(20, &[]);
     let init_msg = default_init();
 
     let env = mock_env("addr0000", &[]);
 
-    init(&mut deps, env, init_msg).unwrap();
+    init(&mut deps, env.clone(), init_msg).unwrap();
 
-    let msg = HandleMsg::UpdateConfig {
-        hub_contract: Some(HumanAddr::from("hub2")),
-        swap_denom: None,
+    let msg = HandleMsg::UpdateParams {
+        reward_denom: Some("ukrw".to_string()),
     };
 
-    let env = mock_env(MOCK_HUB_CONTRACT_ADDR, &[]);
-    handle(&mut deps, env, msg).unwrap();
-
-    let res = query(&mut deps, QueryMsg::Config {}).unwrap();
-    let config_response: ConfigResponse = from_binary(&res).unwrap();
-    assert_eq!(
-        config_response,
-        ConfigResponse {
-            hub_contract: HumanAddr::from("hub2"),
-            swap_denom: DEFAULT_SWAP_DENOM.to_string(),
-        }
-    );
-
-    let msg = HandleMsg::UpdateConfig {
-        hub_contract: None,
-        swap_denom: Some("ukrw".to_string()),
-    };
-
-    let env = mock_env(MOCK_HUB_CONTRACT_ADDR, &[]);
     let res = handle(&mut deps, env, msg.clone());
     match res {
         Err(StdError::Unauthorized { .. }) => {}
         _ => panic!("DO NOT ENTER HERE"),
     }
 
-    let env = mock_env("hub2", &[]);
+    let env = mock_env(MOCK_HUB_CONTRACT_ADDR, &[]);
     handle(&mut deps, env, msg).unwrap();
 
     let res = query(&mut deps, QueryMsg::Config {}).unwrap();
@@ -117,8 +97,8 @@ fn update_config() {
     assert_eq!(
         config_response,
         ConfigResponse {
-            hub_contract: HumanAddr::from("hub2"),
-            swap_denom: "ukrw".to_string(),
+            hub_contract: HumanAddr::from(MOCK_HUB_CONTRACT_ADDR),
+            reward_denom: "ukrw".to_string(),
         }
     );
 }
@@ -161,7 +141,7 @@ pub fn swap_to_reward_denom() {
                     denom: "ukrw".to_string(),
                     amount: Uint128(1000u128),
                 },
-                DEFAULT_SWAP_DENOM.to_string()
+                DEFAULT_REWARD_DENOM.to_string()
             ),
             create_swap_msg(
                 HumanAddr::from(MOCK_CONTRACT_ADDR),
@@ -169,7 +149,7 @@ pub fn swap_to_reward_denom() {
                     denom: "usdr".to_string(),
                     amount: Uint128(50u128)
                 },
-                DEFAULT_SWAP_DENOM.to_string()
+                DEFAULT_REWARD_DENOM.to_string()
             ),
         ]
     );

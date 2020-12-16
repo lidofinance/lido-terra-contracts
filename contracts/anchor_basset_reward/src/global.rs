@@ -6,7 +6,7 @@ use cosmwasm_std::{
 };
 use terra_cosmwasm::{create_swap_msg, TerraMsgWrapper};
 
-/// Swap all native tokens to swap_denom
+/// Swap all native tokens to reward_denom
 /// Permissionless
 pub fn handle_swap<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
@@ -16,16 +16,16 @@ pub fn handle_swap<S: Storage, A: Api, Q: Querier>(
     let balance = deps.querier.query_all_balances(contr_addr.clone())?;
     let mut msgs: Vec<CosmosMsg<TerraMsgWrapper>> = Vec::new();
 
-    let swap_denom = read_config(&deps.storage)?.swap_denom;
+    let reward_denom = read_config(&deps.storage)?.reward_denom;
     for coin in balance {
-        if coin.denom == swap_denom {
+        if coin.denom == reward_denom {
             continue;
         }
 
         msgs.push(create_swap_msg(
             contr_addr.clone(),
             coin,
-            swap_denom.to_string(),
+            reward_denom.to_string(),
         ));
     }
 
@@ -57,12 +57,12 @@ pub fn handle_update_global_index<S: Storage, A: Api, Q: Querier>(
         return Err(StdError::generic_err("zero staking balance"));
     }
 
-    let swap_denom = read_config(&deps.storage)?.swap_denom;
+    let reward_denom = read_config(&deps.storage)?.reward_denom;
 
     // Load the reward contract balance
     let balance = deps
         .querier
-        .query_balance(env.contract.address, swap_denom.as_str())
+        .query_balance(env.contract.address, reward_denom.as_str())
         .unwrap();
 
     // claimed_rewards = current_balance - prev_balance;

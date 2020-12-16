@@ -1,4 +1,3 @@
-use anchor_basset_token::state::{MinterData, TokenInfo};
 use cosmwasm_std::testing::{MockApi, MockQuerier, MockStorage};
 use cosmwasm_std::{
     from_slice, to_binary, AllBalanceResponse, Api, BalanceResponse, BankQuery, CanonicalAddr,
@@ -6,6 +5,7 @@ use cosmwasm_std::{
     SystemError, Uint128, Validator, WasmQuery,
 };
 use cosmwasm_storage::to_length_prefixed;
+use cw20_base::state::{MinterData, TokenInfo};
 use gov_courier::PoolInfo;
 use std::collections::HashMap;
 
@@ -153,9 +153,6 @@ impl WasmMockQuerier {
                                 .unwrap(),
                             cap: None,
                         }),
-                        owner: api
-                            .canonical_address(&HumanAddr::from("governance"))
-                            .unwrap(),
                     };
                     Ok(to_binary(&to_binary(&token_inf).unwrap()))
                 } else if key.as_slice()[..prefix_balance.len()].to_vec() == prefix_balance {

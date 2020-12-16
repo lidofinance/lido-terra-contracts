@@ -6,8 +6,8 @@ use crate::user::{
     query_holder, query_holders,
 };
 use cosmwasm_std::{
-    log, to_binary, Api, Binary, Decimal, Env, Extern, HandleResponse, HumanAddr, InitResponse,
-    Querier, StdError, StdResult, Storage, Uint128,
+    log, to_binary, Api, Binary, Decimal, Env, Extern, HandleResponse, InitResponse, Querier,
+    StdError, StdResult, Storage, Uint128,
 };
 
 use terra_cosmwasm::TerraMsgWrapper;
@@ -19,7 +19,7 @@ pub fn init<S: Storage, A: Api, Q: Querier>(
 ) -> StdResult<InitResponse> {
     let conf = Config {
         hub_contract: deps.api.canonical_address(&msg.hub_contract)?,
-        swap_denom: msg.swap_denom,
+        reward_denom: msg.reward_denom,
     };
 
     store_config(&mut deps.storage, &conf)?;
@@ -40,10 +40,7 @@ pub fn handle<S: Storage, A: Api, Q: Querier>(
     msg: HandleMsg,
 ) -> StdResult<HandleResponse<TerraMsgWrapper>> {
     match msg {
-        HandleMsg::UpdateConfig {
-            hub_contract,
-            swap_denom,
-        } => handle_update_config(deps, env, hub_contract, swap_denom),
+        HandleMsg::UpdateParams { reward_denom } => handle_update_params(deps, env, reward_denom),
         HandleMsg::ClaimRewards { recipient } => handle_claim_rewards(deps, env, recipient),
         HandleMsg::SwapToRewardDenom {} => handle_swap(deps, env),
         HandleMsg::UpdateGlobalIndex { prev_balance } => {
@@ -58,30 +55,25 @@ pub fn handle<S: Storage, A: Api, Q: Querier>(
     }
 }
 
-pub fn handle_update_config<S: Storage, A: Api, Q: Querier>(
+pub fn handle_update_params<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
     env: Env,
-    hub_contract: Option<HumanAddr>,
-    swap_denom: Option<String>,
+    reward_denom: Option<String>,
 ) -> StdResult<HandleResponse<TerraMsgWrapper>> {
     let mut config = read_config(&deps.storage)?;
     if config.hub_contract != deps.api.canonical_address(&env.message.sender)? {
         return Err(StdError::unauthorized());
     }
 
-    if let Some(hub_contract) = hub_contract {
-        config.hub_contract = deps.api.canonical_address(&hub_contract)?;
-    }
-
-    if let Some(swap_denom) = swap_denom {
-        config.swap_denom = swap_denom;
+    if let Some(reward_denom) = reward_denom {
+        config.reward_denom = reward_denom;
     }
 
     store_config(&mut deps.storage, &config)?;
 
     let res = HandleResponse {
         messages: vec![],
-        log: vec![log("action", "update_config")],
+        log: vec![log("action", "update_params")],
         data: None,
     };
     Ok(res)
@@ -108,7 +100,7 @@ fn query_config<S: Storage, A: Api, Q: Querier>(
     let config: Config = read_config(&deps.storage)?;
     Ok(ConfigResponse {
         hub_contract: deps.api.human_address(&config.hub_contract)?,
-        swap_denom: config.swap_denom,
+        reward_denom: config.reward_denom,
     })
 }
 

@@ -9,37 +9,42 @@ use cosmwasm_std::{
 use gov_courier::Deactivated;
 
 #[allow(clippy::too_many_arguments)]
-
 pub fn handle_update_params<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
     env: Env,
-    epoch_time: u64,
-    underlying_coin_denom: String,
-    undelegated_epoch: u64,
-    peg_recovery_fee: Decimal,
-    er_threshold: Decimal,
-    swap_denom: Option<String>,
+    epoch_time: Option<u64>,
+    underlying_coin_denom: Option<String>,
+    undelegated_epoch: Option<u64>,
+    peg_recovery_fee: Option<Decimal>,
+    er_threshold: Option<Decimal>,
+    reward_denom: Option<String>,
 ) -> StdResult<HandleResponse> {
     let config = config_read(&deps.storage).load()?;
     let sender_raw = deps.api.canonical_address(&env.message.sender)?;
     if sender_raw != config.creator {
         return Err(StdError::unauthorized());
     }
-    let params = Parameters {
-        epoch_time,
-        underlying_coin_denom,
-        undelegated_epoch,
-        peg_recovery_fee,
-        er_threshold,
+
+    let params: Parameters = parameters(&mut deps.storage).load()?;
+    let new_params = Parameters {
+        epoch_time: epoch_time.unwrap_or(params.epoch_time),
+        underlying_coin_denom: underlying_coin_denom.unwrap_or(params.underlying_coin_denom),
+        undelegated_epoch: undelegated_epoch.unwrap_or(params.undelegated_epoch),
+        peg_recovery_fee: peg_recovery_fee.unwrap_or(params.peg_recovery_fee),
+        er_threshold: er_threshold.unwrap_or(params.er_threshold),
+        reward_denom: reward_denom.clone().unwrap_or(params.reward_denom),
     };
 
     let mut msgs: Vec<CosmosMsg> = vec![];
-    if let Some(denom) = swap_denom {
+    if let Some(denom) = reward_denom {
         let pool = pool_info_read(&deps.storage).load()?;
         let reward_addr = deps.api.human_address(&pool.reward_account)?;
 
         //send update params to the reward contract
-        let set_swap = UpdateParams { swap_denom: denom };
+        let set_swap = UpdateParams {
+            reward_denom: Some(denom),
+        };
+
         msgs.push(CosmosMsg::Wasm(WasmMsg::Execute {
             contract_addr: reward_addr,
             msg: to_binary(&set_swap)?,
@@ -47,7 +52,7 @@ pub fn handle_update_params<S: Storage, A: Api, Q: Querier>(
         }));
     }
 
-    parameters(&mut deps.storage).save(&params)?;
+    parameters(&mut deps.storage).save(&new_params)?;
     let res = HandleResponse {
         messages: msgs,
         log: vec![log("action", "update_params")],
