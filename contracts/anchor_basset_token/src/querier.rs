@@ -5,7 +5,7 @@ use cosmwasm_std::{
 use cosmwasm_storage::to_length_prefixed;
 
 use crate::state::read_hub_contract;
-use gov_courier::PoolInfo;
+use hub_courier::PoolInfo;
 
 pub fn query_reward_contract<S: Storage, A: Api, Q: Querier>(
     deps: &Extern<S, A, Q>,

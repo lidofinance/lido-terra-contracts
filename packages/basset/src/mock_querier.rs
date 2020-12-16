@@ -5,7 +5,7 @@ use cosmwasm_std::{
     WasmQuery,
 };
 use cosmwasm_storage::to_length_prefixed;
-use gov_courier::PoolInfo;
+use hub_courier::PoolInfo;
 use std::collections::HashMap;
 
 use schemars::JsonSchema;

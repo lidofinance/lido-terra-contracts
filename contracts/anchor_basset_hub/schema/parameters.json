@@ -6,6 +6,7 @@
     "epoch_time",
     "er_threshold",
     "peg_recovery_fee",
+    "reward_denom",
     "undelegated_epoch",
     "underlying_coin_denom"
   ],
@@ -20,6 +21,9 @@
     },
     "peg_recovery_fee": {
       "$ref": "#/definitions/Decimal"
+    },
+    "reward_denom": {
+      "type": "string"
     },
     "undelegated_epoch": {
       "type": "integer",

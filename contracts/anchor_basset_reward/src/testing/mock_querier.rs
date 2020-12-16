@@ -4,7 +4,7 @@ use cosmwasm_std::{
     QueryRequest, SystemError, Uint128, WasmQuery,
 };
 use cosmwasm_storage::to_length_prefixed;
-use gov_courier::PoolInfo;
+use hub_courier::PoolInfo;
 use terra_cosmwasm::{TaxCapResponse, TaxRateResponse, TerraQuery, TerraQueryWrapper, TerraRoute};
 
 pub const MOCK_HUB_CONTRACT_ADDR: &str = "hub";

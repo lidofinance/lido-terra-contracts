@@ -7,8 +7,8 @@ use anchor_basset_hub::msg::{
     ExchangeRateResponse, InitMsg, QueryMsg, TotalBondedResponse, UnbondEpochsResponse,
     UnbondRequestsResponse, WhitelistedValidatorsResponse, WithdrawableUnbondedResponse,
 };
-use anchor_basset_hub::state::{EpochId, GovConfig, MsgStatus, Parameters};
-use gov_courier::{HandleMsg, PoolInfo};
+use anchor_basset_hub::state::{Config, EpochId, MsgStatus, Parameters};
+use hub_courier::{HandleMsg, PoolInfo};
 
 fn main() {
     let mut out_dir = current_dir().unwrap();
@@ -20,7 +20,7 @@ fn main() {
     export_schema(&schema_for!(HandleMsg), &out_dir);
     export_schema(&schema_for!(QueryMsg), &out_dir);
     export_schema(&schema_for!(PoolInfo), &out_dir);
-    export_schema(&schema_for!(GovConfig), &out_dir);
+    export_schema(&schema_for!(Config), &out_dir);
     export_schema(&schema_for!(Parameters), &out_dir);
     export_schema(&schema_for!(MsgStatus), &out_dir);
     export_schema(&schema_for!(EpochId), &out_dir);

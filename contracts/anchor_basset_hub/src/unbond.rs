@@ -26,10 +26,6 @@ pub fn handle_unbond<S: Storage, A: Api, Q: Querier>(
         ));
     }
 
-    if amount == Uint128::zero() {
-        return Err(StdError::generic_err("Invalid zero amount"));
-    }
-
     //read params
     let params = parameters_read(&deps.storage).load()?;
     let epoch_time = params.epoch_time;
@@ -38,7 +34,7 @@ pub fn handle_unbond<S: Storage, A: Api, Q: Querier>(
 
     let mut epoch = epoch_read(&deps.storage).load()?;
     // get all amount that is gathered in a epoch.
-    let mut undelegated_so_far = read_total_amount(&deps.storage, epoch.epoch_id)?;
+    let mut requested_so_far = read_total_amount(&deps.storage, epoch.epoch_id)?;
 
     let mut messages: Vec<CosmosMsg> = vec![];
 
@@ -74,6 +70,7 @@ pub fn handle_unbond<S: Storage, A: Api, Q: Querier>(
 
     //compute Epoch time
     let block_time = env.block.time;
+
     if epoch.is_epoch_passed(block_time, epoch_time) {
         let last_epoch = epoch.epoch_id;
         epoch.compute_current_epoch(block_time, epoch_time);
@@ -83,7 +80,7 @@ pub fn handle_unbond<S: Storage, A: Api, Q: Querier>(
 
         let delegator = env.contract.address;
 
-        undelegated_so_far += amount_with_er;
+        requested_so_far += amount_with_er;
 
         let all_validators = read_validators(&deps.storage).unwrap();
         let block_height = env.block.height;
@@ -92,7 +89,7 @@ pub fn handle_unbond<S: Storage, A: Api, Q: Querier>(
         let mut undelegated_msgs = pick_validator(
             deps,
             all_validators,
-            undelegated_so_far,
+            requested_so_far,
             delegator,
             block_height,
         )?;
@@ -101,9 +98,8 @@ pub fn handle_unbond<S: Storage, A: Api, Q: Querier>(
         messages.append(&mut undelegated_msgs);
         save_epoch(&mut deps.storage).save(&epoch)?;
 
-        //update all delegations
         set_all_delegations(&mut deps.storage).update(|mut past| {
-            past = (past - undelegated_so_far)?;
+            past = (past - requested_so_far)?;
             Ok(past)
         })?;
 
@@ -119,7 +115,7 @@ pub fn handle_unbond<S: Storage, A: Api, Q: Querier>(
     } else {
         let luna_amount = amount_with_er;
 
-        undelegated_so_far += luna_amount;
+        requested_so_far += luna_amount;
 
         store_undelegated_wait_list(
             &mut deps.storage,
@@ -129,12 +125,7 @@ pub fn handle_unbond<S: Storage, A: Api, Q: Querier>(
         )?;
 
         //store the claimed_so_far for the current epoch;
-        store_total_amount(&mut deps.storage, epoch.epoch_id, undelegated_so_far)?;
-
-        set_all_delegations(&mut deps.storage).update(|mut past| {
-            past = (past - luna_amount)?;
-            Ok(past)
-        })?;
+        store_total_amount(&mut deps.storage, epoch.epoch_id, requested_so_far)?;
     }
 
     let res = HandleResponse {
@@ -142,7 +133,7 @@ pub fn handle_unbond<S: Storage, A: Api, Q: Querier>(
         log: vec![
             log("action", "burn"),
             log("from", sender),
-            log("undelegated_amount", undelegated_so_far),
+            log("undelegated_amount", requested_so_far),
         ],
         data: None,
     };

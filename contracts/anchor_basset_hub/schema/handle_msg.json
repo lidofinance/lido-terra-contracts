@@ -56,11 +56,15 @@
         "register_subcontracts": {
           "type": "object",
           "required": [
-            "contract"
+            "contract",
+            "contract_address"
           ],
           "properties": {
             "contract": {
               "$ref": "#/definitions/Registration"
+            },
+            "contract_address": {
+              "$ref": "#/definitions/HumanAddr"
             }
           }
         }
@@ -139,38 +143,54 @@
       "properties": {
         "update_params": {
           "type": "object",
-          "required": [
-            "epoch_time",
-            "er_threshold",
-            "peg_recovery_fee",
-            "undelegated_epoch",
-            "underlying_coin_denom"
-          ],
           "properties": {
             "epoch_time": {
-              "type": "integer",
+              "type": [
+                "integer",
+                "null"
+              ],
               "format": "uint64",
               "minimum": 0.0
             },
             "er_threshold": {
-              "$ref": "#/definitions/Decimal"
+              "anyOf": [
+                {
+                  "$ref": "#/definitions/Decimal"
+                },
+                {
+                  "type": "null"
+                }
+              ]
             },
             "peg_recovery_fee": {
-              "$ref": "#/definitions/Decimal"
+              "anyOf": [
+                {
+                  "$ref": "#/definitions/Decimal"
+                },
+                {
+                  "type": "null"
+                }
+              ]
             },
-            "swap_denom": {
+            "reward_denom": {
               "type": [
                 "string",
                 "null"
               ]
             },
             "undelegated_epoch": {
-              "type": "integer",
+              "type": [
+                "integer",
+                "null"
+              ],
               "format": "uint64",
               "minimum": 0.0
             },
             "underlying_coin_denom": {
-              "type": "string"
+              "type": [
+                "string",
+                "null"
+              ]
             }
           }
         }

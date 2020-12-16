@@ -10,9 +10,9 @@ use cosmwasm_storage::{
     ReadonlySingleton, Singleton,
 };
 
-use gov_courier::{Deactivated, PoolInfo};
+use hub_courier::{Deactivated, PoolInfo};
 
-pub static CONFIG: &[u8] = b"gov_config";
+pub static CONFIG: &[u8] = b"hub_config";
 pub static POOL_INFO: &[u8] = b"pool_info";
 pub static PARAMETERS: &[u8] = b"parameteres";
 pub static MSG_STATUS: &[u8] = b"msg_status";
@@ -26,7 +26,7 @@ pub static SLASHING: &[u8] = b"slashing";
 pub static BONDED: &[u8] = b"bonded";
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct GovConfig {
+pub struct Config {
     pub creator: CanonicalAddr,
 }
 
@@ -72,11 +72,11 @@ impl EpochId {
     }
 }
 
-pub fn config<S: Storage>(storage: &mut S) -> Singleton<S, GovConfig> {
+pub fn config<S: Storage>(storage: &mut S) -> Singleton<S, Config> {
     singleton(storage, CONFIG)
 }
 
-pub fn config_read<S: ReadonlyStorage>(storage: &S) -> ReadonlySingleton<S, GovConfig> {
+pub fn config_read<S: ReadonlyStorage>(storage: &S) -> ReadonlySingleton<S, Config> {
     singleton_read(storage, CONFIG)
 }
 
