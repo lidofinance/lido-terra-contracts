@@ -111,7 +111,6 @@ pub fn handle_send<S: Storage, A: Api, Q: Querier>(
     let res: HandleResponse = cw20_send(deps, env, contract.clone(), amount, msg)?;
     Ok(HandleResponse {
         messages: vec![
-            res.messages,
             vec![
                 CosmosMsg::Wasm(WasmMsg::Execute {
                     contract_addr: reward_contract.clone(),
@@ -132,6 +131,7 @@ pub fn handle_send<S: Storage, A: Api, Q: Querier>(
                     send: vec![],
                 }),
             ],
+            res.messages,
         ]
         .concat(),
         log: res.log,
@@ -214,7 +214,6 @@ pub fn handle_send_from<S: Storage, A: Api, Q: Querier>(
         cw20_send_from(deps, env, owner.clone(), contract.clone(), amount, msg)?;
     Ok(HandleResponse {
         messages: vec![
-            res.messages,
             vec![
                 CosmosMsg::Wasm(WasmMsg::Execute {
                     contract_addr: reward_contract.clone(),
@@ -235,6 +234,7 @@ pub fn handle_send_from<S: Storage, A: Api, Q: Querier>(
                     send: vec![],
                 }),
             ],
+            res.messages,
         ]
         .concat(),
         log: res.log,
