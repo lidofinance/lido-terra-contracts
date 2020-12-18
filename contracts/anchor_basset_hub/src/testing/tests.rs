@@ -25,7 +25,8 @@ use cosmwasm_std::{
 use cosmwasm_std::testing::{mock_dependencies, mock_env};
 
 use crate::msg::{
-    ExchangeRateResponse, InitMsg, TotalBondedResponse, UnbondEpochsResponse,
+    CollectedInEpochResponse, CurrentEpochResponse, ExchangeRateResponse, InitMsg,
+    LastIndexModificationResponse, TotalBondedResponse, UnbondEpochsResponse,
     UnbondRequestsResponse, WhitelistedValidatorsResponse, WithdrawableUnbondedResponse,
 };
 use hub_courier::{Deactivated, HandleMsg};
@@ -43,12 +44,11 @@ use hub_courier::Registration::{Reward, Token};
 
 use super::mock_querier::{mock_dependencies as dependencies, WasmMockQuerier};
 use crate::msg::QueryMsg::{
-    ExchangeRate, Parameters as Params, TotalBonded, UnbondEpochs, UnbondRequests,
-    WhitelistedValidators, WithdrawableUnbonded,
+    CollectedInEpoch, CurrentEpoch, ExchangeRate, LastIndexModification, Parameters as Params,
+    TotalBonded, UnbondEpochs, UnbondRequests, WhitelistedValidators, WithdrawableUnbonded,
 };
 use crate::state::{
-    config_read, epoch_read, get_all_delegations, get_bonded, read_total_amount,
-    read_undelegated_wait_list, Parameters,
+    config_read, get_all_delegations, get_bonded, read_undelegated_wait_list, Parameters,
 };
 use anchor_basset_reward::msg::HandleMsg::{SwapToRewardDenom, UpdateGlobalIndex};
 
@@ -541,8 +541,13 @@ pub fn proper_update_global_index() {
     let reward_msg = HandleMsg::UpdateGlobalIndex {};
 
     let env = mock_env(&addr1, &[]);
-    let res = handle(&mut deps, env, reward_msg).unwrap();
+    let res = handle(&mut deps, env.clone(), reward_msg).unwrap();
     assert_eq!(3, res.messages.len());
+
+    let last_index_query = LastIndexModification {};
+    let last_modification: LastIndexModificationResponse =
+        from_binary(&query(&deps, last_index_query).unwrap()).unwrap();
+    assert_eq!(&last_modification.time, &env.block.time);
 
     let withdraw = &res.messages[0];
     match withdraw {
@@ -835,16 +840,20 @@ pub fn proper_unbond() {
     });
     assert_eq!(res.messages[1], msgs);
 
-    //making sure the epoch has passed
-    let epoch = epoch_read(&deps.storage).load().unwrap();
-    assert_eq!(epoch.epoch_id, 1);
+    //making sure the epoch has passed by sending query
+    let current_epoch_qry = CurrentEpoch {};
+    let epoch: CurrentEpochResponse =
+        from_binary(&query(&deps, current_epoch_qry).unwrap()).unwrap();
+    assert_eq!(epoch.epoch_id.epoch_id, 1);
 
     // the last request (2) gets combined and processed with the previous requests (1, 5)
     let waitlist = read_undelegated_wait_list(&deps.storage, 0, bob.clone()).unwrap();
     assert_eq!(Uint128(8), waitlist);
 
-    let total_amount = read_total_amount(&deps.storage, 1).unwrap();
-    assert_eq!(total_amount, Uint128(0));
+    let collected_qry = CollectedInEpoch { epoch_id: 1 };
+    let amount: CollectedInEpochResponse =
+        from_binary(&query(&deps, collected_qry).unwrap()).unwrap();
+    assert_eq!(amount.amount, Uint128(0));
 }
 
 #[test]
@@ -1151,9 +1160,11 @@ pub fn proper_withdraw_unbonded() {
     };
     let query_unbonded = query(&deps, all_unbonded).unwrap();
     let res: UnbondRequestsResponse = from_binary(&query_unbonded).unwrap();
-    assert_eq!(res.unbond_requests.len(), 1);
+    assert_eq!(res.requests.len(), 1);
     //the amount should be 10
-    assert_eq!(res.unbond_requests[0], Uint128(10));
+    assert_eq!(&res.address, &bob);
+    assert_eq!(res.requests[0].1, Uint128(10));
+    assert_eq!(res.requests[0].0, 0);
 
     //first query AllUnbondedEpochs
     let all_user_epochs = UnbondEpochs {

@@ -1,7 +1,9 @@
+use crate::state::EpochId;
 use cosmwasm_std::{Decimal, HumanAddr, Uint128};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
+pub type UnbondRequest = Vec<(u64, Uint128)>;
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct InitMsg {
     pub epoch_time: u64,
@@ -24,6 +26,9 @@ pub enum QueryMsg {
     TotalBonded {},
     UnbondRequests { address: HumanAddr },
     UnbondEpochs { address: HumanAddr },
+    CurrentEpoch {},
+    CollectedInEpoch { epoch_id: u64 },
+    LastIndexModification {},
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -47,10 +52,27 @@ pub struct WithdrawableUnbondedResponse {
 }
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct UnbondRequestsResponse {
-    pub unbond_requests: Vec<Uint128>,
+    pub address: HumanAddr,
+    pub requests: UnbondRequest,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct UnbondEpochsResponse {
     pub unbond_epochs: Vec<u64>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct CollectedInEpochResponse {
+    pub epoch_id: u64,
+    pub amount: Uint128,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct CurrentEpochResponse {
+    pub epoch_id: EpochId,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct LastIndexModificationResponse {
+    pub time: u64,
 }

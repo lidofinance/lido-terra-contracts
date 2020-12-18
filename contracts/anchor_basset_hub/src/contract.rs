@@ -7,15 +7,17 @@ use cosmwasm_std::{
 use crate::config::{handle_deactivate, handle_update_config, handle_update_params};
 use crate::math::{decimal_division, decimal_subtraction};
 use crate::msg::{
-    ExchangeRateResponse, InitMsg, QueryMsg, TotalBondedResponse, UnbondEpochsResponse,
+    CollectedInEpochResponse, CurrentEpochResponse, ExchangeRateResponse, InitMsg,
+    LastIndexModificationResponse, QueryMsg, TotalBondedResponse, UnbondEpochsResponse,
     UnbondRequestsResponse, WhitelistedValidatorsResponse, WithdrawableUnbondedResponse,
 };
 use crate::state::{
     config, config_read, epoch_read, get_all_delegations, get_bonded, get_burn_requests,
     get_burn_requests_epochs, get_finished_amount, is_valid_validator, msg_status, msg_status_read,
-    parameters, parameters_read, pool_info, pool_info_read, read_valid_validators, read_validators,
-    remove_white_validators, save_epoch, set_all_delegations, set_bonded, store_total_amount,
-    store_white_validators, Config, EpochId, MsgStatus, Parameters,
+    parameters, parameters_read, pool_info, pool_info_read, read_total_amount,
+    read_valid_validators, read_validators, remove_white_validators, save_epoch,
+    set_all_delegations, set_bonded, store_total_amount, store_white_validators, Config, EpochId,
+    MsgStatus, Parameters,
 };
 use crate::unbond::{
     compute_current_epoch, get_past_epoch, handle_unbond, handle_withdraw_unbonded,
@@ -509,6 +511,11 @@ pub fn query<S: Storage, A: Api, Q: Querier>(
         QueryMsg::TotalBonded {} => to_binary(&query_total_bonded(&deps)?),
         QueryMsg::UnbondRequests { address } => to_binary(&query_unbond_requests(&deps, address)?),
         QueryMsg::UnbondEpochs { address } => to_binary(&query_user_epochs(&deps, address)?),
+        QueryMsg::CollectedInEpoch { epoch_id } => {
+            to_binary(&query_collected_in_epcoh(&deps, epoch_id)?)
+        }
+        QueryMsg::CurrentEpoch {} => to_binary(&query_current_epoch(&deps)?),
+        QueryMsg::LastIndexModification {} => to_binary(&query_last_modification(&deps)?),
     }
 }
 
@@ -615,11 +622,43 @@ fn query_unbond_requests<S: Storage, A: Api, Q: Querier>(
     deps: &Extern<S, A, Q>,
     address: HumanAddr,
 ) -> StdResult<UnbondRequestsResponse> {
-    let requests = get_burn_requests(&deps.storage, address)?;
-    let res = UnbondRequestsResponse {
-        unbond_requests: requests,
+    let requests = get_burn_requests(&deps.storage, address.clone())?;
+    let res = UnbondRequestsResponse { address, requests };
+    Ok(res)
+}
+
+fn query_collected_in_epcoh<S: Storage, A: Api, Q: Querier>(
+    deps: &Extern<S, A, Q>,
+    epoch_id: u64,
+) -> StdResult<CollectedInEpochResponse> {
+    let collected = read_total_amount(&deps.storage, epoch_id)?;
+    let res = CollectedInEpochResponse {
+        epoch_id,
+        amount: collected,
     };
     Ok(res)
+}
+
+fn query_current_epoch<S: Storage, A: Api, Q: Querier>(
+    deps: &Extern<S, A, Q>,
+) -> StdResult<CurrentEpochResponse> {
+    let current_epoch = epoch_read(&deps.storage).load()?;
+    let res = CurrentEpochResponse {
+        epoch_id: current_epoch,
+    };
+    Ok(res)
+}
+
+fn query_last_modification<S: Storage, A: Api, Q: Querier>(
+    deps: &Extern<S, A, Q>,
+) -> StdResult<LastIndexModificationResponse> {
+    let last_modification = pool_info_read(&deps.storage)
+        .load()?
+        .last_index_modification;
+    let response = LastIndexModificationResponse {
+        time: last_modification,
+    };
+    Ok(response)
 }
 
 #[cfg(test)]
