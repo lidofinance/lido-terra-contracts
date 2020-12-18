@@ -10,6 +10,7 @@ use cosmwasm_storage::{
     ReadonlySingleton, Singleton,
 };
 
+use crate::msg::UnbondRequest;
 use hub_courier::{Deactivated, PoolInfo};
 
 pub static CONFIG: &[u8] = b"hub_config";
@@ -202,19 +203,20 @@ pub fn get_burn_requests_epochs<'a, S: ReadonlyStorage>(
 pub fn get_burn_requests<'a, S: ReadonlyStorage>(
     storage: &'a S,
     sender_addr: HumanAddr,
-) -> StdResult<Vec<Uint128>> {
+) -> StdResult<UnbondRequest> {
     let vec = to_vec(&sender_addr)?;
-    let mut amount: Vec<Uint128> = vec![];
+    let mut request: UnbondRequest = vec![];
     let res: ReadonlyBucket<'a, S, Uint128> =
         ReadonlyBucket::multilevel(&[PREFIX_WAIT_MAP, &vec], storage);
     let _un: Vec<_> = res
         .range(None, None, Order::Ascending)
         .map(|item| {
-            let (_, value) = item.unwrap();
-            amount.push(value);
+            let (k, value) = item.unwrap();
+            let user_epoch: u64 = from_slice(&k).unwrap();
+            request.push((user_epoch, value));
         })
         .collect();
-    Ok(amount)
+    Ok(request)
 }
 
 pub fn get_burn_epochs<'a, S: ReadonlyStorage>(
