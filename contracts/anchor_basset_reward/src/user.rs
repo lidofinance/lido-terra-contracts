@@ -127,7 +127,7 @@ pub fn handle_decrease_balance<S: Storage, A: Api, Q: Querier>(
     let mut holder: Holder = read_holder(&deps.storage, &address_raw)?;
     if holder.balance < amount {
         return Err(StdError::generic_err(
-            "cannot derease more than the user balance",
+            "cannot decrease more than the user balance",
         ));
     }
 

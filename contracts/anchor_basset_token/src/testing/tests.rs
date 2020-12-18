@@ -4,7 +4,7 @@ use cosmwasm_std::{
 };
 
 use anchor_basset_reward::msg::HandleMsg::{DecreaseBalance, IncreaseBalance};
-use cw20::{MinterResponse, TokenInfoResponse};
+use cw20::{Cw20ReceiveMsg, MinterResponse, TokenInfoResponse};
 use cw20_base::contract::{query_minter, query_token_info};
 use cw20_base::msg::HandleMsg;
 
@@ -329,12 +329,12 @@ fn send() {
     let res = handle(&mut deps, env, msg).unwrap();
     assert_eq!(res.messages.len(), 3);
     assert_eq!(
-        res.messages[1..].to_vec(),
+        res.messages[0..2].to_vec(),
         vec![
             CosmosMsg::Wasm(WasmMsg::Execute {
                 contract_addr: HumanAddr::from(MOCK_REWARD_CONTRACT_ADDR),
                 msg: to_binary(&DecreaseBalance {
-                    address: addr1,
+                    address: addr1.clone(),
                     amount: Uint128(1u128),
                 })
                 .unwrap(),
@@ -343,13 +343,23 @@ fn send() {
             CosmosMsg::Wasm(WasmMsg::Execute {
                 contract_addr: HumanAddr::from(MOCK_REWARD_CONTRACT_ADDR),
                 msg: to_binary(&IncreaseBalance {
-                    address: dummny_contract_addr,
+                    address: dummny_contract_addr.clone(),
                     amount: Uint128(1u128),
                 })
                 .unwrap(),
                 send: vec![],
             }),
         ]
+    );
+    assert_eq!(
+        res.messages[2],
+        Cw20ReceiveMsg {
+            sender: addr1,
+            amount: Uint128(1),
+            msg: Some(to_binary(&dummy_msg).unwrap()),
+        }
+        .into_cosmos_msg(dummny_contract_addr)
+        .unwrap()
     );
 }
 
@@ -388,12 +398,12 @@ fn send_from() {
     let res = handle(&mut deps, env, msg).unwrap();
     assert_eq!(res.messages.len(), 3);
     assert_eq!(
-        res.messages[1..].to_vec(),
+        res.messages[0..2].to_vec(),
         vec![
             CosmosMsg::Wasm(WasmMsg::Execute {
                 contract_addr: HumanAddr::from(MOCK_REWARD_CONTRACT_ADDR),
                 msg: to_binary(&DecreaseBalance {
-                    address: addr1,
+                    address: addr1.clone(),
                     amount: Uint128(1u128),
                 })
                 .unwrap(),
@@ -402,12 +412,23 @@ fn send_from() {
             CosmosMsg::Wasm(WasmMsg::Execute {
                 contract_addr: HumanAddr::from(MOCK_REWARD_CONTRACT_ADDR),
                 msg: to_binary(&IncreaseBalance {
-                    address: dummny_contract_addr,
+                    address: dummny_contract_addr.clone(),
                     amount: Uint128(1u128),
                 })
                 .unwrap(),
                 send: vec![],
             }),
         ]
+    );
+
+    assert_eq!(
+        res.messages[2],
+        Cw20ReceiveMsg {
+            sender: addr2,
+            amount: Uint128(1),
+            msg: Some(to_binary(&dummy_msg).unwrap()),
+        }
+        .into_cosmos_msg(dummny_contract_addr)
+        .unwrap()
     );
 }

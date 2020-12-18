@@ -329,7 +329,7 @@ fn decrease_balance() {
     let res = handle(&mut deps, env, msg.clone());
     match res {
         Err(StdError::GenericErr { msg, .. }) => {
-            assert_eq!(msg, "cannot derease more than the user balance")
+            assert_eq!(msg, "cannot decrease more than the user balance")
         }
         _ => panic!("DO NOT ENTER HERE"),
     };
