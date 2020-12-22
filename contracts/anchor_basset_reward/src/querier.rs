@@ -3,7 +3,7 @@ use cosmwasm_std::{
     Storage, WasmQuery,
 };
 use cosmwasm_storage::to_length_prefixed;
-use hub_courier::PoolInfo;
+use hub_querier::Config;
 
 pub fn query_token_contract<S: Storage, A: Api, Q: Querier>(
     deps: &Extern<S, A, Q>,
@@ -13,10 +13,12 @@ pub fn query_token_contract<S: Storage, A: Api, Q: Querier>(
         .querier
         .query(&QueryRequest::Wasm(WasmQuery::Raw {
             contract_addr,
-            key: Binary::from(to_length_prefixed(b"pool_info")),
+            key: Binary::from(to_length_prefixed(b"config")),
         }))
         .unwrap();
 
-    let pool_info: PoolInfo = from_binary(&res)?;
-    Ok(pool_info.token_account)
+    let conf: Config = from_binary(&res)?;
+    Ok(conf
+        .token_contract
+        .expect("the token contract must have been registered"))
 }

@@ -4,22 +4,30 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema, Default)]
-pub struct PoolInfo {
+pub struct State {
     pub exchange_rate: Decimal,
     pub total_bond_amount: Uint128,
     pub last_index_modification: u64,
-    pub reward_account: CanonicalAddr,
-    pub is_reward_exist: bool,
-    pub is_token_exist: bool,
-    pub token_account: CanonicalAddr,
+    pub prev_hub_balance: Uint128,
+    pub actual_unbonded_amount: Uint128,
+    pub last_unbonded_time: u64,
+    pub last_processed_batch: u64,
 }
 
-impl PoolInfo {
-    pub fn update_exchange_rate(&mut self, total_issued: Uint128) {
-        if self.total_bond_amount.is_zero() || total_issued.is_zero() {
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct Config {
+    pub creator: CanonicalAddr,
+    pub reward_contract: Option<CanonicalAddr>,
+    pub token_contract: Option<CanonicalAddr>,
+}
+
+impl State {
+    pub fn update_exchange_rate(&mut self, total_issued: Uint128, requested_with_fee: Uint128) {
+        let actual_supply = total_issued + requested_with_fee;
+        if self.total_bond_amount.is_zero() || actual_supply.is_zero() {
             self.exchange_rate = Decimal::one()
         } else {
-            self.exchange_rate = Decimal::from_ratio(self.total_bond_amount, total_issued);
+            self.exchange_rate = Decimal::from_ratio(self.total_bond_amount, actual_supply);
         }
     }
 }
@@ -82,9 +90,9 @@ pub enum HandleMsg {
     ////////////////////
     /// update the parameters that is needed for the contract
     UpdateParams {
-        epoch_time: Option<u64>,
+        epoch_period: Option<u64>,
         underlying_coin_denom: Option<String>,
-        undelegated_epoch: Option<u64>,
+        unbonding_period: Option<u64>,
         peg_recovery_fee: Option<Decimal>,
         er_threshold: Option<Decimal>,
         reward_denom: Option<String>,
@@ -99,7 +107,11 @@ pub enum HandleMsg {
     /// Owner's operations
     ////////////////////
     /// set the owener
-    UpdateConfig { owner: HumanAddr },
+    UpdateConfig {
+        owner: Option<HumanAddr>,
+        reward_contract: Option<HumanAddr>,
+        token_contract: Option<HumanAddr>,
+    },
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

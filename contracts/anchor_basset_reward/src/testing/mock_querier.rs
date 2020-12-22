@@ -4,7 +4,7 @@ use cosmwasm_std::{
     QueryRequest, SystemError, Uint128, WasmQuery,
 };
 use cosmwasm_storage::to_length_prefixed;
-use hub_courier::PoolInfo;
+use hub_querier::Config;
 use terra_cosmwasm::{TaxCapResponse, TaxRateResponse, TerraQuery, TerraQueryWrapper, TerraRoute};
 
 pub const MOCK_HUB_CONTRACT_ADDR: &str = "hub";
@@ -74,23 +74,21 @@ impl WasmMockQuerier {
             }
             QueryRequest::Wasm(WasmQuery::Raw { contract_addr, key }) => {
                 if *contract_addr == HumanAddr::from(MOCK_HUB_CONTRACT_ADDR) {
-                    let prefix_pool = to_length_prefixed(b"pool_info").to_vec();
+                    let prefix_config = to_length_prefixed(b"config").to_vec();
                     let api: MockApi = MockApi::new(self.canonical_length);
-                    if key.as_slice().to_vec() == prefix_pool {
-                        let pool = PoolInfo {
-                            exchange_rate: Default::default(),
-                            total_bond_amount: Default::default(),
-                            last_index_modification: 0,
-                            reward_account: api
-                                .canonical_address(&HumanAddr::from(MOCK_REWARD_CONTRACT_ADDR))
-                                .unwrap(),
-                            is_reward_exist: true,
-                            is_token_exist: true,
-                            token_account: api
-                                .canonical_address(&HumanAddr::from(MOCK_TOKEN_CONTRACT_ADDR))
-                                .unwrap(),
+                    if key.as_slice().to_vec() == prefix_config {
+                        let config = Config {
+                            creator: api.canonical_address(&HumanAddr::from("owner1")).unwrap(),
+                            reward_contract: Some(
+                                api.canonical_address(&HumanAddr::from(MOCK_REWARD_CONTRACT_ADDR))
+                                    .unwrap(),
+                            ),
+                            token_contract: Some(
+                                api.canonical_address(&HumanAddr::from(MOCK_TOKEN_CONTRACT_ADDR))
+                                    .unwrap(),
+                            ),
                         };
-                        Ok(to_binary(&to_binary(&pool).unwrap()))
+                        Ok(to_binary(&to_binary(&config).unwrap()))
                     } else {
                         unimplemented!()
                     }

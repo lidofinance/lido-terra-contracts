@@ -1,5 +1,5 @@
 [package]
-name = "hub_courier"
+name = "hub_querier"
 version = "0.1.0"
 authors = ["MSNTCS <mohammad@terra.money>"]
 edition = "2018"

@@ -27,7 +27,7 @@ schemars = "0.7"
 serde = { version = "1.0.103", default-features = false, features = ["derive"] }
 thiserror = { version = "1.0.21" }
 terra-cosmwasm = { version = "1.2.2" }
-hub_courier = {path = "../hub_courier" }
+hub_querier = {path = "../hub_querier" }
 basset = { path = "../../packages/basset", default-features = false, version = "0.1.0"}
 
 [dev-dependencies]

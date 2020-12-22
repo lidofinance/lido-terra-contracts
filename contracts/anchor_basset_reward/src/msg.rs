@@ -61,13 +61,6 @@ pub enum QueryMsg {
         start_after: Option<HumanAddr>,
         limit: Option<u32>,
     },
-    // Do we need this interface seperately?
-    // UserIndex {
-    //     address: HumanAddr,
-    // },
-    // PendingRewards {
-    //     address: HumanAddr,
-    // },
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

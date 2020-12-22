@@ -49,7 +49,7 @@ fn proper_init() {
     let res = init(&mut deps, env, init_msg).unwrap();
     assert_eq!(0, res.messages.len());
 
-    let res = query(&mut deps, QueryMsg::Config {}).unwrap();
+    let res = query(&deps, QueryMsg::Config {}).unwrap();
     let config_response: ConfigResponse = from_binary(&res).unwrap();
     assert_eq!(
         config_response,
@@ -59,7 +59,7 @@ fn proper_init() {
         }
     );
 
-    let res = query(&mut deps, QueryMsg::State {}).unwrap();
+    let res = query(&deps, QueryMsg::State {}).unwrap();
     let state_response: StateResponse = from_binary(&res).unwrap();
     assert_eq!(
         state_response,
@@ -92,7 +92,7 @@ fn update_params() {
     let env = mock_env(MOCK_HUB_CONTRACT_ADDR, &[]);
     handle(&mut deps, env, msg).unwrap();
 
-    let res = query(&mut deps, QueryMsg::Config {}).unwrap();
+    let res = query(&deps, QueryMsg::Config {}).unwrap();
     let config_response: ConfigResponse = from_binary(&res).unwrap();
     assert_eq!(
         config_response,
@@ -326,7 +326,7 @@ fn decrease_balance() {
 
     // Failed underflow
     let env = mock_env(MOCK_TOKEN_CONTRACT_ADDR, &[]);
-    let res = handle(&mut deps, env, msg.clone());
+    let res = handle(&mut deps, env, msg);
     match res {
         Err(StdError::GenericErr { msg, .. }) => {
             assert_eq!(msg, "cannot decrease more than the user balance")

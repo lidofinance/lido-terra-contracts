@@ -6,7 +6,7 @@ use cosmwasm_std::{
 };
 use cosmwasm_storage::to_length_prefixed;
 use cw20_base::state::{MinterData, TokenInfo};
-use hub_courier::PoolInfo;
+use hub_querier::Config;
 use std::collections::HashMap;
 
 use terra_cosmwasm::{TaxCapResponse, TaxRateResponse, TerraQuery, TerraQueryWrapper, TerraRoute};
@@ -58,6 +58,7 @@ pub struct WasmMockQuerier {
     base: MockQuerier<TerraQueryWrapper>,
     canonical_length: usize,
     token_querier: TokenQuerier,
+    balance_querier: BalanceQuerier,
     tax_querier: TaxQuerier,
 }
 
@@ -106,22 +107,22 @@ impl WasmMockQuerier {
                 }
             }
             QueryRequest::Wasm(WasmQuery::Raw { contract_addr, key }) => {
-                let prefix_pool = to_length_prefixed(b"pool_info").to_vec();
+                let prefix_config = to_length_prefixed(b"config").to_vec();
                 let prefix_token_inf = to_length_prefixed(b"token_info").to_vec();
                 let prefix_balance = to_length_prefixed(b"balance").to_vec();
                 let api: MockApi = MockApi::new(self.canonical_length);
 
-                if key.as_slice().to_vec() == prefix_pool {
-                    let pool = PoolInfo {
-                        exchange_rate: Default::default(),
-                        total_bond_amount: Default::default(),
-                        last_index_modification: 0,
-                        reward_account: api.canonical_address(&HumanAddr::from("reward")).unwrap(),
-                        is_reward_exist: true,
-                        is_token_exist: true,
-                        token_account: api.canonical_address(&HumanAddr::from("token")).unwrap(),
+                if key.as_slice().to_vec() == prefix_config {
+                    let config = Config {
+                        creator: api.canonical_address(&HumanAddr::from("owner1")).unwrap(),
+                        reward_contract: Some(
+                            api.canonical_address(&HumanAddr::from("reward")).unwrap(),
+                        ),
+                        token_contract: Some(
+                            api.canonical_address(&HumanAddr::from("token")).unwrap(),
+                        ),
                     };
-                    Ok(to_binary(&to_binary(&pool).unwrap()))
+                    Ok(to_binary(&to_binary(&config).unwrap()))
                 } else if key.as_slice().to_vec() == prefix_token_inf {
                     let balances: &HashMap<HumanAddr, Uint128> =
                         match self.token_querier.balances.get(contract_addr) {
@@ -218,7 +219,24 @@ impl WasmMockQuerier {
                 }
             }
             QueryRequest::Bank(BankQuery::Balance { address, denom }) => {
-                if address == &HumanAddr::from("reward") && denom == "uusd" {
+                if address == &HumanAddr::from(MOCK_CONTRACT_ADDR) && denom == "uluna" {
+                    match self
+                        .balance_querier
+                        .balances
+                        .get(&HumanAddr::from(MOCK_CONTRACT_ADDR))
+                    {
+                        Some(coin) => Ok(to_binary(&BalanceResponse {
+                            amount: Coin {
+                                denom: coin.denom.clone(),
+                                amount: coin.amount,
+                            },
+                        })),
+                        None => Err(SystemError::InvalidRequest {
+                            error: "balance not found".to_string(),
+                            request: Default::default(),
+                        }),
+                    }
+                } else if address == &HumanAddr::from("reward") && denom == "uusd" {
                     let bank_res = BalanceResponse {
                         amount: Coin {
                             amount: Uint128(2000u128),
@@ -244,6 +262,19 @@ impl WasmMockQuerier {
 }
 
 #[derive(Clone, Default)]
+pub struct BalanceQuerier {
+    balances: HashMap<HumanAddr, Coin>,
+}
+
+impl BalanceQuerier {
+    pub fn new(balances: &[(HumanAddr, Coin)]) -> Self {
+        BalanceQuerier {
+            balances: native_balances_to_map(balances),
+        }
+    }
+}
+
+#[derive(Clone, Default)]
 pub struct TokenQuerier {
     balances: HashMap<HumanAddr, HashMap<HumanAddr, Uint128>>,
 }
@@ -254,6 +285,18 @@ impl TokenQuerier {
             balances: balances_to_map(balances),
         }
     }
+}
+
+pub(crate) fn native_balances_to_map(balances: &[(HumanAddr, Coin)]) -> HashMap<HumanAddr, Coin> {
+    let mut balances_map: HashMap<HumanAddr, Coin> = HashMap::new();
+    for (contract_addr, balances) in balances.iter() {
+        let coin = Coin {
+            denom: balances.clone().denom,
+            amount: balances.clone().amount,
+        };
+        balances_map.insert(HumanAddr::from(contract_addr), coin);
+    }
+    balances_map
 }
 
 pub(crate) fn balances_to_map(
@@ -282,7 +325,12 @@ impl WasmMockQuerier {
             token_querier: TokenQuerier::default(),
             canonical_length,
             tax_querier: TaxQuerier::default(),
+            balance_querier: BalanceQuerier::default(),
         }
+    }
+
+    pub fn with_native_balances(&mut self, balances: &[(HumanAddr, Coin)]) {
+        self.balance_querier = BalanceQuerier::new(balances);
     }
 
     // configure the mint whitelist mock basset

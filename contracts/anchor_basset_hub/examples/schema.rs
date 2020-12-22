@@ -4,11 +4,12 @@ use std::fs::create_dir_all;
 use cosmwasm_schema::{export_schema, remove_schemas, schema_for};
 
 use anchor_basset_hub::msg::{
-    ExchangeRateResponse, InitMsg, QueryMsg, TotalBondedResponse, UnbondEpochsResponse,
-    UnbondRequestsResponse, WhitelistedValidatorsResponse, WithdrawableUnbondedResponse,
+    AllHistoryResponse, CurrentBatchResponse, ExchangeRateResponse, InitMsg, QueryMsg,
+    StateResponse, UnbondBatchesResponse, UnbondRequestsResponse, WhitelistedValidatorsResponse,
+    WithdrawableUnbondedResponse,
 };
-use anchor_basset_hub::state::{Config, EpochId, MsgStatus, Parameters};
-use hub_courier::{HandleMsg, PoolInfo};
+use anchor_basset_hub::state::{MsgStatus, Parameters};
+use hub_querier::{Config, HandleMsg, State};
 
 fn main() {
     let mut out_dir = current_dir().unwrap();
@@ -19,15 +20,16 @@ fn main() {
     export_schema(&schema_for!(InitMsg), &out_dir);
     export_schema(&schema_for!(HandleMsg), &out_dir);
     export_schema(&schema_for!(QueryMsg), &out_dir);
-    export_schema(&schema_for!(PoolInfo), &out_dir);
+    export_schema(&schema_for!(State), &out_dir);
     export_schema(&schema_for!(Config), &out_dir);
     export_schema(&schema_for!(Parameters), &out_dir);
     export_schema(&schema_for!(MsgStatus), &out_dir);
-    export_schema(&schema_for!(EpochId), &out_dir);
     export_schema(&schema_for!(ExchangeRateResponse), &out_dir);
+    export_schema(&schema_for!(StateResponse), &out_dir);
     export_schema(&schema_for!(WhitelistedValidatorsResponse), &out_dir);
     export_schema(&schema_for!(WithdrawableUnbondedResponse), &out_dir);
-    export_schema(&schema_for!(TotalBondedResponse), &out_dir);
     export_schema(&schema_for!(UnbondRequestsResponse), &out_dir);
-    export_schema(&schema_for!(UnbondEpochsResponse), &out_dir);
+    export_schema(&schema_for!(UnbondBatchesResponse), &out_dir);
+    export_schema(&schema_for!(CurrentBatchResponse), &out_dir);
+    export_schema(&schema_for!(AllHistoryResponse), &out_dir);
 }

@@ -8,6 +8,26 @@
   "properties": {
     "creator": {
       "$ref": "#/definitions/CanonicalAddr"
+    },
+    "reward_contract": {
+      "anyOf": [
+        {
+          "$ref": "#/definitions/CanonicalAddr"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "token_contract": {
+      "anyOf": [
+        {
+          "$ref": "#/definitions/CanonicalAddr"
+        },
+        {
+          "type": "null"
+        }
+      ]
     }
   },
   "definitions": {
