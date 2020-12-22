@@ -175,7 +175,7 @@ fn transfer_from() {
     };
     let _ = handle(&mut deps, env, msg).unwrap();
 
-    let env = mock_env(addr3.clone(), &[]);
+    let env = mock_env(addr3, &[]);
     let msg = HandleMsg::TransferFrom {
         owner: addr1.clone(),
         recipient: addr2.clone(),
@@ -283,7 +283,7 @@ fn burn_from() {
     };
     let _ = handle(&mut deps, env, msg).unwrap();
 
-    let env = mock_env(addr1.clone(), &[]);
+    let env = mock_env(addr1, &[]);
     let msg = HandleMsg::BurnFrom {
         owner: addr.clone(),
         amount: Uint128(1u128),
@@ -403,7 +403,7 @@ fn send_from() {
             CosmosMsg::Wasm(WasmMsg::Execute {
                 contract_addr: HumanAddr::from(MOCK_REWARD_CONTRACT_ADDR),
                 msg: to_binary(&DecreaseBalance {
-                    address: addr1.clone(),
+                    address: addr1,
                     amount: Uint128(1u128),
                 })
                 .unwrap(),

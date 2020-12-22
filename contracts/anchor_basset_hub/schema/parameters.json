@@ -3,15 +3,15 @@
   "title": "Parameters",
   "type": "object",
   "required": [
-    "epoch_time",
+    "epoch_period",
     "er_threshold",
     "peg_recovery_fee",
     "reward_denom",
-    "undelegated_epoch",
+    "unbonding_period",
     "underlying_coin_denom"
   ],
   "properties": {
-    "epoch_time": {
+    "epoch_period": {
       "type": "integer",
       "format": "uint64",
       "minimum": 0.0
@@ -25,7 +25,7 @@
     "reward_denom": {
       "type": "string"
     },
-    "undelegated_epoch": {
+    "unbonding_period": {
       "type": "integer",
       "format": "uint64",
       "minimum": 0.0

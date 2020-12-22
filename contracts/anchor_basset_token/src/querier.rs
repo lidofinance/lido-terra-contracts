@@ -5,7 +5,7 @@ use cosmwasm_std::{
 use cosmwasm_storage::to_length_prefixed;
 
 use crate::state::read_hub_contract;
-use hub_courier::PoolInfo;
+use hub_querier::Config;
 
 pub fn query_reward_contract<S: Storage, A: Api, Q: Querier>(
     deps: &Extern<S, A, Q>,
@@ -17,10 +17,17 @@ pub fn query_reward_contract<S: Storage, A: Api, Q: Querier>(
 
     let res: Binary = deps.querier.query(&QueryRequest::Wasm(WasmQuery::Raw {
         contract_addr: hub_address,
-        key: Binary::from(to_length_prefixed(b"pool_info")),
+        key: Binary::from(to_length_prefixed(b"config")),
     }))?;
 
-    let pool_info: PoolInfo = from_binary(&res)?;
-    let address = deps.api.human_address(&pool_info.reward_account).unwrap();
+    let config: Config = from_binary(&res)?;
+    let address = deps
+        .api
+        .human_address(
+            &config
+                .reward_contract
+                .expect("the reward contract must have been registered"),
+        )
+        .unwrap();
     Ok(address)
 }

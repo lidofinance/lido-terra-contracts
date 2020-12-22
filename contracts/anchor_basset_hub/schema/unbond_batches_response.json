@@ -1,12 +1,12 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "title": "UnbondEpochsResponse",
+  "title": "UnbondBatchesResponse",
   "type": "object",
   "required": [
-    "unbond_epochs"
+    "unbond_batches"
   ],
   "properties": {
-    "unbond_epochs": {
+    "unbond_batches": {
       "type": "array",
       "items": {
         "type": "integer",

@@ -2,40 +2,34 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use cosmwasm_std::{
-    from_slice, to_vec, CanonicalAddr, Decimal, HumanAddr, Order, ReadonlyStorage, StdError,
-    StdResult, Storage, Uint128,
+    from_slice, to_vec, Decimal, HumanAddr, Order, ReadonlyStorage, StdError, StdResult, Storage,
+    Uint128,
 };
 use cosmwasm_storage::{
     singleton, singleton_read, Bucket, PrefixedStorage, ReadonlyBucket, ReadonlyPrefixedStorage,
     ReadonlySingleton, Singleton,
 };
 
-use crate::msg::UnbondRequest;
-use hub_courier::{Deactivated, PoolInfo};
+use crate::msg::{History, UnbondRequest};
+use hub_querier::{Config, Deactivated, State};
 
-pub static CONFIG: &[u8] = b"hub_config";
-pub static POOL_INFO: &[u8] = b"pool_info";
+pub type LastBatch = u64;
+
+pub static CONFIG: &[u8] = b"config";
+pub static STATE: &[u8] = b"state";
 pub static PARAMETERS: &[u8] = b"parameteres";
 pub static MSG_STATUS: &[u8] = b"msg_status";
-
-pub static PREFIX_UNBONDED_PER_EPOCH: &[u8] = b"unbond";
 pub static VALIDATORS: &[u8] = b"validators";
+
 pub static PREFIX_WAIT_MAP: &[u8] = b"wait";
-pub static EPOCH_ID: &[u8] = b"epoch";
-
-pub static SLASHING: &[u8] = b"slashing";
-pub static BONDED: &[u8] = b"bonded";
-
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct Config {
-    pub creator: CanonicalAddr,
-}
+pub static CURRENT_BATCH: &[u8] = b"current_batch";
+pub static UNBOND_HISTORY_MAP: &[u8] = b"history_map";
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct Parameters {
-    pub epoch_time: u64,
+    pub epoch_period: u64,
     pub underlying_coin_denom: String,
-    pub undelegated_epoch: u64,
+    pub unbonding_period: u64,
     pub peg_recovery_fee: Decimal,
     pub er_threshold: Decimal,
     pub reward_denom: String,
@@ -44,33 +38,21 @@ pub struct Parameters {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct MsgStatus {
     pub slashing: Option<Deactivated>,
-    pub burn: Option<Deactivated>,
+    pub unbond: Option<Deactivated>,
 }
 
-#[derive(
-    PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, Clone, JsonSchema, Debug, Copy,
-)]
-pub struct EpochId {
-    pub epoch_id: u64,
-    pub current_block_time: u64,
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct CurrentBatch {
+    pub id: u64,
+    pub requested_with_fee: Uint128,
 }
 
-impl EpochId {
-    pub fn compute_current_epoch(&mut self, block_time: u64, epoch_time: u64) {
-        let epoc = self.epoch_id;
-        let time = self.current_block_time;
-
-        self.current_block_time = block_time;
-        self.epoch_id = epoc + (block_time - time) / epoch_time;
-    }
-
-    pub fn is_epoch_passed(&self, block_time: u64, epoch_time: u64) -> bool {
-        let time = self.current_block_time;
-        if (block_time - time) < epoch_time {
-            return false;
-        }
-        true
-    }
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct UnbondHistory {
+    pub time: u64,
+    pub amount: Uint128,
+    pub withdraw_rate: Decimal,
+    pub released: bool,
 }
 
 pub fn config<S: Storage>(storage: &mut S) -> Singleton<S, Config> {
@@ -97,55 +79,34 @@ pub fn msg_status_read<S: ReadonlyStorage>(storage: &S) -> ReadonlySingleton<S, 
     singleton_read(storage, MSG_STATUS)
 }
 
-pub fn save_epoch<S: Storage>(storage: &mut S) -> Singleton<S, EpochId> {
-    singleton(storage, EPOCH_ID)
+pub fn store_current_batch<S: Storage>(storage: &mut S) -> Singleton<S, CurrentBatch> {
+    singleton(storage, CURRENT_BATCH)
 }
 
-pub fn epoch_read<S: ReadonlyStorage>(storage: &S) -> ReadonlySingleton<S, EpochId> {
-    singleton_read(storage, EPOCH_ID)
+pub fn read_current_batch<S: ReadonlyStorage>(storage: &S) -> ReadonlySingleton<S, CurrentBatch> {
+    singleton_read(storage, CURRENT_BATCH)
 }
 
-pub fn pool_info<S: Storage>(storage: &mut S) -> Singleton<S, PoolInfo> {
-    singleton(storage, POOL_INFO)
+pub fn store_state<S: Storage>(storage: &mut S) -> Singleton<S, State> {
+    singleton(storage, STATE)
 }
 
-pub fn pool_info_read<S: ReadonlyStorage>(storage: &S) -> ReadonlySingleton<S, PoolInfo> {
-    singleton_read(storage, POOL_INFO)
-}
-
-//this stores unboned amount in the storage per each epoc.
-pub fn store_total_amount<S: Storage>(
-    storage: &mut S,
-    epoc_id: u64,
-    claimed: Uint128,
-) -> StdResult<()> {
-    let vec = to_vec(&epoc_id)?;
-    let value: Vec<u8> = to_vec(&claimed)?;
-    PrefixedStorage::new(PREFIX_UNBONDED_PER_EPOCH, storage).set(&vec, &value);
-    Ok(())
-}
-
-pub fn read_total_amount<S: Storage>(storage: &S, epoc_id: u64) -> StdResult<Uint128> {
-    let vec = to_vec(&epoc_id)?;
-    let res = ReadonlyPrefixedStorage::new(PREFIX_UNBONDED_PER_EPOCH, storage).get(&vec);
-    match res {
-        Some(data) => from_slice(&data),
-        None => Err(StdError::generic_err("no unbond amount is found")),
-    }
+pub fn read_state<S: ReadonlyStorage>(storage: &S) -> ReadonlySingleton<S, State> {
+    singleton_read(storage, STATE)
 }
 
 //store undelegation wait list per each epoc
 pub fn store_undelegated_wait_list<'a, S: Storage>(
     storage: &'a mut S,
-    epoc_id: u64,
+    batch_id: u64,
     sender_address: HumanAddr,
     amount: Uint128,
 ) -> StdResult<()> {
-    let epoch = to_vec(&epoc_id)?;
+    let batch = to_vec(&batch_id)?;
     let addr = to_vec(&sender_address)?;
     let mut position_indexer: Bucket<'a, S, Uint128> =
         Bucket::multilevel(&[PREFIX_WAIT_MAP, &addr], storage);
-    position_indexer.update(&epoch, |asked_already| {
+    position_indexer.update(&batch, |asked_already| {
         Ok(asked_already.unwrap_or_default() + amount)
     })?;
 
@@ -155,33 +116,33 @@ pub fn store_undelegated_wait_list<'a, S: Storage>(
 //store undelegation wait list per each epoc
 pub fn remove_undelegated_wait_list<'a, S: Storage>(
     storage: &'a mut S,
-    epoc_id: Vec<u64>,
+    batch_id: Vec<u64>,
     sender_address: HumanAddr,
 ) -> StdResult<()> {
     let addr = to_vec(&sender_address)?;
     let mut position_indexer: Bucket<'a, S, Uint128> =
         Bucket::multilevel(&[PREFIX_WAIT_MAP, &addr], storage);
-    for e in epoc_id {
-        let epoch = to_vec(&e)?;
-        position_indexer.remove(&epoch);
+    for b in batch_id {
+        let batch = to_vec(&b)?;
+        position_indexer.remove(&batch);
     }
     Ok(())
 }
 
 pub fn read_undelegated_wait_list<'a, S: ReadonlyStorage>(
     storage: &'a S,
-    epoc_id: u64,
+    batch_id: u64,
     sender_addr: HumanAddr,
 ) -> StdResult<Uint128> {
     let vec = to_vec(&sender_addr)?;
     let res: ReadonlyBucket<'a, S, Uint128> =
         ReadonlyBucket::multilevel(&[PREFIX_WAIT_MAP, &vec], storage);
-    let epoch = to_vec(&epoc_id)?;
-    res.load(&epoch)
+    let batch = to_vec(&batch_id)?;
+    res.load(&batch)
 }
 
 //this function is here for test purpose
-pub fn get_burn_requests_epochs<'a, S: ReadonlyStorage>(
+pub fn get_unbond_requests_batches<'a, S: ReadonlyStorage>(
     storage: &'a S,
     sender_addr: HumanAddr,
 ) -> StdResult<Vec<u64>> {
@@ -193,14 +154,14 @@ pub fn get_burn_requests_epochs<'a, S: ReadonlyStorage>(
         .range(None, None, Order::Ascending)
         .map(|item| {
             let (k, _) = item.unwrap();
-            let epoch: u64 = from_slice(&k).unwrap();
-            amount.push(epoch)
+            let batch: u64 = from_slice(&k).unwrap();
+            amount.push(batch)
         })
         .collect();
     Ok(amount)
 }
 
-pub fn get_burn_requests<'a, S: ReadonlyStorage>(
+pub fn get_unbond_requests<'a, S: ReadonlyStorage>(
     storage: &'a S,
     sender_addr: HumanAddr,
 ) -> StdResult<UnbondRequest> {
@@ -212,56 +173,86 @@ pub fn get_burn_requests<'a, S: ReadonlyStorage>(
         .range(None, None, Order::Ascending)
         .map(|item| {
             let (k, value) = item.unwrap();
-            let user_epoch: u64 = from_slice(&k).unwrap();
-            request.push((user_epoch, value));
+            let user_batch: u64 = from_slice(&k).unwrap();
+            request.push((user_batch, value));
         })
         .collect();
     Ok(request)
 }
 
-pub fn get_burn_epochs<'a, S: ReadonlyStorage>(
+pub fn get_unbond_batches<'a, S: ReadonlyStorage>(
     storage: &'a S,
     sender_addr: HumanAddr,
-    epoc_id: u64,
 ) -> StdResult<Vec<u64>> {
     let vec = to_vec(&sender_addr)?;
-    let mut deprecated_epochs: Vec<u64> = vec![];
+    let mut deprecated_batches: Vec<u64> = vec![];
     let res: ReadonlyBucket<'a, S, Uint128> =
         ReadonlyBucket::multilevel(&[PREFIX_WAIT_MAP, &vec], storage);
     let _un: Vec<_> = res
         .range(None, None, Order::Ascending)
         .map(|item| {
             let (k, _) = item.unwrap();
-            let user_epoch: u64 = from_slice(&k).unwrap();
-            if user_epoch < epoc_id {
-                deprecated_epochs.push(user_epoch);
+            let user_batch: u64 = from_slice(&k).unwrap();
+            let history = read_unbond_history(storage, user_batch);
+            if let Ok(h) = history {
+                if h.released {
+                    deprecated_batches.push(user_batch);
+                }
             }
         })
         .collect();
-    Ok(deprecated_epochs)
+    Ok(deprecated_batches)
 }
 
-//return all requested burn amount that has been requested from 24 days ago.
+//return all requested unbond amount that has been requested from 24 days ago.
 pub fn get_finished_amount<'a, S: ReadonlyStorage>(
     storage: &'a S,
-    epoc_id: u64,
     sender_addr: HumanAddr,
 ) -> StdResult<Uint128> {
     let vec = to_vec(&sender_addr)?;
-    let mut amount: Uint128 = Uint128::zero();
+    let mut withdrawable_amount: Uint128 = Uint128::zero();
     let res: ReadonlyBucket<'a, S, Uint128> =
         ReadonlyBucket::multilevel(&[PREFIX_WAIT_MAP, &vec], storage);
     let _un: Vec<_> = res
         .range(None, None, Order::Ascending)
         .map(|item| {
             let (k, v) = item.unwrap();
-            let user_epoch: u64 = from_slice(&k).unwrap();
-            if user_epoch < epoc_id {
-                amount += v;
+            let user_batch: u64 = from_slice(&k).unwrap();
+            let history = read_unbond_history(storage, user_batch);
+            if let Ok(h) = history {
+                if h.released {
+                    withdrawable_amount += v * h.withdraw_rate;
+                }
             }
         })
         .collect();
-    Ok(amount)
+    Ok(withdrawable_amount)
+}
+
+//this is designed for query and not return the actual amount
+pub fn query_get_finished_amount<'a, S: ReadonlyStorage>(
+    storage: &'a S,
+    sender_addr: HumanAddr,
+    block_time: u64,
+) -> StdResult<Uint128> {
+    let vec = to_vec(&sender_addr)?;
+    let mut withdrawable_amount: Uint128 = Uint128::zero();
+    let res: ReadonlyBucket<'a, S, Uint128> =
+        ReadonlyBucket::multilevel(&[PREFIX_WAIT_MAP, &vec], storage);
+    let _un: Vec<_> = res
+        .range(None, None, Order::Ascending)
+        .map(|item| {
+            let (k, v) = item.unwrap();
+            let user_batch: u64 = from_slice(&k).unwrap();
+            let history = read_unbond_history(storage, user_batch);
+            if let Ok(h) = history {
+                if h.time < block_time {
+                    withdrawable_amount += v * h.withdraw_rate;
+                }
+            }
+        })
+        .collect();
+    Ok(withdrawable_amount)
 }
 
 // store valid validators
@@ -327,18 +318,60 @@ pub fn read_valid_validators<S: Storage>(storage: &S) -> StdResult<Vec<HumanAddr
         .collect();
     Ok(validators)
 }
-pub fn set_all_delegations<S: Storage>(storage: &mut S) -> Singleton<S, Uint128> {
-    singleton(storage, SLASHING)
+
+//store unbond history map
+pub fn store_unbond_history<S: Storage>(
+    storage: &mut S,
+    batch_id: u64,
+    history: UnbondHistory,
+) -> StdResult<()> {
+    let vec = to_vec(&batch_id)?;
+    let value: Vec<u8> = to_vec(&history)?;
+    PrefixedStorage::new(UNBOND_HISTORY_MAP, storage).set(&vec, &value);
+    Ok(())
 }
 
-pub fn get_all_delegations<S: ReadonlyStorage>(storage: &S) -> ReadonlySingleton<S, Uint128> {
-    singleton_read(storage, SLASHING)
+#[allow(clippy::needless_lifetimes)]
+pub fn read_unbond_history<'a, S: ReadonlyStorage>(
+    storage: &'a S,
+    epoc_id: u64,
+) -> StdResult<UnbondHistory> {
+    let vec = to_vec(&epoc_id)?;
+    let res = ReadonlyPrefixedStorage::new(UNBOND_HISTORY_MAP, storage).get(&vec);
+    match res {
+        Some(data) => from_slice(&data),
+        None => Err(StdError::generic_err("no unbond history is found")),
+    }
 }
 
-pub fn set_bonded<S: Storage>(storage: &mut S) -> Singleton<S, Uint128> {
-    singleton(storage, BONDED)
+// settings for pagination
+const MAX_LIMIT: u32 = 10;
+const DEFAULT_LIMIT: u32 = 2;
+
+#[allow(clippy::needless_lifetimes)]
+pub fn all_unbond_history<'a, S: ReadonlyStorage>(
+    storage: &'a S,
+    start: Option<u64>,
+    limit: Option<u32>,
+) -> StdResult<History> {
+    let s = convert(start);
+    let lim = limit.unwrap_or(DEFAULT_LIMIT).min(MAX_LIMIT) as usize;
+    let res = ReadonlyPrefixedStorage::new(UNBOND_HISTORY_MAP, storage)
+        .range(s.as_deref(), None, Order::Ascending)
+        .take(lim)
+        .map(|item| {
+            let history: UnbondHistory = from_slice(&item.1).unwrap();
+            let batch_id: u64 = from_slice(&item.0).unwrap();
+            Ok((batch_id, history))
+        })
+        .collect();
+    res
 }
 
-pub fn get_bonded<S: ReadonlyStorage>(storage: &S) -> ReadonlySingleton<S, Uint128> {
-    singleton_read(storage, BONDED)
+fn convert(start_after: Option<u64>) -> Option<Vec<u8>> {
+    start_after.map(|idx| {
+        let mut v = idx.to_be_bytes().to_vec();
+        v.push(1);
+        v
+    })
 }

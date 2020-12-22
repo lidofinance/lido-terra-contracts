@@ -5,6 +5,28 @@
     {
       "type": "object",
       "required": [
+        "config"
+      ],
+      "properties": {
+        "config": {
+          "type": "object"
+        }
+      }
+    },
+    {
+      "type": "object",
+      "required": [
+        "state"
+      ],
+      "properties": {
+        "state": {
+          "type": "object"
+        }
+      }
+    },
+    {
+      "type": "object",
+      "required": [
         "exchange_rate"
       ],
       "properties": {
@@ -20,6 +42,17 @@
       ],
       "properties": {
         "whitelisted_validators": {
+          "type": "object"
+        }
+      }
+    },
+    {
+      "type": "object",
+      "required": [
+        "current_batch"
+      ],
+      "properties": {
+        "current_batch": {
           "type": "object"
         }
       }
@@ -52,43 +85,10 @@
     {
       "type": "object",
       "required": [
-        "token_contract"
-      ],
-      "properties": {
-        "token_contract": {
-          "type": "object"
-        }
-      }
-    },
-    {
-      "type": "object",
-      "required": [
-        "reward_contract"
-      ],
-      "properties": {
-        "reward_contract": {
-          "type": "object"
-        }
-      }
-    },
-    {
-      "type": "object",
-      "required": [
         "parameters"
       ],
       "properties": {
         "parameters": {
-          "type": "object"
-        }
-      }
-    },
-    {
-      "type": "object",
-      "required": [
-        "total_bonded"
-      ],
-      "properties": {
-        "total_bonded": {
           "type": "object"
         }
       }
@@ -115,10 +115,10 @@
     {
       "type": "object",
       "required": [
-        "unbond_epochs"
+        "unbond_batches"
       ],
       "properties": {
-        "unbond_epochs": {
+        "unbond_batches": {
           "type": "object",
           "required": [
             "address"
@@ -126,6 +126,52 @@
           "properties": {
             "address": {
               "$ref": "#/definitions/HumanAddr"
+            }
+          }
+        }
+      }
+    },
+    {
+      "type": "object",
+      "required": [
+        "last_index_modification"
+      ],
+      "properties": {
+        "last_index_modification": {
+          "type": "object"
+        }
+      }
+    },
+    {
+      "type": "object",
+      "required": [
+        "all_batches"
+      ],
+      "properties": {
+        "all_batches": {
+          "type": "object",
+          "required": [
+            "address"
+          ],
+          "properties": {
+            "address": {
+              "$ref": "#/definitions/HumanAddr"
+            },
+            "limit": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "uint32",
+              "minimum": 0.0
+            },
+            "start_from": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "uint64",
+              "minimum": 0.0
             }
           }
         }

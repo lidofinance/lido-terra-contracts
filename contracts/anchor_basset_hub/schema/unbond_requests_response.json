@@ -3,17 +3,36 @@
   "title": "UnbondRequestsResponse",
   "type": "object",
   "required": [
-    "unbond_requests"
+    "address",
+    "requests"
   ],
   "properties": {
-    "unbond_requests": {
+    "address": {
+      "$ref": "#/definitions/HumanAddr"
+    },
+    "requests": {
       "type": "array",
       "items": {
-        "$ref": "#/definitions/Uint128"
+        "type": "array",
+        "items": [
+          {
+            "type": "integer",
+            "format": "uint64",
+            "minimum": 0.0
+          },
+          {
+            "$ref": "#/definitions/Uint128"
+          }
+        ],
+        "maxItems": 2,
+        "minItems": 2
       }
     }
   },
   "definitions": {
+    "HumanAddr": {
+      "type": "string"
+    },
     "Uint128": {
       "type": "string"
     }
