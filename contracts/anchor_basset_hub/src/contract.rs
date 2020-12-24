@@ -5,8 +5,8 @@ use cosmwasm_std::{
 };
 
 use crate::config::{
-    handle_deactivate, handle_dereg_validator, handle_reg_validator, handle_register_contracts,
-    handle_update_config, handle_update_params,
+    handle_deactivate, handle_deregister_validator, handle_register_contracts,
+    handle_register_validator, handle_update_config, handle_update_params,
 };
 use crate::msg::{
     AllHistoryResponse, ConfigResponse, CurrentBatchResponse, ExchangeRateResponse, InitMsg,
@@ -14,10 +14,10 @@ use crate::msg::{
     WhitelistedValidatorsResponse, WithdrawableUnbondedResponse,
 };
 use crate::state::{
-    all_unbond_history, config, config_read, get_unbond_requests, get_unbond_requests_batches,
-    msg_status, msg_status_read, parameters, parameters_read, query_get_finished_amount,
-    read_current_batch, read_state, read_valid_validators, read_validators, store_current_batch,
-    store_state, CurrentBatch, MsgStatus, Parameters,
+    all_unbond_history, get_unbond_requests, get_unbond_requests_batches,
+    query_get_finished_amount, read_config, read_current_batch, read_msg_status, read_parameters,
+    read_state, read_valid_validators, read_validators, store_config, store_current_batch,
+    store_msg_status, store_parameters, store_state, CurrentBatch, MsgStatus, Parameters,
 };
 use crate::unbond::{handle_unbond, handle_withdraw_unbonded};
 
@@ -34,16 +34,18 @@ pub fn init<S: Storage, A: Api, Q: Querier>(
     env: Env,
     msg: InitMsg,
 ) -> StdResult<InitResponse> {
-    // store token info
     let sender = env.message.sender;
     let sndr_raw = deps.api.canonical_address(&sender)?;
+
+    // store config
     let data = Config {
         creator: sndr_raw,
         reward_contract: None,
         token_contract: None,
     };
-    config(&mut deps.storage).save(&data)?;
+    store_config(&mut deps.storage).save(&data)?;
 
+    // store state
     let state = State {
         exchange_rate: Decimal::one(),
         last_index_modification: env.block.time,
@@ -54,13 +56,14 @@ pub fn init<S: Storage, A: Api, Q: Querier>(
 
     store_state(&mut deps.storage).save(&state)?;
 
-    //store none for burn and finish deactivate status
+    // instantiate msg status
     let msg_state = MsgStatus {
         slashing: None,
         unbond: None,
     };
-    msg_status(&mut deps.storage).save(&msg_state)?;
+    store_msg_status(&mut deps.storage).save(&msg_state)?;
 
+    // instantiate parameters
     let params = Parameters {
         epoch_period: msg.epoch_period,
         underlying_coin_denom: msg.underlying_coin_denom,
@@ -70,7 +73,7 @@ pub fn init<S: Storage, A: Api, Q: Querier>(
         reward_denom: msg.reward_denom,
     };
 
-    parameters(&mut deps.storage).save(&params)?;
+    store_parameters(&mut deps.storage).save(&params)?;
 
     let batch = CurrentBatch {
         id: 0,
@@ -95,9 +98,11 @@ pub fn handle<S: Storage, A: Api, Q: Querier>(
             contract,
             contract_address,
         } => handle_register_contracts(deps, env, contract, contract_address),
-        HandleMsg::RegisterValidator { validator } => handle_reg_validator(deps, env, validator),
+        HandleMsg::RegisterValidator { validator } => {
+            handle_register_validator(deps, env, validator)
+        }
         HandleMsg::DeregisterValidator { validator } => {
-            handle_dereg_validator(deps, env, validator)
+            handle_deregister_validator(deps, env, validator)
         }
         HandleMsg::CheckSlashing {} => handle_slashing(deps, env),
         HandleMsg::UpdateParams {
@@ -126,6 +131,7 @@ pub fn handle<S: Storage, A: Api, Q: Querier>(
     }
 }
 
+/// CW20 token receive handler.
 pub fn receive_cw20<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
     env: Env,
@@ -137,7 +143,7 @@ pub fn receive_cw20<S: Storage, A: Api, Q: Querier>(
         match from_binary(&msg)? {
             Cw20HookMsg::Unbond {} => {
                 // only token contract can execute this message
-                let conf = config_read(&deps.storage).load()?;
+                let conf = read_config(&deps.storage).load()?;
                 if deps.api.canonical_address(&contract_addr)?
                     != conf
                         .token_contract
@@ -153,13 +159,15 @@ pub fn receive_cw20<S: Storage, A: Api, Q: Querier>(
     }
 }
 
+/// Update general parameters
+/// Permissionless
 pub fn handle_update_global<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
     env: Env,
 ) -> StdResult<HandleResponse> {
     let mut messages: Vec<CosmosMsg> = vec![];
 
-    let config = config_read(&deps.storage).load()?;
+    let config = read_config(&deps.storage).load()?;
     let reward_addr = deps.api.human_address(
         &config
             .reward_contract
@@ -183,7 +191,7 @@ pub fn handle_update_global<S: Storage, A: Api, Q: Querier>(
 
     // Send UpdateGlobalIndex message to reward contract
     // with prev_balance of reward denom
-    let params: Parameters = parameters_read(&deps.storage).load()?;
+    let params: Parameters = read_parameters(&deps.storage).load()?;
     let prev_balance: Coin = deps
         .querier
         .query_balance(reward_addr.clone(), params.reward_denom.as_str())?;
@@ -197,7 +205,7 @@ pub fn handle_update_global<S: Storage, A: Api, Q: Querier>(
         send: vec![],
     }));
 
-    //update pool_info last modified
+    //update state last modified
     store_state(&mut deps.storage).update(|mut last_state| {
         last_state.last_index_modification = env.block.time;
         Ok(last_state)
@@ -211,7 +219,7 @@ pub fn handle_update_global<S: Storage, A: Api, Q: Querier>(
     Ok(res)
 }
 
-//create withdraw requests for all validators
+/// Create withdraw requests for all validators
 fn withdraw_all_rewards(validators: Vec<HumanAddr>) -> Vec<CosmosMsg> {
     let mut messages: Vec<CosmosMsg> = vec![];
     for val in validators {
@@ -224,16 +232,20 @@ fn withdraw_all_rewards(validators: Vec<HumanAddr>) -> Vec<CosmosMsg> {
     messages
 }
 
+/// Check whether slashing has happened
+/// This is used for checking slashing while bonding or unbonding
 pub fn slashing<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
     env: Env,
 ) -> StdResult<()> {
     //read params
-    let params = parameters_read(&deps.storage).load()?;
+    let params = read_parameters(&deps.storage).load()?;
     let coin_denom = params.underlying_coin_denom;
 
+    // Check the amount that contract thinks is bonded
     let state_total_bonded = read_state(&deps.storage).load()?.total_bond_amount;
 
+    // Check the actual bonded amount
     let mut actual_total_bonded = Uint128::zero();
     let delegations = deps.querier.query_all_delegations(env.contract.address)?;
     for delegation in delegations {
@@ -242,8 +254,11 @@ pub fn slashing<S: Storage, A: Api, Q: Querier>(
         }
     }
 
+    // Need total issued for updating the exchange rate
     let total_issued = query_total_issued(&deps)?;
     let current_requested_fee = read_current_batch(&deps.storage).load()?.requested_with_fee;
+
+    // Slashing happens if the expected amount is less than stored amount
     if state_total_bonded.u128() > actual_total_bonded.u128() {
         store_state(&mut deps.storage).update(|mut state| {
             state.total_bond_amount = actual_total_bonded;
@@ -255,12 +270,13 @@ pub fn slashing<S: Storage, A: Api, Q: Querier>(
     Ok(())
 }
 
+/// Handler for tracking slashing
 pub fn handle_slashing<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
     env: Env,
 ) -> StdResult<HandleResponse> {
-    //read msg_status
-    let msg_status = msg_status_read(&deps.storage).load()?;
+    // Slashing status must be active to operate this message
+    let msg_status = read_msg_status(&deps.storage).load()?;
     if msg_status.slashing.is_some() {
         return Err(StdError::generic_err(
             "this message is temporarily deactivated",
@@ -277,7 +293,7 @@ pub fn query<S: Storage, A: Api, Q: Querier>(
     match msg {
         QueryMsg::Config {} => to_binary(&query_config(&deps)?),
         QueryMsg::State {} => to_binary(&query_state(&deps)?),
-        QueryMsg::ExchangeRate {} => to_binary(&query_exg_rate(&deps)?),
+        QueryMsg::ExchangeRate {} => to_binary(&query_exchange_rate(&deps)?),
         QueryMsg::CurrentBatch {} => to_binary(&query_current_batch(&deps)?),
         QueryMsg::WhitelistedValidators {} => to_binary(&query_white_validators(&deps)?),
         QueryMsg::WithdrawableUnbonded {
@@ -296,7 +312,7 @@ pub fn query<S: Storage, A: Api, Q: Querier>(
 fn query_config<S: Storage, A: Api, Q: Querier>(
     deps: &Extern<S, A, Q>,
 ) -> StdResult<ConfigResponse> {
-    let config = config_read(&deps.storage).load()?;
+    let config = read_config(&deps.storage).load()?;
     let mut reward: Option<HumanAddr> = None;
     let mut token: Option<HumanAddr> = None;
     if config.reward_contract.is_some() {
@@ -334,12 +350,12 @@ fn query_state<S: Storage, A: Api, Q: Querier>(deps: &Extern<S, A, Q>) -> StdRes
     Ok(res)
 }
 
-fn query_exg_rate<S: Storage, A: Api, Q: Querier>(
+fn query_exchange_rate<S: Storage, A: Api, Q: Querier>(
     deps: &Extern<S, A, Q>,
 ) -> StdResult<ExchangeRateResponse> {
-    let pool = read_state(&deps.storage).load()?;
+    let state = read_state(&deps.storage).load()?;
     let ex_rate = ExchangeRateResponse {
-        rate: pool.exchange_rate,
+        rate: state.exchange_rate,
     };
     Ok(ex_rate)
 }
@@ -367,7 +383,7 @@ fn query_withdrawable_unbonded<S: Storage, A: Api, Q: Querier>(
     address: HumanAddr,
     block_time: u64,
 ) -> StdResult<WithdrawableUnbondedResponse> {
-    let params = parameters_read(&deps.storage).load()?;
+    let params = read_parameters(&deps.storage).load()?;
     let historical_time = block_time - params.unbonding_period;
     let all_requests = query_get_finished_amount(&deps.storage, address, historical_time)?;
 
@@ -378,14 +394,14 @@ fn query_withdrawable_unbonded<S: Storage, A: Api, Q: Querier>(
 }
 
 fn query_params<S: Storage, A: Api, Q: Querier>(deps: &Extern<S, A, Q>) -> StdResult<Parameters> {
-    parameters_read(&deps.storage).load()
+    read_parameters(&deps.storage).load()
 }
 
 pub(crate) fn query_total_issued<S: Storage, A: Api, Q: Querier>(
     deps: &Extern<S, A, Q>,
 ) -> StdResult<Uint128> {
     let token_address = deps.api.human_address(
-        &config_read(&deps.storage)
+        &read_config(&deps.storage)
             .load()?
             .token_contract
             .expect("token contract must have been registered"),

@@ -1,7 +1,7 @@
 use crate::contract::{query_total_issued, slashing};
 use crate::math::{decimal_division, decimal_subtraction};
 use crate::state::{
-    config_read, is_valid_validator, msg_status_read, parameters_read, read_current_batch,
+    is_valid_validator, read_config, read_current_batch, read_msg_status, read_parameters,
     read_state, store_state,
 };
 use cosmwasm_std::{
@@ -15,23 +15,22 @@ pub fn handle_bond<S: Storage, A: Api, Q: Querier>(
     env: Env,
     validator: HumanAddr,
 ) -> StdResult<HandleResponse> {
-    // check the validator
+    // validator must be whitelisted
     let is_valid = is_valid_validator(&deps.storage, validator.clone())?;
     if !is_valid {
         return Err(StdError::generic_err("Unsupported validator"));
     }
 
-    // read params
-    let params = parameters_read(&deps.storage).load()?;
+    let params = read_parameters(&deps.storage).load()?;
     let coin_denom = params.underlying_coin_denom;
     let threshold = params.er_threshold;
     let recovery_fee = params.peg_recovery_fee;
 
-    // read current batch
+    // current batch requested fee is need for accurate exchange rate computation.
     let current_batch = read_current_batch(&deps.storage).load()?;
     let requested_with_fee = current_batch.requested_with_fee;
 
-    // check whether the account has sent the native coin in advance.
+    // coin must have be sent along with transaction and it should be in underlying coin denom
     let payment = env
         .message
         .sent_funds
@@ -39,10 +38,9 @@ pub fn handle_bond<S: Storage, A: Api, Q: Querier>(
         .find(|x| x.denom == coin_denom && x.amount > Uint128::zero())
         .ok_or_else(|| StdError::generic_err(format!("No {} tokens sent", coin_denom)))?;
 
-    // msg status should be read to see whether the slashing is active or not
-    let msg_status = msg_status_read(&deps.storage).load()?;
+    // the status of slashing must be checked
+    let msg_status = read_msg_status(&deps.storage).load()?;
 
-    // update the exchange rate
     if msg_status.slashing.is_none() && slashing(deps, env.clone()).is_ok() {
         slashing(deps, env.clone())?;
     }
@@ -62,7 +60,7 @@ pub fn handle_bond<S: Storage, A: Api, Q: Querier>(
     let mut total_supply = query_total_issued(&deps).unwrap_or_default();
     total_supply += mint_amount_with_fee;
 
-    // update state and state exchange rate
+    // exchange rate should be updated for future
     state.total_bond_amount += payment.amount;
     store_state(&mut deps.storage).update(|mut state| {
         state.total_bond_amount += payment.amount;
@@ -72,19 +70,19 @@ pub fn handle_bond<S: Storage, A: Api, Q: Querier>(
 
     let mut messages: Vec<CosmosMsg> = vec![];
 
-    // send the delegate message for the specified validator with the send amount.
+    // send the delegate message
     messages.push(CosmosMsg::Staking(StakingMsg::Delegate {
         validator,
         amount: payment.clone(),
     }));
 
-    // issue the bluna token for sender
+    // issue the basset token for sender
     let mint_msg = Cw20HandleMsg::Mint {
         recipient: sender.clone(),
         amount: mint_amount_with_fee,
     };
 
-    let config = config_read(&deps.storage).load()?;
+    let config = read_config(&deps.storage).load()?;
     let token_address = deps.api.human_address(
         &config
             .token_contract
