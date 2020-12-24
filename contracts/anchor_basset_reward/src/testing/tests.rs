@@ -79,7 +79,7 @@ fn update_params() {
 
     init(&mut deps, env.clone(), init_msg).unwrap();
 
-    let msg = HandleMsg::UpdateParams {
+    let msg = HandleMsg::UpdateRewardDenom {
         reward_denom: Some("ukrw".to_string()),
     };
 
@@ -128,7 +128,7 @@ pub fn swap_to_reward_denom() {
 
     init(&mut deps, env, init_msg).unwrap();
 
-    let env = mock_env("addr0000", &[]);
+    let env = mock_env(HumanAddr::from(MOCK_HUB_CONTRACT_ADDR), &[]);
     let msg = HandleMsg::SwapToRewardDenom {};
 
     let res = handle(&mut deps, env, msg).unwrap();

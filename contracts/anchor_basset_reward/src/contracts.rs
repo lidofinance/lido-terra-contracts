@@ -40,7 +40,9 @@ pub fn handle<S: Storage, A: Api, Q: Querier>(
     msg: HandleMsg,
 ) -> StdResult<HandleResponse<TerraMsgWrapper>> {
     match msg {
-        HandleMsg::UpdateParams { reward_denom } => handle_update_params(deps, env, reward_denom),
+        HandleMsg::UpdateRewardDenom { reward_denom } => {
+            handle_update_denom(deps, env, reward_denom)
+        }
         HandleMsg::ClaimRewards { recipient } => handle_claim_rewards(deps, env, recipient),
         HandleMsg::SwapToRewardDenom {} => handle_swap(deps, env),
         HandleMsg::UpdateGlobalIndex { prev_balance } => {
@@ -55,7 +57,9 @@ pub fn handle<S: Storage, A: Api, Q: Querier>(
     }
 }
 
-pub fn handle_update_params<S: Storage, A: Api, Q: Querier>(
+/// Update general parameters
+/// Only hub contract is allowed to execute
+pub fn handle_update_denom<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
     env: Env,
     reward_denom: Option<String>,

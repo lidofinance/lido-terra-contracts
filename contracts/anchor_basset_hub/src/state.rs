@@ -55,27 +55,27 @@ pub struct UnbondHistory {
     pub released: bool,
 }
 
-pub fn config<S: Storage>(storage: &mut S) -> Singleton<S, Config> {
+pub fn store_config<S: Storage>(storage: &mut S) -> Singleton<S, Config> {
     singleton(storage, CONFIG)
 }
 
-pub fn config_read<S: ReadonlyStorage>(storage: &S) -> ReadonlySingleton<S, Config> {
+pub fn read_config<S: ReadonlyStorage>(storage: &S) -> ReadonlySingleton<S, Config> {
     singleton_read(storage, CONFIG)
 }
 
-pub fn parameters<S: Storage>(storage: &mut S) -> Singleton<S, Parameters> {
+pub fn store_parameters<S: Storage>(storage: &mut S) -> Singleton<S, Parameters> {
     singleton(storage, PARAMETERS)
 }
 
-pub fn parameters_read<S: ReadonlyStorage>(storage: &S) -> ReadonlySingleton<S, Parameters> {
+pub fn read_parameters<S: ReadonlyStorage>(storage: &S) -> ReadonlySingleton<S, Parameters> {
     singleton_read(storage, PARAMETERS)
 }
 
-pub fn msg_status<S: Storage>(storage: &mut S) -> Singleton<S, MsgStatus> {
+pub fn store_msg_status<S: Storage>(storage: &mut S) -> Singleton<S, MsgStatus> {
     singleton(storage, MSG_STATUS)
 }
 
-pub fn msg_status_read<S: ReadonlyStorage>(storage: &S) -> ReadonlySingleton<S, MsgStatus> {
+pub fn read_msg_status<S: ReadonlyStorage>(storage: &S) -> ReadonlySingleton<S, MsgStatus> {
     singleton_read(storage, MSG_STATUS)
 }
 
@@ -95,8 +95,9 @@ pub fn read_state<S: ReadonlyStorage>(storage: &S) -> ReadonlySingleton<S, State
     singleton_read(storage, STATE)
 }
 
-//store undelegation wait list per each epoc
-pub fn store_undelegated_wait_list<'a, S: Storage>(
+/// Store undelegation wait list per each batch
+/// HashMap<user's address, <batch_id, requested_amount>
+pub fn store_unbond_wait_list<'a, S: Storage>(
     storage: &'a mut S,
     batch_id: u64,
     sender_address: HumanAddr,
@@ -113,8 +114,8 @@ pub fn store_undelegated_wait_list<'a, S: Storage>(
     Ok(())
 }
 
-//store undelegation wait list per each epoc
-pub fn remove_undelegated_wait_list<'a, S: Storage>(
+/// Remove unbond batch id from user's wait list
+pub fn remove_unbond_wait_list<'a, S: Storage>(
     storage: &'a mut S,
     batch_id: Vec<u64>,
     sender_address: HumanAddr,
@@ -129,7 +130,7 @@ pub fn remove_undelegated_wait_list<'a, S: Storage>(
     Ok(())
 }
 
-pub fn read_undelegated_wait_list<'a, S: ReadonlyStorage>(
+pub fn read_unbond_wait_list<'a, S: ReadonlyStorage>(
     storage: &'a S,
     batch_id: u64,
     sender_addr: HumanAddr,
@@ -204,7 +205,10 @@ pub fn get_unbond_batches<'a, S: ReadonlyStorage>(
     Ok(deprecated_batches)
 }
 
-//return all requested unbond amount that has been requested from 24 days ago.
+/// Return all requested unbond amount.
+/// This needs to be called after process withdraw rate function.
+/// If the batch is released, this will return user's requested
+/// amount proportional to withdraw rate.
 pub fn get_finished_amount<'a, S: ReadonlyStorage>(
     storage: &'a S,
     sender_addr: HumanAddr,
@@ -229,7 +233,7 @@ pub fn get_finished_amount<'a, S: ReadonlyStorage>(
     Ok(withdrawable_amount)
 }
 
-//this is designed for query and not return the actual amount
+/// Return the finished amount for all batches that has been before the given block time.
 pub fn query_get_finished_amount<'a, S: ReadonlyStorage>(
     storage: &'a S,
     sender_addr: HumanAddr,
@@ -255,7 +259,7 @@ pub fn query_get_finished_amount<'a, S: ReadonlyStorage>(
     Ok(withdrawable_amount)
 }
 
-// store valid validators
+/// Store valid validators
 pub fn store_white_validators<S: Storage>(
     storage: &mut S,
     validator_address: HumanAddr,
@@ -266,7 +270,7 @@ pub fn store_white_validators<S: Storage>(
     Ok(())
 }
 
-// remove valid validators
+/// Remove valid validators
 pub fn remove_white_validators<S: Storage>(
     storage: &mut S,
     validator_address: HumanAddr,
@@ -292,6 +296,7 @@ pub fn read_validators<S: Storage>(storage: &S) -> StdResult<Vec<HumanAddr>> {
     Ok(validators)
 }
 
+/// Check whether the validator is whitelisted.
 pub fn is_valid_validator<S: Storage>(
     storage: &S,
     validator_address: HumanAddr,
@@ -304,6 +309,7 @@ pub fn is_valid_validator<S: Storage>(
     }
 }
 
+/// Read whitelisted validators
 pub fn read_valid_validators<S: Storage>(storage: &S) -> StdResult<Vec<HumanAddr>> {
     let mut validators: Vec<HumanAddr> = Vec::new();
     let res = ReadonlyPrefixedStorage::new(VALIDATORS, storage);
@@ -319,7 +325,8 @@ pub fn read_valid_validators<S: Storage>(storage: &S) -> StdResult<Vec<HumanAddr
     Ok(validators)
 }
 
-//store unbond history map
+/// Store unbond history map
+/// Hashmap<batch_id, <UnbondHistory>>
 pub fn store_unbond_history<S: Storage>(
     storage: &mut S,
     batch_id: u64,
@@ -348,6 +355,7 @@ pub fn read_unbond_history<'a, S: ReadonlyStorage>(
 const MAX_LIMIT: u32 = 10;
 const DEFAULT_LIMIT: u32 = 2;
 
+/// Return all unbond_history from UnbondHistory map
 #[allow(clippy::needless_lifetimes)]
 pub fn all_unbond_history<'a, S: ReadonlyStorage>(
     storage: &'a S,

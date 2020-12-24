@@ -7,16 +7,24 @@ use cosmwasm_std::{
 use terra_cosmwasm::{create_swap_msg, TerraMsgWrapper};
 
 /// Swap all native tokens to reward_denom
-/// Permissionless
+/// Only hub_contract is allowed to execute
 pub fn handle_swap<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
     env: Env,
 ) -> StdResult<HandleResponse<TerraMsgWrapper>> {
+    let config = read_config(&deps.storage)?;
+    let owner_addr = deps.api.human_address(&config.hub_contract).unwrap();
+
+    if env.message.sender != owner_addr {
+        return Err(StdError::unauthorized());
+    }
+
     let contr_addr = env.contract.address;
     let balance = deps.querier.query_all_balances(contr_addr.clone())?;
     let mut msgs: Vec<CosmosMsg<TerraMsgWrapper>> = Vec::new();
 
-    let reward_denom = read_config(&deps.storage)?.reward_denom;
+    let reward_denom = config.reward_denom;
+
     for coin in balance {
         if coin.denom == reward_denom {
             continue;

@@ -19,7 +19,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_decimal_devision() {
+    fn test_decimal_division() {
         let a = Uint128(100);
         let b = Decimal::from_ratio(Uint128(10), Uint128(50));
         let res = decimal_division(a, b);

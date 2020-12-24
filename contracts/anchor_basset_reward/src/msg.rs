@@ -23,7 +23,7 @@ pub enum HandleMsg {
     UpdateGlobalIndex { prev_balance: Uint128 },
 
     /// Update the params
-    UpdateParams { reward_denom: Option<String> },
+    UpdateRewardDenom { reward_denom: Option<String> },
 
     ////////////////////
     /// bAsset's operations

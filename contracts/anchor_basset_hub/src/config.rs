@@ -1,8 +1,8 @@
 use crate::state::{
-    config, config_read, msg_status, parameters, read_validators, remove_white_validators,
-    store_white_validators, Parameters,
+    read_config, read_validators, remove_white_validators, store_config, store_msg_status,
+    store_parameters, store_white_validators, Parameters,
 };
-use anchor_basset_reward::msg::HandleMsg::UpdateParams;
+use anchor_basset_reward::msg::HandleMsg::UpdateRewardDenom;
 use cosmwasm_std::{
     log, to_binary, Api, CosmosMsg, Decimal, Env, Extern, HandleResponse, HumanAddr, Querier,
     StakingMsg, StdError, StdResult, Storage, WasmMsg,
@@ -10,6 +10,8 @@ use cosmwasm_std::{
 use hub_querier::{Deactivated, HandleMsg, Registration};
 use rand::{Rng, SeedableRng, XorShiftRng};
 
+/// Update general parameters
+/// Only creator/owner is allowed to execute
 #[allow(clippy::too_many_arguments)]
 pub fn handle_update_params<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
@@ -21,13 +23,14 @@ pub fn handle_update_params<S: Storage, A: Api, Q: Querier>(
     er_threshold: Option<Decimal>,
     reward_denom: Option<String>,
 ) -> StdResult<HandleResponse> {
-    let config = config_read(&deps.storage).load()?;
+    // only owner can send this message.
+    let config = read_config(&deps.storage).load()?;
     let sender_raw = deps.api.canonical_address(&env.message.sender)?;
     if sender_raw != config.creator {
         return Err(StdError::unauthorized());
     }
 
-    let params: Parameters = parameters(&mut deps.storage).load()?;
+    let params: Parameters = store_parameters(&mut deps.storage).load()?;
     let new_params = Parameters {
         epoch_period: epoch_period.unwrap_or(params.epoch_period),
         underlying_coin_denom: underlying_coin_denom.unwrap_or(params.underlying_coin_denom),
@@ -45,8 +48,8 @@ pub fn handle_update_params<S: Storage, A: Api, Q: Querier>(
                 .expect("the reward contract must have been registered"),
         )?;
 
-        //send update params to the reward contract
-        let set_swap = UpdateParams {
+        // send update denom to the reward contract
+        let set_swap = UpdateRewardDenom {
             reward_denom: Some(denom),
         };
 
@@ -57,7 +60,7 @@ pub fn handle_update_params<S: Storage, A: Api, Q: Querier>(
         }));
     }
 
-    parameters(&mut deps.storage).save(&new_params)?;
+    store_parameters(&mut deps.storage).save(&new_params)?;
     let res = HandleResponse {
         messages: msgs,
         log: vec![log("action", "update_params")],
@@ -66,26 +69,30 @@ pub fn handle_update_params<S: Storage, A: Api, Q: Querier>(
     Ok(res)
 }
 
+/// Deactivate messages. Only unbond and slashing is supported.
+/// Only creator/owner is allowed to execute
 pub fn handle_deactivate<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
     env: Env,
     msg: Deactivated,
 ) -> StdResult<HandleResponse> {
-    let config = config_read(&deps.storage).load()?;
+    // only owner must be able to send this message.
+    let config = read_config(&deps.storage).load()?;
     let sender_raw = deps.api.canonical_address(&env.message.sender)?;
     if sender_raw != config.creator {
         return Err(StdError::unauthorized());
     }
 
+    // store the status of slashing and unbond
     match msg {
         Deactivated::Slashing => {
-            msg_status(&mut deps.storage).update(|mut msg_status| {
+            store_msg_status(&mut deps.storage).update(|mut msg_status| {
                 msg_status.slashing = Some(msg);
                 Ok(msg_status)
             })?;
         }
         Deactivated::Unbond => {
-            msg_status(&mut deps.storage).update(|mut msg_status| {
+            store_msg_status(&mut deps.storage).update(|mut msg_status| {
                 msg_status.unbond = Some(msg);
                 Ok(msg_status)
             })?;
@@ -100,6 +107,8 @@ pub fn handle_deactivate<S: Storage, A: Api, Q: Querier>(
     Ok(res)
 }
 
+/// Update the config. Update the owner, reward and token contracts.
+/// Only creator/owner is allowed to execute
 pub fn handle_update_config<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
     env: Env,
@@ -107,7 +116,8 @@ pub fn handle_update_config<S: Storage, A: Api, Q: Querier>(
     reward_contract: Option<HumanAddr>,
     token_contract: Option<HumanAddr>,
 ) -> StdResult<HandleResponse> {
-    let conf = config_read(&deps.storage).load()?;
+    // only owner must be able to send this message.
+    let conf = read_config(&deps.storage).load()?;
     let sender_raw = deps.api.canonical_address(&env.message.sender)?;
     if sender_raw != conf.creator {
         return Err(StdError::unauthorized());
@@ -116,7 +126,7 @@ pub fn handle_update_config<S: Storage, A: Api, Q: Querier>(
     if let Some(o) = owner {
         let owner_raw = deps.api.canonical_address(&o)?;
 
-        config(&mut deps.storage).update(|mut last_config| {
+        store_config(&mut deps.storage).update(|mut last_config| {
             last_config.creator = owner_raw;
             Ok(last_config)
         })?;
@@ -124,7 +134,7 @@ pub fn handle_update_config<S: Storage, A: Api, Q: Querier>(
     if let Some(reward) = reward_contract {
         let reward_raw = deps.api.canonical_address(&reward)?;
 
-        config(&mut deps.storage).update(|mut last_config| {
+        store_config(&mut deps.storage).update(|mut last_config| {
             last_config.reward_contract = Some(reward_raw);
             Ok(last_config)
         })?;
@@ -133,7 +143,7 @@ pub fn handle_update_config<S: Storage, A: Api, Q: Querier>(
     if let Some(token) = token_contract {
         let token_raw = deps.api.canonical_address(&token)?;
 
-        config(&mut deps.storage).update(|mut last_config| {
+        store_config(&mut deps.storage).update(|mut last_config| {
             last_config.token_contract = Some(token_raw);
             Ok(last_config)
         })?;
@@ -147,13 +157,16 @@ pub fn handle_update_config<S: Storage, A: Api, Q: Querier>(
     Ok(res)
 }
 
+/// Register subcontracts, reward and token contracts.
+/// Only creator/owner is allowed to execute
 pub fn handle_register_contracts<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
     env: Env,
     contract: Registration,
     contract_address: HumanAddr,
 ) -> StdResult<HandleResponse> {
-    let conf = config_read(&deps.storage).load()?;
+    // only owner must be able to send this message.
+    let conf = read_config(&deps.storage).load()?;
     let sender_raw = deps.api.canonical_address(&env.message.sender)?;
     if sender_raw != conf.creator {
         return Err(StdError::unauthorized());
@@ -162,6 +175,8 @@ pub fn handle_register_contracts<S: Storage, A: Api, Q: Querier>(
     let raw_contract_addr = deps.api.canonical_address(&contract_address)?;
     let mut messages: Vec<CosmosMsg> = vec![];
 
+    // if contract is reward, store the contract address for reward in config.
+    // if contract is token, store the contract address for token in config.
     match contract {
         Registration::Reward => {
             if conf.reward_contract.is_some() {
@@ -169,7 +184,7 @@ pub fn handle_register_contracts<S: Storage, A: Api, Q: Querier>(
                     "The reward contract is already registered",
                 ));
             }
-            config(&mut deps.storage).update(|mut last_config| {
+            store_config(&mut deps.storage).update(|mut last_config| {
                 last_config.reward_contract = Some(raw_contract_addr.clone());
                 Ok(last_config)
             })?;
@@ -180,7 +195,7 @@ pub fn handle_register_contracts<S: Storage, A: Api, Q: Querier>(
             messages.push(msg);
         }
         Registration::Token => {
-            config(&mut deps.storage).update(|mut last_config| {
+            store_config(&mut deps.storage).update(|mut last_config| {
                 if last_config.token_contract.is_some() {
                     return Err(StdError::generic_err(
                         "The token contract is already registered",
@@ -202,20 +217,21 @@ pub fn handle_register_contracts<S: Storage, A: Api, Q: Querier>(
     Ok(res)
 }
 
-pub fn handle_reg_validator<S: Storage, A: Api, Q: Querier>(
+/// Register a white listed validator.
+/// Only creator/owner is allowed to execute
+pub fn handle_register_validator<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
     env: Env,
     validator: HumanAddr,
 ) -> StdResult<HandleResponse> {
-    let hub_conf = config_read(&deps.storage).load()?;
+    let hub_conf = read_config(&deps.storage).load()?;
 
     let sender_raw = deps.api.canonical_address(&env.message.sender)?;
     if hub_conf.creator != sender_raw {
-        return Err(StdError::generic_err(
-            "Only the creator can send this message",
-        ));
+        return Err(StdError::unauthorized());
     }
 
+    // given validator must be first a validator in the system.
     let exists = deps
         .querier
         .query_validators()?
@@ -237,12 +253,14 @@ pub fn handle_reg_validator<S: Storage, A: Api, Q: Querier>(
     Ok(res)
 }
 
-pub fn handle_dereg_validator<S: Storage, A: Api, Q: Querier>(
+/// Deregister a previously-whitelisted validator.
+/// Only creator/owner is allowed to execute
+pub fn handle_deregister_validator<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
     env: Env,
     validator: HumanAddr,
 ) -> StdResult<HandleResponse> {
-    let token = config_read(&deps.storage).load()?;
+    let token = read_config(&deps.storage).load()?;
 
     let sender_raw = deps.api.canonical_address(&env.message.sender)?;
     if token.creator != sender_raw {
@@ -261,7 +279,8 @@ pub fn handle_dereg_validator<S: Storage, A: Api, Q: Querier>(
     let mut messages: Vec<CosmosMsg> = vec![];
     let validators = read_validators(&deps.storage)?;
 
-    //redelegate the amount to a random validator.
+    // redelegate the amount to a random validator.
+    // another validator must be randomly chose to redelgate to
     let block_height = env.block.height;
     let mut rng = XorShiftRng::seed_from_u64(block_height);
     let random_index = rng.gen_range(0, validators.len());
