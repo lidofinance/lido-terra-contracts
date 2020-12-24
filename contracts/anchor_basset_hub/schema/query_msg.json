@@ -134,29 +134,12 @@
     {
       "type": "object",
       "required": [
-        "last_index_modification"
+        "all_history"
       ],
       "properties": {
-        "last_index_modification": {
-          "type": "object"
-        }
-      }
-    },
-    {
-      "type": "object",
-      "required": [
-        "all_batches"
-      ],
-      "properties": {
-        "all_batches": {
+        "all_history": {
           "type": "object",
-          "required": [
-            "address"
-          ],
           "properties": {
-            "address": {
-              "$ref": "#/definitions/HumanAddr"
-            },
             "limit": {
               "type": [
                 "integer",

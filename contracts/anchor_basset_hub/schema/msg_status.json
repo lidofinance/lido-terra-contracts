@@ -3,7 +3,7 @@
   "title": "MsgStatus",
   "type": "object",
   "properties": {
-    "burn": {
+    "slashing": {
       "anyOf": [
         {
           "$ref": "#/definitions/Deactivated"
@@ -13,7 +13,7 @@
         }
       ]
     },
-    "slashing": {
+    "unbond": {
       "anyOf": [
         {
           "$ref": "#/definitions/Deactivated"

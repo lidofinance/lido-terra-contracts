@@ -3,51 +3,71 @@
   "title": "HandleMsg",
   "anyOf": [
     {
-      "description": "User's operations Receives `amount` Luna from sender. Delegate `amount` to a specific `validator`. Issue the same `amount` of bLuna to sender.",
+      "description": "Owner's operations Switch of the message",
       "type": "object",
       "required": [
-        "bond"
+        "deactivate_msg"
       ],
       "properties": {
-        "bond": {
+        "deactivate_msg": {
           "type": "object",
           "required": [
-            "validator"
+            "msg"
           ],
           "properties": {
-            "validator": {
-              "$ref": "#/definitions/HumanAddr"
+            "msg": {
+              "$ref": "#/definitions/Deactivated"
             }
           }
         }
       }
     },
     {
-      "description": "User's operations Update global index",
+      "description": "Set the owener",
       "type": "object",
       "required": [
-        "update_global_index"
+        "update_config"
       ],
       "properties": {
-        "update_global_index": {
-          "type": "object"
+        "update_config": {
+          "type": "object",
+          "properties": {
+            "owner": {
+              "anyOf": [
+                {
+                  "$ref": "#/definitions/HumanAddr"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "reward_contract": {
+              "anyOf": [
+                {
+                  "$ref": "#/definitions/HumanAddr"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "token_contract": {
+              "anyOf": [
+                {
+                  "$ref": "#/definitions/HumanAddr"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          }
         }
       }
     },
     {
-      "description": "User's operations WithdrawUnbonded is suppose to ask for liquidated luna",
-      "type": "object",
-      "required": [
-        "withdraw_unbonded"
-      ],
-      "properties": {
-        "withdraw_unbonded": {
-          "type": "object"
-        }
-      }
-    },
-    {
-      "description": "Owner's operations Register receives the reward contract address",
+      "description": "Register receives the reward contract address",
       "type": "object",
       "required": [
         "register_subcontracts"
@@ -71,7 +91,7 @@
       }
     },
     {
-      "description": "Owner's operations Register receives the reward contract address",
+      "description": "Register receives the reward contract address",
       "type": "object",
       "required": [
         "register_validator"
@@ -91,7 +111,6 @@
       }
     },
     {
-      "description": "Owner's operations",
       "type": "object",
       "required": [
         "deregister_validator"
@@ -111,31 +130,7 @@
       }
     },
     {
-      "description": "(internal) Receive interface for send token",
-      "type": "object",
-      "required": [
-        "receive"
-      ],
-      "properties": {
-        "receive": {
-          "$ref": "#/definitions/Cw20ReceiveMsg"
-        }
-      }
-    },
-    {
-      "description": "User's operations check whether the slashing has happened or not",
-      "type": "object",
-      "required": [
-        "check_slashing"
-      ],
-      "properties": {
-        "check_slashing": {
-          "type": "object"
-        }
-      }
-    },
-    {
-      "description": "Owner's operations update the parameters that is needed for the contract",
+      "description": "update the parameters that is needed for the contract",
       "type": "object",
       "required": [
         "update_params"
@@ -144,7 +139,7 @@
         "update_params": {
           "type": "object",
           "properties": {
-            "epoch_time": {
+            "epoch_period": {
               "type": [
                 "integer",
                 "null"
@@ -178,7 +173,7 @@
                 "null"
               ]
             },
-            "undelegated_epoch": {
+            "unbonding_period": {
               "type": [
                 "integer",
                 "null"
@@ -197,42 +192,70 @@
       }
     },
     {
-      "description": "Owner's operations switch of the message",
+      "description": "User's operations Receives `amount` in underlying coin denom from sender. Delegate `amount` to a specific `validator`. Issue `amount` / exchange_rate for the user.",
       "type": "object",
       "required": [
-        "deactivate_msg"
+        "bond"
       ],
       "properties": {
-        "deactivate_msg": {
+        "bond": {
           "type": "object",
           "required": [
-            "msg"
+            "validator"
           ],
           "properties": {
-            "msg": {
-              "$ref": "#/definitions/Deactivated"
+            "validator": {
+              "$ref": "#/definitions/HumanAddr"
             }
           }
         }
       }
     },
     {
-      "description": "Owner's operations set the owener",
+      "description": "Update global index",
       "type": "object",
       "required": [
-        "update_config"
+        "update_global_index"
       ],
       "properties": {
-        "update_config": {
-          "type": "object",
-          "required": [
-            "owner"
-          ],
-          "properties": {
-            "owner": {
-              "$ref": "#/definitions/HumanAddr"
-            }
-          }
+        "update_global_index": {
+          "type": "object"
+        }
+      }
+    },
+    {
+      "description": "Send back unbonded coin to the user",
+      "type": "object",
+      "required": [
+        "withdraw_unbonded"
+      ],
+      "properties": {
+        "withdraw_unbonded": {
+          "type": "object"
+        }
+      }
+    },
+    {
+      "description": "Check whether the slashing has happened or not",
+      "type": "object",
+      "required": [
+        "check_slashing"
+      ],
+      "properties": {
+        "check_slashing": {
+          "type": "object"
+        }
+      }
+    },
+    {
+      "description": "bAsset's operations Receive interface for send token. Unbond the underlying coin denom. Burn the received basset token.",
+      "type": "object",
+      "required": [
+        "receive"
+      ],
+      "properties": {
+        "receive": {
+          "$ref": "#/definitions/Cw20ReceiveMsg"
         }
       }
     }
