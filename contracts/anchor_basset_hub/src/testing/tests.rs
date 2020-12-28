@@ -166,7 +166,7 @@ fn proper_initialization() {
     let msg = InitMsg {
         epoch_period: 30,
         underlying_coin_denom: "uluna".to_string(),
-        unbonding_period: 2,
+        unbonding_period: 210,
         peg_recovery_fee: Decimal::zero(),
         er_threshold: Decimal::one(),
         reward_denom: "uusd".to_string(),
@@ -184,7 +184,7 @@ fn proper_initialization() {
     let query_params: Parameters = from_binary(&query(&deps, params).unwrap()).unwrap();
     assert_eq!(query_params.epoch_period, 30);
     assert_eq!(query_params.underlying_coin_denom, "uluna");
-    assert_eq!(query_params.unbonding_period, 2);
+    assert_eq!(query_params.unbonding_period, 210);
     assert_eq!(query_params.peg_recovery_fee, Decimal::zero());
     assert_eq!(query_params.er_threshold, Decimal::one());
     assert_eq!(query_params.reward_denom, "uusd");
@@ -221,7 +221,7 @@ fn proper_initialization() {
     assert_eq!(
         query_batch,
         CurrentBatchResponse {
-            id: 0,
+            id: 1,
             requested_with_fee: Default::default()
         }
     );
@@ -235,7 +235,7 @@ fn proper_register_subcontracts() {
     let msg = InitMsg {
         epoch_period: 30,
         underlying_coin_denom: "uluna".to_string(),
-        unbonding_period: 2,
+        unbonding_period: 210,
         peg_recovery_fee: Decimal::zero(),
         er_threshold: Decimal::one(),
         reward_denom: "uusd".to_string(),
@@ -862,7 +862,7 @@ pub fn proper_unbond() {
     let current_batch = CurrentBatch {};
     let query_batch: CurrentBatchResponse =
         from_binary(&query(&deps, current_batch).unwrap()).unwrap();
-    assert_eq!(query_batch.id, 0);
+    assert_eq!(query_batch.id, 1);
     assert_eq!(query_batch.requested_with_fee, Uint128::zero());
 
     let token_env = mock_env(&token_contract, &[]);
@@ -886,7 +886,7 @@ pub fn proper_unbond() {
         .with_token_balances(&[(&HumanAddr::from("token"), &[(&bob, &Uint128(9u128))])]);
 
     //read the undelegated waitlist of the current epoch for the user bob
-    let wait_list = read_unbond_wait_list(&deps.storage, 0, bob.clone()).unwrap();
+    let wait_list = read_unbond_wait_list(&deps.storage, 1, bob.clone()).unwrap();
     assert_eq!(Uint128(1), wait_list);
 
     //successful call
@@ -915,13 +915,13 @@ pub fn proper_unbond() {
         _ => panic!("Unexpected message: {:?}", msg),
     }
 
-    let waitlist2 = read_unbond_wait_list(&deps.storage, 0, bob.clone()).unwrap();
+    let waitlist2 = read_unbond_wait_list(&deps.storage, 1, bob.clone()).unwrap();
     assert_eq!(Uint128(6), waitlist2);
 
     let current_batch = CurrentBatch {};
     let query_batch: CurrentBatchResponse =
         from_binary(&query(&deps, current_batch).unwrap()).unwrap();
-    assert_eq!(query_batch.id, 0);
+    assert_eq!(query_batch.id, 1);
     assert_eq!(query_batch.requested_with_fee, Uint128(6));
 
     //pushing time forward to check the unbond message
@@ -960,7 +960,7 @@ pub fn proper_unbond() {
     let current_batch = CurrentBatch {};
     let query_batch: CurrentBatchResponse =
         from_binary(&query(&deps, current_batch).unwrap()).unwrap();
-    assert_eq!(query_batch.id, 1);
+    assert_eq!(query_batch.id, 2);
     assert_eq!(query_batch.requested_with_fee, Uint128::zero());
 
     // check the state
@@ -973,7 +973,7 @@ pub fn proper_unbond() {
     let waitlist = UnbondRequests { address: bob };
     let query_unbond: UnbondRequestsResponse =
         from_binary(&query(&deps, waitlist).unwrap()).unwrap();
-    assert_eq!(query_unbond.requests[0].0, 0);
+    assert_eq!(query_unbond.requests[0].0, 1);
     assert_eq!(query_unbond.requests[0].1, Uint128(8));
 
     let all_batches = AllHistory {
@@ -983,7 +983,7 @@ pub fn proper_unbond() {
     let res: AllHistoryResponse = from_binary(&query(&deps, all_batches).unwrap()).unwrap();
     assert_eq!(res.history[0].1.amount, Uint128(8));
     assert_eq!(res.history[0].1.released, false);
-    assert_eq!(res.history[0].0, 0);
+    assert_eq!(res.history[0].0, 1);
 }
 
 /// Covers if the pick_validator function sends different Undelegate messages
@@ -1369,7 +1369,7 @@ pub fn proper_withdraw_unbonded() {
     //the amount should be 10
     assert_eq!(&res.address, &bob);
     assert_eq!(res.requests[0].1, Uint128(20));
-    assert_eq!(res.requests[0].0, 0);
+    assert_eq!(res.requests[0].0, 1);
 
     //first query AllUnbondedEpochs
     let all_user_epochs = UnbondBatches {
@@ -1380,7 +1380,7 @@ pub fn proper_withdraw_unbonded() {
     let res: UnbondBatchesResponse = from_binary(&query_epochs).unwrap();
     assert_eq!(res.unbond_batches.len(), 1);
     //the epoch should be zero
-    assert_eq!(res.unbond_batches[0], 0);
+    assert_eq!(res.unbond_batches[0], 1);
 
     let all_batches = AllHistory {
         start_from: None,
@@ -1388,7 +1388,7 @@ pub fn proper_withdraw_unbonded() {
     };
     let res: AllHistoryResponse = from_binary(&query(&deps, all_batches).unwrap()).unwrap();
     assert_eq!(res.history[0].1.amount, Uint128(20));
-    assert_eq!(res.history[0].0, 0);
+    assert_eq!(res.history[0].0, 1);
 
     //check with query
     let withdrawable = WithdrawableUnbonded {
@@ -1430,17 +1430,24 @@ pub fn proper_withdraw_unbonded() {
     let waitlist = UnbondRequests {
         address: bob.clone(),
     };
-    let query_unbond = query(&deps, waitlist).unwrap_err();
+    let query_unbond: UnbondRequestsResponse =
+        from_binary(&query(&deps, waitlist).unwrap()).unwrap();
     assert_eq!(
-        StdError::generic_err("User does not have any unbond requests"),
-        query_unbond
+        query_unbond,
+        UnbondRequestsResponse {
+            address: bob.clone(),
+            requests: vec![]
+        }
     );
 
     let batches = UnbondBatches { address: bob };
-    let query_unbond = query(&deps, batches).unwrap_err();
+    let query_batches: UnbondBatchesResponse =
+        from_binary(&query(&deps, batches).unwrap()).unwrap();
     assert_eq!(
-        StdError::generic_err("User does not have any unbond requests"),
-        query_unbond
+        query_batches,
+        UnbondBatchesResponse {
+            unbond_batches: vec![]
+        }
     );
 
     let state = State {};
@@ -1554,7 +1561,7 @@ pub fn proper_withdraw_unbonded_respect_slashing() {
     //the amount should be 10
     assert_eq!(&res.address, &bob);
     assert_eq!(res.requests[0].1, Uint128(1000));
-    assert_eq!(res.requests[0].0, 0);
+    assert_eq!(res.requests[0].0, 1);
 
     //first query AllUnbondedEpochs
     let all_user_epochs = UnbondBatches {
@@ -1565,7 +1572,7 @@ pub fn proper_withdraw_unbonded_respect_slashing() {
     let res: UnbondBatchesResponse = from_binary(&query_epochs).unwrap();
     assert_eq!(res.unbond_batches.len(), 1);
     //the epoch should be zero
-    assert_eq!(res.unbond_batches[0], 0);
+    assert_eq!(res.unbond_batches[0], 1);
 
     //check with query
     //this query does not reflect the actual withdrawable
@@ -1671,7 +1678,7 @@ pub fn proper_withdraw_unbonded_respect_inactivity_slashing() {
     let current_batch = CurrentBatch {};
     let query_batch: CurrentBatchResponse =
         from_binary(&query(&deps, current_batch).unwrap()).unwrap();
-    assert_eq!(query_batch.id, 0);
+    assert_eq!(query_batch.id, 1);
     assert_eq!(query_batch.requested_with_fee, unbond_amount);
 
     env.block.time += 1000;
@@ -1692,7 +1699,7 @@ pub fn proper_withdraw_unbonded_respect_inactivity_slashing() {
     let current_batch = CurrentBatch {};
     let query_batch: CurrentBatchResponse =
         from_binary(&query(&deps, current_batch).unwrap()).unwrap();
-    assert_eq!(query_batch.id, 1);
+    assert_eq!(query_batch.id, 2);
     assert_eq!(query_batch.requested_with_fee, Uint128::zero());
 
     let all_batches = AllHistory {
@@ -1703,7 +1710,7 @@ pub fn proper_withdraw_unbonded_respect_inactivity_slashing() {
     assert_eq!(res.history[0].1.amount, Uint128(1000));
     assert_eq!(res.history[0].1.withdraw_rate.to_string(), "1");
     assert_eq!(res.history[0].1.released, false);
-    assert_eq!(res.history[0].0, 0);
+    assert_eq!(res.history[0].0, 1);
 
     //this query should be zero since the undelegated period is not passed
     let withdrawable = WithdrawableUnbonded {
@@ -1734,7 +1741,7 @@ pub fn proper_withdraw_unbonded_respect_inactivity_slashing() {
     //the amount should be 10
     assert_eq!(&res.address, &bob);
     assert_eq!(res.requests[0].1, Uint128(1000));
-    assert_eq!(res.requests[0].0, 0);
+    assert_eq!(res.requests[0].0, 1);
 
     //first query AllUnbondedEpochs
     let all_user_epochs = UnbondBatches {
@@ -1745,7 +1752,7 @@ pub fn proper_withdraw_unbonded_respect_inactivity_slashing() {
     let res: UnbondBatchesResponse = from_binary(&query_epochs).unwrap();
     assert_eq!(res.unbond_batches.len(), 1);
     //the epoch should be zero
-    assert_eq!(res.unbond_batches[0], 0);
+    assert_eq!(res.unbond_batches[0], 1);
 
     //check with query
     //this query does not reflect the actual withdrawable
@@ -1793,7 +1800,7 @@ pub fn proper_withdraw_unbonded_respect_inactivity_slashing() {
     assert_eq!(res.history[0].1.amount, Uint128(1000));
     assert_eq!(res.history[0].1.withdraw_rate.to_string(), "0.9");
     assert_eq!(res.history[0].1.released, true);
-    assert_eq!(res.history[0].0, 0);
+    assert_eq!(res.history[0].0, 1);
 }
 
 /// Covers if the unsigned integer works properly,
@@ -1918,11 +1925,11 @@ pub fn proper_withdraw_unbond_with_dummies() {
     assert_eq!(res.history[0].1.amount, Uint128(1000));
     assert_eq!(res.history[0].1.withdraw_rate.to_string(), "1.156");
     assert_eq!(res.history[0].1.released, true);
-    assert_eq!(res.history[0].0, 0);
+    assert_eq!(res.history[0].0, 1);
     assert_eq!(res.history[1].1.amount, Uint128(1000));
     assert_eq!(res.history[1].1.withdraw_rate.to_string(), "1.044");
     assert_eq!(res.history[1].1.released, true);
-    assert_eq!(res.history[1].0, 1);
+    assert_eq!(res.history[1].0, 2);
 }
 
 /// Covers if the state/parameters storage is updated to the given value,
@@ -2161,7 +2168,7 @@ pub fn proper_recovery_fee() {
     let current_batch = CurrentBatch {};
     let query_batch: CurrentBatchResponse =
         from_binary(&query(&deps, current_batch).unwrap()).unwrap();
-    assert_eq!(query_batch.id, 0);
+    assert_eq!(query_batch.id, 1);
     assert_eq!(query_batch.requested_with_fee, bonded_with_fee);
 
     deps.querier
@@ -2238,7 +2245,7 @@ pub fn proper_recovery_fee() {
         Decimal::from_ratio(Uint128(161870), bonded_with_fee + bonded_with_fee)
     );
     assert_eq!(res.history[0].1.released, true);
-    assert_eq!(res.history[0].0, 0);
+    assert_eq!(res.history[0].0, 1);
 }
 
 /// Covers if the storage affected by update_config are updated properly

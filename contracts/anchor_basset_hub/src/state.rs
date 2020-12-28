@@ -148,21 +148,17 @@ pub fn get_unbond_requests_batches<'a, S: ReadonlyStorage>(
     sender_addr: HumanAddr,
 ) -> StdResult<Vec<u64>> {
     let vec = to_vec(&sender_addr)?;
+    let mut batches: Vec<u64> = vec![];
     let res: ReadonlyBucket<'a, S, Uint128> =
         ReadonlyBucket::multilevel(&[PREFIX_WAIT_MAP, &vec], storage);
-    let batches: Vec<u64> = res
+    let _un: Vec<_> = res
         .range(None, None, Order::Ascending)
         .map(|item| {
             let (k, _) = item.unwrap();
             let batch: u64 = from_slice(&k).unwrap();
-            batch
+            batches.push(batch);
         })
         .collect();
-    if batches.is_empty() {
-        return Err(StdError::generic_err(
-            "User does not have any unbond requests",
-        ));
-    }
     Ok(batches)
 }
 
@@ -171,22 +167,18 @@ pub fn get_unbond_requests<'a, S: ReadonlyStorage>(
     sender_addr: HumanAddr,
 ) -> StdResult<UnbondRequest> {
     let vec = to_vec(&sender_addr)?;
+    let mut requests: UnbondRequest = vec![];
     let res: ReadonlyBucket<'a, S, Uint128> =
         ReadonlyBucket::multilevel(&[PREFIX_WAIT_MAP, &vec], storage);
-    let request: UnbondRequest = res
+    let _un: Vec<_> = res
         .range(None, None, Order::Ascending)
         .map(|item| {
             let (k, value) = item.unwrap();
             let user_batch: u64 = from_slice(&k).unwrap();
-            (user_batch, value)
+            requests.push((user_batch, value))
         })
         .collect();
-    if request.is_empty() {
-        return Err(StdError::generic_err(
-            "User does not have any unbond requests",
-        ));
-    }
-    Ok(request)
+    Ok(requests)
 }
 
 pub fn get_unbond_batches<'a, S: ReadonlyStorage>(

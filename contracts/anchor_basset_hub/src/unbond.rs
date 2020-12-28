@@ -230,7 +230,7 @@ fn process_withdraw_rate<S: Storage, A: Api, Q: Querier>(
 
     // Iterate over unbonded histories that have been processed
     // to calculate newly added unbonded amount
-    let mut i = last_processed_batch;
+    let mut i = last_processed_batch + 1;
     loop {
         let history: UnbondHistory;
         match read_unbond_history(&deps.storage, i) {
@@ -266,7 +266,7 @@ fn process_withdraw_rate<S: Storage, A: Api, Q: Querier>(
         }
 
         // Iterate again to calculate the withdraw rate for each unprocessed history
-        let mut iterator = last_processed_batch;
+        let mut iterator = last_processed_batch + 1;
         loop {
             let history: UnbondHistory;
             match read_unbond_history(&deps.storage, iterator) {

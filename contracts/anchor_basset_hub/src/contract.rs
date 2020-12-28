@@ -76,7 +76,7 @@ pub fn init<S: Storage, A: Api, Q: Querier>(
     store_parameters(&mut deps.storage).save(&params)?;
 
     let batch = CurrentBatch {
-        id: 0,
+        id: 1,
         requested_with_fee: Default::default(),
     };
     store_current_batch(&mut deps.storage).save(&batch)?;
