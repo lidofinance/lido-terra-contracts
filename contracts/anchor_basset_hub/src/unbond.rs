@@ -120,7 +120,7 @@ pub(crate) fn handle_unbond<S: Storage, A: Api, Q: Querier>(
     // Store state's new exchange rate
     store_state(&mut deps.storage).save(&state)?;
 
-    //send Burn message to token contract
+    // Send Burn message to token contract
     let config = read_config(&deps.storage).load()?;
     let token_address = deps.api.human_address(
         &config

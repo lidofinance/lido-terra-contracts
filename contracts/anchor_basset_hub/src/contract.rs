@@ -9,9 +9,9 @@ use crate::config::{
     handle_register_validator, handle_update_config, handle_update_params,
 };
 use crate::msg::{
-    AllHistoryResponse, ConfigResponse, CurrentBatchResponse, ExchangeRateResponse, InitMsg,
-    QueryMsg, StateResponse, UnbondBatchesResponse, UnbondRequestsResponse,
-    WhitelistedValidatorsResponse, WithdrawableUnbondedResponse,
+    AllHistoryResponse, ConfigResponse, CurrentBatchResponse, InitMsg, QueryMsg, StateResponse,
+    UnbondBatchesResponse, UnbondRequestsResponse, WhitelistedValidatorsResponse,
+    WithdrawableUnbondedResponse,
 };
 use crate::state::{
     all_unbond_history, get_unbond_requests, get_unbond_requests_batches,
@@ -293,7 +293,6 @@ pub fn query<S: Storage, A: Api, Q: Querier>(
     match msg {
         QueryMsg::Config {} => to_binary(&query_config(&deps)?),
         QueryMsg::State {} => to_binary(&query_state(&deps)?),
-        QueryMsg::ExchangeRate {} => to_binary(&query_exchange_rate(&deps)?),
         QueryMsg::CurrentBatch {} => to_binary(&query_current_batch(&deps)?),
         QueryMsg::WhitelistedValidators {} => to_binary(&query_white_validators(&deps)?),
         QueryMsg::WithdrawableUnbonded {
@@ -348,16 +347,6 @@ fn query_state<S: Storage, A: Api, Q: Querier>(deps: &Extern<S, A, Q>) -> StdRes
         last_processed_batch: state.last_processed_batch,
     };
     Ok(res)
-}
-
-fn query_exchange_rate<S: Storage, A: Api, Q: Querier>(
-    deps: &Extern<S, A, Q>,
-) -> StdResult<ExchangeRateResponse> {
-    let state = read_state(&deps.storage).load()?;
-    let ex_rate = ExchangeRateResponse {
-        rate: state.exchange_rate,
-    };
-    Ok(ex_rate)
 }
 
 fn query_white_validators<S: Storage, A: Api, Q: Querier>(

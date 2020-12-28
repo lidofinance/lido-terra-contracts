@@ -148,18 +148,22 @@ pub fn get_unbond_requests_batches<'a, S: ReadonlyStorage>(
     sender_addr: HumanAddr,
 ) -> StdResult<Vec<u64>> {
     let vec = to_vec(&sender_addr)?;
-    let mut amount: Vec<u64> = vec![];
     let res: ReadonlyBucket<'a, S, Uint128> =
         ReadonlyBucket::multilevel(&[PREFIX_WAIT_MAP, &vec], storage);
-    let _un: Vec<_> = res
+    let batches: Vec<u64> = res
         .range(None, None, Order::Ascending)
         .map(|item| {
             let (k, _) = item.unwrap();
             let batch: u64 = from_slice(&k).unwrap();
-            amount.push(batch)
+            batch
         })
         .collect();
-    Ok(amount)
+    if batches.is_empty() {
+        return Err(StdError::generic_err(
+            "User does not have any unbond requests",
+        ));
+    }
+    Ok(batches)
 }
 
 pub fn get_unbond_requests<'a, S: ReadonlyStorage>(
@@ -167,17 +171,21 @@ pub fn get_unbond_requests<'a, S: ReadonlyStorage>(
     sender_addr: HumanAddr,
 ) -> StdResult<UnbondRequest> {
     let vec = to_vec(&sender_addr)?;
-    let mut request: UnbondRequest = vec![];
     let res: ReadonlyBucket<'a, S, Uint128> =
         ReadonlyBucket::multilevel(&[PREFIX_WAIT_MAP, &vec], storage);
-    let _un: Vec<_> = res
+    let request: UnbondRequest = res
         .range(None, None, Order::Ascending)
         .map(|item| {
             let (k, value) = item.unwrap();
             let user_batch: u64 = from_slice(&k).unwrap();
-            request.push((user_batch, value));
+            (user_batch, value)
         })
         .collect();
+    if request.is_empty() {
+        return Err(StdError::generic_err(
+            "User does not have any unbond requests",
+        ));
+    }
     Ok(request)
 }
 
@@ -282,17 +290,15 @@ pub fn remove_white_validators<S: Storage>(
 
 // Returns all validators
 pub fn read_validators<S: Storage>(storage: &S) -> StdResult<Vec<HumanAddr>> {
-    let mut validators: Vec<HumanAddr> = Vec::new();
     let res = ReadonlyPrefixedStorage::new(VALIDATORS, storage);
-    let _un: Vec<_> = res
+    let validators: Vec<HumanAddr> = res
         .range(None, None, Order::Ascending)
         .map(|item| {
             let (key, _) = item;
             let sender: HumanAddr = from_slice(&key).unwrap();
-            validators.push(sender);
+            sender
         })
         .collect();
-
     Ok(validators)
 }
 
@@ -311,15 +317,13 @@ pub fn is_valid_validator<S: Storage>(
 
 /// Read whitelisted validators
 pub fn read_valid_validators<S: Storage>(storage: &S) -> StdResult<Vec<HumanAddr>> {
-    let mut validators: Vec<HumanAddr> = Vec::new();
     let res = ReadonlyPrefixedStorage::new(VALIDATORS, storage);
-
-    let _: Vec<()> = res
+    let validators: Vec<HumanAddr> = res
         .range(None, None, Order::Ascending)
         .map(|item| {
             let (key, _) = item;
             let validator: HumanAddr = from_slice(&key).unwrap();
-            validators.push(validator);
+            validator
         })
         .collect();
     Ok(validators)
