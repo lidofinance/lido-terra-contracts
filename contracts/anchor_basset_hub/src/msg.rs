@@ -21,7 +21,6 @@ pub struct InitMsg {
 pub enum QueryMsg {
     Config {},
     State {},
-    ExchangeRate {},
     WhitelistedValidators {},
     CurrentBatch {},
     WithdrawableUnbonded {
@@ -57,11 +56,6 @@ pub struct ConfigResponse {
     pub owner: HumanAddr,
     pub reward_contract: Option<HumanAddr>,
     pub token_contract: Option<HumanAddr>,
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct ExchangeRateResponse {
-    pub rate: Decimal,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

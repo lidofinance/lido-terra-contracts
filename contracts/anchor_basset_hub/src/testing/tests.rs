@@ -25,8 +25,8 @@ use cosmwasm_std::{
 use cosmwasm_std::testing::{mock_dependencies, mock_env};
 
 use crate::msg::{
-    AllHistoryResponse, ConfigResponse, CurrentBatchResponse, ExchangeRateResponse, InitMsg,
-    StateResponse, UnbondBatchesResponse, UnbondRequestsResponse, WhitelistedValidatorsResponse,
+    AllHistoryResponse, ConfigResponse, CurrentBatchResponse, InitMsg, StateResponse,
+    UnbondBatchesResponse, UnbondRequestsResponse, WhitelistedValidatorsResponse,
     WithdrawableUnbondedResponse,
 };
 use hub_querier::{Deactivated, HandleMsg};
@@ -45,8 +45,8 @@ use hub_querier::Registration::{Reward, Token};
 use super::mock_querier::{mock_dependencies as dependencies, WasmMockQuerier};
 use crate::math::decimal_division;
 use crate::msg::QueryMsg::{
-    AllHistory, Config, CurrentBatch, ExchangeRate, Parameters as Params, State, UnbondBatches,
-    UnbondRequests, WhitelistedValidators, WithdrawableUnbonded,
+    AllHistory, Config, CurrentBatch, Parameters as Params, State, UnbondBatches, UnbondRequests,
+    WhitelistedValidators, WithdrawableUnbonded,
 };
 use crate::state::{read_config, read_unbond_wait_list, Parameters};
 use anchor_basset_reward::msg::HandleMsg::{SwapToRewardDenom, UpdateGlobalIndex};
@@ -267,6 +267,13 @@ fn proper_register_subcontracts() {
     let res = handle(&mut deps, owner_env.clone(), register_msg).unwrap();
     assert_eq!(res.messages.len(), 1);
 
+    // register reward contract sends a Withdraw message
+    let msg: CosmosMsg = CosmosMsg::Staking(StakingMsg::Withdraw {
+        validator: HumanAddr::default(),
+        recipient: Some(reward_contract.clone()),
+    });
+    assert_eq!(msg, res.messages[0]);
+
     // register token contract
     let register_msg = HandleMsg::RegisterSubcontracts {
         contract: Token,
@@ -376,6 +383,7 @@ fn proper_register_validator() {
     let query_res: WhitelistedValidatorsResponse =
         from_binary(&query(&deps, query_validatator2).unwrap()).unwrap();
     assert_eq!(query_res.validators.get(1).unwrap(), &validator2.address);
+    assert_eq!(query_res.validators.get(0).unwrap(), &validator.address);
 }
 
 /// Covers if delegate message is sent to the specified validator,
@@ -528,10 +536,7 @@ fn proper_deregister() {
 
     let invalid_env = mock_env(HumanAddr::from("invalid"), &[]);
     let res = handle(&mut deps, invalid_env, msg);
-    assert_eq!(
-        res.unwrap_err(),
-        StdError::generic_err("Only the creator can send this message",)
-    );
+    assert_eq!(res.unwrap_err(), StdError::unauthorized());
 
     let msg = HandleMsg::DeregisterValidator {
         validator: validator.address.clone(),
@@ -789,6 +794,25 @@ pub fn proper_receive() {
     let valid_env = mock_env(&token_contract, &[]);
     let res = handle(&mut deps, valid_env, receive).unwrap();
     assert_eq!(res.messages.len(), 1);
+
+    let msg = &res.messages[0];
+    match msg {
+        CosmosMsg::Wasm(WasmMsg::Execute {
+            contract_addr,
+            msg,
+            send: _,
+        }) => {
+            assert_eq!(contract_addr, &token_contract);
+            assert_eq!(
+                msg,
+                &to_binary(&Burn {
+                    amount: Uint128(10)
+                })
+                .unwrap()
+            );
+        }
+        _ => panic!("Unexpected message: {:?}", msg),
+    }
 }
 
 /// Covers if the epoch period is passed, Undelegate message is sent,
@@ -834,6 +858,21 @@ pub fn proper_unbond() {
 
     set_delegation(&mut deps.querier, validator.clone(), 10, "uluna");
 
+    //check the current batch before unbond
+    let current_batch = CurrentBatch {};
+    let query_batch: CurrentBatchResponse =
+        from_binary(&query(&deps, current_batch).unwrap()).unwrap();
+    assert_eq!(query_batch.id, 0);
+    assert_eq!(query_batch.requested_with_fee, Uint128::zero());
+
+    let token_env = mock_env(&token_contract, &[]);
+
+    // check the state before unbond
+    let state = State {};
+    let query_state: StateResponse = from_binary(&query(&deps, state).unwrap()).unwrap();
+    assert_eq!(query_state.last_unbonded_time, token_env.block.time);
+    assert_eq!(query_state.total_bond_amount, Uint128(10));
+
     // successful call
     let successful_bond = Unbond {};
     let receive = Receive(Cw20ReceiveMsg {
@@ -841,7 +880,6 @@ pub fn proper_unbond() {
         amount: Uint128(1),
         msg: Some(to_binary(&successful_bond).unwrap()),
     });
-    let token_env = mock_env(&token_contract, &[]);
     let res = handle(&mut deps, token_env, receive).unwrap();
     assert_eq!(1, res.messages.len());
     deps.querier
@@ -929,6 +967,7 @@ pub fn proper_unbond() {
     let state = State {};
     let query_state: StateResponse = from_binary(&query(&deps, state).unwrap()).unwrap();
     assert_eq!(query_state.last_unbonded_time, token_env.block.time);
+    assert_eq!(query_state.total_bond_amount, Uint128(2));
 
     // the last request (2) gets combined and processed with the previous requests (1, 5)
     let waitlist = UnbondRequests { address: bob };
@@ -1114,10 +1153,9 @@ pub fn proper_slashing() {
     let res = handle(&mut deps, env, report_slashing).unwrap();
     assert_eq!(0, res.messages.len());
 
-    let ex_rate = ExchangeRate {};
-    let query_exchange_rate: ExchangeRateResponse =
-        from_binary(&query(&deps, ex_rate).unwrap()).unwrap();
-    assert_eq!(query_exchange_rate.rate.to_string(), "0.9");
+    let ex_rate = State {};
+    let query_exchange_rate: StateResponse = from_binary(&query(&deps, ex_rate).unwrap()).unwrap();
+    assert_eq!(query_exchange_rate.exchange_rate.to_string(), "0.9");
 
     //bond again to see the update exchange rate
     let second_bond = HandleMsg::Bond {
@@ -1130,10 +1168,10 @@ pub fn proper_slashing() {
     assert_eq!(2, res.messages.len());
 
     // expected exchange rate must be more than 0.9
-    let ex_rate = ExchangeRate {};
-    let query_exchange_rate: ExchangeRateResponse =
-        from_binary(&query(&deps, ex_rate).unwrap()).unwrap();
-    assert_eq!(query_exchange_rate.rate.to_string(), "0.900047370914258645");
+    let expected_er = Decimal::from_ratio(Uint128(1900), Uint128(2111));
+    let ex_rate = State {};
+    let query_exchange_rate: StateResponse = from_binary(&query(&deps, ex_rate).unwrap()).unwrap();
+    assert_eq!(query_exchange_rate.exchange_rate, expected_er);
 
     let delegate = &res.messages[0];
     match delegate {
@@ -1165,24 +1203,25 @@ pub fn proper_slashing() {
     }
 
     set_delegation(&mut deps.querier, validator.clone(), 100900, "uluna");
-    //update user index
+
+    //update user balance
     deps.querier
         .with_token_balances(&[(&HumanAddr::from("token"), &[(&addr1, &Uint128(2111u128))])]);
 
     let mut env = mock_env(&addr1, &[]);
     let _res = handle_unbond(&mut deps, env.clone(), Uint128(500), addr1.clone()).unwrap();
+
     deps.querier
         .with_token_balances(&[(&HumanAddr::from("token"), &[(&addr1, &Uint128(1611u128))])]);
 
     env.block.time += 31;
     let res = handle_unbond(&mut deps, env.clone(), Uint128(500), addr1.clone()).unwrap();
     let msgs: CosmosMsg = CosmosMsg::Staking(StakingMsg::Undelegate {
-        validator: validator.address.clone(),
+        validator: validator.address,
         amount: coin(900, "uluna"),
     });
     assert_eq!(res.messages[0], msgs);
 
-    set_delegation(&mut deps.querier, validator, 1000, "uluna");
     deps.querier
         .with_token_balances(&[(&HumanAddr::from("token"), &[(&addr1, &Uint128(1111u128))])]);
 
@@ -1194,10 +1233,9 @@ pub fn proper_slashing() {
         },
     )]);
 
-    let ex_rate = ExchangeRate {};
-    let query_exchange_rate: ExchangeRateResponse =
-        from_binary(&query(&deps, ex_rate).unwrap()).unwrap();
-    assert_eq!(query_exchange_rate.rate.to_string(), "0.900047370914258645");
+    let ex_rate = State {};
+    let query_exchange_rate: StateResponse = from_binary(&query(&deps, ex_rate).unwrap()).unwrap();
+    assert_eq!(query_exchange_rate.exchange_rate, expected_er);
 
     env.block.time += 90;
     //check withdrawUnbonded message
@@ -1205,10 +1243,9 @@ pub fn proper_slashing() {
     let wdraw_unbonded_res = handle(&mut deps, env, withdraw_unbond_msg).unwrap();
     assert_eq!(wdraw_unbonded_res.messages.len(), 1);
 
-    let ex_rate = ExchangeRate {};
-    let query_exchange_rate: ExchangeRateResponse =
-        from_binary(&query(&deps, ex_rate).unwrap()).unwrap();
-    assert_eq!(query_exchange_rate.rate.to_string(), "0.900047370914258645");
+    let ex_rate = State {};
+    let query_exchange_rate: StateResponse = from_binary(&query(&deps, ex_rate).unwrap()).unwrap();
+    assert_eq!(query_exchange_rate.exchange_rate, expected_er);
 
     let sent_message = &wdraw_unbonded_res.messages[0];
     match sent_message {
@@ -1383,12 +1420,32 @@ pub fn proper_withdraw_unbonded() {
 
     //it should be removed
     let withdrawable = WithdrawableUnbonded {
-        address: bob,
+        address: bob.clone(),
         block_time: env.block.time,
     };
     let query_with: WithdrawableUnbondedResponse =
         from_binary(&query(&deps, withdrawable).unwrap()).unwrap();
     assert_eq!(query_with.withdrawable, Uint128(0));
+
+    let waitlist = UnbondRequests {
+        address: bob.clone(),
+    };
+    let query_unbond = query(&deps, waitlist).unwrap_err();
+    assert_eq!(
+        StdError::generic_err("User does not have any unbond requests"),
+        query_unbond
+    );
+
+    let batches = UnbondBatches { address: bob };
+    let query_unbond = query(&deps, batches).unwrap_err();
+    assert_eq!(
+        StdError::generic_err("User does not have any unbond requests"),
+        query_unbond
+    );
+
+    let state = State {};
+    let state_query: StateResponse = from_binary(&query(&deps, state).unwrap()).unwrap();
+    assert_eq!(state_query.prev_hub_balance, Uint128::zero());
 }
 
 /// Covers slashing during the unbonded period and its effect on the finished amount.
@@ -2050,10 +2107,9 @@ pub fn proper_recovery_fee() {
     let res = handle(&mut deps, env, report_slashing).unwrap();
     assert_eq!(0, res.messages.len());
 
-    let ex_rate = ExchangeRate {};
-    let query_exchange_rate: ExchangeRateResponse =
-        from_binary(&query(&deps, ex_rate).unwrap()).unwrap();
-    assert_eq!(query_exchange_rate.rate.to_string(), "0.9");
+    let ex_rate = State {};
+    let query_exchange_rate: StateResponse = from_binary(&query(&deps, ex_rate).unwrap()).unwrap();
+    assert_eq!(query_exchange_rate.exchange_rate.to_string(), "0.9");
 
     //Bond again to see the applied result
     let bob = HumanAddr::from("bob");
@@ -2099,6 +2155,15 @@ pub fn proper_recovery_fee() {
     let mut token_env = mock_env(&token_contract, &[]);
     let res = handle(&mut deps, token_env.clone(), receive).unwrap();
     assert_eq!(1, res.messages.len());
+
+    //check current batch
+    let bonded_with_fee = unbond_amount * Decimal::from_ratio(Uint128(999), Uint128(1000));
+    let current_batch = CurrentBatch {};
+    let query_batch: CurrentBatchResponse =
+        from_binary(&query(&deps, current_batch).unwrap()).unwrap();
+    assert_eq!(query_batch.id, 0);
+    assert_eq!(query_batch.requested_with_fee, bonded_with_fee);
+
     deps.querier
         .with_token_balances(&[(&HumanAddr::from("token"), &[(&bob, &new_balance)])]);
 
@@ -2113,11 +2178,9 @@ pub fn proper_recovery_fee() {
     let res = handle(&mut deps, token_env.clone(), receive).unwrap();
     assert_eq!(2, res.messages.len());
 
-    let bonded_with_fee = unbond_amount * Decimal::from_ratio(Uint128(999), Uint128(1000));
-    let ex_rate = ExchangeRate {};
-    let query_exchange_rate: ExchangeRateResponse =
-        from_binary(&query(&deps, ex_rate).unwrap()).unwrap();
-    let new_exchange = query_exchange_rate.rate;
+    let ex_rate = State {};
+    let query_exchange_rate: StateResponse = from_binary(&query(&deps, ex_rate).unwrap()).unwrap();
+    let new_exchange = query_exchange_rate.exchange_rate;
 
     let expected = bonded_with_fee + bonded_with_fee;
     let undelegate_message = &res.messages[0];
@@ -2263,7 +2326,13 @@ pub fn proper_update_config() {
     };
     let new_owner_env = mock_env(&new_owner, &[]);
     let res = handle(&mut deps, new_owner_env, update_config).unwrap();
-    assert_eq!(res.messages.len(), 0);
+    assert_eq!(res.messages.len(), 1);
+
+    let msg: CosmosMsg = CosmosMsg::Staking(StakingMsg::Withdraw {
+        validator: HumanAddr::default(),
+        recipient: Some(HumanAddr::from("new reward")),
+    });
+    assert_eq!(msg, res.messages[0]);
 
     let config = Config {};
     let config_query: ConfigResponse = from_binary(&query(&deps, config).unwrap()).unwrap();

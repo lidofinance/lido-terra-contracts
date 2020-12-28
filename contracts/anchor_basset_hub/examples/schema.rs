@@ -4,8 +4,8 @@ use std::fs::create_dir_all;
 use cosmwasm_schema::{export_schema, remove_schemas, schema_for};
 
 use anchor_basset_hub::msg::{
-    AllHistoryResponse, CurrentBatchResponse, ExchangeRateResponse, InitMsg, QueryMsg,
-    StateResponse, UnbondBatchesResponse, UnbondRequestsResponse, WhitelistedValidatorsResponse,
+    AllHistoryResponse, CurrentBatchResponse, InitMsg, QueryMsg, StateResponse,
+    UnbondBatchesResponse, UnbondRequestsResponse, WhitelistedValidatorsResponse,
     WithdrawableUnbondedResponse,
 };
 use anchor_basset_hub::state::{MsgStatus, Parameters};
@@ -24,7 +24,6 @@ fn main() {
     export_schema(&schema_for!(Config), &out_dir);
     export_schema(&schema_for!(Parameters), &out_dir);
     export_schema(&schema_for!(MsgStatus), &out_dir);
-    export_schema(&schema_for!(ExchangeRateResponse), &out_dir);
     export_schema(&schema_for!(StateResponse), &out_dir);
     export_schema(&schema_for!(WhitelistedValidatorsResponse), &out_dir);
     export_schema(&schema_for!(WithdrawableUnbondedResponse), &out_dir);

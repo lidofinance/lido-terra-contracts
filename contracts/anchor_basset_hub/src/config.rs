@@ -123,6 +123,8 @@ pub fn handle_update_config<S: Storage, A: Api, Q: Querier>(
         return Err(StdError::unauthorized());
     }
 
+    let mut messages: Vec<CosmosMsg> = vec![];
+
     if let Some(o) = owner {
         let owner_raw = deps.api.canonical_address(&o)?;
 
@@ -138,6 +140,13 @@ pub fn handle_update_config<S: Storage, A: Api, Q: Querier>(
             last_config.reward_contract = Some(reward_raw);
             Ok(last_config)
         })?;
+
+        // register the reward contract for automate reward withdrawal.
+        let msg: CosmosMsg = CosmosMsg::Staking(StakingMsg::Withdraw {
+            validator: HumanAddr::default(),
+            recipient: Some(reward),
+        });
+        messages.push(msg);
     }
 
     if let Some(token) = token_contract {
@@ -150,7 +159,7 @@ pub fn handle_update_config<S: Storage, A: Api, Q: Querier>(
     }
 
     let res = HandleResponse {
-        messages: vec![],
+        messages,
         log: vec![log("action", "change_the_owner")],
         data: None,
     };
@@ -188,6 +197,8 @@ pub fn handle_register_contracts<S: Storage, A: Api, Q: Querier>(
                 last_config.reward_contract = Some(raw_contract_addr.clone());
                 Ok(last_config)
             })?;
+
+            // register the reward contract for automate reward withdrawal.
             let msg: CosmosMsg = CosmosMsg::Staking(StakingMsg::Withdraw {
                 validator: HumanAddr::default(),
                 recipient: Some(deps.api.human_address(&raw_contract_addr)?),
@@ -264,9 +275,7 @@ pub fn handle_deregister_validator<S: Storage, A: Api, Q: Querier>(
 
     let sender_raw = deps.api.canonical_address(&env.message.sender)?;
     if token.creator != sender_raw {
-        return Err(StdError::generic_err(
-            "Only the creator can send this message",
-        ));
+        return Err(StdError::unauthorized());
     }
     remove_white_validators(&mut deps.storage, validator.clone())?;
 
