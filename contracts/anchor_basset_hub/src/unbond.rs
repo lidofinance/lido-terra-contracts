@@ -1,9 +1,9 @@
 use crate::contract::{query_total_issued, slashing};
 use crate::math::decimal_subtraction;
 use crate::state::{
-    get_finished_amount, get_unbond_batches, read_config, read_current_batch, read_msg_status,
-    read_parameters, read_state, read_unbond_history, read_validators, remove_unbond_wait_list,
-    store_current_batch, store_state, store_unbond_history, store_unbond_wait_list, UnbondHistory,
+    get_finished_amount, get_unbond_batches, read_config, read_current_batch, read_parameters,
+    read_state, read_unbond_history, read_validators, remove_unbond_wait_list, store_current_batch,
+    store_state, store_unbond_history, store_unbond_wait_list, UnbondHistory,
 };
 use cosmwasm_std::{
     coin, coins, log, to_binary, Api, BankMsg, CosmosMsg, Decimal, Env, Extern, HandleResponse,
@@ -21,14 +21,6 @@ pub(crate) fn handle_unbond<S: Storage, A: Api, Q: Querier>(
     amount: Uint128,
     sender: HumanAddr,
 ) -> StdResult<HandleResponse> {
-    // Check the activation of the message.
-    let msg_status = read_msg_status(&deps.storage).load()?;
-    if msg_status.unbond.is_some() {
-        return Err(StdError::generic_err(
-            "this message is temporarily deactivated",
-        ));
-    }
-
     // Read params
     let params = read_parameters(&deps.storage).load()?;
     let epoch_period = params.epoch_period;
@@ -38,9 +30,7 @@ pub(crate) fn handle_unbond<S: Storage, A: Api, Q: Querier>(
     let mut current_batch = read_current_batch(&deps.storage).load()?;
 
     // Check slashing, update state, and calculate the new exchange rate.
-    if msg_status.slashing.is_none() {
-        slashing(deps, env.clone())?;
-    }
+    slashing(deps, env.clone())?;
 
     let mut state = read_state(&deps.storage).load()?;
 
@@ -216,7 +206,6 @@ fn process_withdraw_rate<S: Storage, A: Api, Q: Querier>(
     historical_time: u64,
     hub_balance: Uint128,
 ) -> StdResult<()> {
-    // slashing related operations
     // balance change of the hub contract must be checked.
     let mut total_unbonded_amount = Uint128::zero();
 

@@ -1,8 +1,7 @@
 use crate::contract::{query_total_issued, slashing};
 use crate::math::{decimal_division, decimal_subtraction};
 use crate::state::{
-    is_valid_validator, read_config, read_current_batch, read_msg_status, read_parameters,
-    read_state, store_state,
+    is_valid_validator, read_config, read_current_batch, read_parameters, read_state, store_state,
 };
 use cosmwasm_std::{
     log, to_binary, Api, CosmosMsg, Decimal, Env, Extern, HandleResponse, HumanAddr, Querier,
@@ -38,10 +37,8 @@ pub fn handle_bond<S: Storage, A: Api, Q: Querier>(
         .find(|x| x.denom == coin_denom && x.amount > Uint128::zero())
         .ok_or_else(|| StdError::generic_err(format!("No {} tokens sent", coin_denom)))?;
 
-    // the status of slashing must be checked
-    let msg_status = read_msg_status(&deps.storage).load()?;
-
-    if msg_status.slashing.is_none() && slashing(deps, env.clone()).is_ok() {
+    // check slashing
+    if slashing(deps, env.clone()).is_ok() {
         slashing(deps, env.clone())?;
     }
 

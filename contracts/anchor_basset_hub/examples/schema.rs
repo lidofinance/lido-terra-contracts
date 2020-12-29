@@ -8,7 +8,7 @@ use anchor_basset_hub::msg::{
     UnbondBatchesResponse, UnbondRequestsResponse, WhitelistedValidatorsResponse,
     WithdrawableUnbondedResponse,
 };
-use anchor_basset_hub::state::{MsgStatus, Parameters};
+use anchor_basset_hub::state::Parameters;
 use hub_querier::{Config, HandleMsg, State};
 
 fn main() {
@@ -23,7 +23,6 @@ fn main() {
     export_schema(&schema_for!(State), &out_dir);
     export_schema(&schema_for!(Config), &out_dir);
     export_schema(&schema_for!(Parameters), &out_dir);
-    export_schema(&schema_for!(MsgStatus), &out_dir);
     export_schema(&schema_for!(StateResponse), &out_dir);
     export_schema(&schema_for!(WhitelistedValidatorsResponse), &out_dir);
     export_schema(&schema_for!(WithdrawableUnbondedResponse), &out_dir);

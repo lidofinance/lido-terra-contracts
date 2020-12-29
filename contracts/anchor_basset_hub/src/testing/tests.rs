@@ -29,7 +29,7 @@ use crate::msg::{
     UnbondBatchesResponse, UnbondRequestsResponse, WhitelistedValidatorsResponse,
     WithdrawableUnbondedResponse,
 };
-use hub_querier::{Deactivated, HandleMsg};
+use hub_querier::HandleMsg;
 
 use crate::contract::{handle, init, query};
 use crate::unbond::handle_unbond;
@@ -39,7 +39,7 @@ use anchor_basset_reward::msg::HandleMsg::UpdateRewardDenom;
 use cw20::{Cw20HandleMsg, Cw20ReceiveMsg};
 use cw20_base::msg::HandleMsg::{Burn, Mint};
 use hub_querier::Cw20HookMsg::Unbond;
-use hub_querier::HandleMsg::{CheckSlashing, DeactivateMsg, Receive, UpdateConfig, UpdateParams};
+use hub_querier::HandleMsg::{CheckSlashing, Receive, UpdateConfig, UpdateParams};
 use hub_querier::Registration::{Reward, Token};
 
 use super::mock_querier::{mock_dependencies as dependencies, WasmMockQuerier};
@@ -2000,58 +2000,6 @@ pub fn test_update_params() {
     assert_eq!(params.peg_recovery_fee, Decimal::one());
     assert_eq!(params.er_threshold, Decimal::zero());
     assert_eq!(params.reward_denom, "ukrw");
-}
-
-/// Covers if the deactivate message changes the MsgStatus
-/// Checks the related storage and covers if the message status is changed
-#[test]
-pub fn test_deactivate() {
-    let mut deps = dependencies(20, &[]);
-    let deactivate = DeactivateMsg {
-        msg: Deactivated::Slashing,
-    };
-
-    let owner = HumanAddr::from("owner1");
-    let token_contract = HumanAddr::from("token");
-    let reward_contract = HumanAddr::from("reward");
-
-    initialize(&mut deps, owner, reward_contract, token_contract);
-
-    let invalid_env = mock_env(HumanAddr::from("invalid"), &[]);
-    let res = handle(&mut deps, invalid_env, deactivate.clone());
-    assert_eq!(res.unwrap_err(), StdError::unauthorized());
-    let creator_env = mock_env(HumanAddr::from("owner1"), &[]);
-    let res = handle(&mut deps, creator_env, deactivate).unwrap();
-    assert_eq!(res.messages.len(), 0);
-
-    //should not be able to run slashing
-    let report_slashing = CheckSlashing {};
-    let creator_env = mock_env(HumanAddr::from("addr1000"), &[]);
-    let res = handle(&mut deps, creator_env, report_slashing);
-    assert_eq!(
-        res.unwrap_err(),
-        (StdError::generic_err("this message is temporarily deactivated",))
-    );
-
-    let deactivate_unbond = DeactivateMsg {
-        msg: Deactivated::Unbond,
-    };
-
-    let invalid_env = mock_env(HumanAddr::from("invalid"), &[]);
-    let res = handle(&mut deps, invalid_env, deactivate_unbond.clone());
-    assert_eq!(res.unwrap_err(), StdError::unauthorized());
-    let creator_env = mock_env(HumanAddr::from("owner1"), &[]);
-    let res = handle(&mut deps, creator_env, deactivate_unbond).unwrap();
-    assert_eq!(res.messages.len(), 0);
-
-    //should not be able to run slashing
-    let sender = HumanAddr::from("addr1000");
-    let creator_env = mock_env(&sender, &[]);
-    let res = handle_unbond(&mut deps, creator_env, Uint128(10), sender);
-    assert_eq!(
-        res.unwrap_err(),
-        (StdError::generic_err("this message is temporarily deactivated",))
-    );
 }
 
 /// Covers if peg recovery is applied (in "bond", "unbond",

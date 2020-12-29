@@ -11,14 +11,13 @@ use cosmwasm_storage::{
 };
 
 use crate::msg::{History, UnbondRequest};
-use hub_querier::{Config, Deactivated, State};
+use hub_querier::{Config, State};
 
 pub type LastBatch = u64;
 
 pub static CONFIG: &[u8] = b"config";
 pub static STATE: &[u8] = b"state";
 pub static PARAMETERS: &[u8] = b"parameteres";
-pub static MSG_STATUS: &[u8] = b"msg_status";
 pub static VALIDATORS: &[u8] = b"validators";
 
 pub static PREFIX_WAIT_MAP: &[u8] = b"wait";
@@ -33,12 +32,6 @@ pub struct Parameters {
     pub peg_recovery_fee: Decimal,
     pub er_threshold: Decimal,
     pub reward_denom: String,
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct MsgStatus {
-    pub slashing: Option<Deactivated>,
-    pub unbond: Option<Deactivated>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -69,14 +62,6 @@ pub fn store_parameters<S: Storage>(storage: &mut S) -> Singleton<S, Parameters>
 
 pub fn read_parameters<S: ReadonlyStorage>(storage: &S) -> ReadonlySingleton<S, Parameters> {
     singleton_read(storage, PARAMETERS)
-}
-
-pub fn store_msg_status<S: Storage>(storage: &mut S) -> Singleton<S, MsgStatus> {
-    singleton(storage, MSG_STATUS)
-}
-
-pub fn read_msg_status<S: ReadonlyStorage>(storage: &S) -> ReadonlySingleton<S, MsgStatus> {
-    singleton_read(storage, MSG_STATUS)
 }
 
 pub fn store_current_batch<S: Storage>(storage: &mut S) -> Singleton<S, CurrentBatch> {

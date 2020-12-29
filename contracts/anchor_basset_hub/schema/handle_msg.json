@@ -3,27 +3,7 @@
   "title": "HandleMsg",
   "anyOf": [
     {
-      "description": "Owner's operations Switch of the message",
-      "type": "object",
-      "required": [
-        "deactivate_msg"
-      ],
-      "properties": {
-        "deactivate_msg": {
-          "type": "object",
-          "required": [
-            "msg"
-          ],
-          "properties": {
-            "msg": {
-              "$ref": "#/definitions/Deactivated"
-            }
-          }
-        }
-      }
-    },
-    {
-      "description": "Set the owener",
+      "description": "Owner's operations Set the owener",
       "type": "object",
       "required": [
         "update_config"
@@ -290,13 +270,6 @@
           "$ref": "#/definitions/HumanAddr"
         }
       }
-    },
-    "Deactivated": {
-      "type": "string",
-      "enum": [
-        "slashing",
-        "unbond"
-      ]
     },
     "Decimal": {
       "description": "A fixed-point decimal value with 18 fractional digits, i.e. Decimal(1_000_000_000_000_000_000) == 1.0\n\nThe greatest possible value that can be represented is 340282366920938463463.374607431768211455 (which is (2^128 - 1) / 10^18)",

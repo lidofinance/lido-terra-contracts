@@ -1,13 +1,13 @@
 use crate::state::{
-    read_config, read_validators, remove_white_validators, store_config, store_msg_status,
-    store_parameters, store_white_validators, Parameters,
+    read_config, read_validators, remove_white_validators, store_config, store_parameters,
+    store_white_validators, Parameters,
 };
 use anchor_basset_reward::msg::HandleMsg::UpdateRewardDenom;
 use cosmwasm_std::{
     log, to_binary, Api, CosmosMsg, Decimal, Env, Extern, HandleResponse, HumanAddr, Querier,
     StakingMsg, StdError, StdResult, Storage, WasmMsg,
 };
-use hub_querier::{Deactivated, HandleMsg, Registration};
+use hub_querier::{HandleMsg, Registration};
 use rand::{Rng, SeedableRng, XorShiftRng};
 
 /// Update general parameters
@@ -64,44 +64,6 @@ pub fn handle_update_params<S: Storage, A: Api, Q: Querier>(
     let res = HandleResponse {
         messages: msgs,
         log: vec![log("action", "update_params")],
-        data: None,
-    };
-    Ok(res)
-}
-
-/// Deactivate messages. Only unbond and slashing is supported.
-/// Only creator/owner is allowed to execute
-pub fn handle_deactivate<S: Storage, A: Api, Q: Querier>(
-    deps: &mut Extern<S, A, Q>,
-    env: Env,
-    msg: Deactivated,
-) -> StdResult<HandleResponse> {
-    // only owner must be able to send this message.
-    let config = read_config(&deps.storage).load()?;
-    let sender_raw = deps.api.canonical_address(&env.message.sender)?;
-    if sender_raw != config.creator {
-        return Err(StdError::unauthorized());
-    }
-
-    // store the status of slashing and unbond
-    match msg {
-        Deactivated::Slashing => {
-            store_msg_status(&mut deps.storage).update(|mut msg_status| {
-                msg_status.slashing = Some(msg);
-                Ok(msg_status)
-            })?;
-        }
-        Deactivated::Unbond => {
-            store_msg_status(&mut deps.storage).update(|mut msg_status| {
-                msg_status.unbond = Some(msg);
-                Ok(msg_status)
-            })?;
-        }
-    }
-
-    let res = HandleResponse {
-        messages: vec![],
-        log: vec![log("action", "deactivate_msg")],
         data: None,
     };
     Ok(res)
