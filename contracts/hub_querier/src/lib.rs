@@ -39,11 +39,6 @@ pub enum HandleMsg {
     /// Owner's operations
     ////////////////////
 
-    /// Switch of the message
-    DeactivateMsg {
-        msg: Deactivated,
-    },
-
     /// Set the owener
     UpdateConfig {
         owner: Option<HumanAddr>,
@@ -112,13 +107,6 @@ pub enum HandleMsg {
 pub enum Registration {
     Token,
     Reward,
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-#[serde(rename_all = "snake_case")]
-pub enum Deactivated {
-    Slashing,
-    Unbond,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

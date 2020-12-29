@@ -5,8 +5,8 @@ use cosmwasm_std::{
 };
 
 use crate::config::{
-    handle_deactivate, handle_deregister_validator, handle_register_contracts,
-    handle_register_validator, handle_update_config, handle_update_params,
+    handle_deregister_validator, handle_register_contracts, handle_register_validator,
+    handle_update_config, handle_update_params,
 };
 use crate::msg::{
     AllHistoryResponse, ConfigResponse, CurrentBatchResponse, InitMsg, QueryMsg, StateResponse,
@@ -15,9 +15,9 @@ use crate::msg::{
 };
 use crate::state::{
     all_unbond_history, get_unbond_requests, get_unbond_requests_batches,
-    query_get_finished_amount, read_config, read_current_batch, read_msg_status, read_parameters,
-    read_state, read_valid_validators, read_validators, store_config, store_current_batch,
-    store_msg_status, store_parameters, store_state, CurrentBatch, MsgStatus, Parameters,
+    query_get_finished_amount, read_config, read_current_batch, read_parameters, read_state,
+    read_valid_validators, read_validators, store_config, store_current_batch, store_parameters,
+    store_state, CurrentBatch, Parameters,
 };
 use crate::unbond::{handle_unbond, handle_withdraw_unbonded};
 
@@ -55,13 +55,6 @@ pub fn init<S: Storage, A: Api, Q: Querier>(
     };
 
     store_state(&mut deps.storage).save(&state)?;
-
-    // instantiate msg status
-    let msg_state = MsgStatus {
-        slashing: None,
-        unbond: None,
-    };
-    store_msg_status(&mut deps.storage).save(&msg_state)?;
 
     // instantiate parameters
     let params = Parameters {
@@ -122,7 +115,6 @@ pub fn handle<S: Storage, A: Api, Q: Querier>(
             er_threshold,
             reward_denom,
         ),
-        HandleMsg::DeactivateMsg { msg } => handle_deactivate(deps, env, msg),
         HandleMsg::UpdateConfig {
             owner,
             reward_contract,
@@ -275,13 +267,7 @@ pub fn handle_slashing<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
     env: Env,
 ) -> StdResult<HandleResponse> {
-    // Slashing status must be active to operate this message
-    let msg_status = read_msg_status(&deps.storage).load()?;
-    if msg_status.slashing.is_some() {
-        return Err(StdError::generic_err(
-            "this message is temporarily deactivated",
-        ));
-    }
+    // call slashing
     slashing(deps, env)?;
     Ok(HandleResponse::default())
 }
