@@ -25,6 +25,7 @@ Handling decimals is left to the UI and not interpreted.
     - This is designed to
      send to an address controlled by a private key and *does not* trigger
      any actions on the recipient if it is a contract. 
+    - Reduces `env.sender`'s  and increases `recipient`'s balance in the reward contract for reward calculation. 
 
 ### Send
 * Send{contract, amount, msg}
@@ -32,11 +33,13 @@ Handling decimals is left to the UI and not interpreted.
     - Moves `amount` tokens from the `env.sender` account to the `contract`. 
     -`contract` must be an address of a contract that implements the `Receiver` interface. 
     - In order to burn, the `msg` must be `InitBurn` and will be passed to the recipient contract, along with the amount. 
+    - Reduces `env.sender`'s  balance and increases the balance of the `contract`  in the reward contract for reward calculation. 
 
 ### Burn
 * Burn{amount} 
     - Removes `amount` tokens from the balance of `env.sender`
     - Reduces `total_supply` by the same amount.
+    - Decreases `env.sender`'s balance in the reward contract for reward calculation
 
 ## Queries
 
@@ -96,6 +99,7 @@ If `amount >= current_allowance`, this will clear the allowance (delete it).
 and if there was a valid, un-expired pre-approval for the `env.sender`, 
 then we move `amount` tokens from `owner` to `recipient` and deduct it
 from the available allowance.
+    - Reduces `owner`'s balance and increases the `recipient` balance in the reward contract for reward calculation. 
 
 ### SendFrom
 * SendFrom{owner, contract, amount, msg} 
@@ -103,6 +107,7 @@ from the available allowance.
 `TransferFrom` is to `Transfer`. This allows a pre-approved account to
 not just transfer the tokens, but to send them to another contract
 to trigger a given action.
+    - Reduces `owner`'s balance and increases the balance of the `contract` in the reward contract.
     - **Note** `SendFrom` will set the `Receive{sender}`
 to be the `env.sender` (the account that triggered the transfer)
 rather than the `owner` account (the account the money is coming from).
@@ -113,6 +118,7 @@ BurnFrom{owner, amount}
     - This works like `TransferFrom`, but burns 
 the tokens instead of transfering them. This will reduce the owner's 
 balance, `total_supply` and the caller's allowance.
+    - Reduces `owner`'s balance in the reward contract for reward calculation.
 
 ## Queries
 ### Allowance

@@ -1,43 +1,73 @@
 # Anchor bAsset Contracts
 
-This repository contains smart contracts for bLuna. For more information about bAsset (bLuna), you can visit the official white paper [here](https://anchorprotocol.com/docs/The_bAsset_Protocol.pdf).
+This monorepository contains the source code for the smart contracts implementing bAsset Protocol on the [Terra](https://terra.money) blockchain.
+
+You can find information about the architecture, usage, and function of the smart contracts on the official Anchor documentation [site](https://anchorprotocol.com/).
+
 
 ## Contracts
 
+| Name                                                                                  | Description                                                                     |
+| ---------------------------------------------------------------------------------------- | -----------------------------------------------------------------------------|
+| [`anchor_basset_hub`](https://github.com/Anchor-Protocol/anchor-bAsset-contracts/tree/master/contracts/anchor_basset_hub/README.md)       | control governance          |
+| [`anchor_basset_reward`](https://github.com/Anchor-Protocol/anchor-bAsset-contracts/tree/master/contracts/anchor_basset_reward/README.md) | control reward distribution |
+| [`anchor_basset_token`](https://github.com/Anchor-Protocol/anchor-bAsset-contracts/tree/master/contracts/anchor_basset_token/README.md)   | CW20 compliance             |
+## Development
 
-| Name                                                         | Description                      |
-| ------------------------------------------------------------ | -------------------------------- |
-| [`anchor_basset_hub`](https://github.com/Anchor-Protocol/anchor-bAsset-contracts/tree/master/contracts/anchor_basset_hub/README.md) | control governance               |
-| [`anchor_basset_reward`](https://github.com/Anchor-Protocol/anchor-bAsset-contracts/tree/master/contracts/anchor_basset_reward/README.md) | control reward distribution               |
-| [`anchor_basset_token`](https://github.com/Anchor-Protocol/anchor-bAsset-contracts/tree/master/contracts/anchor_basset_token/README.md) | CW20 compliance |
+### Environment Setup
 
-## Initialization
+- Rust v1.44.1+
+- `wasm32-unknown-unknown` target
+- Docker
 
-For initializing anchor bAsset contracts, the initialization is only for `anchor_basset_gov`. `anchor_basset_reward` and `anchor_basset_token` will be instantiated from the `anchor_basset_gov`contract.
+1. Install `rustup` via https://rustup.rs/
 
-## Environment Setup
+2. Run the following:
 
-Contracts requires Rust version v1.44.1+ to build. Using [rustup](https://rustup.rs/) is recommended.
-
-## Integration Tests
-`anchor_basset_gov` contains a set of integration tests. To test, run the following:
- 
+```sh
+rustup default stable
+rustup target add wasm32-unknown-unknown
 ```
-cargo test
+
+3. Make sure [Docker](https://www.docker.com/) is installed
+
+### Unit / Integration Tests
+
+Each contract contains Rust unit and integration tests embedded within the contract source directories. You can run:
+
+```sh
+cargo test unit-test
+cargo test integration-test
 ```
 
-## Compiling
-To compile all the contracts, run the following in the repo root:
+### Compiling
+
+After making sure tests pass, you can compile each contract with the following:
+
+```sh
+RUSTFLAGS='-C link-arg=-s' cargo wasm
+cp ../../target/wasm32-unknown-unknown/release/cw1_subkeys.wasm .
+ls -l cw1_subkeys.wasm
+sha256sum cw1_subkeys.wasm
 ```
+
+#### Production
+
+For production builds, run the following:
+
+```sh
 docker run --rm -v "$(pwd)":/code \
   --mount type=volume,source="$(basename "$(pwd)")_cache",target=/code/target \
   --mount type=volume,source=registry_cache,target=/usr/local/cargo/registry \
-  cosmwasm/workspace-optimizer:0.10.4
+  cosmwasm/workspace-optimizer:0.10.2
 ```
-This perform some optimizations that reduce the final size of contracts binaries. You can see the result inside the `artifacts/` directory.
 
+This performs several optimizations which can significantly reduce the final size of the contract binaries, which will be available inside the `artifacts/` directory.
 
 ## License
-This software is licensed under the Apache 2.0 license. Read more about it [here](https://github.com/Anchor-Protocol/anchor-bAsset-contracts/blob/master/LICENSE)
 
-© 2020 Terraform Labs, PTE.
+Copyright 2020 Anchor Protocol
+
+Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except in compliance with the License. You may obtain a copy of the License at http://www.apache.org/licenses/LICENSE-2.0. Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+
+See the License for the specific language governing permissions and limitations under the License.
