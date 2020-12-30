@@ -1,5 +1,5 @@
 [package]
-name = "unsigned_integer"
+name = "signed_integer"
 version = "0.1.0"
 authors = ["MSNTCS <najafi@codechain.io>"]
 edition = "2018"

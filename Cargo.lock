@@ -32,9 +32,9 @@ dependencies = [
  "rand",
  "schemars",
  "serde",
+ "signed_integer",
  "snafu",
  "terra-cosmwasm",
- "unsigned_integer",
 ]
 
 [[package]]
@@ -990,6 +990,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "signed_integer"
+version = "0.1.0"
+dependencies = [
+ "cosmwasm-std",
+ "cosmwasm-storage",
+ "cw20",
+ "schemars",
+ "serde",
+ "terra-cosmwasm",
+]
+
+[[package]]
 name = "smallvec"
 version = "1.4.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1088,18 +1100,6 @@ name = "unicode-xid"
 version = "0.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f7fe0bb3479651439c9112f72b6c505038574c9fbb575ed1bf3b797fa39dd564"
-
-[[package]]
-name = "unsigned_integer"
-version = "0.1.0"
-dependencies = [
- "cosmwasm-std",
- "cosmwasm-storage",
- "cw20",
- "schemars",
- "serde",
- "terra-cosmwasm",
-]
 
 [[package]]
 name = "version_check"

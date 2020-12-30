@@ -11,7 +11,7 @@ use cosmwasm_std::{
 };
 use cw20::Cw20HandleMsg;
 use rand::{Rng, SeedableRng, XorShiftRng};
-use unsigned_integer::UnsignedInt;
+use signed_integer::SignedInt;
 
 /// This message must be call by receive_cw20
 /// This message will undelegate coin and burn basset token
@@ -211,7 +211,7 @@ fn process_withdraw_rate<S: Storage, A: Api, Q: Querier>(
 
     let mut state = read_state(&deps.storage).load()?;
 
-    let balance_change = UnsignedInt::from_subtraction(hub_balance, state.prev_hub_balance);
+    let balance_change = SignedInt::from_subtraction(hub_balance, state.prev_hub_balance);
     state.actual_unbonded_amount += balance_change.0;
 
     let last_processed_batch = state.last_processed_batch;
@@ -245,9 +245,9 @@ fn process_withdraw_rate<S: Storage, A: Api, Q: Querier>(
 
     if batch_count >= 1 {
         let slashed_amount_per_batch: Uint128;
-        // Use unsigned integer in case of some rogue transfers.
+        // Use signed integer in case of some rogue transfers.
         let slashed_amount =
-            UnsignedInt::from_subtraction(total_unbonded_amount, state.actual_unbonded_amount);
+            SignedInt::from_subtraction(total_unbonded_amount, state.actual_unbonded_amount);
         if batch_count == 0 {
             slashed_amount_per_batch = slashed_amount.0
         } else {
@@ -282,11 +282,9 @@ fn process_withdraw_rate<S: Storage, A: Api, Q: Querier>(
                 actual_unbonded_amount_of_batch =
                     unbonded_amount_of_batch + slashed_amount_per_batch
             } else {
-                actual_unbonded_amount_of_batch = UnsignedInt::from_subtraction(
-                    unbonded_amount_of_batch,
-                    slashed_amount_per_batch,
-                )
-                .0;
+                actual_unbonded_amount_of_batch =
+                    SignedInt::from_subtraction(unbonded_amount_of_batch, slashed_amount_per_batch)
+                        .0;
             }
             // Calculate the new withdraw rate
             let new_withdraw_rate =
