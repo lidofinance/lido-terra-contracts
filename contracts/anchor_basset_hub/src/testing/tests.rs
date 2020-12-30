@@ -1803,7 +1803,7 @@ pub fn proper_withdraw_unbonded_respect_inactivity_slashing() {
     assert_eq!(res.history[0].0, 1);
 }
 
-/// Covers if the unsigned integer works properly,
+/// Covers if the signed integer works properly,
 /// the exception when a user sends rogue coin.
 #[test]
 pub fn proper_withdraw_unbond_with_dummies() {
