@@ -1893,6 +1893,22 @@ pub fn proper_withdraw_unbond_with_dummies() {
 
     assert_eq!(success_res.messages.len(), 1);
 
+    let all_batches = AllHistory {
+        start_from: None,
+        limit: None,
+    };
+    let res: AllHistoryResponse = from_binary(&query(&deps, all_batches).unwrap()).unwrap();
+    assert_eq!(res.history[0].1.amount, Uint128(1000));
+    assert_eq!(res.history[0].1.withdraw_rate.to_string(), "1.165");
+    assert_eq!(res.history[0].1.released, true);
+    assert_eq!(res.history[0].0, 1);
+    assert_eq!(res.history[1].1.amount, Uint128(1000));
+    assert_eq!(res.history[1].1.withdraw_rate.to_string(), "1.034");
+    assert_eq!(res.history[1].1.released, true);
+    assert_eq!(res.history[1].0, 2);
+
+    let expected = (res.history[0].1.withdraw_rate * res.history[0].1.amount)
+        + res.history[1].1.withdraw_rate * res.history[1].1.amount;
     let sent_message = &success_res.messages[0];
     match sent_message {
         CosmosMsg::Bank(BankMsg::Send {
@@ -1902,7 +1918,7 @@ pub fn proper_withdraw_unbond_with_dummies() {
         }) => {
             assert_eq!(from_address.0, MOCK_CONTRACT_ADDR);
             assert_eq!(to_address, &bob);
-            assert_eq!(amount[0].amount, Uint128(2200))
+            assert_eq!(amount[0].amount, expected)
         }
 
         _ => panic!("Unexpected message: {:?}", sent_message),
@@ -1916,20 +1932,6 @@ pub fn proper_withdraw_unbond_with_dummies() {
     let query_with: WithdrawableUnbondedResponse =
         from_binary(&query(&deps, withdrawable).unwrap()).unwrap();
     assert_eq!(query_with.withdrawable, Uint128(0));
-
-    let all_batches = AllHistory {
-        start_from: None,
-        limit: None,
-    };
-    let res: AllHistoryResponse = from_binary(&query(&deps, all_batches).unwrap()).unwrap();
-    assert_eq!(res.history[0].1.amount, Uint128(1000));
-    assert_eq!(res.history[0].1.withdraw_rate.to_string(), "1.156");
-    assert_eq!(res.history[0].1.released, true);
-    assert_eq!(res.history[0].0, 1);
-    assert_eq!(res.history[1].1.amount, Uint128(1000));
-    assert_eq!(res.history[1].1.withdraw_rate.to_string(), "1.044");
-    assert_eq!(res.history[1].1.released, true);
-    assert_eq!(res.history[1].0, 2);
 }
 
 /// Covers if the state/parameters storage is updated to the given value,

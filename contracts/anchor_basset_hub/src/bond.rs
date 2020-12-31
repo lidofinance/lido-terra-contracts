@@ -42,7 +42,7 @@ pub fn handle_bond<S: Storage, A: Api, Q: Querier>(
         slashing(deps, env.clone())?;
     }
 
-    let mut state = read_state(&deps.storage).load()?;
+    let state = read_state(&deps.storage).load()?;
     let sender = env.message.sender.clone();
 
     // peg recovery fee should be considered
@@ -58,11 +58,10 @@ pub fn handle_bond<S: Storage, A: Api, Q: Querier>(
     total_supply += mint_amount_with_fee;
 
     // exchange rate should be updated for future
-    state.total_bond_amount += payment.amount;
-    store_state(&mut deps.storage).update(|mut state| {
-        state.total_bond_amount += payment.amount;
-        state.update_exchange_rate(total_supply, requested_with_fee);
-        Ok(state)
+    store_state(&mut deps.storage).update(|mut prev_state| {
+        prev_state.total_bond_amount += payment.amount;
+        prev_state.update_exchange_rate(total_supply, requested_with_fee);
+        Ok(prev_state)
     })?;
 
     let mut messages: Vec<CosmosMsg> = vec![];

@@ -244,15 +244,9 @@ fn process_withdraw_rate<S: Storage, A: Api, Q: Querier>(
     }
 
     if batch_count >= 1 {
-        let slashed_amount_per_batch: Uint128;
         // Use signed integer in case of some rogue transfers.
         let slashed_amount =
             SignedInt::from_subtraction(total_unbonded_amount, state.actual_unbonded_amount);
-        if batch_count == 0 {
-            slashed_amount_per_batch = slashed_amount.0
-        } else {
-            slashed_amount_per_batch = Uint128(slashed_amount.0.u128() / u128::from(batch_count));
-        }
 
         // Iterate again to calculate the withdraw rate for each unprocessed history
         let mut iterator = last_processed_batch + 1;
@@ -276,14 +270,17 @@ fn process_withdraw_rate<S: Storage, A: Api, Q: Querier>(
             let burnt_amount_of_batch = history.amount;
             let historical_rate_of_batch = history.withdraw_rate;
             let unbonded_amount_of_batch = burnt_amount_of_batch * historical_rate_of_batch;
+            let batch_slashing_weight =
+                Decimal::from_ratio(unbonded_amount_of_batch, total_unbonded_amount);
+            let slashed_amount_of_batch = batch_slashing_weight * slashed_amount.0;
             let actual_unbonded_amount_of_batch: Uint128;
             // If slashed amount is negative, there should be summation instead of subtraction.
             if slashed_amount.1 {
                 actual_unbonded_amount_of_batch =
-                    unbonded_amount_of_batch + slashed_amount_per_batch
+                    unbonded_amount_of_batch + slashed_amount_of_batch;
             } else {
                 actual_unbonded_amount_of_batch =
-                    SignedInt::from_subtraction(unbonded_amount_of_batch, slashed_amount_per_batch)
+                    SignedInt::from_subtraction(unbonded_amount_of_batch, slashed_amount_of_batch)
                         .0;
             }
             // Calculate the new withdraw rate
