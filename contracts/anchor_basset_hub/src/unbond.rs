@@ -270,10 +270,14 @@ fn process_withdraw_rate<S: Storage, A: Api, Q: Querier>(
             let burnt_amount_of_batch = history.amount;
             let historical_rate_of_batch = history.withdraw_rate;
             let unbonded_amount_of_batch = burnt_amount_of_batch * historical_rate_of_batch;
+
+            // the slashed amount for each batch must be proportional to the unbonded amount of batch
             let batch_slashing_weight =
                 Decimal::from_ratio(unbonded_amount_of_batch, total_unbonded_amount);
+
             let slashed_amount_of_batch = batch_slashing_weight * slashed_amount.0;
             let actual_unbonded_amount_of_batch: Uint128;
+
             // If slashed amount is negative, there should be summation instead of subtraction.
             if slashed_amount.1 {
                 actual_unbonded_amount_of_batch =
