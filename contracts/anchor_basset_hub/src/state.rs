@@ -42,6 +42,7 @@ pub struct CurrentBatch {
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct UnbondHistory {
+    pub batch_id: u64,
     pub time: u64,
     pub amount: Uint128,
     pub withdraw_rate: Decimal,
@@ -313,7 +314,7 @@ pub fn store_unbond_history<S: Storage>(
     batch_id: u64,
     history: UnbondHistory,
 ) -> StdResult<()> {
-    let vec = to_vec(&batch_id)?;
+    let vec = batch_id.to_be_bytes().to_vec();
     let value: Vec<u8> = to_vec(&history)?;
     PrefixedStorage::new(UNBOND_HISTORY_MAP, storage).set(&vec, &value);
     Ok(())
@@ -324,7 +325,7 @@ pub fn read_unbond_history<'a, S: ReadonlyStorage>(
     storage: &'a S,
     epoc_id: u64,
 ) -> StdResult<UnbondHistory> {
-    let vec = to_vec(&epoc_id)?;
+    let vec = epoc_id.to_be_bytes().to_vec();
     let res = ReadonlyPrefixedStorage::new(UNBOND_HISTORY_MAP, storage).get(&vec);
     match res {
         Some(data) => from_slice(&data),
@@ -333,8 +334,8 @@ pub fn read_unbond_history<'a, S: ReadonlyStorage>(
 }
 
 // settings for pagination
-const MAX_LIMIT: u32 = 10;
-const DEFAULT_LIMIT: u32 = 2;
+const MAX_LIMIT: u32 = 100;
+const DEFAULT_LIMIT: u32 = 10;
 
 /// Return all unbond_history from UnbondHistory map
 #[allow(clippy::needless_lifetimes)]
@@ -343,19 +344,25 @@ pub fn all_unbond_history<'a, S: ReadonlyStorage>(
     start: Option<u64>,
     limit: Option<u32>,
 ) -> StdResult<History> {
-    let mut vec = None;
-    if start.is_some() {
-        vec = Some(to_vec(&start.unwrap())?);
-    }
+    let vec = convert(start);
+    // vec = Some(to_vec(&start.unwrap())?);
+
     let lim = limit.unwrap_or(DEFAULT_LIMIT).min(MAX_LIMIT) as usize;
     let res = ReadonlyPrefixedStorage::new(UNBOND_HISTORY_MAP, storage)
         .range(vec.as_deref(), None, Order::Ascending)
         .take(lim)
         .map(|item| {
             let history: UnbondHistory = from_slice(&item.1).unwrap();
-            let batch_id: u64 = from_slice(&item.0).unwrap();
-            Ok((batch_id, history))
+            Ok(history)
         })
         .collect();
     res
+}
+
+fn convert(start_after: Option<u64>) -> Option<Vec<u8>> {
+    start_after.map(|idx| {
+        let mut v = idx.to_be_bytes().to_vec();
+        v.push(1);
+        v
+    })
 }

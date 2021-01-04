@@ -981,9 +981,9 @@ pub fn proper_unbond() {
         limit: None,
     };
     let res: AllHistoryResponse = from_binary(&query(&deps, all_batches).unwrap()).unwrap();
-    assert_eq!(res.history[0].1.amount, Uint128(8));
-    assert_eq!(res.history[0].1.released, false);
-    assert_eq!(res.history[0].0, 1);
+    assert_eq!(res.history[0].amount, Uint128(8));
+    assert_eq!(res.history[0].released, false);
+    assert_eq!(res.history[0].batch_id, 1);
 }
 
 /// Covers if the pick_validator function sends different Undelegate messages
@@ -1387,8 +1387,8 @@ pub fn proper_withdraw_unbonded() {
         limit: None,
     };
     let res: AllHistoryResponse = from_binary(&query(&deps, all_batches).unwrap()).unwrap();
-    assert_eq!(res.history[0].1.amount, Uint128(20));
-    assert_eq!(res.history[0].0, 1);
+    assert_eq!(res.history[0].amount, Uint128(20));
+    assert_eq!(res.history[0].batch_id, 1);
 
     //check with query
     let withdrawable = WithdrawableUnbonded {
@@ -1707,10 +1707,10 @@ pub fn proper_withdraw_unbonded_respect_inactivity_slashing() {
         limit: None,
     };
     let res: AllHistoryResponse = from_binary(&query(&deps, all_batches).unwrap()).unwrap();
-    assert_eq!(res.history[0].1.amount, Uint128(1000));
-    assert_eq!(res.history[0].1.withdraw_rate.to_string(), "1");
-    assert_eq!(res.history[0].1.released, false);
-    assert_eq!(res.history[0].0, 1);
+    assert_eq!(res.history[0].amount, Uint128(1000));
+    assert_eq!(res.history[0].withdraw_rate.to_string(), "1");
+    assert_eq!(res.history[0].released, false);
+    assert_eq!(res.history[0].batch_id, 1);
 
     //this query should be zero since the undelegated period is not passed
     let withdrawable = WithdrawableUnbonded {
@@ -1797,10 +1797,10 @@ pub fn proper_withdraw_unbonded_respect_inactivity_slashing() {
         limit: None,
     };
     let res: AllHistoryResponse = from_binary(&query(&deps, all_batches).unwrap()).unwrap();
-    assert_eq!(res.history[0].1.amount, Uint128(1000));
-    assert_eq!(res.history[0].1.withdraw_rate.to_string(), "0.9");
-    assert_eq!(res.history[0].1.released, true);
-    assert_eq!(res.history[0].0, 1);
+    assert_eq!(res.history[0].amount, Uint128(1000));
+    assert_eq!(res.history[0].withdraw_rate.to_string(), "0.9");
+    assert_eq!(res.history[0].released, true);
+    assert_eq!(res.history[0].batch_id, 1);
 }
 
 /// Covers if the signed integer works properly,
@@ -1898,17 +1898,17 @@ pub fn proper_withdraw_unbond_with_dummies() {
         limit: None,
     };
     let res: AllHistoryResponse = from_binary(&query(&deps, all_batches).unwrap()).unwrap();
-    assert_eq!(res.history[0].1.amount, Uint128(1000));
-    assert_eq!(res.history[0].1.withdraw_rate.to_string(), "1.165");
-    assert_eq!(res.history[0].1.released, true);
-    assert_eq!(res.history[0].0, 1);
-    assert_eq!(res.history[1].1.amount, Uint128(1000));
-    assert_eq!(res.history[1].1.withdraw_rate.to_string(), "1.034");
-    assert_eq!(res.history[1].1.released, true);
-    assert_eq!(res.history[1].0, 2);
+    assert_eq!(res.history[0].amount, Uint128(1000));
+    assert_eq!(res.history[0].withdraw_rate.to_string(), "1.165");
+    assert_eq!(res.history[0].released, true);
+    assert_eq!(res.history[0].batch_id, 1);
+    assert_eq!(res.history[1].amount, Uint128(1000));
+    assert_eq!(res.history[1].withdraw_rate.to_string(), "1.034");
+    assert_eq!(res.history[1].released, true);
+    assert_eq!(res.history[1].batch_id, 2);
 
-    let expected = (res.history[0].1.withdraw_rate * res.history[0].1.amount)
-        + res.history[1].1.withdraw_rate * res.history[1].1.amount;
+    let expected = (res.history[0].withdraw_rate * res.history[0].amount)
+        + res.history[1].withdraw_rate * res.history[1].amount;
     let sent_message = &success_res.messages[0];
     match sent_message {
         CosmosMsg::Bank(BankMsg::Send {
@@ -2189,13 +2189,13 @@ pub fn proper_recovery_fee() {
     };
     let res: AllHistoryResponse = from_binary(&query(&deps, all_batches).unwrap()).unwrap();
     // amount should be 99 + 99 since we store the requested amount with peg fee applied.
-    assert_eq!(res.history[0].1.amount, bonded_with_fee + bonded_with_fee);
+    assert_eq!(res.history[0].amount, bonded_with_fee + bonded_with_fee);
     assert_eq!(
-        res.history[0].1.withdraw_rate,
+        res.history[0].withdraw_rate,
         Decimal::from_ratio(Uint128(161870), bonded_with_fee + bonded_with_fee)
     );
-    assert_eq!(res.history[0].1.released, true);
-    assert_eq!(res.history[0].0, 1);
+    assert_eq!(res.history[0].released, true);
+    assert_eq!(res.history[0].batch_id, 1);
 }
 
 /// Covers if the storage affected by update_config are updated properly
