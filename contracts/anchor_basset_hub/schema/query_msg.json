@@ -104,25 +104,6 @@
     {
       "type": "object",
       "required": [
-        "unbond_batches"
-      ],
-      "properties": {
-        "unbond_batches": {
-          "type": "object",
-          "required": [
-            "address"
-          ],
-          "properties": {
-            "address": {
-              "$ref": "#/definitions/HumanAddr"
-            }
-          }
-        }
-      }
-    },
-    {
-      "type": "object",
-      "required": [
         "all_history"
       ],
       "properties": {

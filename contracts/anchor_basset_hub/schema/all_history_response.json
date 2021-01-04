@@ -9,19 +9,7 @@
     "history": {
       "type": "array",
       "items": {
-        "type": "array",
-        "items": [
-          {
-            "type": "integer",
-            "format": "uint64",
-            "minimum": 0.0
-          },
-          {
-            "$ref": "#/definitions/UnbondHistory"
-          }
-        ],
-        "maxItems": 2,
-        "minItems": 2
+        "$ref": "#/definitions/UnbondHistory"
       }
     }
   },
@@ -37,6 +25,7 @@
       "type": "object",
       "required": [
         "amount",
+        "batch_id",
         "released",
         "time",
         "withdraw_rate"
@@ -44,6 +33,11 @@
       "properties": {
         "amount": {
           "$ref": "#/definitions/Uint128"
+        },
+        "batch_id": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0.0
         },
         "released": {
           "type": "boolean"

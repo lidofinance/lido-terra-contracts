@@ -128,26 +128,6 @@ pub fn read_unbond_wait_list<'a, S: ReadonlyStorage>(
     res.load(&batch)
 }
 
-//this function is here for test purpose
-pub fn get_unbond_requests_batches<'a, S: ReadonlyStorage>(
-    storage: &'a S,
-    sender_addr: HumanAddr,
-) -> StdResult<Vec<u64>> {
-    let vec = to_vec(&sender_addr)?;
-    let mut batches: Vec<u64> = vec![];
-    let res: ReadonlyBucket<'a, S, Uint128> =
-        ReadonlyBucket::multilevel(&[PREFIX_WAIT_MAP, &vec], storage);
-    let _un: Vec<_> = res
-        .range(None, None, Order::Ascending)
-        .map(|item| {
-            let (k, _) = item.unwrap();
-            let batch: u64 = from_slice(&k).unwrap();
-            batches.push(batch);
-        })
-        .collect();
-    Ok(batches)
-}
-
 pub fn get_unbond_requests<'a, S: ReadonlyStorage>(
     storage: &'a S,
     sender_addr: HumanAddr,
