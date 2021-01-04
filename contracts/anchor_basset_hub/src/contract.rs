@@ -10,14 +10,12 @@ use crate::config::{
 };
 use crate::msg::{
     AllHistoryResponse, ConfigResponse, CurrentBatchResponse, InitMsg, QueryMsg, StateResponse,
-    UnbondBatchesResponse, UnbondRequestsResponse, WhitelistedValidatorsResponse,
-    WithdrawableUnbondedResponse,
+    UnbondRequestsResponse, WhitelistedValidatorsResponse, WithdrawableUnbondedResponse,
 };
 use crate::state::{
-    all_unbond_history, get_unbond_requests, get_unbond_requests_batches,
-    query_get_finished_amount, read_config, read_current_batch, read_parameters, read_state,
-    read_valid_validators, read_validators, store_config, store_current_batch, store_parameters,
-    store_state, CurrentBatch, Parameters,
+    all_unbond_history, get_unbond_requests, query_get_finished_amount, read_config,
+    read_current_batch, read_parameters, read_state, read_valid_validators, read_validators,
+    store_config, store_current_batch, store_parameters, store_state, CurrentBatch, Parameters,
 };
 use crate::unbond::{handle_unbond, handle_withdraw_unbonded};
 
@@ -287,7 +285,6 @@ pub fn query<S: Storage, A: Api, Q: Querier>(
         } => to_binary(&query_withdrawable_unbonded(&deps, address, block_time)?),
         QueryMsg::Parameters {} => to_binary(&query_params(&deps)?),
         QueryMsg::UnbondRequests { address } => to_binary(&query_unbond_requests(&deps, address)?),
-        QueryMsg::UnbondBatches { address } => to_binary(&query_user_batches(&deps, address)?),
         QueryMsg::AllHistory { start_from, limit } => {
             to_binary(&query_unbond_requests_limitation(&deps, start_from, limit)?)
         }
@@ -387,17 +384,6 @@ pub(crate) fn query_total_issued<S: Storage, A: Api, Q: Querier>(
     }))?;
     let token_info: TokenInfo = from_binary(&res)?;
     Ok(token_info.total_supply)
-}
-
-fn query_user_batches<S: Storage, A: Api, Q: Querier>(
-    deps: &Extern<S, A, Q>,
-    address: HumanAddr,
-) -> StdResult<UnbondBatchesResponse> {
-    let requests = get_unbond_requests_batches(&deps.storage, address)?;
-    let res = UnbondBatchesResponse {
-        unbond_batches: requests,
-    };
-    Ok(res)
 }
 
 fn query_unbond_requests<S: Storage, A: Api, Q: Querier>(

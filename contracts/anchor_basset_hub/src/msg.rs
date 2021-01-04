@@ -31,9 +31,6 @@ pub enum QueryMsg {
     UnbondRequests {
         address: HumanAddr,
     },
-    UnbondBatches {
-        address: HumanAddr,
-    },
     AllHistory {
         start_from: Option<u64>,
         limit: Option<u32>,
@@ -77,11 +74,6 @@ pub struct WithdrawableUnbondedResponse {
 pub struct UnbondRequestsResponse {
     pub address: HumanAddr,
     pub requests: UnbondRequest,
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct UnbondBatchesResponse {
-    pub unbond_batches: Vec<u64>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

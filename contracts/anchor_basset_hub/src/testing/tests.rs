@@ -26,8 +26,7 @@ use cosmwasm_std::testing::{mock_dependencies, mock_env};
 
 use crate::msg::{
     AllHistoryResponse, ConfigResponse, CurrentBatchResponse, InitMsg, StateResponse,
-    UnbondBatchesResponse, UnbondRequestsResponse, WhitelistedValidatorsResponse,
-    WithdrawableUnbondedResponse,
+    UnbondRequestsResponse, WhitelistedValidatorsResponse, WithdrawableUnbondedResponse,
 };
 use hub_querier::HandleMsg;
 
@@ -45,7 +44,7 @@ use hub_querier::Registration::{Reward, Token};
 use super::mock_querier::{mock_dependencies as dependencies, WasmMockQuerier};
 use crate::math::decimal_division;
 use crate::msg::QueryMsg::{
-    AllHistory, Config, CurrentBatch, Parameters as Params, State, UnbondBatches, UnbondRequests,
+    AllHistory, Config, CurrentBatch, Parameters as Params, State, UnbondRequests,
     WhitelistedValidators, WithdrawableUnbonded,
 };
 use crate::state::{read_config, read_unbond_wait_list, Parameters};
@@ -1371,17 +1370,6 @@ pub fn proper_withdraw_unbonded() {
     assert_eq!(res.requests[0].1, Uint128(20));
     assert_eq!(res.requests[0].0, 1);
 
-    //first query AllUnbondedEpochs
-    let all_user_epochs = UnbondBatches {
-        address: bob.clone(),
-    };
-
-    let query_epochs = query(&deps, all_user_epochs).unwrap();
-    let res: UnbondBatchesResponse = from_binary(&query_epochs).unwrap();
-    assert_eq!(res.unbond_batches.len(), 1);
-    //the epoch should be zero
-    assert_eq!(res.unbond_batches[0], 1);
-
     let all_batches = AllHistory {
         start_from: None,
         limit: None,
@@ -1435,18 +1423,8 @@ pub fn proper_withdraw_unbonded() {
     assert_eq!(
         query_unbond,
         UnbondRequestsResponse {
-            address: bob.clone(),
+            address: bob,
             requests: vec![]
-        }
-    );
-
-    let batches = UnbondBatches { address: bob };
-    let query_batches: UnbondBatchesResponse =
-        from_binary(&query(&deps, batches).unwrap()).unwrap();
-    assert_eq!(
-        query_batches,
-        UnbondBatchesResponse {
-            unbond_batches: vec![]
         }
     );
 
@@ -1562,17 +1540,6 @@ pub fn proper_withdraw_unbonded_respect_slashing() {
     assert_eq!(&res.address, &bob);
     assert_eq!(res.requests[0].1, Uint128(1000));
     assert_eq!(res.requests[0].0, 1);
-
-    //first query AllUnbondedEpochs
-    let all_user_epochs = UnbondBatches {
-        address: bob.clone(),
-    };
-
-    let query_epochs = query(&deps, all_user_epochs).unwrap();
-    let res: UnbondBatchesResponse = from_binary(&query_epochs).unwrap();
-    assert_eq!(res.unbond_batches.len(), 1);
-    //the epoch should be zero
-    assert_eq!(res.unbond_batches[0], 1);
 
     //check with query
     //this query does not reflect the actual withdrawable
@@ -1742,17 +1709,6 @@ pub fn proper_withdraw_unbonded_respect_inactivity_slashing() {
     assert_eq!(&res.address, &bob);
     assert_eq!(res.requests[0].1, Uint128(1000));
     assert_eq!(res.requests[0].0, 1);
-
-    //first query AllUnbondedEpochs
-    let all_user_epochs = UnbondBatches {
-        address: bob.clone(),
-    };
-
-    let query_epochs = query(&deps, all_user_epochs).unwrap();
-    let res: UnbondBatchesResponse = from_binary(&query_epochs).unwrap();
-    assert_eq!(res.unbond_batches.len(), 1);
-    //the epoch should be zero
-    assert_eq!(res.unbond_batches[0], 1);
 
     //check with query
     //this query does not reflect the actual withdrawable

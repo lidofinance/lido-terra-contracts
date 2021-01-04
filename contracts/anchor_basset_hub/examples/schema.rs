@@ -5,8 +5,7 @@ use cosmwasm_schema::{export_schema, remove_schemas, schema_for};
 
 use anchor_basset_hub::msg::{
     AllHistoryResponse, CurrentBatchResponse, InitMsg, QueryMsg, StateResponse,
-    UnbondBatchesResponse, UnbondRequestsResponse, WhitelistedValidatorsResponse,
-    WithdrawableUnbondedResponse,
+    UnbondRequestsResponse, WhitelistedValidatorsResponse, WithdrawableUnbondedResponse,
 };
 use anchor_basset_hub::state::Parameters;
 use hub_querier::{Config, HandleMsg, State};
@@ -27,7 +26,6 @@ fn main() {
     export_schema(&schema_for!(WhitelistedValidatorsResponse), &out_dir);
     export_schema(&schema_for!(WithdrawableUnbondedResponse), &out_dir);
     export_schema(&schema_for!(UnbondRequestsResponse), &out_dir);
-    export_schema(&schema_for!(UnbondBatchesResponse), &out_dir);
     export_schema(&schema_for!(CurrentBatchResponse), &out_dir);
     export_schema(&schema_for!(AllHistoryResponse), &out_dir);
 }
