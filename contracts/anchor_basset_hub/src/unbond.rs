@@ -90,6 +90,7 @@ pub(crate) fn handle_unbond<S: Storage, A: Api, Q: Querier>(
 
         // Store history for withdraw unbonded
         let history = UnbondHistory {
+            batch_id: current_batch.id,
             time: env.block.time,
             amount: current_batch.requested_with_fee,
             withdraw_rate: state.exchange_rate,
