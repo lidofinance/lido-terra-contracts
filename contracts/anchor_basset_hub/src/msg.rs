@@ -4,7 +4,6 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 pub type UnbondRequest = Vec<(u64, Uint128)>;
-pub type History = Vec<UnbondHistory>;
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct InitMsg {
@@ -78,5 +77,5 @@ pub struct UnbondRequestsResponse {
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct AllHistoryResponse {
-    pub history: History,
+    pub history: Vec<UnbondHistory>,
 }
