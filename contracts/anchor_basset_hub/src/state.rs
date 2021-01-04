@@ -10,7 +10,7 @@ use cosmwasm_storage::{
     ReadonlySingleton, Singleton,
 };
 
-use crate::msg::{History, UnbondRequest};
+use crate::msg::UnbondRequest;
 use hub_querier::{Config, State};
 
 pub type LastBatch = u64;
@@ -323,7 +323,7 @@ pub fn all_unbond_history<'a, S: ReadonlyStorage>(
     storage: &'a S,
     start: Option<u64>,
     limit: Option<u32>,
-) -> StdResult<History> {
+) -> StdResult<Vec<UnbondHistory>> {
     let vec = convert(start);
     // vec = Some(to_vec(&start.unwrap())?);
 
