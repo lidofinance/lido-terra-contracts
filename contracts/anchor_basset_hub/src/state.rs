@@ -343,10 +343,13 @@ pub fn all_unbond_history<'a, S: ReadonlyStorage>(
     start: Option<u64>,
     limit: Option<u32>,
 ) -> StdResult<History> {
-    let s = convert(start);
+    let mut vec = None;
+    if start.is_some() {
+        vec = Some(to_vec(&start.unwrap())?);
+    }
     let lim = limit.unwrap_or(DEFAULT_LIMIT).min(MAX_LIMIT) as usize;
     let res = ReadonlyPrefixedStorage::new(UNBOND_HISTORY_MAP, storage)
-        .range(s.as_deref(), None, Order::Ascending)
+        .range(vec.as_deref(), None, Order::Ascending)
         .take(lim)
         .map(|item| {
             let history: UnbondHistory = from_slice(&item.1).unwrap();
@@ -355,12 +358,4 @@ pub fn all_unbond_history<'a, S: ReadonlyStorage>(
         })
         .collect();
     res
-}
-
-fn convert(start_after: Option<u64>) -> Option<Vec<u8>> {
-    start_after.map(|idx| {
-        let mut v = idx.to_be_bytes().to_vec();
-        v.push(1);
-        v
-    })
 }
