@@ -14,8 +14,8 @@ use crate::msg::{
 };
 use crate::state::{
     all_unbond_history, get_unbond_requests, query_get_finished_amount, read_config,
-    read_current_batch, read_parameters, read_state, read_valid_validators, read_validators,
-    store_config, store_current_batch, store_parameters, store_state, CurrentBatch, Parameters,
+    read_current_batch, read_parameters, read_state, read_valid_validators, store_config,
+    store_current_batch, store_parameters, store_state, CurrentBatch, Parameters,
 };
 use crate::unbond::{handle_unbond, handle_withdraw_unbonded};
 
@@ -164,11 +164,8 @@ pub fn handle_update_global<S: Storage, A: Api, Q: Querier>(
             .expect("the reward contract must have been registered"),
     )?;
 
-    // Retrieve all validators
-    let validators: Vec<HumanAddr> = read_validators(&deps.storage)?;
-
     // Send withdraw message
-    let mut withdraw_msgs = withdraw_all_rewards(validators);
+    let mut withdraw_msgs = withdraw_all_rewards(deps, env.contract.address.clone());
     messages.append(&mut withdraw_msgs);
 
     // Send Swap message to reward contract
@@ -210,11 +207,18 @@ pub fn handle_update_global<S: Storage, A: Api, Q: Querier>(
 }
 
 /// Create withdraw requests for all validators
-fn withdraw_all_rewards(validators: Vec<HumanAddr>) -> Vec<CosmosMsg> {
+fn withdraw_all_rewards<S: Storage, A: Api, Q: Querier>(
+    deps: &mut Extern<S, A, Q>,
+    delegator: HumanAddr,
+) -> Vec<CosmosMsg> {
     let mut messages: Vec<CosmosMsg> = vec![];
-    for val in validators {
+    let delegations = deps
+        .querier
+        .query_all_delegations(delegator)
+        .expect("There must be at least one delegation");
+    for delegation in delegations {
         let msg: CosmosMsg = CosmosMsg::Staking(StakingMsg::Withdraw {
-            validator: val,
+            validator: delegation.validator,
             recipient: None,
         });
         messages.push(msg)
@@ -403,33 +407,4 @@ fn query_unbond_requests_limitation<S: Storage, A: Api, Q: Querier>(
     let requests = all_unbond_history(&deps.storage, start, limit)?;
     let res = AllHistoryResponse { history: requests };
     Ok(res)
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use cosmwasm_std::HumanAddr;
-
-    #[test]
-    pub fn proper_withdraw_all() {
-        let mut validators: Vec<HumanAddr> = vec![];
-        for i in 0..10 {
-            let address = format!("{}{}", "addr", i.to_string());
-            validators.push(HumanAddr::from(address));
-        }
-        let res = withdraw_all_rewards(validators);
-        assert_eq!(res.len(), 10);
-        for i in 1..10 {
-            match res.get(i).unwrap() {
-                CosmosMsg::Staking(StakingMsg::Withdraw {
-                    validator: val,
-                    recipient: _,
-                }) => {
-                    let address = format!("{}{}", "addr", i.to_string());
-                    assert_eq!(val, &HumanAddr::from(address));
-                }
-                _ => panic!("Unexpected message: {:?}", res.get(i).unwrap()),
-            }
-        }
-    }
 }
