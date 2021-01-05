@@ -328,13 +328,13 @@ fn pick_validator<S: Storage, A: Api, Q: Querier>(
     while claimed.0 > 0 {
         let random_index = rng.gen_range(0, validators.len());
         let validator: HumanAddr = HumanAddr::from(validators.get(random_index).unwrap());
-        let val = deps
+        let delegation = deps
             .querier
-            .query_delegation(delegator.clone(), validator.clone())
-            .unwrap()
-            .unwrap()
-            .amount
-            .amount;
+            .query_delegation(delegator.clone(), validator.clone());
+        if delegation.is_err() {
+            continue;
+        }
+        let val = delegation.unwrap().unwrap().amount.amount;
         let undelegated_amount: Uint128;
         if val.0 > claimed.0 {
             undelegated_amount = claimed;

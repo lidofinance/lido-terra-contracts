@@ -601,6 +601,14 @@ pub fn proper_update_global_index() {
     // bond
     do_bond(&mut deps, addr1.clone(), bond_amount, validator.clone());
 
+    //set delegation for query-all-delegation
+    let delegations: [FullDelegation; 1] =
+        [(sample_delegation(validator.address.clone(), coin(bond_amount.0, "uluna")))];
+
+    let validators: [Validator; 1] = [(validator.clone())];
+
+    set_delegation_query(&mut deps.querier, &delegations, &validators);
+
     //set bob's balance to 10 in token contract
     deps.querier
         .with_token_balances(&[(&HumanAddr::from("token"), &[(&addr1, &bond_amount)])]);
@@ -694,6 +702,15 @@ pub fn proper_update_global_index_two_validators() {
     // bond to the second validator
     do_bond(&mut deps, addr1.clone(), Uint128(10), validator2.clone());
 
+    //set delegation for query-all-delegation
+    let delegations: [FullDelegation; 2] = [
+        (sample_delegation(validator.address.clone(), coin(10, "uluna"))),
+        (sample_delegation(validator2.address.clone(), coin(10, "uluna"))),
+    ];
+
+    let validators: [Validator; 2] = [(validator.clone()), (validator2.clone())];
+    set_delegation_query(&mut deps.querier, &delegations, &validators);
+
     //set bob's balance to 10 in token contract
     deps.querier
         .with_token_balances(&[(&HumanAddr::from("token"), &[(&addr1, &Uint128(20u128))])]);
@@ -723,6 +740,67 @@ pub fn proper_update_global_index_two_validators() {
             recipient,
         }) => {
             assert_eq!(val, &validator2.address);
+            assert_eq!(recipient.is_none(), true);
+        }
+        _ => panic!("Unexpected message: {:?}", withdraw),
+    }
+}
+
+/// Covers update_global_index when more than on validator is registered, but
+/// there is only a delegation to only one of them.
+/// Checks if one Withdraw message is sent.
+#[test]
+pub fn proper_update_global_index_respect_one_registered_validator() {
+    let mut deps = dependencies(20, &[]);
+    let validator = sample_validator(DEFAULT_VALIDATOR);
+    let validator2 = sample_validator(DEFAULT_VALIDATOR2);
+    set_validator_mock(&mut deps.querier);
+
+    let addr1 = HumanAddr::from("addr1000");
+
+    let owner = HumanAddr::from("owner1");
+    let token_contract = HumanAddr::from("token");
+    let reward_contract = HumanAddr::from("reward");
+
+    initialize(&mut deps, owner, reward_contract, token_contract);
+
+    // register_validator
+    do_register_validator(&mut deps, validator.clone());
+
+    // bond
+    do_bond(&mut deps, addr1.clone(), Uint128(10), validator.clone());
+
+    //set bob's balance to 10 in token contract
+    deps.querier
+        .with_token_balances(&[(&HumanAddr::from("token"), &[(&addr1, &Uint128(10u128))])]);
+
+    // register_validator 2 but will not bond anything to it
+    do_register_validator(&mut deps, validator2);
+
+    //set delegation for query-all-delegation
+    let delegations: [FullDelegation; 1] =
+        [(sample_delegation(validator.address.clone(), coin(10, "uluna")))];
+
+    let validators: [Validator; 1] = [(validator.clone())];
+    set_delegation_query(&mut deps.querier, &delegations, &validators);
+
+    //set bob's balance to 10 in token contract
+    deps.querier
+        .with_token_balances(&[(&HumanAddr::from("token"), &[(&addr1, &Uint128(20u128))])]);
+
+    let reward_msg = HandleMsg::UpdateGlobalIndex {};
+
+    let env = mock_env(&addr1, &[]);
+    let res = handle(&mut deps, env, reward_msg).unwrap();
+    assert_eq!(3, res.messages.len());
+
+    let withdraw = &res.messages[0];
+    match withdraw {
+        CosmosMsg::Staking(StakingMsg::Withdraw {
+            validator: val,
+            recipient,
+        }) => {
+            assert_eq!(val, &validator.address);
             assert_eq!(recipient.is_none(), true);
         }
         _ => panic!("Unexpected message: {:?}", withdraw),
@@ -1029,7 +1107,7 @@ pub fn proper_pick_validator() {
         (validator2.clone()),
         (validator3.clone()),
     ];
-    set_delegation_pick(&mut deps.querier, &delegations, &validators);
+    set_delegation_query(&mut deps.querier, &delegations, &validators);
     deps.querier.with_token_balances(&[(
         &HumanAddr::from("token"),
         &[
@@ -2286,7 +2364,7 @@ fn set_delegation(querier: &mut WasmMockQuerier, validator: Validator, amount: u
     );
 }
 
-fn set_delegation_pick(
+fn set_delegation_query(
     querier: &mut WasmMockQuerier,
     delegate: &[FullDelegation],
     validators: &[Validator],
