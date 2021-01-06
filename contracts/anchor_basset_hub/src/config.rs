@@ -251,14 +251,13 @@ pub fn handle_deregister_validator<S: Storage, A: Api, Q: Querier>(
     let validators = read_validators(&deps.storage)?;
 
     // redelegate the amount to a random validator.
-    // another validator must be randomly chose to redelgate to
     let block_height = env.block.height;
     let mut rng = XorShiftRng::seed_from_u64(block_height);
     let random_index = rng.gen_range(0, validators.len());
     let replaced_val = HumanAddr::from(validators.get(random_index).unwrap());
     messages.push(CosmosMsg::Staking(StakingMsg::Redelegate {
         src_validator: validator.clone(),
-        dst_validator: replaced_val,
+        dst_validator: replaced_val.clone(),
         amount: delegated_amount,
     }));
 
@@ -274,6 +273,7 @@ pub fn handle_deregister_validator<S: Storage, A: Api, Q: Querier>(
         log: vec![
             log("action", "de_register_validator"),
             log("validator", validator),
+            log("new-validator", replaced_val),
         ],
         data: None,
     };

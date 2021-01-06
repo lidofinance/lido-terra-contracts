@@ -1198,6 +1198,91 @@ pub fn proper_pick_validator() {
     }
 }
 
+/// Covers if the pick_validator function sends different Undelegate messages
+/// if the delegations of the user are distributed to several validators
+/// and if the user wants to unbond amount that none of validators has.
+#[test]
+pub fn proper_pick_validator_respect_distributed_delegation() {
+    let mut deps = dependencies(20, &[]);
+
+    let addr1 = HumanAddr::from("addr1000");
+    let addr2 = HumanAddr::from("addr2000");
+
+    // create 3 validators
+    let validator = sample_validator(DEFAULT_VALIDATOR);
+    let validator2 = sample_validator(DEFAULT_VALIDATOR2);
+    let validator3 = sample_validator(DEFAULT_VALIDATOR3);
+
+    set_validator_mock(&mut deps.querier);
+
+    let owner = HumanAddr::from("owner1");
+    let token_contract = HumanAddr::from("token");
+    let reward_contract = HumanAddr::from("reward");
+
+    initialize(&mut deps, owner, reward_contract, token_contract.clone());
+
+    do_register_validator(&mut deps, validator.clone());
+    do_register_validator(&mut deps, validator2.clone());
+    do_register_validator(&mut deps, validator3.clone());
+
+    // bond to a validator
+    do_bond(&mut deps, addr1.clone(), Uint128(1000), validator.clone());
+    do_bond(&mut deps, addr1.clone(), Uint128(1500), validator2.clone());
+
+    // give validators different delegation amount
+    let delegations: [FullDelegation; 2] = [
+        (sample_delegation(validator.address.clone(), coin(1000, "uluna"))),
+        (sample_delegation(validator2.address.clone(), coin(1500, "uluna"))),
+    ];
+
+    let validators: [Validator; 2] = [(validator.clone()), (validator2.clone())];
+    set_delegation_query(&mut deps.querier, &delegations, &validators);
+
+    deps.querier
+        .with_token_balances(&[(&HumanAddr::from("token"), &[(&addr1, &Uint128(2500))])]);
+
+    // send the first burn
+    let mut token_env = mock_env(&token_contract, &[]);
+
+    token_env.block.time += 40;
+
+    let res = do_unbond(&mut deps, addr2.clone(), token_env.clone(), Uint128(2000));
+    assert_eq!(res.messages.len(), 3);
+
+    //check if the undelegate message is send two more than one validator.
+    if res.messages.len() > 2 {
+        match &res.messages[0] {
+            CosmosMsg::Staking(StakingMsg::Undelegate {
+                validator: val,
+                amount,
+            }) => {
+                if val == &validator.address {
+                    assert_eq!(amount.amount, Uint128(1000))
+                }
+                if val == &validator2.address {
+                    assert_eq!(amount.amount, Uint128(1500))
+                }
+            }
+            _ => panic!("Unexpected message: {:?}", &res.messages[1]),
+        }
+
+        match &res.messages[1] {
+            CosmosMsg::Staking(StakingMsg::Undelegate {
+                validator: val,
+                amount,
+            }) => {
+                if val == &validator.address {
+                    assert_eq!(amount.amount, Uint128(500))
+                }
+                if val == &validator2.address {
+                    assert_eq!(amount.amount, Uint128(1000))
+                }
+            }
+            _ => panic!("Unexpected message: {:?}", &res.messages[2]),
+        }
+    }
+}
+
 /// Covers the effect of slashing of bond, unbond, and withdraw_unbonded
 /// update the exchange rate after and before slashing.
 #[test]

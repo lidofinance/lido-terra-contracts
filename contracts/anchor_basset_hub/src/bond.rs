@@ -82,7 +82,7 @@ pub fn handle_bond<S: Storage, A: Api, Q: Querier>(
     let token_address = deps.api.human_address(
         &config
             .token_contract
-            .expect("the reward contract must have been registered"),
+            .expect("the token contract must have been registered"),
     )?;
 
     messages.push(CosmosMsg::Wasm(WasmMsg::Execute {

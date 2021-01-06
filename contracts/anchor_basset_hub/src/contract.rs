@@ -165,7 +165,7 @@ pub fn handle_update_global<S: Storage, A: Api, Q: Querier>(
     )?;
 
     // Send withdraw message
-    let mut withdraw_msgs = withdraw_all_rewards(deps, env.contract.address.clone());
+    let mut withdraw_msgs = withdraw_all_rewards(deps, env.contract.address.clone())?;
     messages.append(&mut withdraw_msgs);
 
     // Send Swap message to reward contract
@@ -210,7 +210,7 @@ pub fn handle_update_global<S: Storage, A: Api, Q: Querier>(
 fn withdraw_all_rewards<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
     delegator: HumanAddr,
-) -> Vec<CosmosMsg> {
+) -> StdResult<Vec<CosmosMsg>> {
     let mut messages: Vec<CosmosMsg> = vec![];
     let delegations = deps
         .querier
@@ -223,7 +223,7 @@ fn withdraw_all_rewards<S: Storage, A: Api, Q: Querier>(
         });
         messages.push(msg)
     }
-    messages
+    Ok(messages)
 }
 
 /// Check whether slashing has happened
