@@ -2,8 +2,8 @@ use crate::contract::{query_total_issued, slashing};
 use crate::math::decimal_subtraction;
 use crate::state::{
     get_finished_amount, get_unbond_batches, read_config, read_current_batch, read_parameters,
-    read_state, read_unbond_history, read_validators, remove_unbond_wait_list, store_current_batch,
-    store_state, store_unbond_history, store_unbond_wait_list, UnbondHistory,
+    read_state, read_unbond_history, remove_unbond_wait_list, store_current_batch, store_state,
+    store_unbond_history, store_unbond_wait_list, UnbondHistory,
 };
 use cosmwasm_std::{
     coin, coins, log, to_binary, Api, BankMsg, CosmosMsg, Decimal, Env, Extern, HandleResponse,
@@ -54,7 +54,7 @@ pub(crate) fn handle_unbond<S: Storage, A: Api, Q: Querier>(
 
     let mut total_supply = query_total_issued(&deps).unwrap_or_default();
     total_supply =
-        (total_supply - amount).expect("the requested must not be more than the total supply");
+        (total_supply - amount).expect("the requested can not be more than the total supply");
 
     // Update exchange rate
     state.update_exchange_rate(total_supply, current_batch.requested_with_fee);
@@ -71,22 +71,16 @@ pub(crate) fn handle_unbond<S: Storage, A: Api, Q: Querier>(
 
         let delegator = env.contract.address;
 
-        let all_validators = read_validators(&deps.storage).unwrap();
         let block_height = env.block.height;
 
         // Send undelegated requests to possibly more than one validators
-        let mut undelegated_msgs = pick_validator(
-            deps,
-            all_validators,
-            undelegation_amount,
-            delegator,
-            block_height,
-        )?;
+        let mut undelegated_msgs =
+            pick_validator(deps, undelegation_amount, delegator, block_height)?;
 
         messages.append(&mut undelegated_msgs);
 
         state.total_bond_amount = (state.total_bond_amount - undelegation_amount)
-            .expect("undelegation amount must not be more than stored total bonded amount");
+            .expect("undelegation amount can not be more than stored total bonded amount");
 
         // Store history for withdraw unbonded
         let history = UnbondHistory {
@@ -310,7 +304,6 @@ fn process_withdraw_rate<S: Storage, A: Api, Q: Querier>(
 
 fn pick_validator<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
-    validators: Vec<HumanAddr>,
     claim: Uint128,
     delegator: HumanAddr,
     block_height: u64,
@@ -321,33 +314,35 @@ fn pick_validator<S: Storage, A: Api, Q: Querier>(
 
     let mut messages: Vec<CosmosMsg> = vec![];
     let mut claimed = claim;
-    let mut rng = XorShiftRng::seed_from_u64(block_height);
+
+    let all_delegations = deps
+        .querier
+        .query_all_delegations(delegator)
+        .expect("There must be at least one delegation");
     // pick a random validator
-    // if it does not have, undelegate all it has
+    // if it does not have requested amount, undelegate all it has
     // and pick another random validator
+    let mut iteration_index = 0;
+    let mut deletable_delegations = all_delegations;
     while claimed.0 > 0 {
-        let random_index = rng.gen_range(0, validators.len());
-        let validator: HumanAddr = HumanAddr::from(validators.get(random_index).unwrap());
-        let delegation = deps
-            .querier
-            .query_delegation(delegator.clone(), validator.clone());
-        if delegation.is_err() {
-            continue;
-        }
-        let val = delegation.unwrap().unwrap().amount.amount;
+        let mut rng = XorShiftRng::seed_from_u64(block_height + iteration_index);
+        let random_index = rng.gen_range(0, deletable_delegations.len());
+        let delegation = deletable_delegations.remove(random_index);
+        let val = delegation.amount.amount;
         let undelegated_amount: Uint128;
         if val.0 > claimed.0 {
             undelegated_amount = claimed;
             claimed = Uint128::zero();
         } else {
             undelegated_amount = val;
-            claimed = Uint128(claimed.0 - val.0);
+            claimed = (claimed - val)?;
         }
         let msgs: CosmosMsg = CosmosMsg::Staking(StakingMsg::Undelegate {
-            validator,
+            validator: delegation.validator,
             amount: coin(undelegated_amount.0, &*coin_denom),
         });
         messages.push(msgs);
+        iteration_index += 1;
     }
     Ok(messages)
 }
