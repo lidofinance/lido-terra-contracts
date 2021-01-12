@@ -325,7 +325,6 @@ pub fn all_unbond_history<'a, S: ReadonlyStorage>(
     limit: Option<u32>,
 ) -> StdResult<Vec<UnbondHistory>> {
     let vec = convert(start);
-    // vec = Some(to_vec(&start.unwrap())?);
 
     let lim = limit.unwrap_or(DEFAULT_LIMIT).min(MAX_LIMIT) as usize;
     let res = ReadonlyPrefixedStorage::new(UNBOND_HISTORY_MAP, storage)

@@ -1223,7 +1223,7 @@ pub fn proper_pick_validator_respect_distributed_delegation() {
 
     do_register_validator(&mut deps, validator.clone());
     do_register_validator(&mut deps, validator2.clone());
-    do_register_validator(&mut deps, validator3.clone());
+    do_register_validator(&mut deps, validator3);
 
     // bond to a validator
     do_bond(&mut deps, addr1.clone(), Uint128(1000), validator.clone());
@@ -1246,7 +1246,7 @@ pub fn proper_pick_validator_respect_distributed_delegation() {
 
     token_env.block.time += 40;
 
-    let res = do_unbond(&mut deps, addr2.clone(), token_env.clone(), Uint128(2000));
+    let res = do_unbond(&mut deps, addr2, token_env, Uint128(2000));
     assert_eq!(res.messages.len(), 3);
 
     //check if the undelegate message is send two more than one validator.
@@ -1418,7 +1418,7 @@ pub fn proper_slashing() {
         }) => {
             assert_eq!(from_address.0, MOCK_CONTRACT_ADDR);
             assert_eq!(to_address, &addr1);
-            assert_eq!(amount[0].amount, Uint128(900))
+            assert_eq!(amount[0].amount, Uint128(899))
         }
 
         _ => panic!("Unexpected message: {:?}", sent_message),
@@ -1563,7 +1563,7 @@ pub fn proper_withdraw_unbonded() {
         }) => {
             assert_eq!(from_address.0, MOCK_CONTRACT_ADDR);
             assert_eq!(to_address, &bob);
-            assert_eq!(amount[0].amount, Uint128(20))
+            assert_eq!(amount[0].amount, Uint128(19))
         }
 
         _ => panic!("Unexpected message: {:?}", sent_message),
@@ -1591,9 +1591,10 @@ pub fn proper_withdraw_unbonded() {
         }
     );
 
+    // because of one that we add for each batch
     let state = State {};
     let state_query: StateResponse = from_binary(&query(&deps, state).unwrap()).unwrap();
-    assert_eq!(state_query.prev_hub_balance, Uint128::zero());
+    assert_eq!(state_query.prev_hub_balance, Uint128(1));
 }
 
 /// Covers slashing during the unbonded period and its effect on the finished amount.
@@ -1727,7 +1728,7 @@ pub fn proper_withdraw_unbonded_respect_slashing() {
         }) => {
             assert_eq!(from_address.0, MOCK_CONTRACT_ADDR);
             assert_eq!(to_address, &bob);
-            assert_eq!(amount[0].amount, Uint128(900))
+            assert_eq!(amount[0].amount, Uint128(899))
         }
 
         _ => panic!("Unexpected message: {:?}", sent_message),
@@ -1896,7 +1897,7 @@ pub fn proper_withdraw_unbonded_respect_inactivity_slashing() {
         }) => {
             assert_eq!(from_address.0, MOCK_CONTRACT_ADDR);
             assert_eq!(to_address, &bob);
-            assert_eq!(amount[0].amount, Uint128(900))
+            assert_eq!(amount[0].amount, Uint128(899))
         }
 
         _ => panic!("Unexpected message: {:?}", sent_message),
@@ -1917,7 +1918,7 @@ pub fn proper_withdraw_unbonded_respect_inactivity_slashing() {
     };
     let res: AllHistoryResponse = from_binary(&query(&deps, all_batches).unwrap()).unwrap();
     assert_eq!(res.history[0].amount, Uint128(1000));
-    assert_eq!(res.history[0].withdraw_rate.to_string(), "0.9");
+    assert_eq!(res.history[0].withdraw_rate.to_string(), "0.899");
     assert_eq!(res.history[0].released, true);
     assert_eq!(res.history[0].batch_id, 1);
 }
@@ -2018,11 +2019,11 @@ pub fn proper_withdraw_unbond_with_dummies() {
     };
     let res: AllHistoryResponse = from_binary(&query(&deps, all_batches).unwrap()).unwrap();
     assert_eq!(res.history[0].amount, Uint128(1000));
-    assert_eq!(res.history[0].withdraw_rate.to_string(), "1.165");
+    assert_eq!(res.history[0].withdraw_rate.to_string(), "1.164");
     assert_eq!(res.history[0].released, true);
     assert_eq!(res.history[0].batch_id, 1);
     assert_eq!(res.history[1].amount, Uint128(1000));
-    assert_eq!(res.history[1].withdraw_rate.to_string(), "1.034");
+    assert_eq!(res.history[1].withdraw_rate.to_string(), "1.033");
     assert_eq!(res.history[1].released, true);
     assert_eq!(res.history[1].batch_id, 2);
 
@@ -2199,8 +2200,13 @@ pub fn proper_recovery_fee() {
     let env = mock_env(&bob, &[coin(bond_amount.0, "uluna")]);
 
     let res = handle(&mut deps, env, bond_msg).unwrap();
-    let expected = decimal_division(bond_amount, Decimal::from_ratio(Uint128(9), Uint128(10)))
-        * Decimal::from_ratio(Uint128(999), Uint128(1000));
+    let mint_amount = decimal_division(bond_amount, Decimal::from_ratio(Uint128(9), Uint128(10)));
+    let max_peg_fee = mint_amount * parmas.peg_recovery_fee;
+    let required_peg_fee =
+        ((bond_amount + mint_amount + Uint128::zero()) - (Uint128(900000) + bond_amount)).unwrap();
+    let peg_fee = Uint128::min(max_peg_fee, required_peg_fee);
+    let mint_amount_with_fee = (mint_amount - peg_fee).unwrap();
+
     let mint_msg = &res.messages[1];
     match mint_msg {
         CosmosMsg::Wasm(WasmMsg::Execute {
@@ -2211,7 +2217,7 @@ pub fn proper_recovery_fee() {
             msg,
             &to_binary(&Mint {
                 recipient: bob.clone(),
-                amount: expected
+                amount: mint_amount_with_fee
             })
             .unwrap()
         ),
@@ -2288,7 +2294,9 @@ pub fn proper_recovery_fee() {
 
     let sent_message = &wdraw_unbonded_res.messages[0];
     let expected =
-        expected * new_exchange * Decimal::from_ratio(Uint128(161870), expected * new_exchange);
+        ((expected * new_exchange * Decimal::from_ratio(Uint128(161870), expected * new_exchange))
+            - Uint128(1))
+        .unwrap();
     match sent_message {
         CosmosMsg::Bank(BankMsg::Send {
             from_address,
@@ -2311,7 +2319,7 @@ pub fn proper_recovery_fee() {
     assert_eq!(res.history[0].amount, bonded_with_fee + bonded_with_fee);
     assert_eq!(
         res.history[0].withdraw_rate,
-        Decimal::from_ratio(Uint128(161870), bonded_with_fee + bonded_with_fee)
+        Decimal::from_ratio(Uint128(161869), bonded_with_fee + bonded_with_fee)
     );
     assert_eq!(res.history[0].released, true);
     assert_eq!(res.history[0].batch_id, 1);
