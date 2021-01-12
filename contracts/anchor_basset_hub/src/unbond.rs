@@ -1,5 +1,4 @@
 use crate::contract::{query_total_issued, slashing};
-use crate::math::decimal_subtraction;
 use crate::state::{
     get_finished_amount, get_unbond_batches, read_config, read_current_batch, read_parameters,
     read_state, read_unbond_history, remove_unbond_wait_list, store_current_batch, store_state,
@@ -34,12 +33,17 @@ pub(crate) fn handle_unbond<S: Storage, A: Api, Q: Querier>(
 
     let mut state = read_state(&deps.storage).load()?;
 
+    let mut total_supply = query_total_issued(&deps).unwrap_or_default();
+
     // Collect all the requests within a epoch period
     // Apply peg recovery fee
     let amount_with_fee: Uint128;
     if state.exchange_rate < threshold {
-        let peg_fee = decimal_subtraction(Decimal::one(), recovery_fee);
-        amount_with_fee = amount * peg_fee;
+        let max_peg_fee = amount * recovery_fee;
+        let required_peg_fee =
+            ((total_supply + current_batch.requested_with_fee) - state.total_bond_amount)?;
+        let peg_fee = Uint128::min(max_peg_fee, required_peg_fee);
+        amount_with_fee = (amount - peg_fee)?;
     } else {
         amount_with_fee = amount;
     }
@@ -52,7 +56,6 @@ pub(crate) fn handle_unbond<S: Storage, A: Api, Q: Querier>(
         amount_with_fee,
     )?;
 
-    let mut total_supply = query_total_issued(&deps).unwrap_or_default();
     total_supply =
         (total_supply - amount).expect("the requested can not be more than the total supply");
 
@@ -68,6 +71,13 @@ pub(crate) fn handle_unbond<S: Storage, A: Api, Q: Querier>(
     if passed_time > epoch_period {
         // Apply the current exchange rate.
         let undelegation_amount = current_batch.requested_with_fee * state.exchange_rate;
+
+        // the contract must stop if
+        if undelegation_amount == Uint128(1) {
+            return Err(StdError::generic_err(
+                "There must be more than one native token to undelegate",
+            ));
+        }
 
         let delegator = env.contract.address;
 
@@ -270,14 +280,16 @@ fn process_withdraw_rate<S: Storage, A: Api, Q: Querier>(
             let batch_slashing_weight =
                 Decimal::from_ratio(unbonded_amount_of_batch, total_unbonded_amount);
 
-            let slashed_amount_of_batch = batch_slashing_weight * slashed_amount.0;
+            let mut slashed_amount_of_batch = batch_slashing_weight * slashed_amount.0;
             let actual_unbonded_amount_of_batch: Uint128;
 
             // If slashed amount is negative, there should be summation instead of subtraction.
             if slashed_amount.1 {
+                slashed_amount_of_batch = (slashed_amount_of_batch - Uint128(1))?;
                 actual_unbonded_amount_of_batch =
                     unbonded_amount_of_batch + slashed_amount_of_batch;
             } else {
+                slashed_amount_of_batch += Uint128(1);
                 actual_unbonded_amount_of_batch =
                     SignedInt::from_subtraction(unbonded_amount_of_batch, slashed_amount_of_batch)
                         .0;

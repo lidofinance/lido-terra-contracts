@@ -1,11 +1,11 @@
 use crate::contract::{query_total_issued, slashing};
-use crate::math::{decimal_division, decimal_subtraction};
+use crate::math::decimal_division;
 use crate::state::{
     is_valid_validator, read_config, read_current_batch, read_parameters, read_state, store_state,
 };
 use cosmwasm_std::{
-    log, to_binary, Api, CosmosMsg, Decimal, Env, Extern, HandleResponse, HumanAddr, Querier,
-    StakingMsg, StdError, StdResult, Storage, Uint128, WasmMsg,
+    log, to_binary, Api, CosmosMsg, Env, Extern, HandleResponse, HumanAddr, Querier, StakingMsg,
+    StdError, StdResult, Storage, Uint128, WasmMsg,
 };
 use cw20::Cw20HandleMsg;
 
@@ -45,16 +45,21 @@ pub fn handle_bond<S: Storage, A: Api, Q: Querier>(
     let state = read_state(&deps.storage).load()?;
     let sender = env.message.sender.clone();
 
+    // get the total supply
+    let mut total_supply = query_total_issued(&deps).unwrap_or_default();
+
     // peg recovery fee should be considered
     let mint_amount = decimal_division(payment.amount, state.exchange_rate);
     let mut mint_amount_with_fee = mint_amount;
     if state.exchange_rate < threshold {
-        let peg_fee = decimal_subtraction(Decimal::one(), recovery_fee);
-        mint_amount_with_fee = mint_amount * peg_fee;
+        let max_peg_fee = mint_amount * recovery_fee;
+        let required_peg_fee = ((total_supply + mint_amount + current_batch.requested_with_fee)
+            - (state.total_bond_amount + payment.amount))?;
+        let peg_fee = Uint128::min(max_peg_fee, required_peg_fee);
+        mint_amount_with_fee = (mint_amount - peg_fee)?;
     }
 
     // total supply should be updated for exchange rate calculation.
-    let mut total_supply = query_total_issued(&deps).unwrap_or_default();
     total_supply += mint_amount_with_fee;
 
     // exchange rate should be updated for future
