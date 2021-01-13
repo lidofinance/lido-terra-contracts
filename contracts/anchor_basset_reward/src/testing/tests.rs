@@ -620,14 +620,13 @@ fn claim_rewards_with_decimals() {
     .unwrap();
     let holder_response: HolderResponse = from_binary(&res).unwrap();
     let index = Decimal::from_ratio(Uint128(99999), Uint128(11));
-    println!("{}", holder_response.pending_rewards);
     assert_eq!(
         holder_response,
         HolderResponse {
             address: HumanAddr::from("addr0000"),
             balance: Uint128::from(11u128),
             index,
-            pending_rewards: Decimal::from_str("0.999999999991").unwrap(),
+            pending_rewards: Decimal::from_str("0.999999998").unwrap(),
         }
     );
 
