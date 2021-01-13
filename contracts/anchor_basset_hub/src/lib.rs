@@ -1,10 +1,11 @@
-pub mod bond;
-pub mod config;
 pub mod contract;
-pub mod math;
 pub mod msg;
 pub mod state;
-pub mod unbond;
+
+mod bond;
+mod config;
+mod math;
+mod unbond;
 
 #[cfg(test)]
 mod testing;

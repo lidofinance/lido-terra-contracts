@@ -22,6 +22,7 @@ use cosmwasm_std::{from_binary, BankMsg, Coin, CosmosMsg, Decimal, HumanAddr, St
 use terra_cosmwasm::create_swap_msg;
 
 use crate::contracts::{handle, init, query};
+use crate::math::{decimal_multiplication, decimal_subtraction};
 use crate::msg::{
     ConfigResponse, HandleMsg, HolderResponse, HoldersResponse, InitMsg, QueryMsg, StateResponse,
 };
@@ -29,6 +30,7 @@ use crate::state::{store_state, State};
 use crate::testing::mock_querier::{
     mock_dependencies, MOCK_HUB_CONTRACT_ADDR, MOCK_TOKEN_CONTRACT_ADDR,
 };
+use std::str::FromStr;
 
 const DEFAULT_REWARD_DENOM: &str = "uusd";
 
@@ -66,6 +68,7 @@ fn proper_init() {
         StateResponse {
             global_index: Decimal::zero(),
             total_balance: Uint128(0u128),
+            prev_reward_balance: Uint128::zero()
         }
     );
 }
@@ -170,9 +173,7 @@ fn update_global_index() {
 
     init(&mut deps, env, init_msg).unwrap();
 
-    let msg = HandleMsg::UpdateGlobalIndex {
-        prev_balance: Uint128::zero(),
-    };
+    let msg = HandleMsg::UpdateGlobalIndex {};
 
     // Failed unauthorized try
     let env = mock_env("addr0000", &[]);
@@ -195,6 +196,7 @@ fn update_global_index() {
         &State {
             global_index: Decimal::zero(),
             total_balance: Uint128::from(100u128),
+            prev_reward_balance: Uint128::zero(),
         },
     )
     .unwrap();
@@ -210,6 +212,7 @@ fn update_global_index() {
         StateResponse {
             global_index: Decimal::one(),
             total_balance: Uint128::from(100u128),
+            prev_reward_balance: Uint128::from(100u128)
         }
     );
 }
@@ -258,16 +261,14 @@ fn increase_balance() {
             address: HumanAddr::from("addr0000"),
             balance: Uint128::from(100u128),
             index: Decimal::zero(),
-            pending_rewards: Uint128::zero(),
+            pending_rewards: Decimal::zero(),
         }
     );
 
     // claimed_rewards = 100, total_balance = 100
     // global_index == 1
     let env = mock_env(MOCK_HUB_CONTRACT_ADDR, &[]);
-    let msg = HandleMsg::UpdateGlobalIndex {
-        prev_balance: Uint128::zero(),
-    };
+    let msg = HandleMsg::UpdateGlobalIndex {};
     handle(&mut deps, env, msg).unwrap();
 
     let env = mock_env(MOCK_TOKEN_CONTRACT_ADDR, &[]);
@@ -291,7 +292,92 @@ fn increase_balance() {
             address: HumanAddr::from("addr0000"),
             balance: Uint128::from(200u128),
             index: Decimal::one(),
-            pending_rewards: Uint128::from(100u128),
+            pending_rewards: Decimal::from_str("100").unwrap(),
+        }
+    );
+}
+
+#[test]
+fn increase_balance_with_decimals() {
+    let mut deps = mock_dependencies(
+        20,
+        &[Coin {
+            denom: "uusd".to_string(),
+            amount: Uint128(100000u128),
+        }],
+    );
+
+    let init_msg = default_init();
+    let env = mock_env("addr0000", &[]);
+
+    init(&mut deps, env, init_msg).unwrap();
+
+    let msg = HandleMsg::IncreaseBalance {
+        address: HumanAddr::from("addr0000"),
+        amount: Uint128::from(11u128),
+    };
+
+    let env = mock_env("addr0000", &[]);
+    let res = handle(&mut deps, env, msg.clone());
+    match res {
+        Err(StdError::Unauthorized { .. }) => {}
+        _ => panic!("DO NOT ENTER HERE"),
+    };
+
+    let env = mock_env(MOCK_TOKEN_CONTRACT_ADDR, &[]);
+    handle(&mut deps, env, msg).unwrap();
+
+    let res = query(
+        &deps,
+        QueryMsg::Holder {
+            address: HumanAddr::from("addr0000"),
+        },
+    )
+    .unwrap();
+    let holder_response: HolderResponse = from_binary(&res).unwrap();
+    assert_eq!(
+        holder_response,
+        HolderResponse {
+            address: HumanAddr::from("addr0000"),
+            balance: Uint128::from(11u128),
+            index: Decimal::zero(),
+            pending_rewards: Decimal::zero(),
+        }
+    );
+
+    // claimed_rewards = 100000 , total_balance = 11
+    // global_index == 9077.727272727272727272
+    let env = mock_env(MOCK_HUB_CONTRACT_ADDR, &[]);
+    let msg = HandleMsg::UpdateGlobalIndex {};
+    handle(&mut deps, env, msg).unwrap();
+
+    let env = mock_env(MOCK_TOKEN_CONTRACT_ADDR, &[]);
+    let msg = HandleMsg::IncreaseBalance {
+        address: HumanAddr::from("addr0000"),
+        amount: Uint128::from(10u128),
+    };
+    handle(&mut deps, env, msg).unwrap();
+
+    let res = query(
+        &deps,
+        QueryMsg::Holder {
+            address: HumanAddr::from("addr0000"),
+        },
+    )
+    .unwrap();
+    let holder_response: HolderResponse = from_binary(&res).unwrap();
+    let index = Decimal::from_ratio(Uint128(100000), Uint128(11));
+    let user_pend_reward = decimal_multiplication(
+        Decimal::from_str("11").unwrap(),
+        decimal_subtraction(holder_response.index, Decimal::zero()),
+    );
+    assert_eq!(
+        holder_response,
+        HolderResponse {
+            address: HumanAddr::from("addr0000"),
+            balance: Uint128::from(21u128),
+            index,
+            pending_rewards: user_pend_reward,
         }
     );
 }
@@ -346,9 +432,7 @@ fn decrease_balance() {
     // claimed_rewards = 100, total_balance = 100
     // global_index == 1
     let env = mock_env(MOCK_HUB_CONTRACT_ADDR, &[]);
-    let msg = HandleMsg::UpdateGlobalIndex {
-        prev_balance: Uint128::zero(),
-    };
+    let msg = HandleMsg::UpdateGlobalIndex {};
     handle(&mut deps, env, msg).unwrap();
 
     let env = mock_env(MOCK_TOKEN_CONTRACT_ADDR, &[]);
@@ -372,7 +456,7 @@ fn decrease_balance() {
             address: HumanAddr::from("addr0000"),
             balance: Uint128::zero(),
             index: Decimal::one(),
-            pending_rewards: Uint128::from(100u128),
+            pending_rewards: Decimal::from_str("100").unwrap(),
         }
     );
 }
@@ -414,16 +498,14 @@ fn claim_rewards() {
             address: HumanAddr::from("addr0000"),
             balance: Uint128::from(100u128),
             index: Decimal::zero(),
-            pending_rewards: Uint128::zero(),
+            pending_rewards: Decimal::zero(),
         }
     );
 
     // claimed_rewards = 100, total_balance = 100
     // global_index == 1
     let env = mock_env(MOCK_HUB_CONTRACT_ADDR, &[]);
-    let msg = HandleMsg::UpdateGlobalIndex {
-        prev_balance: Uint128::zero(),
-    };
+    let msg = HandleMsg::UpdateGlobalIndex {};
     handle(&mut deps, env, msg).unwrap();
 
     let msg = HandleMsg::ClaimRewards { recipient: None };
@@ -445,9 +527,7 @@ fn claim_rewards() {
     // claimed_rewards = 100, total_balance = 100
     // global_index == 1
     let env = mock_env(MOCK_HUB_CONTRACT_ADDR, &[]);
-    let msg = HandleMsg::UpdateGlobalIndex {
-        prev_balance: Uint128::zero(),
-    };
+    let msg = HandleMsg::UpdateGlobalIndex {};
     handle(&mut deps, env, msg).unwrap();
 
     let msg = HandleMsg::ClaimRewards {
@@ -465,6 +545,101 @@ fn claim_rewards() {
                 amount: Uint128::from(99u128), // 1% tax
             },]
         })]
+    );
+}
+
+#[test]
+fn claim_rewards_with_decimals() {
+    let mut deps = mock_dependencies(
+        20,
+        &[Coin {
+            denom: "uusd".to_string(),
+            amount: Uint128(99999u128),
+        }],
+    );
+
+    let init_msg = default_init();
+    let env = mock_env("addr0000", &[]);
+
+    init(&mut deps, env, init_msg).unwrap();
+
+    let msg = HandleMsg::IncreaseBalance {
+        address: HumanAddr::from("addr0000"),
+        amount: Uint128::from(11u128),
+    };
+
+    let env = mock_env(MOCK_TOKEN_CONTRACT_ADDR, &[]);
+    handle(&mut deps, env, msg).unwrap();
+
+    let res = query(
+        &deps,
+        QueryMsg::Holder {
+            address: HumanAddr::from("addr0000"),
+        },
+    )
+    .unwrap();
+    let holder_response: HolderResponse = from_binary(&res).unwrap();
+    assert_eq!(
+        holder_response,
+        HolderResponse {
+            address: HumanAddr::from("addr0000"),
+            balance: Uint128::from(11u128),
+            index: Decimal::zero(),
+            pending_rewards: Decimal::zero(),
+        }
+    );
+
+    // claimed_rewards = 1000000, total_balance = 11
+    // global_index ==
+    let env = mock_env(MOCK_HUB_CONTRACT_ADDR, &[]);
+
+    let msg = HandleMsg::UpdateGlobalIndex {};
+    handle(&mut deps, env, msg).unwrap();
+
+    let msg = HandleMsg::ClaimRewards { recipient: None };
+    let env = mock_env("addr0000", &[]);
+    let res = handle(&mut deps, env, msg).unwrap();
+    assert_eq!(
+        res.messages,
+        vec![CosmosMsg::Bank(BankMsg::Send {
+            from_address: HumanAddr::from(MOCK_CONTRACT_ADDR),
+            to_address: HumanAddr::from("addr0000"),
+            amount: vec![Coin {
+                denom: "uusd".to_string(),
+                amount: Uint128::from(99007u128), // 1% tax
+            },]
+        })]
+    );
+
+    let res = query(
+        &deps,
+        QueryMsg::Holder {
+            address: HumanAddr::from("addr0000"),
+        },
+    )
+    .unwrap();
+    let holder_response: HolderResponse = from_binary(&res).unwrap();
+    let index = Decimal::from_ratio(Uint128(99999), Uint128(11));
+    println!("{}", holder_response.pending_rewards);
+    assert_eq!(
+        holder_response,
+        HolderResponse {
+            address: HumanAddr::from("addr0000"),
+            balance: Uint128::from(11u128),
+            index,
+            pending_rewards: Decimal::from_str("0.999999999991").unwrap(),
+        }
+    );
+
+    let res = query(&deps, QueryMsg::State {}).unwrap();
+    let state_response: StateResponse = from_binary(&res).unwrap();
+    assert_eq!(
+        state_response,
+        StateResponse {
+            global_index: index,
+            total_balance: Uint128(11u128),
+            prev_reward_balance: Uint128(1)
+        }
     );
 }
 
@@ -521,19 +696,19 @@ fn query_holders() {
                     address: HumanAddr::from("addr0000"),
                     balance: Uint128::from(100u128),
                     index: Decimal::zero(),
-                    pending_rewards: Uint128::zero(),
+                    pending_rewards: Decimal::zero(),
                 },
                 HolderResponse {
                     address: HumanAddr::from("addr0001"),
                     balance: Uint128::from(200u128),
                     index: Decimal::zero(),
-                    pending_rewards: Uint128::zero(),
+                    pending_rewards: Decimal::zero(),
                 },
                 HolderResponse {
                     address: HumanAddr::from("addr0002"),
                     balance: Uint128::from(300u128),
                     index: Decimal::zero(),
-                    pending_rewards: Uint128::zero(),
+                    pending_rewards: Decimal::zero(),
                 }
             ],
         }
@@ -556,7 +731,7 @@ fn query_holders() {
                 address: HumanAddr::from("addr0000"),
                 balance: Uint128::from(100u128),
                 index: Decimal::zero(),
-                pending_rewards: Uint128::zero(),
+                pending_rewards: Decimal::zero(),
             }],
         }
     );
@@ -579,13 +754,13 @@ fn query_holders() {
                     address: HumanAddr::from("addr0001"),
                     balance: Uint128::from(200u128),
                     index: Decimal::zero(),
-                    pending_rewards: Uint128::zero(),
+                    pending_rewards: Decimal::zero(),
                 },
                 HolderResponse {
                     address: HumanAddr::from("addr0002"),
                     balance: Uint128::from(300u128),
                     index: Decimal::zero(),
-                    pending_rewards: Uint128::zero(),
+                    pending_rewards: Decimal::zero(),
                 }
             ],
         }
@@ -608,7 +783,7 @@ fn query_holders() {
                 address: HumanAddr::from("addr0001"),
                 balance: Uint128::from(200u128),
                 index: Decimal::zero(),
-                pending_rewards: Uint128::zero(),
+                pending_rewards: Decimal::zero(),
             }],
         }
     );

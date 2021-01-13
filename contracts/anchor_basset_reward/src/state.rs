@@ -31,6 +31,7 @@ pub fn read_config<S: ReadonlyStorage>(storage: &S) -> StdResult<Config> {
 pub struct State {
     pub global_index: Decimal,
     pub total_balance: Uint128,
+    pub prev_reward_balance: Uint128,
 }
 
 pub fn store_state<S: Storage>(storage: &mut S, state: &State) -> StdResult<()> {
@@ -45,7 +46,7 @@ pub fn read_state<S: ReadonlyStorage>(storage: &S) -> StdResult<State> {
 pub struct Holder {
     pub balance: Uint128,
     pub index: Decimal,
-    pub pending_rewards: Uint128,
+    pub pending_rewards: Decimal,
 }
 
 // This is similar to HashMap<holder's address, Hodler>
@@ -65,7 +66,7 @@ pub fn read_holder<S: Storage>(storage: &S, holder_address: &CanonicalAddr) -> S
         None => Ok(Holder {
             balance: Uint128::zero(),
             index: Decimal::zero(),
-            pending_rewards: Uint128::zero(),
+            pending_rewards: Decimal::zero(),
         }),
     }
 }

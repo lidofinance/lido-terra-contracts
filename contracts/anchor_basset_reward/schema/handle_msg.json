@@ -22,39 +22,21 @@
       ],
       "properties": {
         "update_global_index": {
-          "type": "object",
-          "required": [
-            "prev_balance"
-          ],
-          "properties": {
-            "prev_balance": {
-              "$ref": "#/definitions/Uint128"
-            }
-          }
+          "type": "object"
         }
       }
     },
     {
-      "description": "Update the config",
+      "description": "Update the params",
       "type": "object",
       "required": [
-        "update_config"
+        "update_reward_denom"
       ],
       "properties": {
-        "update_config": {
+        "update_reward_denom": {
           "type": "object",
           "properties": {
-            "hub_contract": {
-              "anyOf": [
-                {
-                  "$ref": "#/definitions/HumanAddr"
-                },
-                {
-                  "type": "null"
-                }
-              ]
-            },
-            "swap_denom": {
+            "reward_denom": {
               "type": [
                 "string",
                 "null"

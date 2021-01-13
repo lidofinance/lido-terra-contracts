@@ -2,7 +2,7 @@ use crate::state::{read_config, read_state, store_state, Config, State};
 
 use cosmwasm_std::{
     log, Api, CosmosMsg, Decimal, Env, Extern, HandleResponse, Querier, StdError, StdResult,
-    Storage, Uint128,
+    Storage,
 };
 use terra_cosmwasm::{create_swap_msg, TerraMsgWrapper};
 
@@ -50,7 +50,6 @@ pub fn handle_swap<S: Storage, A: Api, Q: Querier>(
 pub fn handle_update_global_index<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
     env: Env,
-    prev_balance: Uint128,
 ) -> StdResult<HandleResponse<TerraMsgWrapper>> {
     let config: Config = read_config(&deps.storage)?;
     let mut state: State = read_state(&deps.storage)?;
@@ -73,8 +72,12 @@ pub fn handle_update_global_index<S: Storage, A: Api, Q: Querier>(
         .query_balance(env.contract.address, reward_denom.as_str())
         .unwrap();
 
+    let previous_balance = state.prev_reward_balance;
+
     // claimed_rewards = current_balance - prev_balance;
-    let claimed_rewards = (balance.amount - prev_balance)?;
+    let claimed_rewards = (balance.amount - previous_balance)?;
+
+    state.prev_reward_balance = balance.amount;
 
     // global_index += claimed_rewards / total_balance;
     state.global_index =

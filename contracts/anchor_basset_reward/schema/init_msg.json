@@ -4,13 +4,13 @@
   "type": "object",
   "required": [
     "hub_contract",
-    "swap_denom"
+    "reward_denom"
   ],
   "properties": {
     "hub_contract": {
       "$ref": "#/definitions/HumanAddr"
     },
-    "swap_denom": {
+    "reward_denom": {
       "type": "string"
     }
   },

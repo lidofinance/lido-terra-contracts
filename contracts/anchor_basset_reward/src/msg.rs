@@ -20,7 +20,7 @@ pub enum HandleMsg {
     SwapToRewardDenom {},
 
     /// Update the global index
-    UpdateGlobalIndex { prev_balance: Uint128 },
+    UpdateGlobalIndex {},
 
     /// Update the params
     UpdateRewardDenom { reward_denom: Option<String> },
@@ -73,6 +73,7 @@ pub struct ConfigResponse {
 pub struct StateResponse {
     pub global_index: Decimal,
     pub total_balance: Uint128,
+    pub prev_reward_balance: Uint128,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -85,7 +86,7 @@ pub struct HolderResponse {
     pub address: HumanAddr,
     pub balance: Uint128,
     pub index: Decimal,
-    pub pending_rewards: Uint128,
+    pub pending_rewards: Decimal,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

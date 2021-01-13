@@ -10,7 +10,9 @@ use cosmwasm_std::{
     StdResult, Storage, Uint128,
 };
 
+use crate::math::{decimal_multiplication, decimal_subtraction, decimal_summation};
 use basset::deduct_tax;
+use std::str::FromStr;
 use terra_cosmwasm::TerraMsgWrapper;
 
 pub fn handle_claim_rewards<S: Storage, A: Api, Q: Querier>(
@@ -27,16 +29,25 @@ pub fn handle_claim_rewards<S: Storage, A: Api, Q: Querier>(
     };
 
     let mut holder: Holder = read_holder(&deps.storage, &holder_addr_raw)?;
-    let state: State = read_state(&deps.storage)?;
+    let mut state: State = read_state(&deps.storage)?;
     let config: Config = read_config(&deps.storage)?;
 
-    let rewards = calculate_rewards(state.global_index, holder.index, holder.balance)?
-        + holder.pending_rewards;
+    let reward_with_decimals =
+        calculate_decimal_rewards(state.global_index, holder.index, holder.balance)?;
+    let all_reward_with_decimals = decimal_summation(reward_with_decimals, holder.pending_rewards);
+    let decimals = get_decimals(all_reward_with_decimals).unwrap();
+
+    let rewards = all_reward_with_decimals * Uint128(1);
+
     if rewards.is_zero() {
         return Err(StdError::generic_err("There is no reward yet for the user"));
     }
 
-    holder.pending_rewards = Uint128::zero();
+    let new_balance = (state.prev_reward_balance - rewards)?;
+    state.prev_reward_balance = new_balance;
+    store_state(&mut deps.storage, &state)?;
+
+    holder.pending_rewards = decimals;
     holder.index = state.global_index;
     store_holder(&mut deps.storage, &holder_addr_raw, &holder)?;
 
@@ -85,9 +96,11 @@ pub fn handle_increase_balance<S: Storage, A: Api, Q: Querier>(
     let mut state: State = read_state(&deps.storage)?;
     let mut holder: Holder = read_holder(&deps.storage, &address_raw)?;
 
-    let rewards = calculate_rewards(state.global_index, holder.index, holder.balance)?;
+    // get decimals
+    let rewards = calculate_decimal_rewards(state.global_index, holder.index, holder.balance)?;
+
     holder.index = state.global_index;
-    holder.pending_rewards += rewards;
+    holder.pending_rewards = decimal_summation(rewards, holder.pending_rewards);
     holder.balance += amount;
     state.total_balance += amount;
 
@@ -131,9 +144,10 @@ pub fn handle_decrease_balance<S: Storage, A: Api, Q: Querier>(
         ));
     }
 
-    let rewards = calculate_rewards(state.global_index, holder.index, holder.balance)?;
+    let rewards = calculate_decimal_rewards(state.global_index, holder.index, holder.balance)?;
+
     holder.index = state.global_index;
-    holder.pending_rewards += rewards;
+    holder.pending_rewards = decimal_summation(rewards, holder.pending_rewards);
     holder.balance = (holder.balance - amount).unwrap();
     state.total_balance = (state.total_balance - amount).unwrap();
 
@@ -157,9 +171,13 @@ pub fn query_accrued_rewards<S: Storage, A: Api, Q: Querier>(
     address: HumanAddr,
 ) -> StdResult<AccruedRewardsResponse> {
     let global_index = read_state(&deps.storage)?.global_index;
+
     let holder: Holder = read_holder(&deps.storage, &deps.api.canonical_address(&address)?)?;
-    let rewards =
-        calculate_rewards(global_index, holder.index, holder.balance)? + holder.pending_rewards;
+    let reward_with_decimals =
+        calculate_decimal_rewards(global_index, holder.index, holder.balance)?;
+    let all_reward_with_decimals = decimal_summation(reward_with_decimals, holder.pending_rewards);
+
+    let rewards = all_reward_with_decimals * Uint128(1);
 
     Ok(AccruedRewardsResponse { rewards })
 }
@@ -194,12 +212,30 @@ pub fn query_holders<S: Storage, A: Api, Q: Querier>(
 }
 
 // calculate the reward based on the sender's index and the global index.
-fn calculate_rewards(
-    general_index: Decimal,
+fn calculate_decimal_rewards(
+    global_index: Decimal,
     user_index: Decimal,
     user_balance: Uint128,
-) -> StdResult<Uint128> {
-    (general_index * user_balance) - (user_index * user_balance)
+) -> StdResult<Decimal> {
+    let decimal_balance = Decimal::from_ratio(user_balance, Uint128(1));
+    Ok(decimal_multiplication(
+        decimal_subtraction(global_index, user_index),
+        decimal_balance,
+    ))
+}
+
+// calculate the reward with decimal
+fn get_decimals(value: Decimal) -> StdResult<Decimal> {
+    let stringed: &str = &*value.to_string();
+    let parts: &[&str] = &*stringed.split('.').collect::<Vec<&str>>();
+    match parts.len() {
+        1 => Ok(Decimal::zero()),
+        2 => {
+            let decimals = Decimal::from_str(&*("0.".to_owned() + parts[1]))?;
+            Ok(decimals)
+        }
+        _ => Err(StdError::generic_err("Unexpected number of dots")),
+    }
 }
 
 #[cfg(test)]
@@ -211,7 +247,19 @@ mod tests {
         let global_index = Decimal::from_ratio(Uint128(9), Uint128(100));
         let user_index = Decimal::zero();
         let user_balance = Uint128(1000);
-        let reward = calculate_rewards(global_index, user_index, user_balance).unwrap();
-        assert_eq!(reward, Uint128(90));
+        let reward = calculate_decimal_rewards(global_index, user_index, user_balance).unwrap();
+        assert_eq!(reward.to_string(), "90");
+    }
+
+    #[test]
+    pub fn proper_get_decimals() {
+        let global_index = Decimal::from_ratio(Uint128(9999999), Uint128(100000000));
+        let user_index = Decimal::zero();
+        let user_balance = Uint128(10);
+        let reward = get_decimals(
+            calculate_decimal_rewards(global_index, user_index, user_balance).unwrap(),
+        )
+        .unwrap();
+        assert_eq!(reward.to_string(), "0.9999999");
     }
 }

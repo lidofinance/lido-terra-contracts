@@ -3,6 +3,7 @@ pub mod msg;
 pub mod state;
 
 mod global;
+mod math;
 mod querier;
 mod user;
 

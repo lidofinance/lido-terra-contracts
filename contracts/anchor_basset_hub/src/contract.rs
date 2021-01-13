@@ -1,7 +1,7 @@
 use cosmwasm_std::{
-    from_binary, log, to_binary, Api, Binary, Coin, CosmosMsg, Decimal, Env, Extern,
-    HandleResponse, HumanAddr, InitResponse, Querier, QueryRequest, StakingMsg, StdError,
-    StdResult, Storage, Uint128, WasmMsg, WasmQuery,
+    from_binary, log, to_binary, Api, Binary, CosmosMsg, Decimal, Env, Extern, HandleResponse,
+    HumanAddr, InitResponse, Querier, QueryRequest, StakingMsg, StdError, StdResult, Storage,
+    Uint128, WasmMsg, WasmQuery,
 };
 
 use crate::config::{
@@ -176,19 +176,9 @@ pub fn handle_update_global<S: Storage, A: Api, Q: Querier>(
         send: vec![],
     }));
 
-    // Send UpdateGlobalIndex message to reward contract
-    // with prev_balance of reward denom
-    let params: Parameters = read_parameters(&deps.storage).load()?;
-    let prev_balance: Coin = deps
-        .querier
-        .query_balance(reward_addr.clone(), params.reward_denom.as_str())?;
-
     messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
         contract_addr: reward_addr,
-        msg: to_binary(&UpdateGlobalIndex {
-            prev_balance: prev_balance.amount,
-        })
-        .unwrap(),
+        msg: to_binary(&UpdateGlobalIndex {}).unwrap(),
         send: vec![],
     }));
 
