@@ -28,6 +28,7 @@ pub fn init<S: Storage, A: Api, Q: Querier>(
         &State {
             global_index: Decimal::zero(),
             total_balance: Uint128::zero(),
+            prev_reward_balance: Uint128::zero(),
         },
     )?;
 
@@ -45,9 +46,7 @@ pub fn handle<S: Storage, A: Api, Q: Querier>(
         }
         HandleMsg::ClaimRewards { recipient } => handle_claim_rewards(deps, env, recipient),
         HandleMsg::SwapToRewardDenom {} => handle_swap(deps, env),
-        HandleMsg::UpdateGlobalIndex { prev_balance } => {
-            handle_update_global_index(deps, env, prev_balance)
-        }
+        HandleMsg::UpdateGlobalIndex {} => handle_update_global_index(deps, env),
         HandleMsg::IncreaseBalance { address, amount } => {
             handle_increase_balance(deps, env, address, amount)
         }
@@ -113,5 +112,6 @@ fn query_state<S: Storage, A: Api, Q: Querier>(deps: &Extern<S, A, Q>) -> StdRes
     Ok(StateResponse {
         global_index: state.global_index,
         total_balance: state.total_balance,
+        prev_reward_balance: state.prev_reward_balance,
     })
 }

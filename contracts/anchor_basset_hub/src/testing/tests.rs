@@ -657,13 +657,7 @@ pub fn proper_update_global_index() {
             send: _,
         }) => {
             assert_eq!(contract_addr, &reward_contract);
-            assert_eq!(
-                msg,
-                &to_binary(&UpdateGlobalIndex {
-                    prev_balance: Uint128(2000)
-                })
-                .unwrap()
-            )
+            assert_eq!(msg, &to_binary(&UpdateGlobalIndex {}).unwrap())
         }
         _ => panic!("Unexpected message: {:?}", update_g_index),
     }
