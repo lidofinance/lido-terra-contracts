@@ -1302,6 +1302,7 @@ pub fn proper_slashing() {
     deps.querier
         .with_token_balances(&[(&HumanAddr::from("token"), &[(&addr1, &Uint128(1000u128))])]);
 
+    // slashing
     set_delegation(&mut deps.querier, validator.clone(), 900, "uluna");
 
     let env = mock_env(&addr1, &[]);
@@ -1412,7 +1413,7 @@ pub fn proper_slashing() {
         }) => {
             assert_eq!(from_address.0, MOCK_CONTRACT_ADDR);
             assert_eq!(to_address, &addr1);
-            assert_eq!(amount[0].amount, Uint128(899))
+            assert_eq!(amount[0].amount, Uint128(900))
         }
 
         _ => panic!("Unexpected message: {:?}", sent_message),
@@ -1557,7 +1558,7 @@ pub fn proper_withdraw_unbonded() {
         }) => {
             assert_eq!(from_address.0, MOCK_CONTRACT_ADDR);
             assert_eq!(to_address, &bob);
-            assert_eq!(amount[0].amount, Uint128(19))
+            assert_eq!(amount[0].amount, Uint128(20))
         }
 
         _ => panic!("Unexpected message: {:?}", sent_message),
@@ -1588,7 +1589,8 @@ pub fn proper_withdraw_unbonded() {
     // because of one that we add for each batch
     let state = State {};
     let state_query: StateResponse = from_binary(&query(&deps, state).unwrap()).unwrap();
-    assert_eq!(state_query.prev_hub_balance, Uint128(1));
+    assert_eq!(state_query.prev_hub_balance, Uint128(0));
+    assert_eq!(state_query.exchange_rate, Decimal::one());
 }
 
 /// Covers slashing during the unbonded period and its effect on the finished amount.

@@ -289,7 +289,9 @@ fn process_withdraw_rate<S: Storage, A: Api, Q: Querier>(
                 actual_unbonded_amount_of_batch =
                     unbonded_amount_of_batch + slashed_amount_of_batch;
             } else {
-                slashed_amount_of_batch += Uint128(1);
+                if slashed_amount.0.u128() != 0u128 {
+                    slashed_amount_of_batch += Uint128(1);
+                }
                 actual_unbonded_amount_of_batch =
                     SignedInt::from_subtraction(unbonded_amount_of_batch, slashed_amount_of_batch)
                         .0;
