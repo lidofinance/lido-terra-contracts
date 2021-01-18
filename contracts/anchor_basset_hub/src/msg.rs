@@ -13,6 +13,7 @@ pub struct InitMsg {
     pub peg_recovery_fee: Decimal,
     pub er_threshold: Decimal,
     pub reward_denom: String,
+    pub validator: HumanAddr,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
