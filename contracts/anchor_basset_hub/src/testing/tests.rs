@@ -22,7 +22,7 @@ use cosmwasm_std::{
     Storage, Uint128, Validator, WasmMsg,
 };
 
-use cosmwasm_std::testing::{mock_dependencies, mock_env};
+use cosmwasm_std::testing::mock_env;
 
 use crate::msg::{
     AllHistoryResponse, ConfigResponse, CurrentBatchResponse, InitMsg, StateResponse,
@@ -56,6 +56,8 @@ const DEFAULT_VALIDATOR3: &str = "default-validator3000";
 
 pub const MOCK_CONTRACT_ADDR: &str = "cosmos2contract";
 
+pub const INITIAL_DEPOSIT_AMOUNT: Uint128 = Uint128(1000000u128);
+
 fn sample_validator<U: Into<HumanAddr>>(addr: U) -> Validator {
     Validator {
         address: addr.into(),
@@ -82,6 +84,7 @@ pub fn initialize<S: Storage, A: Api, Q: Querier>(
     owner: HumanAddr,
     reward_contract: HumanAddr,
     token_contract: HumanAddr,
+    validator: HumanAddr,
 ) {
     let msg = InitMsg {
         epoch_period: 30,
@@ -90,9 +93,10 @@ pub fn initialize<S: Storage, A: Api, Q: Querier>(
         peg_recovery_fee: Decimal::zero(),
         er_threshold: Decimal::one(),
         reward_denom: "uusd".to_string(),
+        validator,
     };
 
-    let owner_env = mock_env(owner, &[]);
+    let owner_env = mock_env(owner, &[coin(1000000, "uluna")]);
     init(&mut deps, owner_env.clone(), msg).unwrap();
 
     let register_msg = HandleMsg::RegisterSubcontracts {
@@ -159,7 +163,10 @@ pub fn do_unbond<S: Storage, A: Api, Q: Querier>(
 /// the current batch storage and state are initialized.
 #[test]
 fn proper_initialization() {
-    let mut deps = mock_dependencies(20, &[]);
+    let mut deps = dependencies(20, &[]);
+
+    let validator = sample_validator(DEFAULT_VALIDATOR);
+    set_validator_mock(&mut deps.querier);
 
     // successful call
     let msg = InitMsg {
@@ -169,14 +176,33 @@ fn proper_initialization() {
         peg_recovery_fee: Decimal::zero(),
         er_threshold: Decimal::one(),
         reward_denom: "uusd".to_string(),
+        validator: validator.address.clone(),
     };
 
     let owner = HumanAddr::from("owner1");
-    let owner_env = mock_env(owner, &[]);
+    let owner_env = mock_env(owner, &[coin(1000000, "uluna")]);
 
     // we can just call .unwrap() to assert this was a success
     let res: InitResponse = init(&mut deps, owner_env.clone(), msg).unwrap();
-    assert_eq!(0, res.messages.len());
+    assert_eq!(2, res.messages.len());
+
+    let register_validator = HandleMsg::RegisterValidator {
+        validator: validator.address.clone(),
+    };
+    let reg_validator_msg = CosmosMsg::Wasm(WasmMsg::Execute {
+        contract_addr: owner_env.contract.address.clone(),
+        msg: to_binary(&register_validator).unwrap(),
+        send: vec![],
+    });
+
+    assert_eq!(&res.messages[0], &reg_validator_msg);
+
+    let delegate_msg = CosmosMsg::Staking(StakingMsg::Delegate {
+        validator: validator.address,
+        amount: coin(1000000, "uluna"),
+    });
+
+    assert_eq!(&res.messages[1], &delegate_msg);
 
     // check parameters storage
     let params = Params {};
@@ -193,7 +219,7 @@ fn proper_initialization() {
     let query_state: StateResponse = from_binary(&query(&deps, state).unwrap()).unwrap();
     let expected_result = StateResponse {
         exchange_rate: Decimal::one(),
-        total_bond_amount: Default::default(),
+        total_bond_amount: owner_env.message.sent_funds[0].amount,
         last_index_modification: owner_env.block.time,
         prev_hub_balance: Default::default(),
         actual_unbonded_amount: Default::default(),
@@ -229,7 +255,10 @@ fn proper_initialization() {
 /// Covers if subcontracts are stored in config storage.
 #[test]
 fn proper_register_subcontracts() {
-    let mut deps = mock_dependencies(20, &[]);
+    let mut deps = dependencies(20, &[]);
+
+    let validator = sample_validator(DEFAULT_VALIDATOR);
+    set_validator_mock(&mut deps.querier);
 
     let msg = InitMsg {
         epoch_period: 30,
@@ -238,10 +267,11 @@ fn proper_register_subcontracts() {
         peg_recovery_fee: Decimal::zero(),
         er_threshold: Decimal::one(),
         reward_denom: "uusd".to_string(),
+        validator: validator.address,
     };
 
     let owner = HumanAddr::from("owner1");
-    let owner_env = mock_env(owner, &[]);
+    let owner_env = mock_env(owner, &[coin(1000000, "uluna")]);
     init(&mut deps, owner_env.clone(), msg).unwrap();
 
     let token_contract = HumanAddr::from("token");
@@ -328,7 +358,13 @@ fn proper_register_validator() {
     let token_contract = HumanAddr::from("token");
     let reward_contract = HumanAddr::from("reward");
 
-    initialize(&mut deps, owner, reward_contract, token_contract);
+    initialize(
+        &mut deps,
+        owner,
+        reward_contract,
+        token_contract,
+        validator.address.clone(),
+    );
 
     // send by invalid user
     let owner = HumanAddr::from("invalid");
@@ -402,7 +438,27 @@ fn proper_bond() {
     let token_contract = HumanAddr::from("token");
     let reward_contract = HumanAddr::from("reward");
 
-    initialize(&mut deps, owner, reward_contract, token_contract);
+    initialize(
+        &mut deps,
+        owner,
+        reward_contract,
+        token_contract,
+        validator.address.clone(),
+    );
+
+    let env = mock_env(&addr1, &[]);
+    // set balance for hub contract
+    set_delegation(
+        &mut deps.querier,
+        validator.clone(),
+        INITIAL_DEPOSIT_AMOUNT.0,
+        "uluna",
+    );
+
+    deps.querier.with_token_balances(&[(
+        &HumanAddr::from("token"),
+        &[(&env.contract.address, &INITIAL_DEPOSIT_AMOUNT)],
+    )]);
 
     // register_validator
     do_register_validator(&mut deps, validator.clone());
@@ -452,7 +508,10 @@ fn proper_bond() {
     // get total bonded
     let state = State {};
     let query_state: StateResponse = from_binary(&query(&deps, state).unwrap()).unwrap();
-    assert_eq!(query_state.total_bond_amount, bond_amount);
+    assert_eq!(
+        query_state.total_bond_amount,
+        bond_amount + INITIAL_DEPOSIT_AMOUNT
+    );
     assert_eq!(query_state.exchange_rate, Decimal::one());
 
     //test unsupported validator
@@ -513,7 +572,13 @@ fn proper_deregister() {
     let token_contract = HumanAddr::from("token");
     let reward_contract = HumanAddr::from("reward");
 
-    initialize(&mut deps, owner.clone(), reward_contract, token_contract);
+    initialize(
+        &mut deps,
+        owner.clone(),
+        reward_contract,
+        token_contract,
+        validator.address.clone(),
+    );
 
     // register_validator
     do_register_validator(&mut deps, validator.clone());
@@ -593,7 +658,13 @@ pub fn proper_update_global_index() {
     let token_contract = HumanAddr::from("token");
     let reward_contract = HumanAddr::from("reward");
 
-    initialize(&mut deps, owner, reward_contract.clone(), token_contract);
+    initialize(
+        &mut deps,
+        owner,
+        reward_contract.clone(),
+        token_contract,
+        validator.address.clone(),
+    );
 
     // register_validator
     do_register_validator(&mut deps, validator.clone());
@@ -678,7 +749,13 @@ pub fn proper_update_global_index_two_validators() {
     let token_contract = HumanAddr::from("token");
     let reward_contract = HumanAddr::from("reward");
 
-    initialize(&mut deps, owner, reward_contract, token_contract);
+    initialize(
+        &mut deps,
+        owner,
+        reward_contract,
+        token_contract,
+        validator.address.clone(),
+    );
 
     // register_validator
     do_register_validator(&mut deps, validator.clone());
@@ -756,7 +833,13 @@ pub fn proper_update_global_index_respect_one_registered_validator() {
     let token_contract = HumanAddr::from("token");
     let reward_contract = HumanAddr::from("reward");
 
-    initialize(&mut deps, owner, reward_contract, token_contract);
+    initialize(
+        &mut deps,
+        owner,
+        reward_contract,
+        token_contract,
+        validator.address.clone(),
+    );
 
     // register_validator
     do_register_validator(&mut deps, validator.clone());
@@ -818,7 +901,13 @@ pub fn proper_receive() {
     let owner = HumanAddr::from("owner1");
     let token_contract = HumanAddr::from("token");
     let reward_contract = HumanAddr::from("reward");
-    initialize(&mut deps, owner, reward_contract, token_contract.clone());
+    initialize(
+        &mut deps,
+        owner,
+        reward_contract,
+        token_contract.clone(),
+        validator.address.clone(),
+    );
 
     // register_validator
     do_register_validator(&mut deps, validator.clone());
@@ -899,7 +988,13 @@ pub fn proper_unbond() {
     let owner = HumanAddr::from("owner1");
     let token_contract = HumanAddr::from("token");
     let reward_contract = HumanAddr::from("reward");
-    initialize(&mut deps, owner, reward_contract, token_contract.clone());
+    initialize(
+        &mut deps,
+        owner,
+        reward_contract,
+        token_contract.clone(),
+        validator.address.clone(),
+    );
 
     // register_validator
     do_register_validator(&mut deps, validator.clone());
@@ -1078,7 +1173,13 @@ pub fn proper_pick_validator() {
     let token_contract = HumanAddr::from("token");
     let reward_contract = HumanAddr::from("reward");
 
-    initialize(&mut deps, owner, reward_contract, token_contract.clone());
+    initialize(
+        &mut deps,
+        owner,
+        reward_contract,
+        token_contract.clone(),
+        validator.address.clone(),
+    );
 
     do_register_validator(&mut deps, validator.clone());
     do_register_validator(&mut deps, validator2.clone());
@@ -1213,7 +1314,13 @@ pub fn proper_pick_validator_respect_distributed_delegation() {
     let token_contract = HumanAddr::from("token");
     let reward_contract = HumanAddr::from("reward");
 
-    initialize(&mut deps, owner, reward_contract, token_contract.clone());
+    initialize(
+        &mut deps,
+        owner,
+        reward_contract,
+        token_contract.clone(),
+        validator.address.clone(),
+    );
 
     do_register_validator(&mut deps, validator.clone());
     do_register_validator(&mut deps, validator2.clone());
@@ -1290,7 +1397,13 @@ pub fn proper_slashing() {
     let owner = HumanAddr::from("owner1");
     let token_contract = HumanAddr::from("token");
     let reward_contract = HumanAddr::from("reward");
-    initialize(&mut deps, owner, reward_contract, token_contract.clone());
+    initialize(
+        &mut deps,
+        owner,
+        reward_contract,
+        token_contract.clone(),
+        validator.address.clone(),
+    );
 
     // register_validator
     do_register_validator(&mut deps, validator.clone());
@@ -1434,7 +1547,13 @@ pub fn proper_withdraw_unbonded() {
     let token_contract = HumanAddr::from("token");
     let reward_contract = HumanAddr::from("reward");
 
-    initialize(&mut deps, owner, reward_contract, token_contract);
+    initialize(
+        &mut deps,
+        owner,
+        reward_contract,
+        token_contract,
+        validator.address.clone(),
+    );
 
     // register_validator
     do_register_validator(&mut deps, validator.clone());
@@ -1608,7 +1727,13 @@ pub fn proper_withdraw_unbonded_respect_slashing() {
     let token_contract = HumanAddr::from("token");
     let reward_contract = HumanAddr::from("reward");
 
-    initialize(&mut deps, owner, reward_contract, token_contract);
+    initialize(
+        &mut deps,
+        owner,
+        reward_contract,
+        token_contract,
+        validator.address.clone(),
+    );
 
     // register_validator
     do_register_validator(&mut deps, validator.clone());
@@ -1755,7 +1880,13 @@ pub fn proper_withdraw_unbonded_respect_inactivity_slashing() {
     let token_contract = HumanAddr::from("token");
     let reward_contract = HumanAddr::from("reward");
 
-    initialize(&mut deps, owner, reward_contract, token_contract);
+    initialize(
+        &mut deps,
+        owner,
+        reward_contract,
+        token_contract,
+        validator.address.clone(),
+    );
 
     // register_validator
     do_register_validator(&mut deps, validator.clone());
@@ -1935,7 +2066,13 @@ pub fn proper_withdraw_unbond_with_dummies() {
     let token_contract = HumanAddr::from("token");
     let reward_contract = HumanAddr::from("reward");
 
-    initialize(&mut deps, owner, reward_contract, token_contract);
+    initialize(
+        &mut deps,
+        owner,
+        reward_contract,
+        token_contract,
+        validator.address.clone(),
+    );
 
     // register_validator
     do_register_validator(&mut deps, validator.clone());
@@ -2056,6 +2193,10 @@ pub fn proper_withdraw_unbond_with_dummies() {
 #[test]
 pub fn test_update_params() {
     let mut deps = dependencies(20, &[]);
+
+    let validator = sample_validator(DEFAULT_VALIDATOR);
+    set_validator_mock(&mut deps.querier);
+
     //test with no swap denom.
     let update_prams = UpdateParams {
         epoch_period: Some(20),
@@ -2069,7 +2210,13 @@ pub fn test_update_params() {
     let token_contract = HumanAddr::from("token");
     let reward_contract = HumanAddr::from("reward");
 
-    initialize(&mut deps, owner, reward_contract.clone(), token_contract);
+    initialize(
+        &mut deps,
+        owner,
+        reward_contract.clone(),
+        token_contract,
+        validator.address,
+    );
 
     let invalid_env = mock_env(HumanAddr::from("invalid"), &[]);
     let res = handle(&mut deps, invalid_env, update_prams.clone());
@@ -2143,7 +2290,13 @@ pub fn proper_recovery_fee() {
     let bond_amount = Uint128(1000000u128);
     let unbond_amount = Uint128(100000u128);
 
-    initialize(&mut deps, owner, reward_contract, token_contract.clone());
+    initialize(
+        &mut deps,
+        owner,
+        reward_contract,
+        token_contract.clone(),
+        validator.address.clone(),
+    );
 
     let creator_env = mock_env(HumanAddr::from("owner1"), &[]);
     let res = handle(&mut deps, creator_env, update_prams).unwrap();
@@ -2326,6 +2479,9 @@ pub fn proper_recovery_fee() {
 pub fn proper_update_config() {
     let mut deps = dependencies(20, &[]);
 
+    let validator = sample_validator(DEFAULT_VALIDATOR);
+    set_validator_mock(&mut deps.querier);
+
     let owner = HumanAddr::from("owner1");
     let new_owner = HumanAddr::from("new_owner");
     let invalid_owner = HumanAddr::from("invalid_owner");
@@ -2337,6 +2493,7 @@ pub fn proper_update_config() {
         owner.clone(),
         reward_contract.clone(),
         token_contract.clone(),
+        validator.address,
     );
 
     let config = Config {};

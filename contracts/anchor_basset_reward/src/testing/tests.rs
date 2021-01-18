@@ -626,7 +626,7 @@ fn claim_rewards_with_decimals() {
             address: HumanAddr::from("addr0000"),
             balance: Uint128::from(11u128),
             index,
-            pending_rewards: Decimal::from_str("0.99999999998").unwrap(),
+            pending_rewards: Decimal::from_str("0.9999999991").unwrap(),
         }
     );
 

@@ -200,7 +200,8 @@ pub fn handle_register_validator<S: Storage, A: Api, Q: Querier>(
     let hub_conf = read_config(&deps.storage).load()?;
 
     let sender_raw = deps.api.canonical_address(&env.message.sender)?;
-    if hub_conf.creator != sender_raw {
+    let contract_raw = deps.api.canonical_address(&env.contract.address)?;
+    if hub_conf.creator != sender_raw && contract_raw != sender_raw {
         return Err(StdError::unauthorized());
     }
 

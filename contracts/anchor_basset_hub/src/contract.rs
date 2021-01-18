@@ -35,6 +35,15 @@ pub fn init<S: Storage, A: Api, Q: Querier>(
     let sender = env.message.sender;
     let sndr_raw = deps.api.canonical_address(&sender)?;
 
+    let payment = env
+        .message
+        .sent_funds
+        .iter()
+        .find(|x| x.denom == msg.underlying_coin_denom && x.amount > Uint128::zero())
+        .ok_or_else(|| {
+            StdError::generic_err(format!("No {} tokens sent", &msg.underlying_coin_denom))
+        })?;
+
     // store config
     let data = Config {
         creator: sndr_raw,
@@ -49,6 +58,7 @@ pub fn init<S: Storage, A: Api, Q: Querier>(
         last_index_modification: env.block.time,
         last_unbonded_time: env.block.time,
         last_processed_batch: 0u64,
+        total_bond_amount: payment.amount,
         ..Default::default()
     };
 
@@ -72,7 +82,32 @@ pub fn init<S: Storage, A: Api, Q: Querier>(
     };
     store_current_batch(&mut deps.storage).save(&batch)?;
 
-    Ok(InitResponse::default())
+    let mut messages = vec![];
+
+    // register the given validator
+    let register_validator = HandleMsg::RegisterValidator {
+        validator: msg.validator.clone(),
+    };
+    messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
+        contract_addr: env.contract.address,
+        msg: to_binary(&register_validator).unwrap(),
+        send: vec![],
+    }));
+
+    // send the delegate message
+    messages.push(CosmosMsg::Staking(StakingMsg::Delegate {
+        validator: msg.validator.clone(),
+        amount: payment.clone(),
+    }));
+
+    let res = InitResponse {
+        messages,
+        log: vec![
+            log("register-validator", msg.validator),
+            log("bond", payment.amount),
+        ],
+    };
+    Ok(res)
 }
 
 pub fn handle<S: Storage, A: Api, Q: Querier>(
