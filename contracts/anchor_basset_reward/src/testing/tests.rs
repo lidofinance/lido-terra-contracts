@@ -366,7 +366,10 @@ fn increase_balance_with_decimals() {
     )
     .unwrap();
     let holder_response: HolderResponse = from_binary(&res).unwrap();
-    let index = Decimal::from_ratio(Uint128(100000), Uint128(11));
+    let index = decimal_multiplication(
+        Decimal::from_ratio(Uint128(100000), Uint128(11)),
+        Decimal::one(),
+    );
     let user_pend_reward = decimal_multiplication(
         Decimal::from_str("11").unwrap(),
         decimal_subtraction(holder_response.index, Decimal::zero()),
@@ -619,7 +622,10 @@ fn claim_rewards_with_decimals() {
     )
     .unwrap();
     let holder_response: HolderResponse = from_binary(&res).unwrap();
-    let index = Decimal::from_ratio(Uint128(99999), Uint128(11));
+    let index = decimal_multiplication(
+        Decimal::from_ratio(Uint128(99999), Uint128(11)),
+        Decimal::one(),
+    );
     assert_eq!(
         holder_response,
         HolderResponse {
