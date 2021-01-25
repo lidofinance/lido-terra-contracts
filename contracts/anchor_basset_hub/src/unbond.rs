@@ -135,7 +135,8 @@ pub(crate) fn handle_unbond<S: Storage, A: Api, Q: Querier>(
         log: vec![
             log("action", "burn"),
             log("from", sender),
-            log("undelegated_amount", amount),
+            log("burnt_amount", amount),
+            log("unbonded_amount", amount_with_fee),
         ],
         data: None,
     };
