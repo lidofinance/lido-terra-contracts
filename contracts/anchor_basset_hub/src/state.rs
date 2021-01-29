@@ -309,7 +309,9 @@ pub fn read_unbond_history<'a, S: ReadonlyStorage>(
     let res = ReadonlyPrefixedStorage::new(UNBOND_HISTORY_MAP, storage).get(&vec);
     match res {
         Some(data) => from_slice(&data),
-        None => Err(StdError::generic_err("no unbond history is found")),
+        None => Err(StdError::generic_err(
+            "Burn requests not found for the specified time period",
+        )),
     }
 }
 

@@ -41,7 +41,10 @@ pub fn init<S: Storage, A: Api, Q: Querier>(
         .iter()
         .find(|x| x.denom == msg.underlying_coin_denom && x.amount > Uint128::zero())
         .ok_or_else(|| {
-            StdError::generic_err(format!("No {} tokens sent", &msg.underlying_coin_denom))
+            StdError::generic_err(format!(
+                "No {} assets are provided to bond",
+                &msg.underlying_coin_denom
+            ))
         })?;
 
     // store config
@@ -180,7 +183,10 @@ pub fn receive_cw20<S: Storage, A: Api, Q: Querier>(
             }
         }
     } else {
-        Err(StdError::generic_err("Invalid request"))
+        Err(StdError::generic_err(format!(
+            "Invalid request: {message:?} message not included in request",
+            message = "unbond"
+        )))
     }
 }
 
