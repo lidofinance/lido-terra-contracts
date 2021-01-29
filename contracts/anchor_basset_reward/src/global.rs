@@ -62,7 +62,7 @@ pub fn handle_update_global_index<S: Storage, A: Api, Q: Querier>(
 
     // Zero staking balance check
     if state.total_balance.is_zero() {
-        return Err(StdError::generic_err("zero staking balance"));
+        return Err(StdError::generic_err("No asset is bonded by Hub"));
     }
 
     let reward_denom = read_config(&deps.storage)?.reward_denom;

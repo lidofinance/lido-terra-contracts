@@ -17,7 +17,9 @@ pub fn handle_bond<S: Storage, A: Api, Q: Querier>(
     // validator must be whitelisted
     let is_valid = is_valid_validator(&deps.storage, validator.clone())?;
     if !is_valid {
-        return Err(StdError::generic_err("Unsupported validator"));
+        return Err(StdError::generic_err(
+            "The chosen validator is currently not supported",
+        ));
     }
 
     let params = read_parameters(&deps.storage).load()?;
@@ -35,7 +37,9 @@ pub fn handle_bond<S: Storage, A: Api, Q: Querier>(
         .sent_funds
         .iter()
         .find(|x| x.denom == coin_denom && x.amount > Uint128::zero())
-        .ok_or_else(|| StdError::generic_err(format!("No {} tokens sent", coin_denom)))?;
+        .ok_or_else(|| {
+            StdError::generic_err(format!("No {} assets are provided to bond", coin_denom))
+        })?;
 
     // check slashing
     if slashing(deps, env.clone()).is_ok() {

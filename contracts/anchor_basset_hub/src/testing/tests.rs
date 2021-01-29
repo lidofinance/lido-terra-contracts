@@ -383,11 +383,14 @@ fn proper_register_validator() {
 
     let owner_env = mock_env(owner, &[]);
     let msg = HandleMsg::RegisterValidator {
-        validator: HumanAddr::from("invalid validator"),
+        validator: HumanAddr::from("The specified address is not a validator"),
     };
 
     let res = handle(&mut deps, owner_env, msg);
-    assert_eq!(res.unwrap_err(), StdError::generic_err("Invalid validator"));
+    assert_eq!(
+        res.unwrap_err(),
+        StdError::generic_err("The specified address is not a validator")
+    );
 
     // successful call
     let owner = HumanAddr::from("owner1");
@@ -525,7 +528,7 @@ fn proper_bond() {
     let res = handle(&mut deps, env, bond);
     assert_eq!(
         res.unwrap_err(),
-        StdError::generic_err("Unsupported validator")
+        StdError::generic_err("The chosen validator is currently not supported")
     );
 
     // no-send funds
@@ -539,7 +542,7 @@ fn proper_bond() {
     let res = handle(&mut deps, env, failed_bond);
     assert_eq!(
         res.unwrap_err(),
-        StdError::generic_err("No uluna tokens sent")
+        StdError::generic_err("No uluna assets are provided to bond")
     );
 
     //send other tokens than luna funds
@@ -553,7 +556,7 @@ fn proper_bond() {
     let res = handle(&mut deps, env, failed_bond);
     assert_eq!(
         res.unwrap_err(),
-        StdError::generic_err("No uluna tokens sent")
+        StdError::generic_err("No uluna assets are provided to bond")
     );
 }
 
@@ -929,7 +932,10 @@ pub fn proper_receive() {
 
     let token_env = mock_env(&token_contract, &[]);
     let res = handle(&mut deps, token_env, receive);
-    assert_eq!(res.unwrap_err(), StdError::generic_err("Invalid request"));
+    assert_eq!(
+        res.unwrap_err(),
+        StdError::generic_err("Invalid request: \"unbond\" message not included in request")
+    );
 
     // unauthorized
     let failed_unbond = Unbond {};
@@ -1608,7 +1614,7 @@ pub fn proper_withdraw_unbonded() {
     assert_eq!(true, wdraw_unbonded_res.is_err());
     assert_eq!(
         wdraw_unbonded_res.unwrap_err(),
-        StdError::generic_err("Previously requested amount is not ready yet")
+        StdError::generic_err("No withdrawable uluna assets are available yet")
     );
 
     let res = handle_unbond(&mut deps, env.clone(), Uint128(10), bob.clone()).unwrap();
@@ -1785,7 +1791,7 @@ pub fn proper_withdraw_unbonded_respect_slashing() {
     assert_eq!(true, wdraw_unbonded_res.is_err());
     assert_eq!(
         wdraw_unbonded_res.unwrap_err(),
-        StdError::generic_err("Previously requested amount is not ready yet")
+        StdError::generic_err("No withdrawable uluna assets are available yet")
     );
 
     // trigger undelegation message
@@ -1945,7 +1951,7 @@ pub fn proper_withdraw_unbonded_respect_inactivity_slashing() {
     assert_eq!(true, wdraw_unbonded_res.is_err());
     assert_eq!(
         wdraw_unbonded_res.unwrap_err(),
-        StdError::generic_err("Previously requested amount is not ready yet")
+        StdError::generic_err("No withdrawable uluna assets are available yet")
     );
 
     // trigger undelegation message

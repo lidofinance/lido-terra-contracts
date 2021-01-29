@@ -40,7 +40,7 @@ pub fn handle_claim_rewards<S: Storage, A: Api, Q: Querier>(
     let rewards = all_reward_with_decimals * Uint128(1);
 
     if rewards.is_zero() {
-        return Err(StdError::generic_err("There is no reward yet for the user"));
+        return Err(StdError::generic_err("No rewards have accrued yet"));
     }
 
     let new_balance = (state.prev_reward_balance - rewards)?;
@@ -139,9 +139,10 @@ pub fn handle_decrease_balance<S: Storage, A: Api, Q: Querier>(
     let mut state: State = read_state(&deps.storage)?;
     let mut holder: Holder = read_holder(&deps.storage, &address_raw)?;
     if holder.balance < amount {
-        return Err(StdError::generic_err(
-            "cannot decrease more than the user balance",
-        ));
+        return Err(StdError::generic_err(format!(
+            "Decrease amount cannot exceed user balance: {}",
+            holder.balance
+        )));
     }
 
     let rewards = calculate_decimal_rewards(state.global_index, holder.index, holder.balance)?;

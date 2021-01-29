@@ -212,7 +212,9 @@ pub fn handle_register_validator<S: Storage, A: Api, Q: Querier>(
         .iter()
         .any(|val| val.address == validator);
     if !exists {
-        return Err(StdError::generic_err("Invalid validator"));
+        return Err(StdError::generic_err(
+            "The specified address is not a validator",
+        ));
     }
 
     store_white_validators(&mut deps.storage, validator.clone())?;

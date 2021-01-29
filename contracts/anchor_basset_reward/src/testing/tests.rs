@@ -187,7 +187,7 @@ fn update_global_index() {
     let env = mock_env(MOCK_HUB_CONTRACT_ADDR, &[]);
     let res = handle(&mut deps, env.clone(), msg.clone());
     match res {
-        Err(StdError::GenericErr { msg, .. }) => assert_eq!(msg, "zero staking balance"),
+        Err(StdError::GenericErr { msg, .. }) => assert_eq!(msg, "No asset is bonded by Hub"),
         _ => panic!("DO NOT ENTER HERE"),
     }
 
@@ -418,7 +418,7 @@ fn decrease_balance() {
     let res = handle(&mut deps, env, msg);
     match res {
         Err(StdError::GenericErr { msg, .. }) => {
-            assert_eq!(msg, "cannot decrease more than the user balance")
+            assert_eq!(msg, "Decrease amount cannot exceed user balance: 0")
         }
         _ => panic!("DO NOT ENTER HERE"),
     };

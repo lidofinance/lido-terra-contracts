@@ -75,7 +75,7 @@ pub(crate) fn handle_unbond<S: Storage, A: Api, Q: Querier>(
         // the contract must stop if
         if undelegation_amount == Uint128(1) {
             return Err(StdError::generic_err(
-                "There must be more than one native token to undelegate",
+                "Burn amount must be greater than 1 ubluna",
             ));
         }
 
@@ -169,9 +169,10 @@ pub fn handle_withdraw_unbonded<S: Storage, A: Api, Q: Querier>(
     let withdraw_amount = get_finished_amount(&deps.storage, sender_human.clone()).unwrap();
 
     if withdraw_amount.is_zero() {
-        return Err(StdError::generic_err(
-            "Previously requested amount is not ready yet",
-        ));
+        return Err(StdError::generic_err(format!(
+            "No withdrawable {} assets are available yet",
+            coin_denom
+        )));
     }
 
     // remove the previous batches for the user
