@@ -16,6 +16,21 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ee2a4ec343196209d6594e19543ae87a39f96d5534d7174822a3ad825dd6ed7e"
 
 [[package]]
+name = "anchor_airdrop_registery"
+version = "0.1.0"
+dependencies = [
+ "cosmwasm-schema",
+ "cosmwasm-std",
+ "cosmwasm-storage",
+ "cw2",
+ "cw20",
+ "cw20-base",
+ "hub_querier",
+ "schemars",
+ "serde",
+]
+
+[[package]]
 name = "anchor_basset_hub"
 version = "0.1.0"
 dependencies = [

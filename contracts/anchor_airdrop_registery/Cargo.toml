@@ -1,0 +1,20 @@
+[package]
+name = "anchor_airdrop_registery"
+version = "0.1.0"
+authors = ["Terraform Labs, PTE."]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+cw2 = { version = "0.2.1" }
+cw20 = { version = "0.2.1" }
+cw20-base = { version = "0.2", features = ["library"] }
+cosmwasm-std = { version = "0.10.1", features = ["iterator"] }
+cosmwasm-storage = { version = "0.10.1", features = ["iterator"] }
+schemars = "0.7"
+serde = { version = "1.0.103", default-features = false, features = ["derive"] }
+hub_querier = {path = "../hub_querier" }
+
+[dev-dependencies]
+cosmwasm-schema = { version = "0.11.0", default-features = false  }

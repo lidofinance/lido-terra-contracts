@@ -1,4 +1,4 @@
-use cosmwasm_std::{CanonicalAddr, Decimal, HumanAddr, Uint128};
+use cosmwasm_std::{CanonicalAddr, Decimal, HumanAddr, Uint128, Binary};
 use cw20::Cw20ReceiveMsg;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -94,6 +94,15 @@ pub enum HandleMsg {
     /// Unbond the underlying coin denom.
     /// Burn the received basset token.
     Receive(Cw20ReceiveMsg),
+
+    ////////////////////
+    /// internal operations
+    ///////////////////
+    ClaimAirdrop {
+        airdrop_token_contract: HumanAddr, // Contract address of MIR Cw20 Token
+        airdrop_contract: HumanAddr, // Contract address of MIR Airdrop
+        claim_msg: Binary, // Base64-encoded JSON of MIRAirdropHandleMsg::Claim
+    }
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
