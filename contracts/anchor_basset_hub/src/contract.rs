@@ -152,6 +152,7 @@ pub fn handle<S: Storage, A: Api, Q: Querier>(
             reward_contract,
             token_contract,
         } => handle_update_config(deps, env, owner, reward_contract, token_contract),
+        HandleMsg::ClaimAirdrop {airdrop_token_contract,airdrop_contract,claim_msg } => {Ok(HandleResponse::default())}
     }
 }
 
