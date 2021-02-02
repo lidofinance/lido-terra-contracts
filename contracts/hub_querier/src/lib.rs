@@ -47,12 +47,6 @@ pub enum HandleMsg {
     },
 
     /// Register receives the reward contract address
-    RegisterSubcontracts {
-        contract: Registration,
-        contract_address: HumanAddr,
-    },
-
-    /// Register receives the reward contract address
     RegisterValidator {
         validator: HumanAddr,
     },
@@ -100,13 +94,6 @@ pub enum HandleMsg {
     /// Unbond the underlying coin denom.
     /// Burn the received basset token.
     Receive(Cw20ReceiveMsg),
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-#[serde(rename_all = "snake_case")]
-pub enum Registration {
-    Token,
-    Reward,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

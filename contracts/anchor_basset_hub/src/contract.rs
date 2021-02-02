@@ -5,7 +5,7 @@ use cosmwasm_std::{
 };
 
 use crate::config::{
-    handle_deregister_validator, handle_register_contracts, handle_register_validator,
+    handle_deregister_validator, handle_register_validator,
     handle_update_config, handle_update_params,
 };
 use crate::msg::{
@@ -123,10 +123,6 @@ pub fn handle<S: Storage, A: Api, Q: Querier>(
         HandleMsg::Bond { validator } => handle_bond(deps, env, validator),
         HandleMsg::UpdateGlobalIndex {} => handle_update_global(deps, env),
         HandleMsg::WithdrawUnbonded {} => handle_withdraw_unbonded(deps, env),
-        HandleMsg::RegisterSubcontracts {
-            contract,
-            contract_address,
-        } => handle_register_contracts(deps, env, contract, contract_address),
         HandleMsg::RegisterValidator { validator } => {
             handle_register_validator(deps, env, validator)
         }

@@ -7,7 +7,7 @@ use cosmwasm_std::{
     log, to_binary, Api, CosmosMsg, Decimal, Env, Extern, HandleResponse, HumanAddr, Querier,
     StakingMsg, StdError, StdResult, Storage, WasmMsg,
 };
-use hub_querier::{HandleMsg, Registration};
+use hub_querier::{HandleMsg};
 use rand::{Rng, SeedableRng, XorShiftRng};
 
 /// Update general parameters
@@ -122,73 +122,12 @@ pub fn handle_update_config<S: Storage, A: Api, Q: Querier>(
 
     let res = HandleResponse {
         messages,
-        log: vec![log("action", "change_the_owner")],
+        log: vec![log("action", "update_config")],
         data: None,
     };
     Ok(res)
 }
 
-/// Register subcontracts, reward and token contracts.
-/// Only creator/owner is allowed to execute
-pub fn handle_register_contracts<S: Storage, A: Api, Q: Querier>(
-    deps: &mut Extern<S, A, Q>,
-    env: Env,
-    contract: Registration,
-    contract_address: HumanAddr,
-) -> StdResult<HandleResponse> {
-    // only owner must be able to send this message.
-    let conf = read_config(&deps.storage).load()?;
-    let sender_raw = deps.api.canonical_address(&env.message.sender)?;
-    if sender_raw != conf.creator {
-        return Err(StdError::unauthorized());
-    }
-
-    let raw_contract_addr = deps.api.canonical_address(&contract_address)?;
-    let mut messages: Vec<CosmosMsg> = vec![];
-
-    // if contract is reward, store the contract address for reward in config.
-    // if contract is token, store the contract address for token in config.
-    match contract {
-        Registration::Reward => {
-            if conf.reward_contract.is_some() {
-                return Err(StdError::generic_err(
-                    "The reward contract is already registered",
-                ));
-            }
-            store_config(&mut deps.storage).update(|mut last_config| {
-                last_config.reward_contract = Some(raw_contract_addr.clone());
-                Ok(last_config)
-            })?;
-
-            // register the reward contract for automate reward withdrawal.
-            let msg: CosmosMsg = CosmosMsg::Staking(StakingMsg::Withdraw {
-                validator: HumanAddr::default(),
-                recipient: Some(deps.api.human_address(&raw_contract_addr)?),
-            });
-            messages.push(msg);
-        }
-        Registration::Token => {
-            store_config(&mut deps.storage).update(|mut last_config| {
-                if last_config.token_contract.is_some() {
-                    return Err(StdError::generic_err(
-                        "The token contract is already registered",
-                    ));
-                }
-                last_config.token_contract = Some(raw_contract_addr.clone());
-                Ok(last_config)
-            })?;
-        }
-    }
-    let res = HandleResponse {
-        messages,
-        log: vec![
-            log("action", "register"),
-            log("sub_contract", contract_address),
-        ],
-        data: None,
-    };
-    Ok(res)
-}
 
 /// Register a white listed validator.
 /// Only creator/owner is allowed to execute

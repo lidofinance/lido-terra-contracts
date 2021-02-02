@@ -39,7 +39,6 @@ use cw20::{Cw20HandleMsg, Cw20ReceiveMsg};
 use cw20_base::msg::HandleMsg::{Burn, Mint};
 use hub_querier::Cw20HookMsg::Unbond;
 use hub_querier::HandleMsg::{CheckSlashing, Receive, UpdateConfig, UpdateParams};
-use hub_querier::Registration::{Reward, Token};
 
 use super::mock_querier::{mock_dependencies as dependencies, WasmMockQuerier};
 use crate::math::decimal_division;
@@ -99,17 +98,13 @@ pub fn initialize<S: Storage, A: Api, Q: Querier>(
     let owner_env = mock_env(owner, &[coin(1000000, "uluna")]);
     init(&mut deps, owner_env.clone(), msg).unwrap();
 
-    let register_msg = HandleMsg::RegisterSubcontracts {
-        contract: Reward,
-        contract_address: reward_contract,
+    let register_msg = HandleMsg::UpdateConfig {
+        owner: None,
+        reward_contract: Some(reward_contract),
+        token_contract: Some(token_contract)
     };
-    handle(&mut deps, owner_env.clone(), register_msg).unwrap();
-
-    let register_msg = HandleMsg::RegisterSubcontracts {
-        contract: Token,
-        contract_address: token_contract,
-    };
-    handle(&mut deps, owner_env, register_msg).unwrap();
+    let res = handle(&mut deps, owner_env, register_msg).unwrap();
+    assert_eq!(1, res.messages.len());
 }
 
 pub fn do_register_validator<S: Storage, A: Api, Q: Querier>(
@@ -252,97 +247,6 @@ fn proper_initialization() {
     );
 }
 
-/// Covers if subcontracts are stored in config storage.
-#[test]
-fn proper_register_subcontracts() {
-    let mut deps = dependencies(20, &[]);
-
-    let validator = sample_validator(DEFAULT_VALIDATOR);
-    set_validator_mock(&mut deps.querier);
-
-    let msg = InitMsg {
-        epoch_period: 30,
-        underlying_coin_denom: "uluna".to_string(),
-        unbonding_period: 210,
-        peg_recovery_fee: Decimal::zero(),
-        er_threshold: Decimal::one(),
-        reward_denom: "uusd".to_string(),
-        validator: validator.address,
-    };
-
-    let owner = HumanAddr::from("owner1");
-    let owner_env = mock_env(owner, &[coin(1000000, "uluna")]);
-    init(&mut deps, owner_env.clone(), msg).unwrap();
-
-    let token_contract = HumanAddr::from("token");
-    let reward_contract = HumanAddr::from("reward");
-
-    let invalid_sender = HumanAddr::from("invalid");
-    let invalid_env = mock_env(invalid_sender, &[]);
-
-    // unauthorized call
-    let register_msg = HandleMsg::RegisterSubcontracts {
-        contract: Reward,
-        contract_address: reward_contract.clone(),
-    };
-    let res = handle(&mut deps, invalid_env, register_msg).unwrap_err();
-    assert_eq!(res, StdError::unauthorized());
-
-    // register reward contract
-    let register_msg = HandleMsg::RegisterSubcontracts {
-        contract: Reward,
-        contract_address: reward_contract.clone(),
-    };
-    let res = handle(&mut deps, owner_env.clone(), register_msg).unwrap();
-    assert_eq!(res.messages.len(), 1);
-
-    // register reward contract sends a Withdraw message
-    let msg: CosmosMsg = CosmosMsg::Staking(StakingMsg::Withdraw {
-        validator: HumanAddr::default(),
-        recipient: Some(reward_contract.clone()),
-    });
-    assert_eq!(msg, res.messages[0]);
-
-    // register token contract
-    let register_msg = HandleMsg::RegisterSubcontracts {
-        contract: Token,
-        contract_address: token_contract.clone(),
-    };
-    let res = handle(&mut deps, owner_env.clone(), register_msg).unwrap();
-    assert_eq!(res.messages.len(), 0);
-
-    // should not be registered twice
-    let register_msg = HandleMsg::RegisterSubcontracts {
-        contract: Reward,
-        contract_address: reward_contract.clone(),
-    };
-    let res = handle(&mut deps, owner_env.clone(), register_msg).unwrap_err();
-    assert_eq!(
-        res,
-        StdError::generic_err("The reward contract is already registered",)
-    );
-
-    let register_msg = HandleMsg::RegisterSubcontracts {
-        contract: Token,
-        contract_address: token_contract.clone(),
-    };
-    let res = handle(&mut deps, owner_env, register_msg).unwrap_err();
-    assert_eq!(
-        res,
-        StdError::generic_err("The token contract is already registered",)
-    );
-
-    // check if they are store in config
-    let conf = Config {};
-    let query_conf: ConfigResponse = from_binary(&query(&deps, conf).unwrap()).unwrap();
-    let expected_conf = ConfigResponse {
-        owner: HumanAddr::from("owner1"),
-        reward_contract: Some(reward_contract),
-        token_contract: Some(token_contract),
-    };
-
-    assert_eq!(expected_conf, query_conf)
-}
 
 /// Covers if a given validator is registered in whitelisted validator storage.
 #[test]
