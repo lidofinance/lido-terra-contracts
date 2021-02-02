@@ -21,7 +21,7 @@ use cosmwasm_std::testing::{mock_env, MOCK_CONTRACT_ADDR};
 use cosmwasm_std::{from_binary, BankMsg, Coin, CosmosMsg, Decimal, HumanAddr, StdError, Uint128};
 use terra_cosmwasm::create_swap_msg;
 
-use crate::contracts::{handle, init, query};
+use crate::contract::{handle, init, query};
 use crate::math::{decimal_multiplication, decimal_subtraction};
 use crate::msg::{
     ConfigResponse, HandleMsg, HolderResponse, HoldersResponse, InitMsg, QueryMsg, StateResponse,
