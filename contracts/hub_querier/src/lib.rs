@@ -1,4 +1,4 @@
-use cosmwasm_std::{CanonicalAddr, Decimal, HumanAddr, Uint128, Binary};
+use cosmwasm_std::{Binary, CanonicalAddr, Decimal, HumanAddr, Uint128};
 use cw20::Cw20ReceiveMsg;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -19,6 +19,7 @@ pub struct Config {
     pub creator: CanonicalAddr,
     pub reward_contract: Option<CanonicalAddr>,
     pub token_contract: Option<CanonicalAddr>,
+    pub airdrop_registry_contract: Option<CanonicalAddr>,
 }
 
 impl State {
@@ -44,6 +45,7 @@ pub enum HandleMsg {
         owner: Option<HumanAddr>,
         reward_contract: Option<HumanAddr>,
         token_contract: Option<HumanAddr>,
+        airdrop_registry_contract: Option<HumanAddr>,
     },
 
     /// Register receives the reward contract address
@@ -64,6 +66,24 @@ pub enum HandleMsg {
         peg_recovery_fee: Option<Decimal>,
         er_threshold: Option<Decimal>,
         reward_denom: Option<String>,
+        swap_belief_price: Option<Decimal>,
+        swap_max_spread: Option<Decimal>,
+    },
+
+    /// add airdrop swap contract
+    AddSwapContract {
+        airdrop_token_contract: HumanAddr,
+        swap_contract: HumanAddr,
+    },
+
+    /// update swap contract for specific airdrop token contract
+    UpdateSwapContract {
+        airdrop_token_contract: HumanAddr,
+        swap_contract: HumanAddr,
+    },
+
+    RemoveSwapContract {
+        airdrop_token_contract: HumanAddr,
     },
 
     ////////////////////
@@ -78,7 +98,9 @@ pub enum HandleMsg {
     },
 
     /// Update global index
-    UpdateGlobalIndex {},
+    UpdateGlobalIndex {
+        airdrop_hooks: Option<Vec<Binary>>,
+    },
 
     /// Send back unbonded coin to the user
     WithdrawUnbonded {},
@@ -100,9 +122,23 @@ pub enum HandleMsg {
     ///////////////////
     ClaimAirdrop {
         airdrop_token_contract: HumanAddr, // Contract address of MIR Cw20 Token
-        airdrop_contract: HumanAddr, // Contract address of MIR Airdrop
-        claim_msg: Binary, // Base64-encoded JSON of MIRAirdropHandleMsg::Claim
-    }
+        airdrop_contract: HumanAddr,       // Contract address of MIR Airdrop
+        claim_msg: Binary,                 // Base64-encoded JSON of MIRAirdropHandleMsg::Claim
+    },
+    /// Swaps claimed airdrop tokens to UST through Terraswap & sends resulting UST to bLuna Reward contract
+    SwapHook {
+        airdrop_token_contract: HumanAddr, // E.g. contract address of MIR Token
+    },
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum PairHandleMsg {
+    Swap {
+        belief_price: Option<Decimal>,
+        max_spread: Option<Decimal>,
+        to: Option<HumanAddr>,
+    },
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

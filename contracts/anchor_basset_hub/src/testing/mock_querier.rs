@@ -121,6 +121,9 @@ impl WasmMockQuerier {
                         token_contract: Some(
                             api.canonical_address(&HumanAddr::from("token")).unwrap(),
                         ),
+                        airdrop_registry_contract: Some(
+                            api.canonical_address(&HumanAddr::from("airdrop")).unwrap(),
+                        ),
                     };
                     Ok(to_binary(&to_binary(&config).unwrap()))
                 } else if key.as_slice().to_vec() == prefix_token_inf {

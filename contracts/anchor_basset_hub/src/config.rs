@@ -1,13 +1,14 @@
 use crate::state::{
-    read_config, read_validators, remove_white_validators, store_config, store_parameters,
-    store_white_validators, Parameters,
+    read_airdrop_info, read_config, read_validators, remove_airdrop_info, remove_white_validators,
+    store_airdrop_info, store_config, store_parameters, store_white_validators,
+    update_airdrop_info, Parameters,
 };
 use anchor_basset_reward::msg::HandleMsg::UpdateRewardDenom;
 use cosmwasm_std::{
     log, to_binary, Api, CosmosMsg, Decimal, Env, Extern, HandleResponse, HumanAddr, Querier,
     StakingMsg, StdError, StdResult, Storage, WasmMsg,
 };
-use hub_querier::{HandleMsg};
+use hub_querier::HandleMsg;
 use rand::{Rng, SeedableRng, XorShiftRng};
 
 /// Update general parameters
@@ -22,6 +23,8 @@ pub fn handle_update_params<S: Storage, A: Api, Q: Querier>(
     peg_recovery_fee: Option<Decimal>,
     er_threshold: Option<Decimal>,
     reward_denom: Option<String>,
+    swap_belief_price: Option<Decimal>, // Unused at launch. Included for futureproofing
+    swap_max_spread: Option<Decimal>,
 ) -> StdResult<HandleResponse> {
     // only owner can send this message.
     let config = read_config(&deps.storage).load()?;
@@ -38,6 +41,16 @@ pub fn handle_update_params<S: Storage, A: Api, Q: Querier>(
         peg_recovery_fee: peg_recovery_fee.unwrap_or(params.peg_recovery_fee),
         er_threshold: er_threshold.unwrap_or(params.er_threshold),
         reward_denom: reward_denom.clone().unwrap_or(params.reward_denom),
+        swap_belief_price: if swap_belief_price.is_some() {
+            swap_belief_price
+        } else {
+            params.swap_belief_price
+        },
+        swap_max_spread: if swap_max_spread.is_some() {
+            swap_max_spread
+        } else {
+            params.swap_max_spread
+        },
     };
 
     let mut msgs: Vec<CosmosMsg> = vec![];
@@ -77,6 +90,7 @@ pub fn handle_update_config<S: Storage, A: Api, Q: Querier>(
     owner: Option<HumanAddr>,
     reward_contract: Option<HumanAddr>,
     token_contract: Option<HumanAddr>,
+    airdrop_registry_contract: Option<HumanAddr>,
 ) -> StdResult<HandleResponse> {
     // only owner must be able to send this message.
     let conf = read_config(&deps.storage).load()?;
@@ -120,6 +134,14 @@ pub fn handle_update_config<S: Storage, A: Api, Q: Querier>(
         })?;
     }
 
+    if let Some(airdrop) = airdrop_registry_contract {
+        let airdrop_raw = deps.api.canonical_address(&airdrop)?;
+        store_config(&mut deps.storage).update(|mut last_config| {
+            last_config.airdrop_registry_contract = Some(airdrop_raw);
+            Ok(last_config)
+        })?;
+    }
+
     let res = HandleResponse {
         messages,
         log: vec![log("action", "update_config")],
@@ -127,7 +149,6 @@ pub fn handle_update_config<S: Storage, A: Api, Q: Querier>(
     };
     Ok(res)
 }
-
 
 /// Register a white listed validator.
 /// Only creator/owner is allowed to execute
@@ -203,7 +224,9 @@ pub fn handle_deregister_validator<S: Storage, A: Api, Q: Querier>(
         amount: delegated_amount,
     }));
 
-    let msg = HandleMsg::UpdateGlobalIndex {};
+    let msg = HandleMsg::UpdateGlobalIndex {
+        airdrop_hooks: None,
+    };
     messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
         contract_addr: env.contract.address,
         msg: to_binary(&msg)?,
@@ -220,4 +243,108 @@ pub fn handle_deregister_validator<S: Storage, A: Api, Q: Querier>(
         data: None,
     };
     Ok(res)
+}
+
+pub fn handle_add_swap_contract<S: Storage, A: Api, Q: Querier>(
+    deps: &mut Extern<S, A, Q>,
+    env: Env,
+    airdrop_token_contract: HumanAddr,
+    swap_contract: HumanAddr,
+) -> StdResult<HandleResponse> {
+    let conf = read_config(&deps.storage).load()?;
+
+    let sender_raw = deps.api.canonical_address(&env.message.sender)?;
+    if conf.creator != sender_raw {
+        return Err(StdError::unauthorized());
+    }
+
+    let airdrop_token_raw = deps.api.canonical_address(&airdrop_token_contract)?;
+
+    let exists = read_airdrop_info(&deps.storage, airdrop_token_raw.clone());
+    if exists.is_ok() {
+        return Err(StdError::generic_err(format!(
+            "{} already exists",
+            airdrop_token_contract
+        )));
+    }
+
+    store_airdrop_info(&mut deps.storage, airdrop_token_raw, swap_contract)?;
+    Ok(HandleResponse {
+        messages: vec![],
+        log: vec![log("action", "add_swap_contract")],
+        data: None,
+    })
+}
+
+pub fn handle_remove_swap_contract<S: Storage, A: Api, Q: Querier>(
+    deps: &mut Extern<S, A, Q>,
+    env: Env,
+    airdrop_token_contract: HumanAddr,
+) -> StdResult<HandleResponse> {
+    let conf = read_config(&deps.storage).load()?;
+
+    let sender_raw = deps.api.canonical_address(&env.message.sender)?;
+    if conf.creator != sender_raw {
+        return Err(StdError::unauthorized());
+    }
+
+    let airdrop_token_raw = deps.api.canonical_address(&airdrop_token_contract)?;
+
+    let exists = read_airdrop_info(&deps.storage, airdrop_token_raw.clone());
+    if exists.is_err() {
+        return Err(StdError::generic_err(format!(
+            "{} does not exist",
+            airdrop_token_contract
+        )));
+    }
+
+    remove_airdrop_info(&mut deps.storage, airdrop_token_raw)?;
+
+    Ok(HandleResponse {
+        messages: vec![],
+        log: vec![
+            log("action", "remove_swap_contract"),
+            log("airdrop_token_contract", airdrop_token_contract),
+        ],
+        data: None,
+    })
+}
+
+pub fn handle_update_swap_contract<S: Storage, A: Api, Q: Querier>(
+    deps: &mut Extern<S, A, Q>,
+    env: Env,
+    airdrop_token_contract: HumanAddr,
+    swap_contract: HumanAddr,
+) -> StdResult<HandleResponse> {
+    let conf = read_config(&deps.storage).load()?;
+
+    let sender_raw = deps.api.canonical_address(&env.message.sender)?;
+    if conf.creator != sender_raw {
+        return Err(StdError::unauthorized());
+    }
+
+    let airdrop_token_raw = deps.api.canonical_address(&airdrop_token_contract)?;
+    let exists = read_airdrop_info(&deps.storage, airdrop_token_raw.clone());
+    if exists.is_err() {
+        return Err(StdError::generic_err(format!(
+            "{} does not exist",
+            airdrop_token_contract
+        )));
+    }
+
+    update_airdrop_info(
+        &mut deps.storage,
+        airdrop_token_raw,
+        swap_contract.clone(),
+    )?;
+
+    Ok(HandleResponse {
+        messages: vec![],
+        log: vec![
+            log("action", "update_swap_contract"),
+            log("new_airdrop_token_contract", airdrop_token_contract),
+            log("new_swap_contract", swap_contract),
+        ],
+        data: None,
+    })
 }

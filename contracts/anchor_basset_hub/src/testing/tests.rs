@@ -21,14 +21,17 @@ use cosmwasm_std::{
     FullDelegation, HandleResponse, HumanAddr, InitResponse, Querier, StakingMsg, StdError,
     Storage, Uint128, Validator, WasmMsg,
 };
+use schemars::JsonSchema;
+use serde::{Deserialize, Serialize};
 
 use cosmwasm_std::testing::mock_env;
 
 use crate::msg::{
-    AllHistoryResponse, ConfigResponse, CurrentBatchResponse, InitMsg, StateResponse,
-    UnbondRequestsResponse, WhitelistedValidatorsResponse, WithdrawableUnbondedResponse,
+    AirdropContractsResponse, AirdropContractsResponseElems, AllHistoryResponse, ConfigResponse,
+    CurrentBatchResponse, InitMsg, QueryMsg, StateResponse, UnbondRequestsResponse,
+    WhitelistedValidatorsResponse, WithdrawableUnbondedResponse,
 };
-use hub_querier::HandleMsg;
+use hub_querier::{HandleMsg, PairHandleMsg};
 
 use crate::contract::{handle, init, query};
 use crate::unbond::handle_unbond;
@@ -47,6 +50,7 @@ use crate::msg::QueryMsg::{
     WhitelistedValidators, WithdrawableUnbonded,
 };
 use crate::state::{read_config, read_unbond_wait_list, Parameters};
+use anchor_airdrop_registery::msg::HandleMsg::FabricateMIRClaim;
 use anchor_basset_reward::msg::HandleMsg::{SwapToRewardDenom, UpdateGlobalIndex};
 
 const DEFAULT_VALIDATOR: &str = "default-validator";
@@ -101,7 +105,8 @@ pub fn initialize<S: Storage, A: Api, Q: Querier>(
     let register_msg = HandleMsg::UpdateConfig {
         owner: None,
         reward_contract: Some(reward_contract),
-        token_contract: Some(token_contract)
+        token_contract: Some(token_contract),
+        airdrop_registry_contract: Some(HumanAddr::from("airdrop_registry")),
     };
     let res = handle(&mut deps, owner_env, register_msg).unwrap();
     assert_eq!(1, res.messages.len());
@@ -230,6 +235,7 @@ fn proper_initialization() {
         owner: HumanAddr::from("owner1"),
         reward_contract: None,
         token_contract: None,
+        airdrop_registry_contract: None,
     };
 
     assert_eq!(expected_conf, query_conf);
@@ -246,7 +252,6 @@ fn proper_initialization() {
         }
     );
 }
-
 
 /// Covers if a given validator is registered in whitelisted validator storage.
 #[test]
@@ -539,7 +544,13 @@ fn proper_deregister() {
             send: _,
         }) => {
             assert_eq!(contract_addr.0, MOCK_CONTRACT_ADDR);
-            assert_eq!(msg, &to_binary(&HandleMsg::UpdateGlobalIndex {}).unwrap())
+            assert_eq!(
+                msg,
+                &to_binary(&HandleMsg::UpdateGlobalIndex {
+                    airdrop_hooks: None
+                })
+                .unwrap()
+            )
         }
         _ => panic!("Unexpected message: {:?}", redelegate_msg),
     }
@@ -591,7 +602,9 @@ pub fn proper_update_global_index() {
     deps.querier
         .with_token_balances(&[(&HumanAddr::from("token"), &[(&addr1, &bond_amount)])]);
 
-    let reward_msg = HandleMsg::UpdateGlobalIndex {};
+    let reward_msg = HandleMsg::UpdateGlobalIndex {
+        airdrop_hooks: None,
+    };
 
     let env = mock_env(&addr1, &[]);
     let res = handle(&mut deps, env.clone(), reward_msg).unwrap();
@@ -693,7 +706,9 @@ pub fn proper_update_global_index_two_validators() {
     deps.querier
         .with_token_balances(&[(&HumanAddr::from("token"), &[(&addr1, &Uint128(20u128))])]);
 
-    let reward_msg = HandleMsg::UpdateGlobalIndex {};
+    let reward_msg = HandleMsg::UpdateGlobalIndex {
+        airdrop_hooks: None,
+    };
 
     let env = mock_env(&addr1, &[]);
     let res = handle(&mut deps, env, reward_msg).unwrap();
@@ -772,7 +787,9 @@ pub fn proper_update_global_index_respect_one_registered_validator() {
     deps.querier
         .with_token_balances(&[(&HumanAddr::from("token"), &[(&addr1, &Uint128(20u128))])]);
 
-    let reward_msg = HandleMsg::UpdateGlobalIndex {};
+    let reward_msg = HandleMsg::UpdateGlobalIndex {
+        airdrop_hooks: None,
+    };
 
     let env = mock_env(&addr1, &[]);
     let res = handle(&mut deps, env, reward_msg).unwrap();
@@ -2115,6 +2132,8 @@ pub fn test_update_params() {
         peg_recovery_fee: None,
         er_threshold: None,
         reward_denom: None,
+        swap_belief_price: None,
+        swap_max_spread: None,
     };
     let owner = HumanAddr::from("owner1");
     let token_contract = HumanAddr::from("token");
@@ -2151,6 +2170,8 @@ pub fn test_update_params() {
         peg_recovery_fee: Some(Decimal::one()),
         er_threshold: Some(Decimal::zero()),
         reward_denom: Some("ukrw".to_string()),
+        swap_belief_price: None,
+        swap_max_spread: None,
     };
 
     //the result must be 1
@@ -2192,6 +2213,8 @@ pub fn proper_recovery_fee() {
         peg_recovery_fee: Some(Decimal::from_ratio(Uint128(1), Uint128(1000))),
         er_threshold: Some(Decimal::from_ratio(Uint128(99), Uint128(100))),
         reward_denom: None,
+        swap_belief_price: None,
+        swap_max_spread: None,
     };
     let owner = HumanAddr::from("owner1");
     let token_contract = HumanAddr::from("token");
@@ -2397,6 +2420,7 @@ pub fn proper_update_config() {
     let invalid_owner = HumanAddr::from("invalid_owner");
     let token_contract = HumanAddr::from("token");
     let reward_contract = HumanAddr::from("reward");
+    let airdrop_registry = HumanAddr::from("airdrop_registry");
 
     initialize(
         &mut deps,
@@ -2409,6 +2433,10 @@ pub fn proper_update_config() {
     let config = Config {};
     let config_query: ConfigResponse = from_binary(&query(&deps, config).unwrap()).unwrap();
     assert_eq!(&config_query.token_contract.unwrap(), &token_contract);
+    assert_eq!(
+        &config_query.airdrop_registry_contract.unwrap(),
+        &airdrop_registry
+    );
 
     //make sure the other configs are still the same.
     assert_eq!(&config_query.reward_contract.unwrap(), &reward_contract);
@@ -2419,6 +2447,7 @@ pub fn proper_update_config() {
         owner: Some(new_owner.clone()),
         reward_contract: None,
         token_contract: None,
+        airdrop_registry_contract: None,
     };
     let env = mock_env(&invalid_owner, &[]);
     let res = handle(&mut deps, env, update_config);
@@ -2429,6 +2458,7 @@ pub fn proper_update_config() {
         owner: Some(new_owner.clone()),
         reward_contract: None,
         token_contract: None,
+        airdrop_registry_contract: None,
     };
     let env = mock_env(&owner, &[]);
     let res = handle(&mut deps, env, update_config).unwrap();
@@ -2446,6 +2476,8 @@ pub fn proper_update_config() {
         peg_recovery_fee: None,
         er_threshold: None,
         reward_denom: None,
+        swap_belief_price: None,
+        swap_max_spread: None,
     };
 
     let new_owner_env = mock_env(&new_owner, &[]);
@@ -2460,6 +2492,8 @@ pub fn proper_update_config() {
         peg_recovery_fee: None,
         er_threshold: None,
         reward_denom: None,
+        swap_belief_price: None,
+        swap_max_spread: None,
     };
 
     let new_owner_env = mock_env(&owner, &[]);
@@ -2470,6 +2504,7 @@ pub fn proper_update_config() {
         owner: None,
         reward_contract: Some(HumanAddr::from("new reward")),
         token_contract: None,
+        airdrop_registry_contract: None,
     };
     let new_owner_env = mock_env(&new_owner, &[]);
     let res = handle(&mut deps, new_owner_env, update_config).unwrap();
@@ -2492,6 +2527,7 @@ pub fn proper_update_config() {
         owner: None,
         reward_contract: None,
         token_contract: Some(HumanAddr::from("new token")),
+        airdrop_registry_contract: None,
     };
     let new_owner_env = mock_env(&new_owner, &[]);
     let res = handle(&mut deps, new_owner_env, update_config).unwrap();
@@ -2510,6 +2546,391 @@ pub fn proper_update_config() {
         HumanAddr::from("new reward")
     );
     assert_eq!(config_query.owner, new_owner);
+
+    let update_config = UpdateConfig {
+        owner: None,
+        reward_contract: None,
+        token_contract: None,
+        airdrop_registry_contract: Some(HumanAddr::from("new airdrop")),
+    };
+    let new_owner_env = mock_env(&new_owner, &[]);
+    let res = handle(&mut deps, new_owner_env, update_config).unwrap();
+    assert_eq!(res.messages.len(), 0);
+
+    let config = Config {};
+    let config_query: ConfigResponse = from_binary(&query(&deps, config).unwrap()).unwrap();
+    assert_eq!(
+        config_query.airdrop_registry_contract.unwrap(),
+        HumanAddr::from("new airdrop")
+    );
+}
+
+#[test]
+fn proper_add_remove_update_swap_contract() {
+    let mut deps = dependencies(20, &[]);
+
+    let validator = sample_validator(DEFAULT_VALIDATOR);
+    set_validator_mock(&mut deps.querier);
+
+    let owner = HumanAddr::from("owner1");
+    let invalid_owner = HumanAddr::from("invalid_owner");
+    let token_contract = HumanAddr::from("token");
+    let reward_contract = HumanAddr::from("reward");
+
+    initialize(
+        &mut deps,
+        owner.clone(),
+        reward_contract,
+        token_contract,
+        validator.address,
+    );
+
+    let add_swap_contract_msg = HandleMsg::AddSwapContract {
+        airdrop_token_contract: HumanAddr::from("airdrop_token"),
+        swap_contract: HumanAddr::from("swap_contract"),
+    };
+
+    // unauthorized
+    let invalid_env = mock_env(&invalid_owner, &[]);
+    let res = handle(&mut deps, invalid_env, add_swap_contract_msg.clone());
+    assert_eq!(res.unwrap_err(), StdError::unauthorized());
+
+    let env = mock_env(&owner, &[]);
+    let res = handle(&mut deps, env, add_swap_contract_msg).unwrap();
+    assert_eq!(res.messages.len(), 0);
+
+    let query_airdrop = QueryMsg::AirdropSwapContracts {
+        airdrop_token_contract: Some(HumanAddr::from("airdrop_token")),
+        start_after: None,
+        limit: None,
+    };
+    let res: AirdropContractsResponse = from_binary(&query(&deps, query_airdrop).unwrap()).unwrap();
+    let expected = AirdropContractsResponse {
+        airdrop_contracts_response: vec![AirdropContractsResponseElems {
+            airdrop_token_contract: HumanAddr::from("airdrop_token"),
+            swap_contract: HumanAddr::from("swap_contract"),
+        }],
+    };
+    assert_eq!(res, expected);
+
+    //already exist
+    let add_swap_contract_msg = HandleMsg::AddSwapContract {
+        airdrop_token_contract: HumanAddr::from("airdrop_token"),
+        swap_contract: HumanAddr::from("new_swap_contract"),
+    };
+
+    let env = mock_env(&owner, &[]);
+    let res = handle(&mut deps, env, add_swap_contract_msg).unwrap_err();
+    assert_eq!(
+        res,
+        StdError::generic_err(format!(
+            "{} already exists",
+            HumanAddr::from("airdrop_token")
+        ))
+    );
+
+    // -------------------------------------------
+    // update the swap contract
+    let add_swap_contract_msg = HandleMsg::UpdateSwapContract {
+        airdrop_token_contract: HumanAddr::from("airdrop_token"),
+        swap_contract: HumanAddr::from("new_swap_contract"),
+    };
+
+    // unauthorized
+    let invalid_env = mock_env(&invalid_owner, &[]);
+    let res = handle(&mut deps, invalid_env, add_swap_contract_msg.clone());
+    assert_eq!(res.unwrap_err(), StdError::unauthorized());
+
+    let env = mock_env(&owner, &[]);
+    let res = handle(&mut deps, env, add_swap_contract_msg).unwrap();
+    assert_eq!(res.messages.len(), 0);
+
+    let query_airdrop = QueryMsg::AirdropSwapContracts {
+        airdrop_token_contract: None,
+        start_after: None,
+        limit: None,
+    };
+    let res: AirdropContractsResponse = from_binary(&query(&deps, query_airdrop).unwrap()).unwrap();
+    let expected = AirdropContractsResponse {
+        airdrop_contracts_response: vec![AirdropContractsResponseElems {
+            airdrop_token_contract: HumanAddr::from("airdrop_token"),
+            swap_contract: HumanAddr::from("new_swap_contract"),
+        }],
+    };
+    assert_eq!(res, expected);
+
+    // does not exist
+    let swap_contract_msg = HandleMsg::UpdateSwapContract {
+        airdrop_token_contract: HumanAddr::from("does not exist"),
+        swap_contract: HumanAddr::from("new_swap_contract"),
+    };
+
+    let env = mock_env(&owner, &[]);
+    let res = handle(&mut deps, env, swap_contract_msg).unwrap_err();
+    assert_eq!(
+        res,
+        StdError::generic_err(format!(
+            "{} does not exist",
+            HumanAddr::from("does not exist")
+        ))
+    );
+
+    // -------------------------------------------
+    // remove swap contract
+    let swap_contract_msg = HandleMsg::RemoveSwapContract {
+        airdrop_token_contract: HumanAddr::from("airdrop_token"),
+    };
+
+    // unauthorized
+    let invalid_env = mock_env(&invalid_owner, &[]);
+    let res = handle(&mut deps, invalid_env, swap_contract_msg.clone());
+    assert_eq!(res.unwrap_err(), StdError::unauthorized());
+
+    let env = mock_env(&owner, &[]);
+    let res = handle(&mut deps, env.clone(), swap_contract_msg).unwrap();
+    assert_eq!(res.messages.len(), 0);
+
+    let query_airdrop = QueryMsg::AirdropSwapContracts {
+        airdrop_token_contract: None,
+        start_after: None,
+        limit: None,
+    };
+    let res: AirdropContractsResponse = from_binary(&query(&deps, query_airdrop).unwrap()).unwrap();
+    let expected = AirdropContractsResponse {
+        airdrop_contracts_response: vec![],
+    };
+    assert_eq!(res, expected);
+
+    let swap_contract_msg = HandleMsg::RemoveSwapContract {
+        airdrop_token_contract: HumanAddr::from("airdrop_token"),
+    };
+    let res = handle(&mut deps, env, swap_contract_msg);
+
+    assert_eq!(
+        res.unwrap_err(),
+        StdError::generic_err(format!(
+            "{} does not exist",
+            HumanAddr::from("airdrop_token")
+        ))
+    );
+}
+
+#[test]
+fn proper_claim_airdrop() {
+    let mut deps = dependencies(20, &[]);
+
+    let validator = sample_validator(DEFAULT_VALIDATOR);
+    set_validator_mock(&mut deps.querier);
+
+    let owner = HumanAddr::from("owner1");
+    let token_contract = HumanAddr::from("token");
+    let reward_contract = HumanAddr::from("reward");
+    let airdrop_registry = HumanAddr::from("airdrop_registry");
+
+    initialize(
+        &mut deps,
+        owner.clone(),
+        reward_contract,
+        token_contract,
+        validator.address,
+    );
+
+    let add_swap_contract_msg = HandleMsg::AddSwapContract {
+        airdrop_token_contract: HumanAddr::from("airdrop_token"),
+        swap_contract: HumanAddr::from("swap_contract"),
+    };
+
+    let env = mock_env(&owner, &[]);
+    let res = handle(&mut deps, env, add_swap_contract_msg).unwrap();
+    assert_eq!(res.messages.len(), 0);
+
+    let claim_msg = HandleMsg::ClaimAirdrop {
+        airdrop_token_contract: HumanAddr::from("airdrop_token"),
+        airdrop_contract: HumanAddr::from("MIR_contract"),
+        claim_msg: to_binary(&MIRMsg::MIRClaim {}).unwrap(),
+    };
+
+    //invalid sender
+    let env = mock_env(&owner, &[]);
+    let res = handle(&mut deps, env, claim_msg.clone()).unwrap_err();
+    assert_eq!(
+        res,
+        StdError::generic_err(format!("Sender must be {}", &airdrop_registry))
+    );
+
+    let valid_env = mock_env(&airdrop_registry, &[]);
+    let res = handle(&mut deps, valid_env.clone(), claim_msg).unwrap();
+    assert_eq!(res.messages.len(), 2);
+
+    assert_eq!(
+        res.messages[0],
+        CosmosMsg::Wasm(WasmMsg::Execute {
+            contract_addr: HumanAddr::from("MIR_contract"),
+            msg: to_binary(&MIRMsg::MIRClaim {}).unwrap(),
+            send: vec![]
+        })
+    );
+    assert_eq!(
+        res.messages[1],
+        CosmosMsg::Wasm(WasmMsg::Execute {
+            contract_addr: valid_env.contract.address,
+            msg: to_binary(&HandleMsg::SwapHook {
+                airdrop_token_contract: HumanAddr::from("airdrop_token")
+            })
+            .unwrap(),
+            send: vec![]
+        })
+    );
+}
+
+#[test]
+fn proper_swap_hook() {
+    let mut deps = dependencies(20, &[]);
+
+    let validator = sample_validator(DEFAULT_VALIDATOR);
+    set_validator_mock(&mut deps.querier);
+
+    let owner = HumanAddr::from("owner1");
+    let token_contract = HumanAddr::from("token");
+    let reward_contract = HumanAddr::from("reward");
+
+    initialize(
+        &mut deps,
+        owner.clone(),
+        reward_contract,
+        token_contract,
+        validator.address,
+    );
+
+    let add_swap_contract_msg = HandleMsg::AddSwapContract {
+        airdrop_token_contract: HumanAddr::from("airdrop_token"),
+        swap_contract: HumanAddr::from("swap_contract"),
+    };
+
+    let env = mock_env(&owner, &[]);
+    let res = handle(&mut deps, env, add_swap_contract_msg).unwrap();
+    assert_eq!(res.messages.len(), 0);
+
+    let swap_msg = HandleMsg::SwapHook {
+        airdrop_token_contract: HumanAddr::from("airdrop_token"),
+    };
+
+    //invalid sender
+    let env = mock_env(&owner, &[]);
+    let res = handle(&mut deps, env.clone(), swap_msg.clone()).unwrap_err();
+    assert_eq!(res, StdError::unauthorized());
+
+    // no balance for hub
+    let contract_env = mock_env(&env.contract.address, &[]);
+    let res = handle(&mut deps, contract_env.clone(), swap_msg.clone()).unwrap_err();
+    assert_eq!(
+        res,
+        StdError::generic_err(format!(
+            "There is no balance for {} in airdrop token contract {}",
+            &env.contract.address,
+            &HumanAddr::from("airdrop_token")
+        ))
+    );
+
+    deps.querier.with_token_balances(&[(
+        &HumanAddr::from("airdrop_token"),
+        &[(&env.contract.address, &Uint128(1000))],
+    )]);
+    let res = handle(&mut deps, contract_env, swap_msg).unwrap();
+    assert_eq!(res.messages.len(), 1);
+    assert_eq!(
+        res.messages[0],
+        CosmosMsg::Wasm(WasmMsg::Execute {
+            contract_addr: HumanAddr::from("airdrop_token"),
+            msg: to_binary(&Cw20HandleMsg::Send {
+                contract: HumanAddr::from("swap_contract"),
+                amount: Uint128(1000),
+                msg: Some(
+                    to_binary(&PairHandleMsg::Swap {
+                        belief_price: None,
+                        max_spread: None,
+                        to: Some(HumanAddr::from("reward")),
+                    })
+                    .unwrap()
+                ),
+            })
+            .unwrap(),
+            send: vec![],
+        })
+    )
+}
+
+#[test]
+fn proper_update_global_index_with_airdrop() {
+    let mut deps = dependencies(20, &[]);
+
+    let validator = sample_validator(DEFAULT_VALIDATOR);
+    set_validator_mock(&mut deps.querier);
+
+    let addr1 = HumanAddr::from("addr1000");
+    let bond_amount = Uint128(10);
+
+    let owner = HumanAddr::from("owner1");
+    let token_contract = HumanAddr::from("token");
+    let reward_contract = HumanAddr::from("reward");
+
+    initialize(
+        &mut deps,
+        owner.clone(),
+        reward_contract,
+        token_contract,
+        validator.address.clone(),
+    );
+
+    let add_swap_contract_msg = HandleMsg::AddSwapContract {
+        airdrop_token_contract: HumanAddr::from("airdrop_token"),
+        swap_contract: HumanAddr::from("swap_contract"),
+    };
+
+    let env = mock_env(&owner, &[]);
+    let res = handle(&mut deps, env, add_swap_contract_msg).unwrap();
+    assert_eq!(res.messages.len(), 0);
+
+    // register_validator
+    do_register_validator(&mut deps, validator.clone());
+
+    // bond
+    do_bond(&mut deps, addr1.clone(), bond_amount, validator.clone());
+
+    //set delegation for query-all-delegation
+    let delegations: [FullDelegation; 1] =
+        [(sample_delegation(validator.address.clone(), coin(bond_amount.0, "uluna")))];
+
+    let validators: [Validator; 1] = [(validator)];
+
+    set_delegation_query(&mut deps.querier, &delegations, &validators);
+
+    //set bob's balance to 10 in token contract
+    deps.querier
+        .with_token_balances(&[(&HumanAddr::from("token"), &[(&addr1, &bond_amount)])]);
+
+    let binary_msg = to_binary(&FabricateMIRClaim {
+        stage: 0,
+        amount: Uint128(1000),
+        proof: vec!["proog".to_string()],
+    })
+    .unwrap();
+    let reward_msg = HandleMsg::UpdateGlobalIndex {
+        airdrop_hooks: Some(vec![binary_msg.clone()]),
+    };
+
+    let env = mock_env(&addr1, &[]);
+    let res = handle(&mut deps, env, reward_msg).unwrap();
+    assert_eq!(4, res.messages.len());
+
+    assert_eq!(
+        res.messages[0],
+        CosmosMsg::Wasm(WasmMsg::Execute {
+            contract_addr: HumanAddr::from("airdrop_registry"),
+            msg: binary_msg,
+            send: vec![],
+        })
+    )
 }
 
 fn set_delegation(querier: &mut WasmMockQuerier, validator: Validator, amount: u128, denom: &str) {
@@ -2538,4 +2959,11 @@ fn sample_delegation(addr: HumanAddr, amount: Coin) -> FullDelegation {
         can_redelegate,
         accumulated_rewards,
     }
+}
+
+// sample MIR claim msg
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum MIRMsg {
+    MIRClaim {},
 }
