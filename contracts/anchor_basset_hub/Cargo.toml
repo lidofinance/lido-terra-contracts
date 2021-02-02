@@ -36,7 +36,7 @@ rand = "0.5.0"
 anchor_basset_reward = {path = "../anchor_basset_reward" }
 anchor_basset_token = {path = "../anchor_basset_token"}
 hub_querier = {path = "../hub_querier" }
-anchor_airdrop_registery = {path = "../anchor_airdrop_registery" }
+anchor_airdrop_registery = {path = "../anchor_airdrop_registery", default-features = false, version = "0.1.0"}
 basset = { path = "../../packages/basset", default-features = false, version = "0.1.0"}
 signed_integer = { path = "../../packages/signed_integers", default-features = false, version = "0.1.0"}
 
