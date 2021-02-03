@@ -67,20 +67,11 @@ pub fn remove_airdrop_info<S: Storage>(storage: &mut S, airdrop_token: String) -
     Ok(())
 }
 
-pub fn read_airdrop_info<S: Storage>(storage: &S, airdrop_token: String) -> AirdropInfo {
+pub fn read_airdrop_info<S: Storage>(storage: &S, airdrop_token: String) -> StdResult<AirdropInfo> {
     let key = to_vec(&airdrop_token).unwrap();
     let airdrop_bucket: ReadonlyBucket<S, AirdropInfo> =
         ReadonlyBucket::new(PREFIX_AIRODROP_INFO, storage);
-    match airdrop_bucket.load(&key) {
-        Ok(v) => v,
-        _ => AirdropInfo {
-            airdrop_contract: HumanAddr::default(),
-            airdrop_swap_contract: Default::default(),
-            swap_belief_price: None,
-            airdrop_token_contract: HumanAddr::default(),
-            swap_max_spread: None,
-        },
-    }
+    airdrop_bucket.load(&key)
 }
 
 const MAX_LIMIT: u32 = 30;

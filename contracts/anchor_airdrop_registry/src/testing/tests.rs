@@ -138,7 +138,7 @@ fn proper_add_airdrop_info() {
     let res = handle(&mut deps, invalid_env, msg.clone());
     assert_eq!(res.unwrap_err(), StdError::unauthorized());
 
-    let res = handle(&mut deps, env, msg).unwrap();
+    let res = handle(&mut deps, env.clone(), msg).unwrap();
     assert_eq!(res.messages.len(), 0);
 
     let expected_logs = vec![
@@ -178,6 +178,23 @@ fn proper_add_airdrop_info() {
         airdrop_tokens: vec!["MIR".to_string()],
     };
     assert_eq!(conf, expected);
+
+    // failed message
+    let msg = HandleMsg::AddAirdropInfo {
+        airdrop_token: "MIR".to_string(),
+        airdrop_info: AirdropInfo {
+            airdrop_token_contract: HumanAddr::from("airdrop_token_contract"),
+            airdrop_contract: HumanAddr::from("new_airdrop_contract"),
+            airdrop_swap_contract: HumanAddr::from("swap_contract"),
+            swap_belief_price: None,
+            swap_max_spread: None,
+        },
+    };
+    let res = handle(&mut deps, env, msg).unwrap_err();
+    assert_eq!(
+        res,
+        StdError::generic_err("There is a token info with this MIR")
+    );
 }
 
 #[test]
@@ -201,7 +218,7 @@ fn proper_remove_airdrop_info() {
     let res = handle(&mut deps, invalid_env, msg.clone());
     assert_eq!(res.unwrap_err(), StdError::unauthorized());
 
-    let res = handle(&mut deps, env, msg).unwrap();
+    let res = handle(&mut deps, env.clone(), msg).unwrap();
     assert_eq!(res.messages.len(), 0);
 
     let expected_logs = vec![
@@ -233,6 +250,22 @@ fn proper_remove_airdrop_info() {
             airdrop_info: vec![]
         }
     );
+    // failed message
+    let msg = HandleMsg::UpdateAirdropInfo {
+        airdrop_token: "BUZZ".to_string(),
+        airdrop_info: AirdropInfo {
+            airdrop_token_contract: HumanAddr::from("airdrop_token_contract"),
+            airdrop_contract: HumanAddr::from("new_airdrop_contract"),
+            airdrop_swap_contract: HumanAddr::from("swap_contract"),
+            swap_belief_price: None,
+            swap_max_spread: None,
+        },
+    };
+    let res = handle(&mut deps, env, msg).unwrap_err();
+    assert_eq!(
+        res,
+        StdError::generic_err("There is no token info with this BUZZ")
+    );
 }
 
 #[test]
@@ -243,6 +276,8 @@ fn proper_update_airdrop_info() {
     let env = mock_env(&owner, &[]);
 
     do_init(&mut deps, env.clone());
+
+    do_add_airdrop_info(&mut deps, env.clone());
 
     let msg = HandleMsg::UpdateAirdropInfo {
         airdrop_token: "MIR".to_string(),
@@ -261,7 +296,7 @@ fn proper_update_airdrop_info() {
     let res = handle(&mut deps, invalid_env, msg.clone());
     assert_eq!(res.unwrap_err(), StdError::unauthorized());
 
-    let res = handle(&mut deps, env, msg).unwrap();
+    let res = handle(&mut deps, env.clone(), msg).unwrap();
     assert_eq!(res.messages.len(), 0);
 
     let expected_logs = vec![
@@ -325,6 +360,23 @@ fn proper_update_airdrop_info() {
         AirdropInfoResponse {
             airdrop_info: vec![]
         }
+    );
+
+    // failed message
+    let msg = HandleMsg::UpdateAirdropInfo {
+        airdrop_token: "BUZZ".to_string(),
+        airdrop_info: AirdropInfo {
+            airdrop_token_contract: HumanAddr::from("airdrop_token_contract"),
+            airdrop_contract: HumanAddr::from("new_airdrop_contract"),
+            airdrop_swap_contract: HumanAddr::from("swap_contract"),
+            swap_belief_price: None,
+            swap_max_spread: None,
+        },
+    };
+    let res = handle(&mut deps, env, msg).unwrap_err();
+    assert_eq!(
+        res,
+        StdError::generic_err("There is no token info with this BUZZ")
     );
 }
 
