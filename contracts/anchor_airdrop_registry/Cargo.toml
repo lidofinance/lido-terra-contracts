@@ -1,5 +1,5 @@
 [package]
-name = "anchor_airdrop_registery"
+name = "anchor_airdrop_registry"
 version = "0.1.0"
 authors = ["Terraform Labs, PTE."]
 edition = "2018"

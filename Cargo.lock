@@ -16,7 +16,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ee2a4ec343196209d6594e19543ae87a39f96d5534d7174822a3ad825dd6ed7e"
 
 [[package]]
-name = "anchor_airdrop_registery"
+name = "anchor_airdrop_registry"
 version = "0.1.0"
 dependencies = [
  "cosmwasm-schema",
@@ -35,7 +35,7 @@ dependencies = [
 name = "anchor_basset_hub"
 version = "0.1.0"
 dependencies = [
- "anchor_airdrop_registery",
+ "anchor_airdrop_registry",
  "anchor_basset_reward",
  "anchor_basset_token",
  "basset",
