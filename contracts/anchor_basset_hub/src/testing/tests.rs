@@ -49,8 +49,8 @@ use crate::msg::QueryMsg::{
     WhitelistedValidators, WithdrawableUnbonded,
 };
 use crate::state::{read_config, read_unbond_wait_list, Parameters};
-use anchor_airdrop_registery::msg::HandleMsg::FabricateMIRClaim;
-use anchor_airdrop_registery::msg::PairHandleMsg;
+use anchor_airdrop_registry::msg::HandleMsg::FabricateMIRClaim;
+use anchor_airdrop_registry::msg::PairHandleMsg;
 use anchor_basset_reward::msg::HandleMsg::{SwapToRewardDenom, UpdateGlobalIndex};
 
 const DEFAULT_VALIDATOR: &str = "default-validator";

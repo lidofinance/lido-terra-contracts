@@ -73,7 +73,7 @@ fn handle_fabricate_mir_claim<S: Storage, A: Api, Q: Querier>(
 
     let mut messages: Vec<CosmosMsg> = vec![];
 
-    let airdrop_info = read_airdrop_info(&deps.storage, "MIR".to_string());
+    let airdrop_info = read_airdrop_info(&deps.storage, "MIR".to_string()).unwrap();
     messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
         contract_addr: config.hub_contract,
         msg: to_binary(&HubHandleMsg::ClaimAirdrop {
@@ -148,6 +148,14 @@ pub fn handle_add_airdrop<S: Storage, A: Api, Q: Querier>(
         return Err(StdError::unauthorized());
     }
 
+    let exists = read_airdrop_info(&deps.storage, airdrop_token.clone());
+    if exists.is_ok() {
+        return Err(StdError::generic_err(format!(
+            "There is a token info with this {}",
+            airdrop_token
+        )));
+    }
+
     store_config(&mut deps.storage).update(|mut conf| {
         conf.airdrop_tokens.push(airdrop_token.clone());
         Ok(conf)
@@ -177,6 +185,14 @@ pub fn handle_update_airdrop<S: Storage, A: Api, Q: Querier>(
         return Err(StdError::unauthorized());
     }
 
+    let exists = read_airdrop_info(&deps.storage, airdrop_token.clone());
+    if exists.is_err() {
+        return Err(StdError::generic_err(format!(
+            "There is no token info with this {}",
+            airdrop_token
+        )));
+    }
+
     update_airdrop_info(&mut deps.storage, airdrop_token.clone(), airdrop_info)?;
     Ok(HandleResponse {
         messages: vec![],
@@ -198,6 +214,14 @@ pub fn handle_remove_airdrop<S: Storage, A: Api, Q: Querier>(
     let sender_raw = deps.api.canonical_address(&env.message.sender)?;
     if sender_raw != config.owner {
         return Err(StdError::unauthorized());
+    }
+
+    let exists = read_airdrop_info(&deps.storage, airdrop_token.clone());
+    if exists.is_err() {
+        return Err(StdError::generic_err(format!(
+            "There is no token info with this {}",
+            airdrop_token
+        )));
     }
 
     store_config(&mut deps.storage).update(|mut conf| {
@@ -256,7 +280,7 @@ fn query_airdrop_infos<S: Storage, A: Api, Q: Querier>(
     limit: Option<u32>,
 ) -> StdResult<AirdropInfoResponse> {
     if let Some(air_token) = airdrop_token {
-        let info = read_airdrop_info(&deps.storage, air_token.clone());
+        let info = read_airdrop_info(&deps.storage, air_token.clone()).unwrap();
 
         Ok(AirdropInfoResponse {
             airdrop_info: vec![AirdropInfoElem {
