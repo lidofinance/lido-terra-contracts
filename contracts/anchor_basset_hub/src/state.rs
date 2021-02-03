@@ -2,15 +2,15 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use cosmwasm_std::{
-    from_slice, to_vec, Api, CanonicalAddr, Decimal, Extern, HumanAddr, Order, Querier,
-    ReadonlyStorage, StdError, StdResult, Storage, Uint128,
+    from_slice, to_vec, Decimal, HumanAddr, Order, ReadonlyStorage, StdError, StdResult, Storage,
+    Uint128,
 };
 use cosmwasm_storage::{
     singleton, singleton_read, Bucket, PrefixedStorage, ReadonlyBucket, ReadonlyPrefixedStorage,
     ReadonlySingleton, Singleton,
 };
 
-use crate::msg::{AirdropContractsResponseElems, UnbondRequest};
+use crate::msg::UnbondRequest;
 use hub_querier::{Config, State};
 
 pub type LastBatch = u64;
@@ -33,8 +33,6 @@ pub struct Parameters {
     pub peg_recovery_fee: Decimal,
     pub er_threshold: Decimal,
     pub reward_denom: String,
-    pub swap_belief_price: Option<Decimal>,
-    pub swap_max_spread: Option<Decimal>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -82,81 +80,6 @@ pub fn store_state<S: Storage>(storage: &mut S) -> Singleton<S, State> {
 
 pub fn read_state<S: ReadonlyStorage>(storage: &S) -> ReadonlySingleton<S, State> {
     singleton_read(storage, STATE)
-}
-
-/// Stores contract addresses of Terraswap Pair contracts of {AirdropToken} <> UST pairs
-pub fn store_airdrop_info<S: Storage>(
-    storage: &mut S,
-    airdrop_token_contract: CanonicalAddr,
-    swap_contract: HumanAddr,
-) -> StdResult<()> {
-    let key = airdrop_token_contract.as_slice();
-    let mut airdrop_bucket: Bucket<S, HumanAddr> = Bucket::new(PREFIX_AIRDROP_INFO, storage);
-    airdrop_bucket.save(key, &swap_contract)?;
-
-    Ok(())
-}
-
-pub fn update_airdrop_info<S: Storage>(
-    storage: &mut S,
-    airdrop_token_contract: CanonicalAddr,
-    swap_contract: HumanAddr,
-) -> StdResult<()> {
-    let key = airdrop_token_contract.as_slice();
-    let mut airdrop_bucket: Bucket<S, HumanAddr> = Bucket::new(PREFIX_AIRDROP_INFO, storage);
-    airdrop_bucket.update(key, |_| Ok(swap_contract))?;
-
-    Ok(())
-}
-
-pub fn read_airdrop_info<S: Storage>(
-    storage: &S,
-    airdrop_token_contract: CanonicalAddr,
-) -> StdResult<HumanAddr> {
-    let key = airdrop_token_contract.as_slice();
-    let airdrop_bucket: ReadonlyBucket<S, HumanAddr> =
-        ReadonlyBucket::new(PREFIX_AIRDROP_INFO, storage);
-    airdrop_bucket.load(key)
-}
-
-pub fn remove_airdrop_info<S: Storage>(
-    storage: &mut S,
-    airdrop_token_contract: CanonicalAddr,
-) -> StdResult<()> {
-    let key = airdrop_token_contract.as_slice();
-    let mut airdrop_bucket: Bucket<S, HumanAddr> = Bucket::new(PREFIX_AIRDROP_INFO, storage);
-    airdrop_bucket.remove(key);
-
-    Ok(())
-}
-
-const AIR_MAX_LIMIT: u32 = 30;
-const AIR_DEFAULT_LIMIT: u32 = 10;
-
-pub fn read_airdrop_info_with_limits<S: Storage, A: Api, Q: Querier>(
-    deps: &Extern<S, A, Q>,
-    start_after: Option<CanonicalAddr>,
-    limit: Option<u32>,
-) -> StdResult<Vec<AirdropContractsResponseElems>> {
-    let airdrop_bucket: ReadonlyBucket<S, HumanAddr> =
-        ReadonlyBucket::new(PREFIX_AIRDROP_INFO, &deps.storage);
-
-    let limit = limit.unwrap_or(AIR_DEFAULT_LIMIT).min(AIR_MAX_LIMIT) as usize;
-    let start = calc_range_start(start_after);
-
-    airdrop_bucket
-        .range(start.as_deref(), None, Order::Ascending)
-        .take(limit)
-        .map(|item| {
-            let (k, v) = item?;
-            let key: HumanAddr = deps.api.human_address(&CanonicalAddr::from(k)).unwrap();
-            let res = AirdropContractsResponseElems {
-                airdrop_token_contract: key,
-                swap_contract: v,
-            };
-            Ok(res)
-        })
-        .collect()
 }
 
 /// Store undelegation wait list per each batch
@@ -421,14 +344,6 @@ pub fn all_unbond_history<'a, S: ReadonlyStorage>(
 fn convert(start_after: Option<u64>) -> Option<Vec<u8>> {
     start_after.map(|idx| {
         let mut v = idx.to_be_bytes().to_vec();
-        v.push(1);
-        v
-    })
-}
-
-fn calc_range_start(start_after: Option<CanonicalAddr>) -> Option<Vec<u8>> {
-    start_after.map(|addr| {
-        let mut v = addr.as_slice().to_vec();
         v.push(1);
         v
     })

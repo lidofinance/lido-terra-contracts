@@ -12,6 +12,16 @@
         "update_config": {
           "type": "object",
           "properties": {
+            "airdrop_registry_contract": {
+              "anyOf": [
+                {
+                  "$ref": "#/definitions/HumanAddr"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
             "owner": {
               "anyOf": [
                 {
@@ -41,30 +51,6 @@
                   "type": "null"
                 }
               ]
-            }
-          }
-        }
-      }
-    },
-    {
-      "description": "Register receives the reward contract address",
-      "type": "object",
-      "required": [
-        "register_subcontracts"
-      ],
-      "properties": {
-        "register_subcontracts": {
-          "type": "object",
-          "required": [
-            "contract",
-            "contract_address"
-          ],
-          "properties": {
-            "contract": {
-              "$ref": "#/definitions/Registration"
-            },
-            "contract_address": {
-              "$ref": "#/definitions/HumanAddr"
             }
           }
         }
@@ -199,7 +185,18 @@
       ],
       "properties": {
         "update_global_index": {
-          "type": "object"
+          "type": "object",
+          "properties": {
+            "airdrop_hooks": {
+              "type": [
+                "array",
+                "null"
+              ],
+              "items": {
+                "$ref": "#/definitions/Binary"
+              }
+            }
+          }
         }
       }
     },
@@ -236,6 +233,70 @@
       "properties": {
         "receive": {
           "$ref": "#/definitions/Cw20ReceiveMsg"
+        }
+      }
+    },
+    {
+      "description": "internal operations",
+      "type": "object",
+      "required": [
+        "claim_airdrop"
+      ],
+      "properties": {
+        "claim_airdrop": {
+          "type": "object",
+          "required": [
+            "airdrop_contract",
+            "airdrop_swap_contract",
+            "airdrop_token_contract",
+            "claim_msg",
+            "swap_msg"
+          ],
+          "properties": {
+            "airdrop_contract": {
+              "$ref": "#/definitions/HumanAddr"
+            },
+            "airdrop_swap_contract": {
+              "$ref": "#/definitions/HumanAddr"
+            },
+            "airdrop_token_contract": {
+              "$ref": "#/definitions/HumanAddr"
+            },
+            "claim_msg": {
+              "$ref": "#/definitions/Binary"
+            },
+            "swap_msg": {
+              "$ref": "#/definitions/Binary"
+            }
+          }
+        }
+      }
+    },
+    {
+      "description": "Swaps claimed airdrop tokens to UST through Terraswap & sends resulting UST to bLuna Reward contract",
+      "type": "object",
+      "required": [
+        "swap_hook"
+      ],
+      "properties": {
+        "swap_hook": {
+          "type": "object",
+          "required": [
+            "airdrop_swap_contract",
+            "airdrop_token_contract",
+            "swap_msg"
+          ],
+          "properties": {
+            "airdrop_swap_contract": {
+              "$ref": "#/definitions/HumanAddr"
+            },
+            "airdrop_token_contract": {
+              "$ref": "#/definitions/HumanAddr"
+            },
+            "swap_msg": {
+              "$ref": "#/definitions/Binary"
+            }
+          }
         }
       }
     }
@@ -277,13 +338,6 @@
     },
     "HumanAddr": {
       "type": "string"
-    },
-    "Registration": {
-      "type": "string",
-      "enum": [
-        "token",
-        "reward"
-      ]
     },
     "Uint128": {
       "type": "string"

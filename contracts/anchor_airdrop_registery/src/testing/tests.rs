@@ -1,7 +1,9 @@
 use crate::contract::{handle, init, query};
 use crate::msg::HandleMsg::UpdateConfig;
-use crate::msg::{AirdropInfoResponse, ConfigResponse, HandleMsg, InitMsg, QueryMsg};
-use crate::msg::{AirdropInfosResponse, MIRAirdropHandleMsg};
+use crate::msg::{
+    AirdropInfoElem, AirdropInfoResponse, ConfigResponse, HandleMsg, InitMsg, QueryMsg,
+};
+use crate::msg::{MIRAirdropHandleMsg, PairHandleMsg};
 use crate::state::AirdropInfo;
 use cosmwasm_std::testing::{mock_dependencies, mock_env};
 use cosmwasm_std::{
@@ -13,7 +15,7 @@ use hub_querier::HandleMsg::ClaimAirdrop;
 fn do_init<S: Storage, A: Api, Q: Querier>(mut deps: &mut Extern<S, A, Q>, env: Env) {
     let init_msg = InitMsg {
         hub_contract: HumanAddr::from("hub_contract"),
-        airdrop_tokens: vec![],
+        reward_contract: HumanAddr::from("reward_contract"),
     };
 
     let res = init(&mut deps, env, init_msg).unwrap();
@@ -22,11 +24,14 @@ fn do_init<S: Storage, A: Api, Q: Querier>(mut deps: &mut Extern<S, A, Q>, env: 
 }
 
 fn do_add_airdrop_info<S: Storage, A: Api, Q: Querier>(mut deps: &mut Extern<S, A, Q>, env: Env) {
-    let msg = HandleMsg::AddAirdropToken {
+    let msg = HandleMsg::AddAirdropInfo {
         airdrop_token: "MIR".to_string(),
         airdrop_info: AirdropInfo {
             airdrop_token_contract: HumanAddr::from("airdrop_token_contract"),
             airdrop_contract: HumanAddr::from("airdrop_contract"),
+            airdrop_swap_contract: HumanAddr::from("swap_contract"),
+            swap_belief_price: None,
+            swap_max_spread: None,
         },
     };
     let res = handle(&mut deps, env, msg).unwrap();
@@ -42,7 +47,7 @@ fn proper_init() {
 
     let init_msg = InitMsg {
         hub_contract: HumanAddr::from("hub_contract"),
-        airdrop_tokens: vec![],
+        reward_contract: HumanAddr::from("reward_contract"),
     };
 
     let res = init(&mut deps, env, init_msg).unwrap();
@@ -56,6 +61,7 @@ fn proper_init() {
     let expected = ConfigResponse {
         owner,
         hub_contract: HumanAddr::from("hub_contract"),
+        reward_contract: HumanAddr::from("reward_contract"),
         airdrop_tokens: vec![],
     };
     assert_eq!(conf, expected);
@@ -86,10 +92,17 @@ fn proper_mir_claim() {
         msg: to_binary(&ClaimAirdrop {
             airdrop_token_contract: HumanAddr::from("airdrop_token_contract"),
             airdrop_contract: HumanAddr::from("airdrop_contract"),
+            airdrop_swap_contract: HumanAddr::from("swap_contract"),
             claim_msg: to_binary(&MIRAirdropHandleMsg::Claim {
                 stage: 0,
                 amount: Uint128(1000),
                 proof: vec![],
+            })
+            .unwrap(),
+            swap_msg: to_binary(&PairHandleMsg::Swap {
+                belief_price: None,
+                max_spread: None,
+                to: Some(HumanAddr::from("reward_contract")),
             })
             .unwrap(),
         })
@@ -108,11 +121,14 @@ fn proper_add_airdrop_info() {
 
     do_init(&mut deps, env.clone());
 
-    let msg = HandleMsg::AddAirdropToken {
+    let msg = HandleMsg::AddAirdropInfo {
         airdrop_token: "MIR".to_string(),
         airdrop_info: AirdropInfo {
             airdrop_token_contract: HumanAddr::from("airdrop_token_contract"),
             airdrop_contract: HumanAddr::from("airdrop_contract"),
+            airdrop_swap_contract: HumanAddr::from("swap_contract"),
+            swap_belief_price: None,
+            swap_max_spread: None,
         },
     };
 
@@ -132,15 +148,36 @@ fn proper_add_airdrop_info() {
     assert_eq!(res.log, expected_logs);
 
     let info_query = QueryMsg::AirdropInfo {
-        airdrop_token: "MIR".to_string(),
+        airdrop_token: Some("MIR".to_string()),
+        start_after: None,
+        limit: None,
     };
     let res: AirdropInfoResponse = from_binary(&query(&deps, info_query).unwrap()).unwrap();
 
     let expected = AirdropInfoResponse {
-        airdrop_token_contract: HumanAddr::from("airdrop_token_contract"),
-        airdrop_contract: HumanAddr::from("airdrop_contract"),
+        airdrop_info: vec![AirdropInfoElem {
+            airdrop_token: "MIR".to_string(),
+            info: AirdropInfo {
+                airdrop_token_contract: HumanAddr::from("airdrop_token_contract"),
+                airdrop_contract: HumanAddr::from("airdrop_contract"),
+                airdrop_swap_contract: HumanAddr::from("swap_contract"),
+                swap_belief_price: None,
+                swap_max_spread: None,
+            },
+        }],
     };
-    assert_eq!(res, expected)
+    assert_eq!(res, expected);
+
+    let query_conf = QueryMsg::Config {};
+    let conf: ConfigResponse = from_binary(&query(&deps, query_conf).unwrap()).unwrap();
+
+    let expected = ConfigResponse {
+        owner: HumanAddr::from("owner"),
+        hub_contract: HumanAddr::from("hub_contract"),
+        reward_contract: HumanAddr::from("reward_contract"),
+        airdrop_tokens: vec!["MIR".to_string()],
+    };
+    assert_eq!(conf, expected);
 }
 
 #[test]
@@ -154,7 +191,7 @@ fn proper_remove_airdrop_info() {
 
     do_add_airdrop_info(&mut deps, env.clone());
 
-    let msg = HandleMsg::RemoveAirdropToken {
+    let msg = HandleMsg::RemoveAirdropInfo {
         airdrop_token: "MIR".to_string(),
     };
 
@@ -172,6 +209,30 @@ fn proper_remove_airdrop_info() {
         log("airdrop_token", "MIR"),
     ];
     assert_eq!(res.log, expected_logs);
+
+    let query_conf = QueryMsg::Config {};
+    let conf: ConfigResponse = from_binary(&query(&deps, query_conf).unwrap()).unwrap();
+
+    let expected = ConfigResponse {
+        owner: HumanAddr::from("owner"),
+        hub_contract: HumanAddr::from("hub_contract"),
+        reward_contract: HumanAddr::from("reward_contract"),
+        airdrop_tokens: vec![],
+    };
+    assert_eq!(conf, expected);
+
+    let info_query = QueryMsg::AirdropInfo {
+        airdrop_token: None,
+        start_after: None,
+        limit: None,
+    };
+    let res: AirdropInfoResponse = from_binary(&query(&deps, info_query).unwrap()).unwrap();
+    assert_eq!(
+        res,
+        AirdropInfoResponse {
+            airdrop_info: vec![]
+        }
+    );
 }
 
 #[test]
@@ -183,11 +244,14 @@ fn proper_update_airdrop_info() {
 
     do_init(&mut deps, env.clone());
 
-    let msg = HandleMsg::UpdateAirdropToken {
+    let msg = HandleMsg::UpdateAirdropInfo {
         airdrop_token: "MIR".to_string(),
         airdrop_info: AirdropInfo {
             airdrop_token_contract: HumanAddr::from("airdrop_token_contract"),
             airdrop_contract: HumanAddr::from("new_airdrop_contract"),
+            airdrop_swap_contract: HumanAddr::from("swap_contract"),
+            swap_belief_price: None,
+            swap_max_spread: None,
         },
     };
 
@@ -207,28 +271,61 @@ fn proper_update_airdrop_info() {
     assert_eq!(res.log, expected_logs);
 
     let info_query = QueryMsg::AirdropInfo {
-        airdrop_token: "MIR".to_string(),
+        airdrop_token: Some("MIR".to_string()),
+        start_after: None,
+        limit: None,
     };
     let res: AirdropInfoResponse = from_binary(&query(&deps, info_query).unwrap()).unwrap();
 
     let expected = AirdropInfoResponse {
-        airdrop_token_contract: HumanAddr::from("airdrop_token_contract"),
-        airdrop_contract: HumanAddr::from("new_airdrop_contract"),
+        airdrop_info: vec![AirdropInfoElem {
+            airdrop_token: "MIR".to_string(),
+            info: AirdropInfo {
+                airdrop_token_contract: HumanAddr::from("airdrop_token_contract"),
+                airdrop_contract: HumanAddr::from("new_airdrop_contract"),
+                airdrop_swap_contract: HumanAddr::from("swap_contract"),
+                swap_belief_price: None,
+                swap_max_spread: None,
+            },
+        }],
     };
     assert_eq!(res, expected);
 
-    let info_query = QueryMsg::AirdropInfos {};
-    let res: AirdropInfosResponse = from_binary(&query(&deps, info_query).unwrap()).unwrap();
+    let info_query = QueryMsg::AirdropInfo {
+        airdrop_token: None,
+        start_after: None,
+        limit: None,
+    };
+    let res: AirdropInfoResponse = from_binary(&query(&deps, info_query).unwrap()).unwrap();
 
     let expected = AirdropInfo {
         airdrop_token_contract: HumanAddr::from("airdrop_token_contract"),
         airdrop_contract: HumanAddr::from("new_airdrop_contract"),
+        airdrop_swap_contract: HumanAddr::from("swap_contract"),
+        swap_belief_price: None,
+        swap_max_spread: None,
     };
-    let infos = AirdropInfosResponse {
-        infos: vec![expected],
+    let infos = AirdropInfoResponse {
+        airdrop_info: vec![AirdropInfoElem {
+            airdrop_token: "MIR".to_string(),
+            info: expected,
+        }],
     };
 
-    assert_eq!(res, infos)
+    assert_eq!(res, infos);
+
+    let info_query = QueryMsg::AirdropInfo {
+        airdrop_token: None,
+        start_after: Some("MIR".to_string()),
+        limit: None,
+    };
+    let res: AirdropInfoResponse = from_binary(&query(&deps, info_query).unwrap()).unwrap();
+    assert_eq!(
+        res,
+        AirdropInfoResponse {
+            airdrop_info: vec![]
+        }
+    );
 }
 
 #[test]
@@ -240,18 +337,22 @@ pub fn proper_update_config() {
 
     do_init(&mut deps, env.clone());
 
+    do_add_airdrop_info(&mut deps, env.clone());
+
     let query_update_config = QueryMsg::Config {};
     let res: ConfigResponse = from_binary(&query(&deps, query_update_config).unwrap()).unwrap();
     let expected = ConfigResponse {
         owner,
         hub_contract: HumanAddr::from("hub_contract"),
-        airdrop_tokens: vec![],
+        reward_contract: HumanAddr::from("reward_contract"),
+        airdrop_tokens: vec!["MIR".to_string()],
     };
     assert_eq!(expected, res);
 
     let update_conf = UpdateConfig {
         owner: Some(HumanAddr::from("new_owner")),
         hub_contract: Some(HumanAddr::from("new_hub_contract")),
+        reward_contract: Some(HumanAddr::from("new_reward_contract")),
     };
     let res = handle(&mut deps, env, update_conf).unwrap();
     assert_eq!(res.messages.len(), 0);
@@ -261,7 +362,113 @@ pub fn proper_update_config() {
     let expected = ConfigResponse {
         owner: HumanAddr::from("new_owner"),
         hub_contract: HumanAddr::from("new_hub_contract"),
-        airdrop_tokens: vec![],
+        reward_contract: HumanAddr::from("new_reward_contract"),
+        airdrop_tokens: vec!["MIR".to_string()],
     };
     assert_eq!(expected, res);
+}
+
+#[test]
+fn proper_query() {
+    let mut deps = mock_dependencies(20, &[]);
+
+    let owner = HumanAddr::from("owner");
+    let env = mock_env(&owner, &[]);
+
+    do_init(&mut deps, env.clone());
+
+    do_add_airdrop_info(&mut deps, env.clone());
+
+    let msg = HandleMsg::AddAirdropInfo {
+        airdrop_token: "BUZZ".to_string(),
+        airdrop_info: AirdropInfo {
+            airdrop_token_contract: HumanAddr::from("buzz_airdrop_token_contract"),
+            airdrop_contract: HumanAddr::from("buzz_airdrop_contract"),
+            airdrop_swap_contract: HumanAddr::from("buzz_swap_contract"),
+            swap_belief_price: None,
+            swap_max_spread: None,
+        },
+    };
+    let res = handle(&mut deps, env, msg).unwrap();
+    assert_eq!(res.messages.len(), 0);
+
+    // test query config
+    let query_update_config = QueryMsg::Config {};
+    let res: ConfigResponse = from_binary(&query(&deps, query_update_config).unwrap()).unwrap();
+    let expected = ConfigResponse {
+        owner,
+        hub_contract: HumanAddr::from("hub_contract"),
+        reward_contract: HumanAddr::from("reward_contract"),
+        airdrop_tokens: vec!["MIR".to_string(), "BUZZ".to_string()],
+    };
+    assert_eq!(expected, res);
+
+    //test query airdrop
+    let info_query = QueryMsg::AirdropInfo {
+        airdrop_token: None,
+        start_after: None,
+        limit: None,
+    };
+    let res: AirdropInfoResponse = from_binary(&query(&deps, info_query).unwrap()).unwrap();
+
+    let expected = AirdropInfo {
+        airdrop_token_contract: HumanAddr::from("airdrop_token_contract"),
+        airdrop_contract: HumanAddr::from("airdrop_contract"),
+        airdrop_swap_contract: HumanAddr::from("swap_contract"),
+        swap_belief_price: None,
+        swap_max_spread: None,
+    };
+    let infos = AirdropInfoResponse {
+        airdrop_info: vec![
+            AirdropInfoElem {
+                airdrop_token: "BUZZ".to_string(),
+                info: AirdropInfo {
+                    airdrop_token_contract: HumanAddr::from("buzz_airdrop_token_contract"),
+                    airdrop_contract: HumanAddr::from("buzz_airdrop_contract"),
+                    airdrop_swap_contract: HumanAddr::from("buzz_swap_contract"),
+                    swap_belief_price: None,
+                    swap_max_spread: None,
+                },
+            },
+            AirdropInfoElem {
+                airdrop_token: "MIR".to_string(),
+                info: expected.clone(),
+            },
+        ],
+    };
+    assert_eq!(res, infos);
+
+    // test start after
+    let info_query = QueryMsg::AirdropInfo {
+        airdrop_token: None,
+        start_after: Some("BUZZ".to_string()),
+        limit: None,
+    };
+    let res: AirdropInfoResponse = from_binary(&query(&deps, info_query).unwrap()).unwrap();
+    assert_eq!(
+        res,
+        AirdropInfoResponse {
+            airdrop_info: vec![AirdropInfoElem {
+                airdrop_token: "MIR".to_string(),
+                info: expected.clone()
+            }]
+        }
+    );
+
+    //test airdrop token of airdrop info query
+    let info_query = QueryMsg::AirdropInfo {
+        airdrop_token: Some("MIR".to_string()),
+        start_after: None,
+        limit: None,
+    };
+    let res: AirdropInfoResponse = from_binary(&query(&deps, info_query).unwrap()).unwrap();
+    assert_eq!(
+        res,
+        AirdropInfoResponse {
+            airdrop_info: vec![AirdropInfoElem {
+                airdrop_token: "MIR".to_string(),
+                info: expected
+            }]
+        }
+    );
 }

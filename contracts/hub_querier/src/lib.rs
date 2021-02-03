@@ -66,24 +66,6 @@ pub enum HandleMsg {
         peg_recovery_fee: Option<Decimal>,
         er_threshold: Option<Decimal>,
         reward_denom: Option<String>,
-        swap_belief_price: Option<Decimal>,
-        swap_max_spread: Option<Decimal>,
-    },
-
-    /// add airdrop swap contract
-    AddSwapContract {
-        airdrop_token_contract: HumanAddr,
-        swap_contract: HumanAddr,
-    },
-
-    /// update swap contract for specific airdrop token contract
-    UpdateSwapContract {
-        airdrop_token_contract: HumanAddr,
-        swap_contract: HumanAddr,
-    },
-
-    RemoveSwapContract {
-        airdrop_token_contract: HumanAddr,
     },
 
     ////////////////////
@@ -123,21 +105,16 @@ pub enum HandleMsg {
     ClaimAirdrop {
         airdrop_token_contract: HumanAddr, // Contract address of MIR Cw20 Token
         airdrop_contract: HumanAddr,       // Contract address of MIR Airdrop
+        airdrop_swap_contract: HumanAddr,  // E.g. Contract address of MIR <> UST Terraswap Pair
         claim_msg: Binary,                 // Base64-encoded JSON of MIRAirdropHandleMsg::Claim
+        swap_msg: Binary,                  // Base64-encoded string of JSON of PairHandleMsg::Swap
     },
+
     /// Swaps claimed airdrop tokens to UST through Terraswap & sends resulting UST to bLuna Reward contract
     SwapHook {
         airdrop_token_contract: HumanAddr, // E.g. contract address of MIR Token
-    },
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-#[serde(rename_all = "snake_case")]
-pub enum PairHandleMsg {
-    Swap {
-        belief_price: Option<Decimal>,
-        max_spread: Option<Decimal>,
-        to: Option<HumanAddr>,
+        airdrop_swap_contract: HumanAddr,  // E.g. Contract address of MIR <> UST Terraswap Pair
+        swap_msg: Binary,                  // E.g. Base64-encoded JSON of PairHandleMsg::Swap
     },
 }
 
