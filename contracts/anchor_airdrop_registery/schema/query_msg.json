@@ -21,25 +21,28 @@
       "properties": {
         "airdrop_info": {
           "type": "object",
-          "required": [
-            "airdrop_token"
-          ],
           "properties": {
             "airdrop_token": {
-              "type": "string"
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "limit": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "uint32",
+              "minimum": 0.0
+            },
+            "start_after": {
+              "type": [
+                "string",
+                "null"
+              ]
             }
           }
-        }
-      }
-    },
-    {
-      "type": "object",
-      "required": [
-        "airdrop_infos"
-      ],
-      "properties": {
-        "airdrop_infos": {
-          "type": "object"
         }
       }
     }

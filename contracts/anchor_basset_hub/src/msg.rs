@@ -35,11 +35,6 @@ pub enum QueryMsg {
         start_from: Option<u64>,
         limit: Option<u32>,
     },
-    AirdropSwapContracts {
-        airdrop_token_contract: Option<HumanAddr>,
-        start_after: Option<HumanAddr>,
-        limit: Option<u32>,
-    },
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -85,15 +80,4 @@ pub struct UnbondRequestsResponse {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct AllHistoryResponse {
     pub history: Vec<UnbondHistory>,
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct AirdropContractsResponse {
-    pub airdrop_contracts_response: Vec<AirdropContractsResponseElems>,
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct AirdropContractsResponseElems {
-    pub airdrop_token_contract: HumanAddr,
-    pub swap_contract: HumanAddr,
 }
