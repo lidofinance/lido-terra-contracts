@@ -241,12 +241,12 @@ pub fn handle_update_global<S: Storage, A: Api, Q: Querier>(
     )?;
 
     if airdrop_hooks.is_some() {
-        let registery_addr = deps
+        let registry_addr = deps
             .api
             .human_address(&config.airdrop_registry_contract.unwrap())?;
         for msg in airdrop_hooks.unwrap() {
             messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: registery_addr.clone(),
+                contract_addr: registry_addr.clone(),
                 msg,
                 send: vec![],
             }))
