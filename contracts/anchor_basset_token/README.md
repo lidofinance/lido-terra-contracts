@@ -20,7 +20,8 @@ Handling decimals is left to the UI and not interpreted.
 ### Transfer
 
 * Transfer{*recipient* HumanAddr, *amount* Uint128} 
-    - Sends `UpdateUserIndex` to the reward contract for both the sender and the recipient.
+    - Sends `IncreaseBalance` to the reward contract for the recipient.
+    - Sends `DecreaseBalance` to the reward contract for the sender.
     - Moves `amount` tokens from the `env.sender` account to the `recipient` account. 
     - This is designed to
      send to an address controlled by a private key and *does not* trigger
@@ -29,7 +30,8 @@ Handling decimals is left to the UI and not interpreted.
 
 ### Send
 * Send{contract, amount, msg}
-    - Sends `UpdateUserIndex` to the reward contract for both the sender and the contract. 
+    - Sends `IncreaseBalance` to the reward contract for the contract.
+    - Sends `DecreaseBalance` to the reward contract for the sender.
     - Moves `amount` tokens from the `env.sender` account to the `contract`. 
     -`contract` must be an address of a contract that implements the `Receiver` interface. 
     - In order to burn, the `msg` must be `InitBurn` and will be passed to the recipient contract, along with the amount. 
