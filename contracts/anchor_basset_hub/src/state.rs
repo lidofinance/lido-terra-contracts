@@ -46,6 +46,7 @@ pub struct UnbondHistory {
     pub batch_id: u64,
     pub time: u64,
     pub amount: Uint128,
+    pub applied_exchange_rate: Decimal,
     pub withdraw_rate: Decimal,
     pub released: bool,
 }

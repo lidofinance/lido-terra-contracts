@@ -97,6 +97,7 @@ pub(crate) fn handle_unbond<S: Storage, A: Api, Q: Querier>(
             batch_id: current_batch.id,
             time: env.block.time,
             amount: current_batch.requested_with_fee,
+            applied_exchange_rate: state.exchange_rate,
             withdraw_rate: state.exchange_rate,
             released: false,
         };
