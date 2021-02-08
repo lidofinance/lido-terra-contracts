@@ -1111,6 +1111,7 @@ pub fn proper_unbond() {
     };
     let res: AllHistoryResponse = from_binary(&query(&deps, all_batches).unwrap()).unwrap();
     assert_eq!(res.history[0].amount, Uint128(8));
+    assert_eq!(res.history[0].applied_exchange_rate, Decimal::one());
     assert_eq!(res.history[0].released, false);
     assert_eq!(res.history[0].batch_id, 1);
 }
@@ -2008,6 +2009,7 @@ pub fn proper_withdraw_unbonded_respect_inactivity_slashing() {
     };
     let res: AllHistoryResponse = from_binary(&query(&deps, all_batches).unwrap()).unwrap();
     assert_eq!(res.history[0].amount, Uint128(1000));
+    assert_eq!(res.history[0].applied_exchange_rate.to_string(), "1");
     assert_eq!(res.history[0].withdraw_rate.to_string(), "0.899");
     assert_eq!(res.history[0].released, true);
     assert_eq!(res.history[0].batch_id, 1);
@@ -2426,6 +2428,7 @@ pub fn proper_recovery_fee() {
     let res: AllHistoryResponse = from_binary(&query(&deps, all_batches).unwrap()).unwrap();
     // amount should be 99 + 99 since we store the requested amount with peg fee applied.
     assert_eq!(res.history[0].amount, bonded_with_fee + bonded_with_fee);
+    assert_eq!(res.history[0].applied_exchange_rate, new_exchange);
     assert_eq!(
         res.history[0].withdraw_rate,
         Decimal::from_ratio(Uint128(161869), bonded_with_fee + bonded_with_fee)
