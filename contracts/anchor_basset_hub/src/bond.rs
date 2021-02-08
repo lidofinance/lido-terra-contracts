@@ -42,9 +42,7 @@ pub fn handle_bond<S: Storage, A: Api, Q: Querier>(
         })?;
 
     // check slashing
-    if slashing(deps, env.clone()).is_ok() {
-        slashing(deps, env.clone())?;
-    }
+    slashing(deps, env.clone())?;
 
     let state = read_state(&deps.storage).load()?;
     let sender = env.message.sender.clone();

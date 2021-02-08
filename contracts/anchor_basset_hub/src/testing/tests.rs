@@ -1000,7 +1000,7 @@ pub fn proper_unbond() {
     let state = State {};
     let query_state: StateResponse = from_binary(&query(&deps, state).unwrap()).unwrap();
     assert_eq!(query_state.last_unbonded_time, token_env.block.time);
-    assert_eq!(query_state.total_bond_amount, Uint128(10));
+    assert_eq!(query_state.total_bond_amount, Uint128(1000010));
 
     // successful call
     let successful_bond = Unbond {};
