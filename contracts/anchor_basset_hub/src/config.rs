@@ -189,6 +189,14 @@ pub fn handle_deregister_validator<S: Storage, A: Api, Q: Querier>(
     if token.creator != sender_raw {
         return Err(StdError::unauthorized());
     }
+    let validators_before_remove = read_validators(&deps.storage)?;
+
+    if validators_before_remove.len() == 1 {
+        return Err(StdError::generic_err(
+            "Cannot remove the last whitelisted validator",
+        ));
+    }
+
     remove_white_validators(&mut deps.storage, validator.clone())?;
 
     let query = deps

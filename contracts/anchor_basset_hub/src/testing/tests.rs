@@ -518,7 +518,7 @@ fn proper_deregister() {
         validator: validator.address.clone(),
     };
 
-    let owner_env = mock_env(owner, &[]);
+    let owner_env = mock_env(owner.clone(), &[]);
     let res = handle(&mut deps, owner_env, msg).unwrap();
     assert_eq!(2, res.messages.len());
 
@@ -560,6 +560,18 @@ fn proper_deregister() {
         from_binary(&query(&deps, query_validator).unwrap()).unwrap();
     assert_eq!(query_res.validators.get(0).unwrap(), &validator2.address);
     assert_eq!(query_res.validators.contains(&validator.address), false);
+
+    // fails if there is only one validator
+    let msg = HandleMsg::DeregisterValidator {
+        validator: validator2.address,
+    };
+
+    let owner_env = mock_env(owner, &[]);
+    let res = handle(&mut deps, owner_env, msg).unwrap_err();
+    assert_eq!(
+        res,
+        StdError::generic_err("Cannot remove the last whitelisted validator")
+    );
 }
 
 /// Covers if Withdraw message, swap message, and update global index are sent.
