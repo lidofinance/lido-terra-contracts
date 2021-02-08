@@ -201,32 +201,38 @@ pub fn handle_deregister_validator<S: Storage, A: Api, Q: Querier>(
 
     let query = deps
         .querier
-        .query_delegation(env.contract.address.clone(), validator.clone())?
-        .unwrap();
-    let delegated_amount = query.amount;
+        .query_delegation(env.contract.address.clone(), validator.clone());
 
+    let mut replaced_val = HumanAddr::default();
     let mut messages: Vec<CosmosMsg> = vec![];
-    let validators = read_validators(&deps.storage)?;
 
-    // redelegate the amount to a random validator.
-    let block_height = env.block.height;
-    let mut rng = XorShiftRng::seed_from_u64(block_height);
-    let random_index = rng.gen_range(0, validators.len());
-    let replaced_val = HumanAddr::from(validators.get(random_index).unwrap());
-    messages.push(CosmosMsg::Staking(StakingMsg::Redelegate {
-        src_validator: validator.clone(),
-        dst_validator: replaced_val.clone(),
-        amount: delegated_amount,
-    }));
+    if let Ok(q) = query {
+        let delegated_amount = q;
+        let validators = read_validators(&deps.storage)?;
 
-    let msg = HandleMsg::UpdateGlobalIndex {
-        airdrop_hooks: None,
-    };
-    messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
-        contract_addr: env.contract.address,
-        msg: to_binary(&msg)?,
-        send: vec![],
-    }));
+        // redelegate the amount to a random validator.
+        let block_height = env.block.height;
+        let mut rng = XorShiftRng::seed_from_u64(block_height);
+        let random_index = rng.gen_range(0, validators.len());
+        replaced_val = HumanAddr::from(validators.get(random_index).unwrap());
+
+        if let Some(delegation) = delegated_amount {
+            messages.push(CosmosMsg::Staking(StakingMsg::Redelegate {
+                src_validator: validator.clone(),
+                dst_validator: replaced_val.clone(),
+                amount: delegation.amount,
+            }));
+
+            let msg = HandleMsg::UpdateGlobalIndex {
+                airdrop_hooks: None,
+            };
+            messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
+                contract_addr: env.contract.address,
+                msg: to_binary(&msg)?,
+                send: vec![],
+            }));
+        }
+    }
 
     let res = HandleResponse {
         messages,
