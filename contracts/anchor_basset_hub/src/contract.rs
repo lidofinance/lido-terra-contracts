@@ -136,7 +136,6 @@ pub fn handle<S: Storage, A: Api, Q: Querier>(
         HandleMsg::CheckSlashing {} => handle_slashing(deps, env),
         HandleMsg::UpdateParams {
             epoch_period,
-            underlying_coin_denom: coin_denom,
             unbonding_period,
             peg_recovery_fee,
             er_threshold,
@@ -145,7 +144,6 @@ pub fn handle<S: Storage, A: Api, Q: Querier>(
             deps,
             env,
             epoch_period,
-            coin_denom,
             unbonding_period,
             peg_recovery_fee,
             er_threshold,

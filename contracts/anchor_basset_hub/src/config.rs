@@ -17,7 +17,6 @@ pub fn handle_update_params<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
     env: Env,
     epoch_period: Option<u64>,
-    underlying_coin_denom: Option<String>,
     unbonding_period: Option<u64>,
     peg_recovery_fee: Option<Decimal>,
     er_threshold: Option<Decimal>,
@@ -33,7 +32,7 @@ pub fn handle_update_params<S: Storage, A: Api, Q: Querier>(
     let params: Parameters = store_parameters(&mut deps.storage).load()?;
     let new_params = Parameters {
         epoch_period: epoch_period.unwrap_or(params.epoch_period),
-        underlying_coin_denom: underlying_coin_denom.unwrap_or(params.underlying_coin_denom),
+        underlying_coin_denom: params.underlying_coin_denom,
         unbonding_period: unbonding_period.unwrap_or(params.unbonding_period),
         peg_recovery_fee: peg_recovery_fee.unwrap_or(params.peg_recovery_fee),
         er_threshold: er_threshold.unwrap_or(params.er_threshold),
