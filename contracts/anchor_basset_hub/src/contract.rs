@@ -321,28 +321,32 @@ pub fn slashing<S: Storage, A: Api, Q: Querier>(
     let state_total_bonded = read_state(&deps.storage).load()?.total_bond_amount;
 
     // Check the actual bonded amount
-    let mut actual_total_bonded = Uint128::zero();
     let delegations = deps.querier.query_all_delegations(env.contract.address)?;
-    for delegation in delegations {
-        if delegation.amount.denom == coin_denom {
-            actual_total_bonded += delegation.amount.amount
+    if delegations.is_empty() {
+        Ok(())
+    } else {
+        let mut actual_total_bonded = Uint128::zero();
+        for delegation in delegations {
+            if delegation.amount.denom == coin_denom {
+                actual_total_bonded += delegation.amount.amount
+            }
         }
+
+        // Need total issued for updating the exchange rate
+        let total_issued = query_total_issued(&deps)?;
+        let current_requested_fee = read_current_batch(&deps.storage).load()?.requested_with_fee;
+
+        // Slashing happens if the expected amount is less than stored amount
+        if state_total_bonded.u128() > actual_total_bonded.u128() {
+            store_state(&mut deps.storage).update(|mut state| {
+                state.total_bond_amount = actual_total_bonded;
+                state.update_exchange_rate(total_issued, current_requested_fee);
+                Ok(state)
+            })?;
+        }
+
+        Ok(())
     }
-
-    // Need total issued for updating the exchange rate
-    let total_issued = query_total_issued(&deps)?;
-    let current_requested_fee = read_current_batch(&deps.storage).load()?.requested_with_fee;
-
-    // Slashing happens if the expected amount is less than stored amount
-    if state_total_bonded.u128() > actual_total_bonded.u128() {
-        store_state(&mut deps.storage).update(|mut state| {
-            state.total_bond_amount = actual_total_bonded;
-            state.update_exchange_rate(total_issued, current_requested_fee);
-            Ok(state)
-        })?;
-    }
-
-    Ok(())
 }
 
 pub fn claim_airdrop<S: Storage, A: Api, Q: Querier>(
@@ -452,7 +456,16 @@ pub fn handle_slashing<S: Storage, A: Api, Q: Querier>(
 ) -> StdResult<HandleResponse> {
     // call slashing
     slashing(deps, env)?;
-    Ok(HandleResponse::default())
+    // read state for log
+    let state = read_state(&deps.storage).load()?;
+    Ok(HandleResponse {
+        messages: vec![],
+        log: vec![
+            log("action", "check_slashing"),
+            log("new_exchange_rate", state.exchange_rate),
+        ],
+        data: None,
+    })
 }
 
 pub fn query<S: Storage, A: Api, Q: Querier>(
