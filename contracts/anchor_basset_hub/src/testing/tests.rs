@@ -2163,7 +2163,6 @@ pub fn test_update_params() {
     //test with no swap denom.
     let update_prams = UpdateParams {
         epoch_period: Some(20),
-        underlying_coin_denom: None,
         unbonding_period: None,
         peg_recovery_fee: None,
         er_threshold: None,
@@ -2199,7 +2198,6 @@ pub fn test_update_params() {
     //test with some swap_denom.
     let update_prams = UpdateParams {
         epoch_period: None,
-        underlying_coin_denom: None,
         unbonding_period: Some(3),
         peg_recovery_fee: Some(Decimal::one()),
         er_threshold: Some(Decimal::zero()),
@@ -2240,7 +2238,6 @@ pub fn proper_recovery_fee() {
 
     let update_prams = UpdateParams {
         epoch_period: None,
-        underlying_coin_denom: None,
         unbonding_period: None,
         peg_recovery_fee: Some(Decimal::from_ratio(Uint128(1), Uint128(1000))),
         er_threshold: Some(Decimal::from_ratio(Uint128(99), Uint128(100))),
@@ -2501,7 +2498,6 @@ pub fn proper_update_config() {
     // new owner can send the owner related messages
     let update_prams = UpdateParams {
         epoch_period: None,
-        underlying_coin_denom: None,
         unbonding_period: None,
         peg_recovery_fee: None,
         er_threshold: None,
@@ -2515,7 +2511,6 @@ pub fn proper_update_config() {
     //previous owner cannot send this message
     let update_prams = UpdateParams {
         epoch_period: None,
-        underlying_coin_denom: None,
         unbonding_period: None,
         peg_recovery_fee: None,
         er_threshold: None,
