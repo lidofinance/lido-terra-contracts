@@ -587,6 +587,18 @@ pub fn proper_update_global_index() {
     // register_validator
     do_register_validator(&mut deps, validator.clone());
 
+    // fails if there is no delegation
+    let reward_msg = HandleMsg::UpdateGlobalIndex {
+        airdrop_hooks: None,
+    };
+
+    let env = mock_env(&addr1, &[]);
+    let res = handle(&mut deps, env, reward_msg).unwrap_err();
+    assert_eq!(
+        res,
+        StdError::generic_err("There must be at least one delegation")
+    );
+
     // bond
     do_bond(&mut deps, addr1.clone(), bond_amount, validator.clone());
 
