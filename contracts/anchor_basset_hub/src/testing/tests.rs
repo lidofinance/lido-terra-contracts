@@ -498,6 +498,18 @@ fn proper_deregister() {
     // register_validator2
     do_register_validator(&mut deps, validator2.clone());
 
+    //must be able to deregister while there is no delegation
+    let msg = HandleMsg::DeregisterValidator {
+        validator: validator.address.clone(),
+    };
+
+    let owner_env = mock_env(owner.clone(), &[]);
+    let res = handle(&mut deps, owner_env, msg).unwrap();
+    assert_eq!(0, res.messages.len());
+
+    // register_validator 1 again
+    do_register_validator(&mut deps, validator.clone());
+
     set_delegation(
         &mut deps.querier,
         validator.clone(),
