@@ -18,15 +18,17 @@
 //! 4. Anywhere you see query(&deps, ...) you must replace it with query(&mut deps, ...)
 
 use cosmwasm_std::testing::{mock_env, MOCK_CONTRACT_ADDR};
-use cosmwasm_std::{from_binary, BankMsg, Coin, CosmosMsg, Decimal, HumanAddr, StdError, Uint128};
+use cosmwasm_std::{
+    from_binary, Api, BankMsg, Coin, CosmosMsg, Decimal, HumanAddr, StdError, Uint128,
+};
 use terra_cosmwasm::create_swap_msg;
 
 use crate::contract::{handle, init, query};
-use crate::math::{decimal_multiplication, decimal_subtraction};
+use crate::math::{decimal_multiplication_in_256, decimal_subtraction_in_256};
 use crate::msg::{
     ConfigResponse, HandleMsg, HolderResponse, HoldersResponse, InitMsg, QueryMsg, StateResponse,
 };
-use crate::state::{store_state, State};
+use crate::state::{store_holder, store_state, Holder, State};
 use crate::testing::mock_querier::{
     mock_dependencies, MOCK_HUB_CONTRACT_ADDR, MOCK_TOKEN_CONTRACT_ADDR,
 };
@@ -366,13 +368,13 @@ fn increase_balance_with_decimals() {
     )
     .unwrap();
     let holder_response: HolderResponse = from_binary(&res).unwrap();
-    let index = decimal_multiplication(
+    let index = decimal_multiplication_in_256(
         Decimal::from_ratio(Uint128(100000), Uint128(11)),
         Decimal::one(),
     );
-    let user_pend_reward = decimal_multiplication(
+    let user_pend_reward = decimal_multiplication_in_256(
         Decimal::from_str("11").unwrap(),
-        decimal_subtraction(holder_response.index, Decimal::zero()),
+        decimal_subtraction_in_256(holder_response.index, Decimal::zero()),
     );
     assert_eq!(
         holder_response,
@@ -622,7 +624,7 @@ fn claim_rewards_with_decimals() {
     )
     .unwrap();
     let holder_response: HolderResponse = from_binary(&res).unwrap();
-    let index = decimal_multiplication(
+    let index = decimal_multiplication_in_256(
         Decimal::from_ratio(Uint128(99999), Uint128(11)),
         Decimal::one(),
     );
@@ -632,7 +634,7 @@ fn claim_rewards_with_decimals() {
             address: HumanAddr::from("addr0000"),
             balance: Uint128::from(11u128),
             index,
-            pending_rewards: Decimal::from_str("0.99999999998").unwrap(),
+            pending_rewards: Decimal::from_str("0.999999999999999991").unwrap(),
         }
     );
 
@@ -790,6 +792,163 @@ fn query_holders() {
                 index: Decimal::zero(),
                 pending_rewards: Decimal::zero(),
             }],
+        }
+    );
+}
+
+#[test]
+fn proper_prev_balance() {
+    let mut deps = mock_dependencies(
+        20,
+        &[Coin {
+            denom: "uusd".to_string(),
+            amount: Uint128(100u128),
+        }],
+    );
+
+    let init_msg = default_init();
+    let env = mock_env("addr0000", &[]);
+
+    init(&mut deps, env, init_msg).unwrap();
+
+    let amount1 = Uint128::from(8899999999988889u128);
+    let amount2 = Uint128::from(14487875351811111u128);
+    let amount3 = Uint128::from(1100000000000000u128);
+
+    let rewards = Uint128(677101666827000000u128);
+
+    let all_balance = amount1 + amount2 + amount3;
+
+    let global_index = Decimal::from_ratio(rewards, all_balance);
+    store_state(
+        &mut deps.storage,
+        &State {
+            global_index,
+            total_balance: all_balance,
+            prev_reward_balance: rewards,
+        },
+    )
+    .unwrap();
+
+    let holder = Holder {
+        balance: amount1,
+        index: Decimal::from_str("0").unwrap(),
+        pending_rewards: Decimal::from_str("0").unwrap(),
+    };
+    store_holder(
+        &mut deps.storage,
+        &deps
+            .api
+            .canonical_address(&HumanAddr::from("addr0000"))
+            .unwrap(),
+        &holder,
+    )
+    .unwrap();
+
+    let holder = Holder {
+        balance: amount2,
+        index: Decimal::from_str("0").unwrap(),
+        pending_rewards: Decimal::from_str("0").unwrap(),
+    };
+    store_holder(
+        &mut deps.storage,
+        &deps
+            .api
+            .canonical_address(&HumanAddr::from("addr0001"))
+            .unwrap(),
+        &holder,
+    )
+    .unwrap();
+
+    let holder = Holder {
+        balance: amount3,
+        index: Decimal::from_str("0").unwrap(),
+        pending_rewards: Decimal::from_str("0").unwrap(),
+    };
+    store_holder(
+        &mut deps.storage,
+        &deps
+            .api
+            .canonical_address(&HumanAddr::from("addr0002"))
+            .unwrap(),
+        &holder,
+    )
+    .unwrap();
+
+    let msg = HandleMsg::ClaimRewards { recipient: None };
+    let env = mock_env("addr0000", &[]);
+    let _res = handle(&mut deps, env, msg).unwrap();
+
+    let msg = HandleMsg::ClaimRewards { recipient: None };
+    let env = mock_env("addr0001", &[]);
+    let _res = handle(&mut deps, env, msg).unwrap();
+
+    let msg = HandleMsg::ClaimRewards { recipient: None };
+    let env = mock_env("addr0002", &[]);
+    let _res = handle(&mut deps, env, msg).unwrap();
+
+    let res = query(&deps, QueryMsg::State {}).unwrap();
+    let state_response: StateResponse = from_binary(&res).unwrap();
+    assert_eq!(
+        state_response,
+        StateResponse {
+            global_index,
+            total_balance: all_balance,
+            prev_reward_balance: Uint128(1)
+        }
+    );
+
+    let res = query(
+        &deps,
+        QueryMsg::Holder {
+            address: HumanAddr::from("addr0000"),
+        },
+    )
+    .unwrap();
+    let holder_response: HolderResponse = from_binary(&res).unwrap();
+    assert_eq!(
+        holder_response,
+        HolderResponse {
+            address: HumanAddr::from("addr0000"),
+            balance: amount1,
+            index: global_index,
+            pending_rewards: Decimal::from_str("0.212799238975421283").unwrap(),
+        }
+    );
+
+    let res = query(
+        &deps,
+        QueryMsg::Holder {
+            address: HumanAddr::from("addr0001"),
+        },
+    )
+    .unwrap();
+    let holder_response: HolderResponse = from_binary(&res).unwrap();
+    assert_eq!(
+        holder_response,
+        HolderResponse {
+            address: HumanAddr::from("addr0001"),
+            balance: amount2,
+            index: global_index,
+            pending_rewards: Decimal::from_str("0.078595712259178717").unwrap(),
+        }
+    );
+
+    let res = query(
+        &deps,
+        QueryMsg::Holder {
+            address: HumanAddr::from("addr0002"),
+        },
+    )
+    .unwrap();
+    let holder_response: HolderResponse = from_binary(&res).unwrap();
+    assert_eq!(
+        holder_response,
+        HolderResponse {
+            address: HumanAddr::from("addr0002"),
+            balance: amount3,
+            index: global_index,
+            pending_rewards: Decimal::from_str("0.701700000000000000").unwrap(),
         }
     );
 }

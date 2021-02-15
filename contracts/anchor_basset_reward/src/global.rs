@@ -1,6 +1,6 @@
 use crate::state::{read_config, read_state, store_state, Config, State};
 
-use crate::math::decimal_summation;
+use crate::math::decimal_summation_in_256;
 use cosmwasm_std::{
     log, Api, CosmosMsg, Decimal, Env, Extern, HandleResponse, Querier, StdError, StdResult,
     Storage,
@@ -81,7 +81,7 @@ pub fn handle_update_global_index<S: Storage, A: Api, Q: Querier>(
     state.prev_reward_balance = balance.amount;
 
     // global_index += claimed_rewards / total_balance;
-    state.global_index = decimal_summation(
+    state.global_index = decimal_summation_in_256(
         state.global_index,
         Decimal::from_ratio(claimed_rewards, state.total_balance),
     );
