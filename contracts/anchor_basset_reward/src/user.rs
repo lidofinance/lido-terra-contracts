@@ -10,7 +10,9 @@ use cosmwasm_std::{
     StdResult, Storage, Uint128,
 };
 
-use crate::math::{decimal_multiplication, decimal_subtraction, decimal_summation};
+use crate::math::{
+    decimal_multiplication_in_256, decimal_subtraction_in_256, decimal_summation_in_256,
+};
 use basset::deduct_tax;
 use std::str::FromStr;
 use terra_cosmwasm::TerraMsgWrapper;
@@ -34,7 +36,9 @@ pub fn handle_claim_rewards<S: Storage, A: Api, Q: Querier>(
 
     let reward_with_decimals =
         calculate_decimal_rewards(state.global_index, holder.index, holder.balance)?;
-    let all_reward_with_decimals = decimal_summation(reward_with_decimals, holder.pending_rewards);
+
+    let all_reward_with_decimals =
+        decimal_summation_in_256(reward_with_decimals, holder.pending_rewards);
     let decimals = get_decimals(all_reward_with_decimals).unwrap();
 
     let rewards = all_reward_with_decimals * Uint128(1);
@@ -100,7 +104,7 @@ pub fn handle_increase_balance<S: Storage, A: Api, Q: Querier>(
     let rewards = calculate_decimal_rewards(state.global_index, holder.index, holder.balance)?;
 
     holder.index = state.global_index;
-    holder.pending_rewards = decimal_summation(rewards, holder.pending_rewards);
+    holder.pending_rewards = decimal_summation_in_256(rewards, holder.pending_rewards);
     holder.balance += amount;
     state.total_balance += amount;
 
@@ -148,7 +152,7 @@ pub fn handle_decrease_balance<S: Storage, A: Api, Q: Querier>(
     let rewards = calculate_decimal_rewards(state.global_index, holder.index, holder.balance)?;
 
     holder.index = state.global_index;
-    holder.pending_rewards = decimal_summation(rewards, holder.pending_rewards);
+    holder.pending_rewards = decimal_summation_in_256(rewards, holder.pending_rewards);
     holder.balance = (holder.balance - amount).unwrap();
     state.total_balance = (state.total_balance - amount).unwrap();
 
@@ -176,7 +180,8 @@ pub fn query_accrued_rewards<S: Storage, A: Api, Q: Querier>(
     let holder: Holder = read_holder(&deps.storage, &deps.api.canonical_address(&address)?)?;
     let reward_with_decimals =
         calculate_decimal_rewards(global_index, holder.index, holder.balance)?;
-    let all_reward_with_decimals = decimal_summation(reward_with_decimals, holder.pending_rewards);
+    let all_reward_with_decimals =
+        decimal_summation_in_256(reward_with_decimals, holder.pending_rewards);
 
     let rewards = all_reward_with_decimals * Uint128(1);
 
@@ -219,8 +224,8 @@ fn calculate_decimal_rewards(
     user_balance: Uint128,
 ) -> StdResult<Decimal> {
     let decimal_balance = Decimal::from_ratio(user_balance, Uint128(1));
-    Ok(decimal_multiplication(
-        decimal_subtraction(global_index, user_index),
+    Ok(decimal_multiplication_in_256(
+        decimal_subtraction_in_256(global_index, user_index),
         decimal_balance,
     ))
 }
