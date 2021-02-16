@@ -1,6 +1,6 @@
 use crate::msg::{
-    AirdropInfoElem, AirdropInfoResponse, ConfigResponse, HandleMsg, InitMsg, MIRAirdropHandleMsg,
-    PairHandleMsg, QueryMsg,
+    ANCAirdropHandleMsg, AirdropInfoElem, AirdropInfoResponse, ConfigResponse, HandleMsg, InitMsg,
+    MIRAirdropHandleMsg, PairHandleMsg, QueryMsg,
 };
 use crate::state::{
     read_airdrop_info, read_all_airdrop_infos, read_config, remove_airdrop_info,
@@ -43,6 +43,11 @@ pub fn handle<S: Storage, A: Api, Q: Querier>(
             amount,
             proof,
         } => handle_fabricate_mir_claim(deps, env, stage, amount, proof),
+        HandleMsg::FabricateANCClaim {
+            stage,
+            amount,
+            proof,
+        } => handle_fabricate_anchor_claim(deps, env, stage, amount, proof),
         HandleMsg::UpdateConfig {
             owner,
             hub_contract,
@@ -101,6 +106,44 @@ fn handle_fabricate_mir_claim<S: Storage, A: Api, Q: Querier>(
     })
 }
 
+fn handle_fabricate_anchor_claim<S: Storage, A: Api, Q: Querier>(
+    deps: &mut Extern<S, A, Q>,
+    _env: Env,
+    stage: u8,
+    amount: Uint128,
+    proof: Vec<String>,
+) -> StdResult<HandleResponse> {
+    let config = read_config(&deps.storage).load()?;
+
+    let mut messages: Vec<CosmosMsg> = vec![];
+
+    let airdrop_info = read_airdrop_info(&deps.storage, "ANC".to_string()).unwrap();
+    messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
+        contract_addr: config.hub_contract,
+        msg: to_binary(&HubHandleMsg::ClaimAirdrop {
+            airdrop_token_contract: airdrop_info.airdrop_token_contract,
+            airdrop_contract: airdrop_info.airdrop_contract,
+            airdrop_swap_contract: airdrop_info.airdrop_swap_contract,
+            claim_msg: to_binary(&ANCAirdropHandleMsg::Claim {
+                stage,
+                amount,
+                proof,
+            })?,
+            swap_msg: to_binary(&PairHandleMsg::Swap {
+                belief_price: airdrop_info.swap_belief_price,
+                max_spread: airdrop_info.swap_max_spread,
+                to: Some(config.reward_contract),
+            })?,
+        })?,
+        send: vec![],
+    }));
+
+    Ok(HandleResponse {
+        messages,
+        log: vec![log("action", "fabricate_anc_claim")],
+        data: None,
+    })
+}
 pub fn handle_update_config<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
     env: Env,
