@@ -1,7 +1,8 @@
 use crate::contract::{handle, init, query};
 use crate::msg::HandleMsg::UpdateConfig;
 use crate::msg::{
-    AirdropInfoElem, AirdropInfoResponse, ConfigResponse, HandleMsg, InitMsg, QueryMsg,
+    ANCAirdropHandleMsg, AirdropInfoElem, AirdropInfoResponse, ConfigResponse, HandleMsg, InitMsg,
+    QueryMsg,
 };
 use crate::msg::{MIRAirdropHandleMsg, PairHandleMsg};
 use crate::state::AirdropInfo;
@@ -23,9 +24,13 @@ fn do_init<S: Storage, A: Api, Q: Querier>(mut deps: &mut Extern<S, A, Q>, env: 
     assert_eq!(res.messages.len(), 0);
 }
 
-fn do_add_airdrop_info<S: Storage, A: Api, Q: Querier>(mut deps: &mut Extern<S, A, Q>, env: Env) {
+fn do_add_airdrop_info<S: Storage, A: Api, Q: Querier>(
+    mut deps: &mut Extern<S, A, Q>,
+    env: Env,
+    airdrop_token: &str,
+) {
     let msg = HandleMsg::AddAirdropInfo {
-        airdrop_token: "MIR".to_string(),
+        airdrop_token: airdrop_token.to_string(),
         airdrop_info: AirdropInfo {
             airdrop_token_contract: HumanAddr::from("airdrop_token_contract"),
             airdrop_contract: HumanAddr::from("airdrop_contract"),
@@ -76,7 +81,7 @@ fn proper_mir_claim() {
 
     do_init(&mut deps, env.clone());
 
-    do_add_airdrop_info(&mut deps, env.clone());
+    do_add_airdrop_info(&mut deps, env.clone(), "MIR");
 
     let msg = HandleMsg::FabricateMIRClaim {
         stage: 0,
@@ -94,6 +99,51 @@ fn proper_mir_claim() {
             airdrop_contract: HumanAddr::from("airdrop_contract"),
             airdrop_swap_contract: HumanAddr::from("swap_contract"),
             claim_msg: to_binary(&MIRAirdropHandleMsg::Claim {
+                stage: 0,
+                amount: Uint128(1000),
+                proof: vec![],
+            })
+            .unwrap(),
+            swap_msg: to_binary(&PairHandleMsg::Swap {
+                belief_price: None,
+                max_spread: None,
+                to: Some(HumanAddr::from("reward_contract")),
+            })
+            .unwrap(),
+        })
+        .unwrap(),
+        send: vec![],
+    });
+    assert_eq!(res.messages[0], expected);
+}
+
+#[test]
+fn proper_anc_claim() {
+    let mut deps = mock_dependencies(20, &[]);
+
+    let owner = HumanAddr::from("owner");
+    let env = mock_env(&owner, &[]);
+
+    do_init(&mut deps, env.clone());
+
+    do_add_airdrop_info(&mut deps, env.clone(), "ANC");
+
+    let msg = HandleMsg::FabricateANCClaim {
+        stage: 0,
+        amount: Uint128(1000),
+        proof: vec![],
+    };
+
+    let res = handle(&mut deps, env, msg).unwrap();
+    assert_eq!(res.messages.len(), 1);
+
+    let expected = CosmosMsg::Wasm(WasmMsg::Execute {
+        contract_addr: HumanAddr::from("hub_contract"),
+        msg: to_binary(&ClaimAirdrop {
+            airdrop_token_contract: HumanAddr::from("airdrop_token_contract"),
+            airdrop_contract: HumanAddr::from("airdrop_contract"),
+            airdrop_swap_contract: HumanAddr::from("swap_contract"),
+            claim_msg: to_binary(&ANCAirdropHandleMsg::Claim {
                 stage: 0,
                 amount: Uint128(1000),
                 proof: vec![],
@@ -206,7 +256,7 @@ fn proper_remove_airdrop_info() {
 
     do_init(&mut deps, env.clone());
 
-    do_add_airdrop_info(&mut deps, env.clone());
+    do_add_airdrop_info(&mut deps, env.clone(), "MIR");
 
     let msg = HandleMsg::RemoveAirdropInfo {
         airdrop_token: "MIR".to_string(),
@@ -277,7 +327,7 @@ fn proper_update_airdrop_info() {
 
     do_init(&mut deps, env.clone());
 
-    do_add_airdrop_info(&mut deps, env.clone());
+    do_add_airdrop_info(&mut deps, env.clone(), "MIR");
 
     let msg = HandleMsg::UpdateAirdropInfo {
         airdrop_token: "MIR".to_string(),
@@ -389,7 +439,7 @@ pub fn proper_update_config() {
 
     do_init(&mut deps, env.clone());
 
-    do_add_airdrop_info(&mut deps, env.clone());
+    do_add_airdrop_info(&mut deps, env.clone(), "MIR");
 
     let query_update_config = QueryMsg::Config {};
     let res: ConfigResponse = from_binary(&query(&deps, query_update_config).unwrap()).unwrap();
@@ -429,7 +479,8 @@ fn proper_query() {
 
     do_init(&mut deps, env.clone());
 
-    do_add_airdrop_info(&mut deps, env.clone());
+    do_add_airdrop_info(&mut deps, env.clone(), "MIR");
+    do_add_airdrop_info(&mut deps, env.clone(), "ANC");
 
     let msg = HandleMsg::AddAirdropInfo {
         airdrop_token: "BUZZ".to_string(),
@@ -451,7 +502,7 @@ fn proper_query() {
         owner,
         hub_contract: HumanAddr::from("hub_contract"),
         reward_contract: HumanAddr::from("reward_contract"),
-        airdrop_tokens: vec!["MIR".to_string(), "BUZZ".to_string()],
+        airdrop_tokens: vec!["MIR".to_string(), "ANC".to_string(), "BUZZ".to_string()],
     };
     assert_eq!(expected, res);
 
@@ -472,6 +523,10 @@ fn proper_query() {
     };
     let infos = AirdropInfoResponse {
         airdrop_info: vec![
+            AirdropInfoElem {
+                airdrop_token: "ANC".to_string(),
+                info: expected.clone(),
+            },
             AirdropInfoElem {
                 airdrop_token: "BUZZ".to_string(),
                 info: AirdropInfo {

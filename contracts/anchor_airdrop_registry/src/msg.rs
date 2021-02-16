@@ -17,6 +17,11 @@ pub enum HandleMsg {
         amount: Uint128,
         proof: Vec<String>,
     },
+    FabricateANCClaim {
+        stage: u8,
+        amount: Uint128,
+        proof: Vec<String>,
+    },
     UpdateConfig {
         owner: Option<HumanAddr>,
         hub_contract: Option<HumanAddr>,
@@ -49,6 +54,16 @@ pub enum QueryMsg {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum MIRAirdropHandleMsg {
+    Claim {
+        stage: u8,
+        amount: Uint128,
+        proof: Vec<String>,
+    },
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum ANCAirdropHandleMsg {
     Claim {
         stage: u8,
         amount: Uint128,
