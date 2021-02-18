@@ -10,6 +10,7 @@ use cw20_base::msg::{HandleMsg, InitMsg, QueryMsg};
 use crate::handler::*;
 use crate::msg::TokenInitMsg;
 use crate::state::store_hub_contract;
+use cw20::MinterResponse;
 
 pub fn init<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
@@ -24,7 +25,10 @@ pub fn init<S: Storage, A: Api, Q: Querier>(
             symbol: msg.symbol,
             decimals: msg.decimals,
             initial_balances: msg.initial_balances,
-            mint: msg.mint,
+            mint: Some(MinterResponse {
+                minter: msg.hub_contract.clone(),
+                cap: None,
+            }),
         },
     )?;
 

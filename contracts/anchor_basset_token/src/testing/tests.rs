@@ -91,10 +91,7 @@ fn proper_initialization() {
         symbol: "BLUNA".to_string(),
         decimals: 6,
         initial_balances: vec![],
-        mint: Some(MinterResponse {
-            minter: hub_contract.clone(),
-            cap: None,
-        }),
+        mint: None,
         hub_contract: hub_contract.clone(),
     };
     let env = mock_env(&hub_contract, &[]);
@@ -109,6 +106,14 @@ fn proper_initialization() {
             decimals: 6,
             total_supply: Uint128::zero(),
         }
+    );
+
+    assert_eq!(
+        query_minter(&deps).unwrap(),
+        Some(MinterResponse {
+            minter: hub_contract,
+            cap: None
+        })
     );
 
     assert_eq!(read_hub_contract(&deps.storage).unwrap(), hub_contract_raw);
