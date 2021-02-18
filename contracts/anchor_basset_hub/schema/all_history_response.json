@@ -25,6 +25,7 @@
       "type": "object",
       "required": [
         "amount",
+        "applied_exchange_rate",
         "batch_id",
         "released",
         "time",
@@ -33,6 +34,9 @@
       "properties": {
         "amount": {
           "$ref": "#/definitions/Uint128"
+        },
+        "applied_exchange_rate": {
+          "$ref": "#/definitions/Decimal"
         },
         "batch_id": {
           "type": "integer",

@@ -133,12 +133,6 @@
                 }
               ]
             },
-            "reward_denom": {
-              "type": [
-                "string",
-                "null"
-              ]
-            },
             "unbonding_period": {
               "type": [
                 "integer",
@@ -146,12 +140,6 @@
               ],
               "format": "uint64",
               "minimum": 0.0
-            },
-            "underlying_coin_denom": {
-              "type": [
-                "string",
-                "null"
-              ]
             }
           }
         }

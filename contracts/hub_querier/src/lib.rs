@@ -64,7 +64,6 @@ pub enum HandleMsg {
         unbonding_period: Option<u64>,
         peg_recovery_fee: Option<Decimal>,
         er_threshold: Option<Decimal>,
-        reward_denom: Option<String>,
     },
 
     ////////////////////

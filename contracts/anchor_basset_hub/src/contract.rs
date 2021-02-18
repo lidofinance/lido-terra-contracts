@@ -139,7 +139,6 @@ pub fn handle<S: Storage, A: Api, Q: Querier>(
             unbonding_period,
             peg_recovery_fee,
             er_threshold,
-            reward_denom,
         } => handle_update_params(
             deps,
             env,
@@ -147,7 +146,6 @@ pub fn handle<S: Storage, A: Api, Q: Querier>(
             unbonding_period,
             peg_recovery_fee,
             er_threshold,
-            reward_denom,
         ),
         HandleMsg::UpdateConfig {
             owner,
