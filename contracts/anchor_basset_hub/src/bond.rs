@@ -32,6 +32,12 @@ pub fn handle_bond<S: Storage, A: Api, Q: Querier>(
     let requested_with_fee = current_batch.requested_with_fee;
 
     // coin must have be sent along with transaction and it should be in underlying coin denom
+    if env.message.sent_funds.len() > 1usize {
+        return Err(StdError::generic_err(
+            "More than one coin is sent; only one asset is supported",
+        ));
+    }
+
     let payment = env
         .message
         .sent_funds

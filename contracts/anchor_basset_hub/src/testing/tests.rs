@@ -462,10 +462,22 @@ fn proper_bond() {
     };
 
     let env = mock_env(&bob, &[coin(10, "ukrt")]);
-    let res = handle(&mut deps, env, failed_bond);
+    let res = handle(&mut deps, env, failed_bond.clone());
     assert_eq!(
         res.unwrap_err(),
         StdError::generic_err("No uluna assets are provided to bond")
+    );
+
+    //bond with more than one coin is not possible
+    let env = mock_env(
+        &addr1,
+        &[coin(bond_amount.0, "uluna"), coin(bond_amount.0, "uusd")],
+    );
+
+    let res = handle(&mut deps, env, failed_bond).unwrap_err();
+    assert_eq!(
+        res,
+        StdError::generic_err("More than one coin is sent; only one asset is supported")
     );
 }
 
