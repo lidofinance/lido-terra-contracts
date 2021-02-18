@@ -42,10 +42,7 @@ pub fn init<S: Storage, A: Api, Q: Querier>(
         .iter()
         .find(|x| x.denom == msg.underlying_coin_denom && x.amount > Uint128::zero())
         .ok_or_else(|| {
-            StdError::generic_err(format!(
-                "No {} assets are provided to bond",
-                &msg.underlying_coin_denom
-            ))
+            StdError::generic_err(format!("No {} assets are provided to bond", "uluna"))
         })?;
 
     // store config
