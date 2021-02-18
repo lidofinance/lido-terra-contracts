@@ -2,7 +2,6 @@ use crate::state::{
     read_config, read_validators, remove_white_validators, store_config, store_parameters,
     store_white_validators, Parameters,
 };
-use anchor_basset_reward::msg::HandleMsg::UpdateRewardDenom;
 use cosmwasm_std::{
     log, to_binary, Api, CosmosMsg, Decimal, Env, Extern, HandleResponse, HumanAddr, Querier,
     StakingMsg, StdError, StdResult, Storage, WasmMsg,
@@ -20,7 +19,6 @@ pub fn handle_update_params<S: Storage, A: Api, Q: Querier>(
     unbonding_period: Option<u64>,
     peg_recovery_fee: Option<Decimal>,
     er_threshold: Option<Decimal>,
-    reward_denom: Option<String>,
 ) -> StdResult<HandleResponse> {
     // only owner can send this message.
     let config = read_config(&deps.storage).load()?;
@@ -30,38 +28,20 @@ pub fn handle_update_params<S: Storage, A: Api, Q: Querier>(
     }
 
     let params: Parameters = store_parameters(&mut deps.storage).load()?;
+
     let new_params = Parameters {
         epoch_period: epoch_period.unwrap_or(params.epoch_period),
         underlying_coin_denom: params.underlying_coin_denom,
         unbonding_period: unbonding_period.unwrap_or(params.unbonding_period),
         peg_recovery_fee: peg_recovery_fee.unwrap_or(params.peg_recovery_fee),
         er_threshold: er_threshold.unwrap_or(params.er_threshold),
-        reward_denom: reward_denom.clone().unwrap_or(params.reward_denom),
+        reward_denom: params.reward_denom,
     };
 
-    let mut msgs: Vec<CosmosMsg> = vec![];
-    if let Some(denom) = reward_denom {
-        let reward_addr = deps.api.human_address(
-            &config
-                .reward_contract
-                .expect("the reward contract must have been registered"),
-        )?;
-
-        // send update denom to the reward contract
-        let set_swap = UpdateRewardDenom {
-            reward_denom: Some(denom),
-        };
-
-        msgs.push(CosmosMsg::Wasm(WasmMsg::Execute {
-            contract_addr: reward_addr,
-            msg: to_binary(&set_swap)?,
-            send: vec![],
-        }));
-    }
-
     store_parameters(&mut deps.storage).save(&new_params)?;
+
     let res = HandleResponse {
-        messages: msgs,
+        messages: vec![],
         log: vec![log("action", "update_params")],
         data: None,
     };

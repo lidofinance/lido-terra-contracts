@@ -76,39 +76,6 @@ fn proper_init() {
 }
 
 #[test]
-fn update_params() {
-    let mut deps = mock_dependencies(20, &[]);
-    let init_msg = default_init();
-
-    let env = mock_env("addr0000", &[]);
-
-    init(&mut deps, env.clone(), init_msg).unwrap();
-
-    let msg = HandleMsg::UpdateRewardDenom {
-        reward_denom: Some("ukrw".to_string()),
-    };
-
-    let res = handle(&mut deps, env, msg.clone());
-    match res {
-        Err(StdError::Unauthorized { .. }) => {}
-        _ => panic!("DO NOT ENTER HERE"),
-    }
-
-    let env = mock_env(MOCK_HUB_CONTRACT_ADDR, &[]);
-    handle(&mut deps, env, msg).unwrap();
-
-    let res = query(&deps, QueryMsg::Config {}).unwrap();
-    let config_response: ConfigResponse = from_binary(&res).unwrap();
-    assert_eq!(
-        config_response,
-        ConfigResponse {
-            hub_contract: HumanAddr::from(MOCK_HUB_CONTRACT_ADDR),
-            reward_denom: "ukrw".to_string(),
-        }
-    );
-}
-
-#[test]
 pub fn swap_to_reward_denom() {
     let mut deps = mock_dependencies(
         20,
