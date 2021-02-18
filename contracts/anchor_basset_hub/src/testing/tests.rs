@@ -49,7 +49,7 @@ use crate::msg::QueryMsg::{
     WhitelistedValidators, WithdrawableUnbonded,
 };
 use crate::state::{read_config, read_unbond_wait_list, Parameters};
-use anchor_airdrop_registry::msg::HandleMsg::FabricateMIRClaim;
+use anchor_airdrop_registry::msg::HandleMsg::{FabricateANCClaim, FabricateMIRClaim};
 use anchor_airdrop_registry::msg::PairHandleMsg;
 use anchor_basset_reward::msg::HandleMsg::{SwapToRewardDenom, UpdateGlobalIndex};
 
@@ -2771,16 +2771,23 @@ fn proper_update_global_index_with_airdrop() {
     let binary_msg = to_binary(&FabricateMIRClaim {
         stage: 0,
         amount: Uint128(1000),
-        proof: vec!["proog".to_string()],
+        proof: vec!["proof".to_string()],
+    })
+    .unwrap();
+
+    let binary_msg2 = to_binary(&FabricateANCClaim {
+        stage: 0,
+        amount: Uint128(1000),
+        proof: vec!["proof".to_string()],
     })
     .unwrap();
     let reward_msg = HandleMsg::UpdateGlobalIndex {
-        airdrop_hooks: Some(vec![binary_msg.clone()]),
+        airdrop_hooks: Some(vec![binary_msg.clone(), binary_msg2.clone()]),
     };
 
     let env = mock_env(&addr1, &[]);
     let res = handle(&mut deps, env, reward_msg).unwrap();
-    assert_eq!(4, res.messages.len());
+    assert_eq!(5, res.messages.len());
 
     assert_eq!(
         res.messages[0],
@@ -2789,7 +2796,16 @@ fn proper_update_global_index_with_airdrop() {
             msg: binary_msg,
             send: vec![],
         })
-    )
+    );
+
+    assert_eq!(
+        res.messages[1],
+        CosmosMsg::Wasm(WasmMsg::Execute {
+            contract_addr: HumanAddr::from("airdrop_registry"),
+            msg: binary_msg2,
+            send: vec![],
+        })
+    );
 }
 
 fn set_delegation(querier: &mut WasmMockQuerier, validator: Validator, amount: u128, denom: &str) {
