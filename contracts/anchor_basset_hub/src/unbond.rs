@@ -302,8 +302,8 @@ fn process_withdraw_rate<S: Storage, A: Api, Q: Querier>(
             // Calculate the new withdraw rate
             let new_withdraw_rate =
                 Decimal::from_ratio(actual_unbonded_amount_of_batch, burnt_amount_of_batch);
-            let mut history_for_i = read_unbond_history(&deps.storage, iterator)
-                .expect("the existence of history is checked before");
+
+            let mut history_for_i = history;
             // store the history and mark it as released
             history_for_i.withdraw_rate = new_withdraw_rate;
             history_for_i.released = true;
