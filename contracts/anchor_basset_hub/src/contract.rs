@@ -284,20 +284,25 @@ fn withdraw_all_rewards<S: Storage, A: Api, Q: Querier>(
     delegator: HumanAddr,
 ) -> StdResult<Vec<CosmosMsg>> {
     let mut messages: Vec<CosmosMsg> = vec![];
-    let delegations = deps.querier.query_all_delegations(delegator).unwrap();
-    if delegations.is_empty() {
-        return Err(StdError::generic_err(
-            "There must be at least one delegation",
-        ));
+    let delegations = deps.querier.query_all_delegations(delegator);
+
+    match delegations {
+        Ok(delegations) => {
+            if delegations.is_empty() {
+                Ok(messages)
+            } else {
+                for delegation in delegations {
+                    let msg: CosmosMsg = CosmosMsg::Staking(StakingMsg::Withdraw {
+                        validator: delegation.validator,
+                        recipient: None,
+                    });
+                    messages.push(msg);
+                }
+                Ok(messages)
+            }
+        }
+        Err(_) => Ok(messages),
     }
-    for delegation in delegations {
-        let msg: CosmosMsg = CosmosMsg::Staking(StakingMsg::Withdraw {
-            validator: delegation.validator,
-            recipient: None,
-        });
-        messages.push(msg)
-    }
-    Ok(messages)
 }
 
 /// Check whether slashing has happened
