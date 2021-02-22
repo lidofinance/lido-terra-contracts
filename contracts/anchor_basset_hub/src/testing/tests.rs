@@ -627,11 +627,8 @@ pub fn proper_update_global_index() {
     };
 
     let env = mock_env(&addr1, &[]);
-    let res = handle(&mut deps, env, reward_msg).unwrap_err();
-    assert_eq!(
-        res,
-        StdError::generic_err("There must be at least one delegation")
-    );
+    let res = handle(&mut deps, env, reward_msg).unwrap();
+    assert_eq!(res.messages.len(), 2);
 
     // bond
     do_bond(&mut deps, addr1.clone(), bond_amount, validator.clone());
