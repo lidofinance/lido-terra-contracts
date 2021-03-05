@@ -354,11 +354,13 @@ fn pick_validator<S: Storage, A: Api, Q: Querier>(
             undelegated_amount = val;
             claimed = (claimed - val)?;
         }
-        let msgs: CosmosMsg = CosmosMsg::Staking(StakingMsg::Undelegate {
-            validator: delegation.validator,
-            amount: coin(undelegated_amount.0, &*coin_denom),
-        });
-        messages.push(msgs);
+        if undelegated_amount.0 > 0 {
+            let msgs: CosmosMsg = CosmosMsg::Staking(StakingMsg::Undelegate {
+                validator: delegation.validator,
+                amount: coin(undelegated_amount.0, &*coin_denom),
+            });
+            messages.push(msgs);
+        }
         iteration_index += 1;
     }
     Ok(messages)
