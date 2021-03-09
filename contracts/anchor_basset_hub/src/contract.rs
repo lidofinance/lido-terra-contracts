@@ -5,27 +5,29 @@ use cosmwasm_std::{
 };
 
 use crate::config::{
-    handle_deregister_validator, handle_register_contracts, handle_register_validator,
+    handle_register_contracts,
     handle_update_config, handle_update_params,
 };
 use crate::msg::{
     AllHistoryResponse, ConfigResponse, CurrentBatchResponse, InitMsg, QueryMsg, StateResponse,
-    UnbondRequestsResponse, WhitelistedValidatorsResponse, WithdrawableUnbondedResponse,
+    UnbondRequestsResponse, WithdrawableUnbondedResponse,
 };
 use crate::state::{
     all_unbond_history, get_unbond_requests, query_get_finished_amount, read_config,
-    read_current_batch, read_parameters, read_state, read_valid_validators, store_config,
+    read_current_batch, read_parameters, read_state, store_config,
     store_current_batch, store_parameters, store_state, CurrentBatch, Parameters,
 };
 use crate::unbond::{handle_unbond, handle_withdraw_unbonded};
 
-use crate::bond::handle_bond;
+use crate::bond::{handle_bond_single_validator, handle_bond_auto_validators};
 use anchor_basset_reward::msg::HandleMsg::{SwapToRewardDenom, UpdateGlobalIndex};
 use cosmwasm_storage::to_length_prefixed;
 use cw20::Cw20ReceiveMsg;
 use cw20_base::state::TokenInfo;
 use hub_querier::{Config, State};
 use hub_querier::{Cw20HookMsg, HandleMsg};
+use validators_registry::msg::{HandleMsg as HandleMsgValidators};
+use validators_registry::registry::Validator;
 
 pub fn init<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
@@ -49,6 +51,7 @@ pub fn init<S: Storage, A: Api, Q: Querier>(
         creator: sndr_raw,
         reward_contract: None,
         token_contract: None,
+        validators_registry_contract: None
     };
     store_config(&mut deps.storage).save(&data)?;
 
@@ -85,11 +88,15 @@ pub fn init<S: Storage, A: Api, Q: Querier>(
     let mut messages = vec![];
 
     // register the given validator
-    let register_validator = HandleMsg::RegisterValidator {
-        validator: msg.validator.clone(),
+    let register_validator = HandleMsgValidators::AddValidator {
+        validator: Validator{
+            active: true,
+            total_delegated: Uint128::zero(),
+            address: msg.validator.clone()
+        }
     };
     messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
-        contract_addr: env.contract.address,
+        contract_addr: env.contract.address, //TODO: validators registry address
         msg: to_binary(&register_validator).unwrap(),
         send: vec![],
     }));
@@ -117,19 +124,18 @@ pub fn handle<S: Storage, A: Api, Q: Querier>(
 ) -> StdResult<HandleResponse> {
     match msg {
         HandleMsg::Receive(msg) => receive_cw20(deps, env, msg),
-        HandleMsg::Bond { validator } => handle_bond(deps, env, validator),
+        HandleMsg::Bond { validator } => {
+            match validator {
+                Some(v) => handle_bond_single_validator(deps, env, v),
+                None => handle_bond_auto_validators(deps, env)
+            }
+        },
         HandleMsg::UpdateGlobalIndex {} => handle_update_global(deps, env),
         HandleMsg::WithdrawUnbonded {} => handle_withdraw_unbonded(deps, env),
         HandleMsg::RegisterSubcontracts {
             contract,
             contract_address,
         } => handle_register_contracts(deps, env, contract, contract_address),
-        HandleMsg::RegisterValidator { validator } => {
-            handle_register_validator(deps, env, validator)
-        }
-        HandleMsg::DeregisterValidator { validator } => {
-            handle_deregister_validator(deps, env, validator)
-        }
         HandleMsg::CheckSlashing {} => handle_slashing(deps, env),
         HandleMsg::UpdateParams {
             epoch_period,
@@ -307,7 +313,6 @@ pub fn query<S: Storage, A: Api, Q: Querier>(
         QueryMsg::Config {} => to_binary(&query_config(&deps)?),
         QueryMsg::State {} => to_binary(&query_state(&deps)?),
         QueryMsg::CurrentBatch {} => to_binary(&query_current_batch(&deps)?),
-        QueryMsg::WhitelistedValidators {} => to_binary(&query_white_validators(&deps)?),
         QueryMsg::WithdrawableUnbonded {
             address,
             block_time,
@@ -359,14 +364,6 @@ fn query_state<S: Storage, A: Api, Q: Querier>(deps: &Extern<S, A, Q>) -> StdRes
         last_processed_batch: state.last_processed_batch,
     };
     Ok(res)
-}
-
-fn query_white_validators<S: Storage, A: Api, Q: Querier>(
-    deps: &Extern<S, A, Q>,
-) -> StdResult<WhitelistedValidatorsResponse> {
-    let validators = read_valid_validators(&deps.storage)?;
-    let response = WhitelistedValidatorsResponse { validators };
-    Ok(response)
 }
 
 fn query_current_batch<S: Storage, A: Api, Q: Querier>(

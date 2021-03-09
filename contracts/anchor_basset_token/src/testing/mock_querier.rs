@@ -9,6 +9,7 @@ use hub_querier::Config;
 pub const MOCK_HUB_CONTRACT_ADDR: &str = "hub";
 pub const MOCK_REWARD_CONTRACT_ADDR: &str = "reward";
 pub const MOCK_TOKEN_CONTRACT_ADDR: &str = "token";
+pub const MOCK_VALIDATORS_REGISTRY_ADDR: &str = "validators";
 
 pub fn mock_dependencies(
     canonical_length: usize,
@@ -66,6 +67,7 @@ impl WasmMockQuerier {
                                 api.canonical_address(&HumanAddr::from(MOCK_TOKEN_CONTRACT_ADDR))
                                     .unwrap(),
                             ),
+                            validators_registry_contract: Some(api.canonical_address(&HumanAddr::from(MOCK_VALIDATORS_REGISTRY_ADDR)).unwrap()),
                         };
                         Ok(to_binary(&to_binary(&config).unwrap()))
                     } else {

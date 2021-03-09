@@ -1,14 +1,13 @@
 use crate::state::{
-    read_config, read_validators, remove_white_validators, store_config, store_parameters,
-    store_white_validators, Parameters,
+    read_config, store_config, store_parameters,
+    Parameters,
 };
 use anchor_basset_reward::msg::HandleMsg::UpdateRewardDenom;
 use cosmwasm_std::{
     log, to_binary, Api, CosmosMsg, Decimal, Env, Extern, HandleResponse, HumanAddr, Querier,
     StakingMsg, StdError, StdResult, Storage, WasmMsg,
 };
-use hub_querier::{HandleMsg, Registration};
-use rand::{Rng, SeedableRng, XorShiftRng};
+use hub_querier::{Registration};
 
 /// Update general parameters
 /// Only creator/owner is allowed to execute
@@ -177,6 +176,17 @@ pub fn handle_register_contracts<S: Storage, A: Api, Q: Querier>(
                 last_config.token_contract = Some(raw_contract_addr.clone());
                 Ok(last_config)
             })?;
+        },
+        Registration::ValidatorsRegistry => {
+            store_config(&mut deps.storage).update(|mut last_config| {
+                if last_config.validators_registry_contract.is_some() {
+                    return Err(StdError::generic_err(
+                        "The token contract is already registered",
+                    ));
+                }
+                last_config.validators_registry_contract = Some(raw_contract_addr.clone());
+                Ok(last_config)
+            })?;
         }
     }
     let res = HandleResponse {
@@ -184,97 +194,6 @@ pub fn handle_register_contracts<S: Storage, A: Api, Q: Querier>(
         log: vec![
             log("action", "register"),
             log("sub_contract", contract_address),
-        ],
-        data: None,
-    };
-    Ok(res)
-}
-
-/// Register a white listed validator.
-/// Only creator/owner is allowed to execute
-pub fn handle_register_validator<S: Storage, A: Api, Q: Querier>(
-    deps: &mut Extern<S, A, Q>,
-    env: Env,
-    validator: HumanAddr,
-) -> StdResult<HandleResponse> {
-    let hub_conf = read_config(&deps.storage).load()?;
-
-    let sender_raw = deps.api.canonical_address(&env.message.sender)?;
-    let contract_raw = deps.api.canonical_address(&env.contract.address)?;
-    if hub_conf.creator != sender_raw && contract_raw != sender_raw {
-        return Err(StdError::unauthorized());
-    }
-
-    // given validator must be first a validator in the system.
-    let exists = deps
-        .querier
-        .query_validators()?
-        .iter()
-        .any(|val| val.address == validator);
-    if !exists {
-        return Err(StdError::generic_err("Invalid validator"));
-    }
-
-    store_white_validators(&mut deps.storage, validator.clone())?;
-    let res = HandleResponse {
-        messages: vec![],
-        log: vec![
-            log("action", "register_validator"),
-            log("validator", validator),
-        ],
-        data: None,
-    };
-    Ok(res)
-}
-
-/// Deregister a previously-whitelisted validator.
-/// Only creator/owner is allowed to execute
-pub fn handle_deregister_validator<S: Storage, A: Api, Q: Querier>(
-    deps: &mut Extern<S, A, Q>,
-    env: Env,
-    validator: HumanAddr,
-) -> StdResult<HandleResponse> {
-    let token = read_config(&deps.storage).load()?;
-
-    let sender_raw = deps.api.canonical_address(&env.message.sender)?;
-    if token.creator != sender_raw {
-        return Err(StdError::unauthorized());
-    }
-    remove_white_validators(&mut deps.storage, validator.clone())?;
-
-    let query = deps
-        .querier
-        .query_delegation(env.contract.address.clone(), validator.clone())?
-        .unwrap();
-    let delegated_amount = query.amount;
-
-    let mut messages: Vec<CosmosMsg> = vec![];
-    let validators = read_validators(&deps.storage)?;
-
-    // redelegate the amount to a random validator.
-    let block_height = env.block.height;
-    let mut rng = XorShiftRng::seed_from_u64(block_height);
-    let random_index = rng.gen_range(0, validators.len());
-    let replaced_val = HumanAddr::from(validators.get(random_index).unwrap());
-    messages.push(CosmosMsg::Staking(StakingMsg::Redelegate {
-        src_validator: validator.clone(),
-        dst_validator: replaced_val.clone(),
-        amount: delegated_amount,
-    }));
-
-    let msg = HandleMsg::UpdateGlobalIndex {};
-    messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
-        contract_addr: env.contract.address,
-        msg: to_binary(&msg)?,
-        send: vec![],
-    }));
-
-    let res = HandleResponse {
-        messages,
-        log: vec![
-            log("action", "de_register_validator"),
-            log("validator", validator),
-            log("new-validator", replaced_val),
         ],
         data: None,
     };
