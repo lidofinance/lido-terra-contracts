@@ -61,7 +61,7 @@ const DEFAULT_VALIDATOR3: &str = "default-validator3000";
 
 pub const MOCK_CONTRACT_ADDR: &str = "cosmos2contract";
 
-pub const INITIAL_DEPOSIT_AMOUNT: Uint128 = Uint128(1000000u128);
+pub const _INITIAL_DEPOSIT_AMOUNT: Uint128 = Uint128(1000000u128);
 
 fn sample_validator<U: Into<HumanAddr>>(addr: U) -> Validator {
     Validator {
@@ -170,7 +170,7 @@ pub fn do_unbond<S: Storage, A: Api, Q: Querier>(
 fn proper_initialization() {
     let mut deps = dependencies(20, &[]);
 
-    let validator = sample_validator(DEFAULT_VALIDATOR);
+    let _validator = sample_validator(DEFAULT_VALIDATOR);
     set_validator_mock(&mut deps.querier);
 
     // successful call
@@ -221,6 +221,7 @@ fn proper_initialization() {
         owner: HumanAddr::from("owner1"),
         reward_contract: None,
         token_contract: None,
+        validators_registry_contract: None,
     };
 
     assert_eq!(expected_conf, query_conf);
@@ -261,6 +262,7 @@ fn proper_register_subcontracts() {
 
     let token_contract = HumanAddr::from("token");
     let reward_contract = HumanAddr::from("reward");
+    let validators_registry = HumanAddr::from("validators_registry");
 
     let invalid_sender = HumanAddr::from("invalid");
     let invalid_env = mock_env(invalid_sender, &[]);
@@ -296,6 +298,14 @@ fn proper_register_subcontracts() {
     let res = handle(&mut deps, owner_env.clone(), register_msg).unwrap();
     assert_eq!(res.messages.len(), 0);
 
+    // register validators registry contract
+    let register_msg = HandleMsg::RegisterSubcontracts {
+        contract: ValidatorsRegistry,
+        contract_address: validators_registry.clone(),
+    };
+    let res = handle(&mut deps, owner_env.clone(), register_msg).unwrap();
+    assert_eq!(res.messages.len(), 0);
+
     // should not be registered twice
     let register_msg = HandleMsg::RegisterSubcontracts {
         contract: Reward,
@@ -311,10 +321,20 @@ fn proper_register_subcontracts() {
         contract: Token,
         contract_address: token_contract.clone(),
     };
-    let res = handle(&mut deps, owner_env, register_msg).unwrap_err();
+    let res = handle(&mut deps, owner_env.clone(), register_msg).unwrap_err();
     assert_eq!(
         res,
         StdError::generic_err("The token contract is already registered",)
+    );
+
+    let register_msg = HandleMsg::RegisterSubcontracts {
+        contract: ValidatorsRegistry,
+        contract_address: validators_registry.clone(),
+    };
+    let res = handle(&mut deps, owner_env, register_msg).unwrap_err();
+    assert_eq!(
+        res,
+        StdError::generic_err("The validators registry contract is already registered",)
     );
 
     // check if they are store in config
@@ -324,6 +344,7 @@ fn proper_register_subcontracts() {
         owner: HumanAddr::from("owner1"),
         reward_contract: Some(reward_contract),
         token_contract: Some(token_contract),
+        validators_registry_contract: Some(validators_registry),
     };
 
     assert_eq!(expected_conf, query_conf)
@@ -2081,7 +2102,7 @@ pub fn proper_withdraw_unbond_with_dummies() {
 pub fn test_update_params() {
     let mut deps = dependencies(20, &[]);
 
-    let validator = sample_validator(DEFAULT_VALIDATOR);
+    let _validator = sample_validator(DEFAULT_VALIDATOR);
     set_validator_mock(&mut deps.querier);
 
     //test with no swap denom.
@@ -2354,7 +2375,7 @@ pub fn proper_recovery_fee() {
 pub fn proper_update_config() {
     let mut deps = dependencies(20, &[]);
 
-    let validator = sample_validator(DEFAULT_VALIDATOR);
+    let _validator = sample_validator(DEFAULT_VALIDATOR);
     set_validator_mock(&mut deps.querier);
 
     let owner = HumanAddr::from("owner1");
