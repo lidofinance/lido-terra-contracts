@@ -1,13 +1,10 @@
-use crate::state::{
-    read_config, store_config, store_parameters,
-    Parameters,
-};
+use crate::state::{read_config, store_config, store_parameters, Parameters};
 use anchor_basset_reward::msg::HandleMsg::UpdateRewardDenom;
 use cosmwasm_std::{
     log, to_binary, Api, CosmosMsg, Decimal, Env, Extern, HandleResponse, HumanAddr, Querier,
     StakingMsg, StdError, StdResult, Storage, WasmMsg,
 };
-use hub_querier::{Registration};
+use hub_querier::Registration;
 
 /// Update general parameters
 /// Only creator/owner is allowed to execute
@@ -176,12 +173,12 @@ pub fn handle_register_contracts<S: Storage, A: Api, Q: Querier>(
                 last_config.token_contract = Some(raw_contract_addr.clone());
                 Ok(last_config)
             })?;
-        },
+        }
         Registration::ValidatorsRegistry => {
             store_config(&mut deps.storage).update(|mut last_config| {
                 if last_config.validators_registry_contract.is_some() {
                     return Err(StdError::generic_err(
-                        "The token contract is already registered",
+                        "The validators registry contract is already registered",
                     ));
                 }
                 last_config.validators_registry_contract = Some(raw_contract_addr.clone());

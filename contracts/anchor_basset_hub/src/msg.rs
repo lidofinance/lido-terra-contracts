@@ -51,6 +51,7 @@ pub struct ConfigResponse {
     pub owner: HumanAddr,
     pub reward_contract: Option<HumanAddr>,
     pub token_contract: Option<HumanAddr>,
+    pub validators_registry_contract: Option<HumanAddr>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

@@ -4,22 +4,19 @@ use cosmwasm_std::{
     Uint128, WasmMsg, WasmQuery,
 };
 
-use crate::config::{
-    handle_register_contracts,
-    handle_update_config, handle_update_params,
-};
+use crate::config::{handle_register_contracts, handle_update_config, handle_update_params};
 use crate::msg::{
     AllHistoryResponse, ConfigResponse, CurrentBatchResponse, InitMsg, QueryMsg, StateResponse,
     UnbondRequestsResponse, WithdrawableUnbondedResponse,
 };
 use crate::state::{
     all_unbond_history, get_unbond_requests, query_get_finished_amount, read_config,
-    read_current_batch, read_parameters, read_state, store_config,
-    store_current_batch, store_parameters, store_state, CurrentBatch, Parameters,
+    read_current_batch, read_parameters, read_state, store_config, store_current_batch,
+    store_parameters, store_state, CurrentBatch, Parameters,
 };
 use crate::unbond::{handle_unbond, handle_withdraw_unbonded};
 
-use crate::bond::{handle_bond_single_validator, handle_bond_auto_validators};
+use crate::bond::{handle_bond_auto_validators, handle_bond_single_validator};
 use anchor_basset_reward::msg::HandleMsg::{SwapToRewardDenom, UpdateGlobalIndex};
 use cosmwasm_storage::to_length_prefixed;
 use cw20::Cw20ReceiveMsg;
@@ -40,7 +37,7 @@ pub fn init<S: Storage, A: Api, Q: Querier>(
         creator: sndr_raw,
         reward_contract: None,
         token_contract: None,
-        validators_registry_contract: None
+        validators_registry_contract: None,
     };
     store_config(&mut deps.storage).save(&data)?;
 
@@ -87,11 +84,9 @@ pub fn handle<S: Storage, A: Api, Q: Querier>(
 ) -> StdResult<HandleResponse> {
     match msg {
         HandleMsg::Receive(msg) => receive_cw20(deps, env, msg),
-        HandleMsg::Bond { validator } => {
-            match validator {
-                Some(v) => handle_bond_single_validator(deps, env, v),
-                None => handle_bond_auto_validators(deps, env)
-            }
+        HandleMsg::Bond { validator } => match validator {
+            Some(v) => handle_bond_single_validator(deps, env, v),
+            None => handle_bond_auto_validators(deps, env),
         },
         HandleMsg::UpdateGlobalIndex {} => handle_update_global(deps, env),
         HandleMsg::WithdrawUnbonded {} => handle_withdraw_unbonded(deps, env),
@@ -294,6 +289,7 @@ fn query_config<S: Storage, A: Api, Q: Querier>(
     let config = read_config(&deps.storage).load()?;
     let mut reward: Option<HumanAddr> = None;
     let mut token: Option<HumanAddr> = None;
+    let mut validators_contract: Option<HumanAddr> = None;
     if config.reward_contract.is_some() {
         reward = Some(
             deps.api
@@ -308,10 +304,18 @@ fn query_config<S: Storage, A: Api, Q: Querier>(
                 .unwrap(),
         );
     }
+    if config.validators_registry_contract.is_some() {
+        validators_contract = Some(
+            deps.api
+                .human_address(&config.validators_registry_contract.unwrap())
+                .unwrap(),
+        );
+    }
     Ok(ConfigResponse {
         owner: deps.api.human_address(&config.creator)?,
         reward_contract: reward,
         token_contract: token,
+        validators_registry_contract: validators_contract,
     })
 }
 
