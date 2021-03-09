@@ -26,8 +26,6 @@ use cw20::Cw20ReceiveMsg;
 use cw20_base::state::TokenInfo;
 use hub_querier::{Config, State};
 use hub_querier::{Cw20HookMsg, HandleMsg};
-use validators_registry::msg::{HandleMsg as HandleMsgValidators};
-use validators_registry::registry::Validator;
 
 pub fn init<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
@@ -36,15 +34,6 @@ pub fn init<S: Storage, A: Api, Q: Querier>(
 ) -> StdResult<InitResponse> {
     let sender = env.message.sender;
     let sndr_raw = deps.api.canonical_address(&sender)?;
-
-    let payment = env
-        .message
-        .sent_funds
-        .iter()
-        .find(|x| x.denom == msg.underlying_coin_denom && x.amount > Uint128::zero())
-        .ok_or_else(|| {
-            StdError::generic_err(format!("No {} tokens sent", &msg.underlying_coin_denom))
-        })?;
 
     // store config
     let data = Config {
@@ -61,7 +50,6 @@ pub fn init<S: Storage, A: Api, Q: Querier>(
         last_index_modification: env.block.time,
         last_unbonded_time: env.block.time,
         last_processed_batch: 0u64,
-        total_bond_amount: payment.amount,
         ..Default::default()
     };
 
@@ -85,34 +73,9 @@ pub fn init<S: Storage, A: Api, Q: Querier>(
     };
     store_current_batch(&mut deps.storage).save(&batch)?;
 
-    let mut messages = vec![];
-
-    // register the given validator
-    let register_validator = HandleMsgValidators::AddValidator {
-        validator: Validator{
-            active: true,
-            total_delegated: Uint128::zero(),
-            address: msg.validator.clone()
-        }
-    };
-    messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
-        contract_addr: env.contract.address, //TODO: validators registry address
-        msg: to_binary(&register_validator).unwrap(),
-        send: vec![],
-    }));
-
-    // send the delegate message
-    messages.push(CosmosMsg::Staking(StakingMsg::Delegate {
-        validator: msg.validator.clone(),
-        amount: payment.clone(),
-    }));
-
     let res = InitResponse {
-        messages,
-        log: vec![
-            log("register-validator", msg.validator),
-            log("bond", payment.amount),
-        ],
+        messages: vec![],
+        log: vec![],
     };
     Ok(res)
 }
