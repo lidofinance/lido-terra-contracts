@@ -38,6 +38,7 @@ anchor_basset_token = {path = "../anchor_basset_token"}
 hub_querier = {path = "../hub_querier" }
 basset = { path = "../../packages/basset", default-features = false, version = "0.1.0"}
 signed_integer = { path = "../../packages/signed_integers", default-features = false, version = "0.1.0"}
+validators-registry = {path = "../validators-registry"}
 
 [dev-dependencies]
 cosmwasm-vm = { version = "0.10.1", default-features = false, features = ["iterator"] }

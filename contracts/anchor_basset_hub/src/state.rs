@@ -18,7 +18,6 @@ pub type LastBatch = u64;
 pub static CONFIG: &[u8] = b"config";
 pub static STATE: &[u8] = b"state";
 pub static PARAMETERS: &[u8] = b"parameteres";
-pub static VALIDATORS: &[u8] = b"validators";
 
 pub static PREFIX_WAIT_MAP: &[u8] = b"wait";
 pub static CURRENT_BATCH: &[u8] = b"current_batch";
@@ -223,68 +222,6 @@ pub fn query_get_finished_amount<'a, S: ReadonlyStorage>(
         })
         .collect();
     Ok(withdrawable_amount)
-}
-
-/// Store valid validators
-pub fn store_white_validators<S: Storage>(
-    storage: &mut S,
-    validator_address: HumanAddr,
-) -> StdResult<()> {
-    let vec = to_vec(&validator_address)?;
-    let value = to_vec(&true)?;
-    PrefixedStorage::new(VALIDATORS, storage).set(&vec, &value);
-    Ok(())
-}
-
-/// Remove valid validators
-pub fn remove_white_validators<S: Storage>(
-    storage: &mut S,
-    validator_address: HumanAddr,
-) -> StdResult<()> {
-    let vec = to_vec(&validator_address)?;
-    PrefixedStorage::new(VALIDATORS, storage).remove(&vec);
-    Ok(())
-}
-
-// Returns all validators
-pub fn read_validators<S: Storage>(storage: &S) -> StdResult<Vec<HumanAddr>> {
-    let res = ReadonlyPrefixedStorage::new(VALIDATORS, storage);
-    let validators: Vec<HumanAddr> = res
-        .range(None, None, Order::Ascending)
-        .map(|item| {
-            let (key, _) = item;
-            let sender: HumanAddr = from_slice(&key).unwrap();
-            sender
-        })
-        .collect();
-    Ok(validators)
-}
-
-/// Check whether the validator is whitelisted.
-pub fn is_valid_validator<S: Storage>(
-    storage: &S,
-    validator_address: HumanAddr,
-) -> StdResult<bool> {
-    let vec = to_vec(&validator_address)?;
-    let res = ReadonlyPrefixedStorage::new(VALIDATORS, storage).get(&vec);
-    match res {
-        Some(_) => Ok(true),
-        None => Ok(false),
-    }
-}
-
-/// Read whitelisted validators
-pub fn read_valid_validators<S: Storage>(storage: &S) -> StdResult<Vec<HumanAddr>> {
-    let res = ReadonlyPrefixedStorage::new(VALIDATORS, storage);
-    let validators: Vec<HumanAddr> = res
-        .range(None, None, Order::Ascending)
-        .map(|item| {
-            let (key, _) = item;
-            let validator: HumanAddr = from_slice(&key).unwrap();
-            validator
-        })
-        .collect();
-    Ok(validators)
 }
 
 /// Store unbond history map

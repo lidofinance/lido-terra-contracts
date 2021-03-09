@@ -19,6 +19,7 @@ pub struct Config {
     pub creator: CanonicalAddr,
     pub reward_contract: Option<CanonicalAddr>,
     pub token_contract: Option<CanonicalAddr>,
+    pub validators_registry_contract: Option<CanonicalAddr>,
 }
 
 impl State {
@@ -52,16 +53,6 @@ pub enum HandleMsg {
         contract_address: HumanAddr,
     },
 
-    /// Register receives the reward contract address
-    RegisterValidator {
-        validator: HumanAddr,
-    },
-
-    // Remove the validator from validators whitelist
-    DeregisterValidator {
-        validator: HumanAddr,
-    },
-
     /// update the parameters that is needed for the contract
     UpdateParams {
         epoch_period: Option<u64>,
@@ -80,7 +71,7 @@ pub enum HandleMsg {
     /// Delegate `amount` to a specific `validator`.
     /// Issue `amount` / exchange_rate for the user.
     Bond {
-        validator: HumanAddr,
+        validator: Option<HumanAddr>,
     },
 
     /// Update global index
@@ -107,6 +98,7 @@ pub enum HandleMsg {
 pub enum Registration {
     Token,
     Reward,
+    ValidatorsRegistry,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

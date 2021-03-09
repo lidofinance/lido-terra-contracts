@@ -21,7 +21,6 @@ pub struct InitMsg {
 pub enum QueryMsg {
     Config {},
     State {},
-    WhitelistedValidators {},
     CurrentBatch {},
     WithdrawableUnbonded {
         address: HumanAddr,
