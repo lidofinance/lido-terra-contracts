@@ -1,13 +1,14 @@
 use crate::contract::{query_total_issued, slashing};
 use crate::math::decimal_division;
-use crate::state::{
-    read_config, read_current_batch, read_parameters, read_state, store_state,
+use crate::state::{read_config, read_current_batch, read_parameters, read_state, store_state};
+use cosmwasm_std::{
+    log, to_binary, Api, Coin, CosmosMsg, Decimal, Env, Extern, HandleResponse, HumanAddr, Querier,
+    QueryRequest, StakingMsg, StdError, StdResult, Storage, Uint128, WasmMsg, WasmQuery,
 };
-use cosmwasm_std::{log, to_binary, Api, Coin, CosmosMsg, Env, Extern, HandleResponse, HumanAddr, Querier, QueryRequest, StakingMsg, StdError, StdResult, Storage, Uint128, WasmMsg, WasmQuery,};
 use cw20::Cw20HandleMsg;
+use std::ops::{AddAssign, Sub};
 use validators_registry::msg::{HandleMsg as HandleMsgValidators, QueryMsg as QueryValidators};
 use validators_registry::registry::Validator;
-use std::ops::{AddAssign, Sub};
 
 pub fn calculate_delegations(
     mut buffered_balance: Uint128,
@@ -27,20 +28,20 @@ pub fn calculate_delegations(
 
 // Returns all validators
 pub fn read_validators<S: Storage, A: Api, Q: Querier>(
-    deps: &mut Extern<S, A, Q>) -> StdResult<Vec<Validator>> {
+    deps: &mut Extern<S, A, Q>,
+) -> StdResult<Vec<Validator>> {
     let config = read_config(&deps.storage).load()?;
     let validators_registry_contract = if let Some(v) = config.validators_registry_contract {
         v
     } else {
-        return Err(StdError::generic_err("Validators registry contract address is empty"));
+        return Err(StdError::generic_err(
+            "Validators registry contract address is empty",
+        ));
     };
-    let validators: Vec<Validator> =
-        deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
-            contract_addr: deps
-                .api
-                .human_address(&validators_registry_contract)?,
-            msg: to_binary(&QueryValidators::GetValidatorsForDelegation {})?,
-        }))?;
+    let validators: Vec<Validator> = deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
+        contract_addr: deps.api.human_address(&validators_registry_contract)?,
+        msg: to_binary(&QueryValidators::GetValidatorsForDelegation {})?,
+    }))?;
     Ok(validators)
 }
 
@@ -91,15 +92,15 @@ pub fn handle_bond_auto_validators<S: Storage, A: Api, Q: Querier>(
     let mut total_supply = query_total_issued(&deps).unwrap_or_default();
 
     // peg recovery fee should be considered
-    let mint_amount = decimal_division(payment.amount, state.exchange_rate);
-    let mut mint_amount_with_fee = mint_amount;
-    if state.exchange_rate < threshold {
-        let max_peg_fee = mint_amount * recovery_fee;
-        let required_peg_fee = ((total_supply + mint_amount + current_batch.requested_with_fee)
-            - (state.total_bond_amount + payment.amount))?;
-        let peg_fee = Uint128::min(max_peg_fee, required_peg_fee);
-        mint_amount_with_fee = (mint_amount - peg_fee)?;
-    }
+    let mint_amount_with_fee = calculate_mint_amount(
+        payment.amount,
+        state.exchange_rate,
+        threshold,
+        state.total_bond_amount,
+        total_supply,
+        recovery_fee,
+        current_batch.requested_with_fee,
+    )?;
 
     // total supply should be updated for exchange rate calculation.
     total_supply += mint_amount_with_fee;
@@ -111,19 +112,17 @@ pub fn handle_bond_auto_validators<S: Storage, A: Api, Q: Querier>(
         Ok(prev_state)
     })?;
 
-
-    //---------------------------------------------------------------------
     let config = read_config(&deps.storage).load()?;
     let validators_registry_contract = if let Some(v) = config.validators_registry_contract {
         v
     } else {
-        return Err(StdError::generic_err("Validators registry contract address is empty"));
+        return Err(StdError::generic_err(
+            "Validators registry contract address is empty",
+        ));
     };
     let mut validators: Vec<Validator> =
         deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
-            contract_addr: deps
-                .api
-                .human_address(&validators_registry_contract)?,
+            contract_addr: deps.api.human_address(&validators_registry_contract)?,
             msg: to_binary(&QueryValidators::GetValidatorsForDelegation {})?,
         }))?;
 
@@ -145,9 +144,7 @@ pub fn handle_bond_auto_validators<S: Storage, A: Api, Q: Querier>(
     if !external_call_msgs.is_empty() {
         external_call_msgs.push(cosmwasm_std::CosmosMsg::Wasm(
             cosmwasm_std::WasmMsg::Execute {
-                contract_addr: deps
-                    .api
-                    .human_address(&validators_registry_contract)?,
+                contract_addr: deps.api.human_address(&validators_registry_contract)?,
                 msg: to_binary(&HandleMsgValidators::UpdateTotalDelegated {
                     updated_validators: validators,
                 })?,
@@ -177,9 +174,30 @@ pub fn handle_bond_auto_validators<S: Storage, A: Api, Q: Querier>(
     let res = HandleResponse {
         messages: external_call_msgs,
         data: None,
-        log: vec![]
+        log: vec![],
     };
     Ok(res)
+}
+
+fn calculate_mint_amount(
+    payment_amount: Uint128,
+    exchange_rate: Decimal,
+    threshold: Decimal,
+    total_bond_amount: Uint128,
+    total_supply: Uint128,
+    recovery_fee: Decimal,
+    current_batch_requested_with_fee: Uint128,
+) -> StdResult<Uint128> {
+    let mint_amount = decimal_division(payment_amount, exchange_rate);
+    let mut mint_amount_with_fee = mint_amount;
+    if exchange_rate < threshold {
+        let max_peg_fee = mint_amount * recovery_fee;
+        let required_peg_fee = ((total_supply + mint_amount + current_batch_requested_with_fee)
+            - (total_bond_amount + payment_amount))?;
+        let peg_fee = Uint128::min(max_peg_fee, required_peg_fee);
+        mint_amount_with_fee = (mint_amount - peg_fee)?;
+    }
+    Ok(mint_amount_with_fee)
 }
 
 pub fn handle_bond_single_validator<S: Storage, A: Api, Q: Querier>(
@@ -222,15 +240,15 @@ pub fn handle_bond_single_validator<S: Storage, A: Api, Q: Querier>(
     let mut total_supply = query_total_issued(&deps).unwrap_or_default();
 
     // peg recovery fee should be considered
-    let mint_amount = decimal_division(payment.amount, state.exchange_rate);
-    let mut mint_amount_with_fee = mint_amount;
-    if state.exchange_rate < threshold {
-        let max_peg_fee = mint_amount * recovery_fee;
-        let required_peg_fee = ((total_supply + mint_amount + current_batch.requested_with_fee)
-            - (state.total_bond_amount + payment.amount))?;
-        let peg_fee = Uint128::min(max_peg_fee, required_peg_fee);
-        mint_amount_with_fee = (mint_amount - peg_fee)?;
-    }
+    let mint_amount_with_fee = calculate_mint_amount(
+        payment.amount,
+        state.exchange_rate,
+        threshold,
+        state.total_bond_amount,
+        total_supply,
+        recovery_fee,
+        current_batch.requested_with_fee,
+    )?;
 
     // total supply should be updated for exchange rate calculation.
     total_supply += mint_amount_with_fee;

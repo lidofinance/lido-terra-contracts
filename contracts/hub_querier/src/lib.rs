@@ -70,9 +70,7 @@ pub enum HandleMsg {
     /// Receives `amount` in underlying coin denom from sender.
     /// Delegate `amount` to a specific `validator`.
     /// Issue `amount` / exchange_rate for the user.
-    Bond {
-        validator: Option<HumanAddr>,
-    },
+    Bond { validator: Option<HumanAddr> },
 
     /// Update global index
     UpdateGlobalIndex {},

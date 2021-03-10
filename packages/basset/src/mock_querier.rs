@@ -121,7 +121,10 @@ impl WasmMockQuerier {
                         token_contract: Some(
                             api.canonical_address(&HumanAddr::from("token")).unwrap(),
                         ),
-                        validators_registry_contract: Some(api.canonical_address(&HumanAddr::from("validators")).unwrap()),
+                        validators_registry_contract: Some(
+                            api.canonical_address(&HumanAddr::from("validators"))
+                                .unwrap(),
+                        ),
                     };
                     Ok(to_binary(&to_binary(&config).unwrap()))
                 } else {
