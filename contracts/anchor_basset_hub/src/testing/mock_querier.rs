@@ -1,5 +1,9 @@
 use cosmwasm_std::testing::{MockApi, MockQuerier, MockStorage};
-use cosmwasm_std::{from_slice, to_binary, AllBalanceResponse, Api, BalanceResponse, BankQuery, CanonicalAddr, Coin, Decimal, Extern, FullDelegation, HumanAddr, Querier, QuerierResult, QueryRequest, SystemError, Uint128, Validator, WasmQuery};
+use cosmwasm_std::{
+    from_slice, to_binary, AllBalanceResponse, Api, BalanceResponse, BankQuery, CanonicalAddr,
+    Coin, Decimal, Extern, FullDelegation, HumanAddr, Querier, QuerierResult, QueryRequest,
+    SystemError, Uint128, Validator, WasmQuery,
+};
 use cosmwasm_storage::to_length_prefixed;
 use cw20_base::state::{MinterData, TokenInfo};
 use hub_querier::Config;
@@ -57,7 +61,7 @@ pub struct WasmMockQuerier {
     token_querier: TokenQuerier,
     balance_querier: BalanceQuerier,
     tax_querier: TaxQuerier,
-    validators: Vec<RegistryValidator>
+    validators: Vec<RegistryValidator>,
 }
 
 impl Querier for WasmMockQuerier {
@@ -104,14 +108,14 @@ impl WasmMockQuerier {
                     panic!("DO NOT ENTER HERE")
                 }
             }
-            QueryRequest::Wasm(WasmQuery::Smart { contract_addr: _, msg: _ }) => {
+            QueryRequest::Wasm(WasmQuery::Smart {
+                contract_addr: _,
+                msg: _,
+            }) => {
                 let mut validators = self.validators.clone();
-                validators.sort_by(|v1, v2| {
-                    v1.total_delegated
-                        .cmp(&v2.total_delegated)
-                });
+                validators.sort_by(|v1, v2| v1.total_delegated.cmp(&v2.total_delegated));
                 Ok(to_binary(&validators))
-            },
+            }
             QueryRequest::Wasm(WasmQuery::Raw { contract_addr, key }) => {
                 let prefix_config = to_length_prefixed(b"config").to_vec();
                 let prefix_token_inf = to_length_prefixed(b"token_info").to_vec();
@@ -127,7 +131,10 @@ impl WasmMockQuerier {
                         token_contract: Some(
                             api.canonical_address(&HumanAddr::from("token")).unwrap(),
                         ),
-                        validators_registry_contract: Some(api.canonical_address(&HumanAddr::from("validators")).unwrap()),
+                        validators_registry_contract: Some(
+                            api.canonical_address(&HumanAddr::from("validators"))
+                                .unwrap(),
+                        ),
                     };
                     Ok(to_binary(&to_binary(&config).unwrap()))
                 } else if key.as_slice().to_vec() == prefix_token_inf {
@@ -333,7 +340,7 @@ impl WasmMockQuerier {
             canonical_length,
             tax_querier: TaxQuerier::default(),
             balance_querier: BalanceQuerier::default(),
-            validators: vec![]
+            validators: vec![],
         }
     }
 
