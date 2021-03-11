@@ -4,7 +4,7 @@ use cosmwasm_std::{
     Uint128, WasmMsg, WasmQuery,
 };
 
-use crate::config::{handle_register_contracts, handle_update_config, handle_update_params};
+use crate::config::{handle_update_config, handle_update_params};
 use crate::msg::{
     AllHistoryResponse, ConfigResponse, CurrentBatchResponse, InitMsg, QueryMsg, StateResponse,
     UnbondRequestsResponse, WithdrawableUnbondedResponse,
@@ -19,8 +19,9 @@ use crate::unbond::{handle_unbond, handle_withdraw_unbonded};
 use crate::bond::{handle_bond_auto_validators, handle_bond_single_validator};
 use anchor_basset_reward::msg::HandleMsg::{SwapToRewardDenom, UpdateGlobalIndex};
 use cosmwasm_storage::to_length_prefixed;
-use cw20::Cw20ReceiveMsg;
+use cw20::{Cw20HandleMsg, Cw20ReceiveMsg};
 use cw20_base::state::TokenInfo;
+use hub_querier::HandleMsg::SwapHook;
 use hub_querier::{Config, State};
 use hub_querier::{Cw20HookMsg, HandleMsg};
 
@@ -38,6 +39,7 @@ pub fn init<S: Storage, A: Api, Q: Querier>(
         reward_contract: None,
         token_contract: None,
         validators_registry_contract: None,
+        airdrop_registry_contract: None,
     };
     store_config(&mut deps.storage).save(&data)?;
 
@@ -88,35 +90,65 @@ pub fn handle<S: Storage, A: Api, Q: Querier>(
             Some(v) => handle_bond_single_validator(deps, env, v),
             None => handle_bond_auto_validators(deps, env),
         },
-        HandleMsg::UpdateGlobalIndex {} => handle_update_global(deps, env),
+        HandleMsg::UpdateGlobalIndex { airdrop_hooks } => {
+            handle_update_global(deps, env, airdrop_hooks)
+        }
         HandleMsg::WithdrawUnbonded {} => handle_withdraw_unbonded(deps, env),
-        HandleMsg::RegisterSubcontracts {
-            contract,
-            contract_address,
-        } => handle_register_contracts(deps, env, contract, contract_address),
         HandleMsg::CheckSlashing {} => handle_slashing(deps, env),
         HandleMsg::UpdateParams {
             epoch_period,
-            underlying_coin_denom: coin_denom,
             unbonding_period,
             peg_recovery_fee,
             er_threshold,
-            reward_denom,
         } => handle_update_params(
             deps,
             env,
             epoch_period,
-            coin_denom,
             unbonding_period,
             peg_recovery_fee,
             er_threshold,
-            reward_denom,
         ),
         HandleMsg::UpdateConfig {
             owner,
             reward_contract,
             token_contract,
-        } => handle_update_config(deps, env, owner, reward_contract, token_contract),
+            airdrop_registry_contract,
+            validators_registry_contract,
+        } => handle_update_config(
+            deps,
+            env,
+            owner,
+            reward_contract,
+            token_contract,
+            airdrop_registry_contract,
+            validators_registry_contract,
+        ),
+        HandleMsg::SwapHook {
+            airdrop_token_contract,
+            airdrop_swap_contract,
+            swap_msg,
+        } => swap_hook(
+            deps,
+            env,
+            airdrop_token_contract,
+            airdrop_swap_contract,
+            swap_msg,
+        ),
+        HandleMsg::ClaimAirdrop {
+            airdrop_token_contract,
+            airdrop_contract,
+            airdrop_swap_contract,
+            claim_msg,
+            swap_msg,
+        } => claim_airdrop(
+            deps,
+            env,
+            airdrop_token_contract,
+            airdrop_contract,
+            airdrop_swap_contract,
+            claim_msg,
+            swap_msg,
+        ),
     }
 }
 
@@ -144,7 +176,10 @@ pub fn receive_cw20<S: Storage, A: Api, Q: Querier>(
             }
         }
     } else {
-        Err(StdError::generic_err("Invalid request"))
+        Err(StdError::generic_err(format!(
+            "Invalid request: {message:?} message not included in request",
+            message = "unbond"
+        )))
     }
 }
 
@@ -153,6 +188,7 @@ pub fn receive_cw20<S: Storage, A: Api, Q: Querier>(
 pub fn handle_update_global<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
     env: Env,
+    airdrop_hooks: Option<Vec<Binary>>,
 ) -> StdResult<HandleResponse> {
     let mut messages: Vec<CosmosMsg> = vec![];
 
@@ -162,6 +198,19 @@ pub fn handle_update_global<S: Storage, A: Api, Q: Querier>(
             .reward_contract
             .expect("the reward contract must have been registered"),
     )?;
+
+    if airdrop_hooks.is_some() {
+        let registry_addr = deps
+            .api
+            .human_address(&config.airdrop_registry_contract.unwrap())?;
+        for msg in airdrop_hooks.unwrap() {
+            messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
+                contract_addr: registry_addr.clone(),
+                msg,
+                send: vec![],
+            }))
+        }
+    }
 
     // Send withdraw message
     let mut withdraw_msgs = withdraw_all_rewards(deps, env.contract.address.clone())?;
@@ -201,18 +250,25 @@ fn withdraw_all_rewards<S: Storage, A: Api, Q: Querier>(
     delegator: HumanAddr,
 ) -> StdResult<Vec<CosmosMsg>> {
     let mut messages: Vec<CosmosMsg> = vec![];
-    let delegations = deps
-        .querier
-        .query_all_delegations(delegator)
-        .expect("There must be at least one delegation");
-    for delegation in delegations {
-        let msg: CosmosMsg = CosmosMsg::Staking(StakingMsg::Withdraw {
-            validator: delegation.validator,
-            recipient: None,
-        });
-        messages.push(msg)
+    let delegations = deps.querier.query_all_delegations(delegator);
+
+    match delegations {
+        Ok(delegations) => {
+            if delegations.is_empty() {
+                Ok(messages)
+            } else {
+                for delegation in delegations {
+                    let msg: CosmosMsg = CosmosMsg::Staking(StakingMsg::Withdraw {
+                        validator: delegation.validator,
+                        recipient: None,
+                    });
+                    messages.push(msg);
+                }
+                Ok(messages)
+            }
+        }
+        Err(_) => Ok(messages),
     }
-    Ok(messages)
 }
 
 /// Check whether slashing has happened
@@ -229,28 +285,132 @@ pub fn slashing<S: Storage, A: Api, Q: Querier>(
     let state_total_bonded = read_state(&deps.storage).load()?.total_bond_amount;
 
     // Check the actual bonded amount
-    let mut actual_total_bonded = Uint128::zero();
     let delegations = deps.querier.query_all_delegations(env.contract.address)?;
-    for delegation in delegations {
-        if delegation.amount.denom == coin_denom {
-            actual_total_bonded += delegation.amount.amount
+    if delegations.is_empty() {
+        Ok(())
+    } else {
+        let mut actual_total_bonded = Uint128::zero();
+        for delegation in delegations {
+            if delegation.amount.denom == coin_denom {
+                actual_total_bonded += delegation.amount.amount
+            }
         }
+
+        // Need total issued for updating the exchange rate
+        let total_issued = query_total_issued(&deps)?;
+        let current_requested_fee = read_current_batch(&deps.storage).load()?.requested_with_fee;
+
+        // Slashing happens if the expected amount is less than stored amount
+        if state_total_bonded.u128() > actual_total_bonded.u128() {
+            store_state(&mut deps.storage).update(|mut state| {
+                state.total_bond_amount = actual_total_bonded;
+                state.update_exchange_rate(total_issued, current_requested_fee);
+                Ok(state)
+            })?;
+        }
+
+        Ok(())
+    }
+}
+
+pub fn claim_airdrop<S: Storage, A: Api, Q: Querier>(
+    deps: &mut Extern<S, A, Q>,
+    env: Env,
+    airdrop_token_contract: HumanAddr,
+    airdrop_contract: HumanAddr,
+    airdrop_swap_contract: HumanAddr,
+    claim_msg: Binary,
+    swap_msg: Binary,
+) -> StdResult<HandleResponse> {
+    let conf = read_config(&deps.storage).load()?;
+
+    let sender_raw = deps.api.canonical_address(&env.message.sender)?;
+
+    let airdrop_reg_raw = conf.airdrop_registry_contract.unwrap();
+    let airdrop_reg = deps.api.human_address(&airdrop_reg_raw)?;
+
+    if airdrop_reg_raw != sender_raw {
+        return Err(StdError::generic_err(format!(
+            "Sender must be {}",
+            airdrop_reg
+        )));
     }
 
-    // Need total issued for updating the exchange rate
-    let total_issued = query_total_issued(&deps)?;
-    let current_requested_fee = read_current_batch(&deps.storage).load()?.requested_with_fee;
+    let mut messages: Vec<CosmosMsg> = vec![];
 
-    // Slashing happens if the expected amount is less than stored amount
-    if state_total_bonded.u128() > actual_total_bonded.u128() {
-        store_state(&mut deps.storage).update(|mut state| {
-            state.total_bond_amount = actual_total_bonded;
-            state.update_exchange_rate(total_issued, current_requested_fee);
-            Ok(state)
-        })?;
+    messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
+        contract_addr: airdrop_contract,
+        msg: claim_msg,
+        send: vec![],
+    }));
+
+    messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
+        contract_addr: env.contract.address,
+        msg: to_binary(&SwapHook {
+            airdrop_token_contract,
+            airdrop_swap_contract,
+            swap_msg,
+        })?,
+        send: vec![],
+    }));
+
+    Ok(HandleResponse {
+        messages,
+        log: vec![],
+        data: None,
+    })
+}
+
+pub fn swap_hook<S: Storage, A: Api, Q: Querier>(
+    deps: &mut Extern<S, A, Q>,
+    env: Env,
+    airdrop_token_contract: HumanAddr,
+    airdrop_swap_contract: HumanAddr,
+    swap_msg: Binary,
+) -> StdResult<HandleResponse> {
+    if env.message.sender != env.contract.address {
+        return Err(StdError::unauthorized());
     }
 
-    Ok(())
+    let res: Binary = deps
+        .querier
+        .query(&QueryRequest::Wasm(WasmQuery::Raw {
+            contract_addr: airdrop_token_contract.clone(),
+            key: Binary::from(concat(
+                &to_length_prefixed(b"balance").to_vec(),
+                (deps.api.canonical_address(&env.contract.address)?).as_slice(),
+            )),
+        }))
+        .unwrap_or_else(|_| to_binary(&Uint128::zero()).unwrap());
+
+    let airdrop_token_balance: Uint128 = from_binary(&res)?;
+
+    if airdrop_token_balance == Uint128(0) {
+        return Err(StdError::generic_err(format!(
+            "There is no balance for {} in airdrop token contract {}",
+            &env.contract.address, &airdrop_token_contract
+        )));
+    }
+    let mut messages: Vec<CosmosMsg> = vec![];
+    messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
+        contract_addr: airdrop_token_contract.clone(),
+        msg: to_binary(&Cw20HandleMsg::Send {
+            contract: airdrop_swap_contract,
+            amount: airdrop_token_balance,
+            msg: Some(swap_msg),
+        })?,
+        send: vec![],
+    }));
+
+    Ok(HandleResponse {
+        messages,
+        log: vec![
+            log("action", "swap_airdrop_token"),
+            log("token_contract", airdrop_token_contract),
+            log("swap_amount", airdrop_token_balance),
+        ],
+        data: None,
+    })
 }
 
 /// Handler for tracking slashing
@@ -260,7 +420,16 @@ pub fn handle_slashing<S: Storage, A: Api, Q: Querier>(
 ) -> StdResult<HandleResponse> {
     // call slashing
     slashing(deps, env)?;
-    Ok(HandleResponse::default())
+    // read state for log
+    let state = read_state(&deps.storage).load()?;
+    Ok(HandleResponse {
+        messages: vec![],
+        log: vec![
+            log("action", "check_slashing"),
+            log("new_exchange_rate", state.exchange_rate),
+        ],
+        data: None,
+    })
 }
 
 pub fn query<S: Storage, A: Api, Q: Querier>(
@@ -290,6 +459,7 @@ fn query_config<S: Storage, A: Api, Q: Querier>(
     let mut reward: Option<HumanAddr> = None;
     let mut token: Option<HumanAddr> = None;
     let mut validators_contract: Option<HumanAddr> = None;
+    let mut airdrop: Option<HumanAddr> = None;
     if config.reward_contract.is_some() {
         reward = Some(
             deps.api
@@ -311,11 +481,20 @@ fn query_config<S: Storage, A: Api, Q: Querier>(
                 .unwrap(),
         );
     }
+    if config.airdrop_registry_contract.is_some() {
+        airdrop = Some(
+            deps.api
+                .human_address(&config.airdrop_registry_contract.unwrap())
+                .unwrap(),
+        );
+    }
+
     Ok(ConfigResponse {
         owner: deps.api.human_address(&config.creator)?,
         reward_contract: reward,
         token_contract: token,
         validators_registry_contract: validators_contract,
+        airdrop_registry_contract: airdrop,
     })
 }
 
@@ -396,4 +575,11 @@ fn query_unbond_requests_limitation<S: Storage, A: Api, Q: Querier>(
     let requests = all_unbond_history(&deps.storage, start, limit)?;
     let res = AllHistoryResponse { history: requests };
     Ok(res)
+}
+
+#[inline]
+fn concat(namespace: &[u8], key: &[u8]) -> Vec<u8> {
+    let mut k = namespace.to_vec();
+    k.extend_from_slice(key);
+    k
 }

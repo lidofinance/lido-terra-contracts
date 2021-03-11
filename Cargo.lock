@@ -16,9 +16,26 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ee2a4ec343196209d6594e19543ae87a39f96d5534d7174822a3ad825dd6ed7e"
 
 [[package]]
+name = "anchor_airdrop_registry"
+version = "0.1.0"
+dependencies = [
+ "cosmwasm-schema 0.11.1",
+ "cosmwasm-std",
+ "cosmwasm-storage",
+ "cosmwasm-vm",
+ "cw2",
+ "cw20",
+ "cw20-base",
+ "hub_querier",
+ "schemars",
+ "serde",
+]
+
+[[package]]
 name = "anchor_basset_hub"
 version = "0.1.0"
 dependencies = [
+ "anchor_airdrop_registry",
  "anchor_basset_reward",
  "anchor_basset_token",
  "basset",
@@ -43,6 +60,7 @@ name = "anchor_basset_reward"
 version = "0.1.0"
 dependencies = [
  "basset",
+ "cosmwasm-bignumber",
  "cosmwasm-schema 0.11.1",
  "cosmwasm-std",
  "cosmwasm-storage",
@@ -124,6 +142,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "bigint"
+version = "4.4.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c0e8c8a600052b52482eff2cf4d810e462fdff1f656ac1ecb6232132a1ed7def"
+dependencies = [
+ "byteorder",
+ "crunchy",
+]
+
+[[package]]
 name = "bincode"
 version = "1.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -201,6 +229,18 @@ name = "constant_time_eq"
 version = "0.1.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "245097e9a4535ee1e3e3931fcfcd55a796a44c643e8596ff6566d68f09b87bbc"
+
+[[package]]
+name = "cosmwasm-bignumber"
+version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ef9f9dd6522baab191620bc7505f28992bb7cd3394635bca20301d93eed5af4f"
+dependencies = [
+ "bigint",
+ "cosmwasm-std",
+ "schemars",
+ "serde",
+]
 
 [[package]]
 name = "cosmwasm-schema"
@@ -378,6 +418,12 @@ dependencies = [
  "cfg-if 0.1.10",
  "lazy_static",
 ]
+
+[[package]]
+name = "crunchy"
+version = "0.1.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a2f4a431c5c9f662e1200b7c7f02c34e91361150e382089a8f2dec3ba680cbda"
 
 [[package]]
 name = "crypto-mac"

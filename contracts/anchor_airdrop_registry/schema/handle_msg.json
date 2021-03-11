@@ -1,0 +1,197 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "HandleMsg",
+  "anyOf": [
+    {
+      "type": "object",
+      "required": [
+        "fabricate_m_i_r_claim"
+      ],
+      "properties": {
+        "fabricate_m_i_r_claim": {
+          "type": "object",
+          "required": [
+            "amount",
+            "proof",
+            "stage"
+          ],
+          "properties": {
+            "amount": {
+              "$ref": "#/definitions/Uint128"
+            },
+            "proof": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "stage": {
+              "type": "integer",
+              "format": "uint8",
+              "minimum": 0.0
+            }
+          }
+        }
+      }
+    },
+    {
+      "type": "object",
+      "required": [
+        "update_config"
+      ],
+      "properties": {
+        "update_config": {
+          "type": "object",
+          "properties": {
+            "hub_contract": {
+              "anyOf": [
+                {
+                  "$ref": "#/definitions/HumanAddr"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "owner": {
+              "anyOf": [
+                {
+                  "$ref": "#/definitions/HumanAddr"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "reward_contract": {
+              "anyOf": [
+                {
+                  "$ref": "#/definitions/HumanAddr"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "type": "object",
+      "required": [
+        "add_airdrop_info"
+      ],
+      "properties": {
+        "add_airdrop_info": {
+          "type": "object",
+          "required": [
+            "airdrop_info",
+            "airdrop_token"
+          ],
+          "properties": {
+            "airdrop_info": {
+              "$ref": "#/definitions/AirdropInfo"
+            },
+            "airdrop_token": {
+              "type": "string"
+            }
+          }
+        }
+      }
+    },
+    {
+      "type": "object",
+      "required": [
+        "remove_airdrop_info"
+      ],
+      "properties": {
+        "remove_airdrop_info": {
+          "type": "object",
+          "required": [
+            "airdrop_token"
+          ],
+          "properties": {
+            "airdrop_token": {
+              "type": "string"
+            }
+          }
+        }
+      }
+    },
+    {
+      "type": "object",
+      "required": [
+        "update_airdrop_info"
+      ],
+      "properties": {
+        "update_airdrop_info": {
+          "type": "object",
+          "required": [
+            "airdrop_info",
+            "airdrop_token"
+          ],
+          "properties": {
+            "airdrop_info": {
+              "$ref": "#/definitions/AirdropInfo"
+            },
+            "airdrop_token": {
+              "type": "string"
+            }
+          }
+        }
+      }
+    }
+  ],
+  "definitions": {
+    "AirdropInfo": {
+      "type": "object",
+      "required": [
+        "airdrop_contract",
+        "airdrop_swap_contract",
+        "airdrop_token_contract"
+      ],
+      "properties": {
+        "airdrop_contract": {
+          "$ref": "#/definitions/HumanAddr"
+        },
+        "airdrop_swap_contract": {
+          "$ref": "#/definitions/HumanAddr"
+        },
+        "airdrop_token_contract": {
+          "$ref": "#/definitions/HumanAddr"
+        },
+        "swap_belief_price": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/Decimal"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "swap_max_spread": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/Decimal"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "Decimal": {
+      "description": "A fixed-point decimal value with 18 fractional digits, i.e. Decimal(1_000_000_000_000_000_000) == 1.0\n\nThe greatest possible value that can be represented is 340282366920938463463.374607431768211455 (which is (2^128 - 1) / 10^18)",
+      "type": "string"
+    },
+    "HumanAddr": {
+      "type": "string"
+    },
+    "Uint128": {
+      "type": "string"
+    }
+  }
+}

@@ -52,6 +52,7 @@ pub struct ConfigResponse {
     pub reward_contract: Option<HumanAddr>,
     pub token_contract: Option<HumanAddr>,
     pub validators_registry_contract: Option<HumanAddr>,
+    pub airdrop_registry_contract: Option<HumanAddr>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
