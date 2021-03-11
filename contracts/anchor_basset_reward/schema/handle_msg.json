@@ -27,26 +27,6 @@
       }
     },
     {
-      "description": "Update the params",
-      "type": "object",
-      "required": [
-        "update_reward_denom"
-      ],
-      "properties": {
-        "update_reward_denom": {
-          "type": "object",
-          "properties": {
-            "reward_denom": {
-              "type": [
-                "string",
-                "null"
-              ]
-            }
-          }
-        }
-      }
-    },
-    {
       "description": "bAsset's operations Increase user staking balance Withdraw rewards to pending rewards Set current reward index to global index",
       "type": "object",
       "required": [

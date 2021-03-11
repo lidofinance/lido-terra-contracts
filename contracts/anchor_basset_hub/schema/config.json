@@ -6,6 +6,16 @@
     "creator"
   ],
   "properties": {
+    "airdrop_registry_contract": {
+      "anyOf": [
+        {
+          "$ref": "#/definitions/CanonicalAddr"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
     "creator": {
       "$ref": "#/definitions/CanonicalAddr"
     },

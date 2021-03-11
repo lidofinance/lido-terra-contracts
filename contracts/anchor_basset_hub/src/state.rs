@@ -22,6 +22,7 @@ pub static PARAMETERS: &[u8] = b"parameteres";
 pub static PREFIX_WAIT_MAP: &[u8] = b"wait";
 pub static CURRENT_BATCH: &[u8] = b"current_batch";
 pub static UNBOND_HISTORY_MAP: &[u8] = b"history_map";
+pub static PREFIX_AIRDROP_INFO: &[u8] = b"airedrop_info";
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct Parameters {
@@ -44,6 +45,7 @@ pub struct UnbondHistory {
     pub batch_id: u64,
     pub time: u64,
     pub amount: Uint128,
+    pub applied_exchange_rate: Decimal,
     pub withdraw_rate: Decimal,
     pub released: bool,
 }
@@ -246,7 +248,9 @@ pub fn read_unbond_history<'a, S: ReadonlyStorage>(
     let res = ReadonlyPrefixedStorage::new(UNBOND_HISTORY_MAP, storage).get(&vec);
     match res {
         Some(data) => from_slice(&data),
-        None => Err(StdError::generic_err("no unbond history is found")),
+        None => Err(StdError::generic_err(
+            "Burn requests not found for the specified time period",
+        )),
     }
 }
 

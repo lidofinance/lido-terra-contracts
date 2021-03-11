@@ -6,8 +6,8 @@ use crate::user::{
     query_holder, query_holders,
 };
 use cosmwasm_std::{
-    log, to_binary, Api, Binary, Decimal, Env, Extern, HandleResponse, InitResponse, Querier,
-    StdError, StdResult, Storage, Uint128,
+    to_binary, Api, Binary, Decimal, Env, Extern, HandleResponse, InitResponse, Querier, StdResult,
+    Storage, Uint128,
 };
 
 use terra_cosmwasm::TerraMsgWrapper;
@@ -41,9 +41,6 @@ pub fn handle<S: Storage, A: Api, Q: Querier>(
     msg: HandleMsg,
 ) -> StdResult<HandleResponse<TerraMsgWrapper>> {
     match msg {
-        HandleMsg::UpdateRewardDenom { reward_denom } => {
-            handle_update_denom(deps, env, reward_denom)
-        }
         HandleMsg::ClaimRewards { recipient } => handle_claim_rewards(deps, env, recipient),
         HandleMsg::SwapToRewardDenom {} => handle_swap(deps, env),
         HandleMsg::UpdateGlobalIndex {} => handle_update_global_index(deps, env),
@@ -54,32 +51,6 @@ pub fn handle<S: Storage, A: Api, Q: Querier>(
             handle_decrease_balance(deps, env, address, amount)
         }
     }
-}
-
-/// Update general parameters
-/// Only hub contract is allowed to execute
-pub fn handle_update_denom<S: Storage, A: Api, Q: Querier>(
-    deps: &mut Extern<S, A, Q>,
-    env: Env,
-    reward_denom: Option<String>,
-) -> StdResult<HandleResponse<TerraMsgWrapper>> {
-    let mut config = read_config(&deps.storage)?;
-    if config.hub_contract != deps.api.canonical_address(&env.message.sender)? {
-        return Err(StdError::unauthorized());
-    }
-
-    if let Some(reward_denom) = reward_denom {
-        config.reward_denom = reward_denom;
-    }
-
-    store_config(&mut deps.storage, &config)?;
-
-    let res = HandleResponse {
-        messages: vec![],
-        log: vec![log("action", "update_params")],
-        data: None,
-    };
-    Ok(res)
 }
 
 pub fn query<S: Storage, A: Api, Q: Querier>(

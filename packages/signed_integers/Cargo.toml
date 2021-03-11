@@ -5,6 +5,16 @@ authors = ["MSNTCS <najafi@codechain.io>"]
 edition = "2018"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+[profile.release]
+opt-level = 3
+debug = false
+rpath = false
+lto = true
+debug-assertions = false
+codegen-units = 1
+panic = 'abort'
+incremental = false
+overflow-checks = true
 
 [dependencies]
 cw20 = { version = "0.2" }

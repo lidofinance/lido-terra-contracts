@@ -75,7 +75,7 @@ pub(crate) fn handle_unbond<S: Storage, A: Api, Q: Querier>(
         // the contract must stop if
         if undelegation_amount == Uint128(1) {
             return Err(StdError::generic_err(
-                "There must be more than one native token to undelegate",
+                "Burn amount must be greater than 1 ubluna",
             ));
         }
 
@@ -97,6 +97,7 @@ pub(crate) fn handle_unbond<S: Storage, A: Api, Q: Querier>(
             batch_id: current_batch.id,
             time: env.block.time,
             amount: current_batch.requested_with_fee,
+            applied_exchange_rate: state.exchange_rate,
             withdraw_rate: state.exchange_rate,
             released: false,
         };
@@ -135,7 +136,8 @@ pub(crate) fn handle_unbond<S: Storage, A: Api, Q: Querier>(
         log: vec![
             log("action", "burn"),
             log("from", sender),
-            log("undelegated_amount", amount),
+            log("burnt_amount", amount),
+            log("unbonded_amount", amount_with_fee),
         ],
         data: None,
     };
@@ -168,9 +170,10 @@ pub fn handle_withdraw_unbonded<S: Storage, A: Api, Q: Querier>(
     let withdraw_amount = get_finished_amount(&deps.storage, sender_human.clone()).unwrap();
 
     if withdraw_amount.is_zero() {
-        return Err(StdError::generic_err(
-            "Previously requested amount is not ready yet",
-        ));
+        return Err(StdError::generic_err(format!(
+            "No withdrawable {} assets are available yet",
+            coin_denom
+        )));
     }
 
     // remove the previous batches for the user
@@ -299,8 +302,8 @@ fn process_withdraw_rate<S: Storage, A: Api, Q: Querier>(
             // Calculate the new withdraw rate
             let new_withdraw_rate =
                 Decimal::from_ratio(actual_unbonded_amount_of_batch, burnt_amount_of_batch);
-            let mut history_for_i = read_unbond_history(&deps.storage, iterator)
-                .expect("the existence of history is checked before");
+
+            let mut history_for_i = history;
             // store the history and mark it as released
             history_for_i.withdraw_rate = new_withdraw_rate;
             history_for_i.released = true;
@@ -351,11 +354,13 @@ fn pick_validator<S: Storage, A: Api, Q: Querier>(
             undelegated_amount = val;
             claimed = (claimed - val)?;
         }
-        let msgs: CosmosMsg = CosmosMsg::Staking(StakingMsg::Undelegate {
-            validator: delegation.validator,
-            amount: coin(undelegated_amount.0, &*coin_denom),
-        });
-        messages.push(msgs);
+        if undelegated_amount.0 > 0 {
+            let msgs: CosmosMsg = CosmosMsg::Staking(StakingMsg::Undelegate {
+                validator: delegation.validator,
+                amount: coin(undelegated_amount.0, &*coin_denom),
+            });
+            messages.push(msgs);
+        }
         iteration_index += 1;
     }
     Ok(messages)

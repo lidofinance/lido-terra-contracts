@@ -125,6 +125,9 @@ impl WasmMockQuerier {
                             api.canonical_address(&HumanAddr::from("validators"))
                                 .unwrap(),
                         ),
+                        airdrop_registry_contract: Some(
+                            api.canonical_address(&HumanAddr::from("airdrop")).unwrap(),
+                        ),
                     };
                     Ok(to_binary(&to_binary(&config).unwrap()))
                 } else {

@@ -7,6 +7,17 @@ edition = "2018"
 [lib]
 crate-type = ["cdylib", "rlib"]
 
+[profile.release]
+opt-level = 3
+debug = false
+rpath = false
+lto = true
+debug-assertions = false
+codegen-units = 1
+panic = 'abort'
+incremental = false
+overflow-checks = true
+
 [features]
 backtraces = ["cosmwasm-std/backtraces"]
 # use library feature to disable all init/handle/query exports

@@ -22,9 +22,6 @@ pub enum HandleMsg {
     /// Update the global index
     UpdateGlobalIndex {},
 
-    /// Update the params
-    UpdateRewardDenom { reward_denom: Option<String> },
-
     ////////////////////
     /// bAsset's operations
     ///////////////////

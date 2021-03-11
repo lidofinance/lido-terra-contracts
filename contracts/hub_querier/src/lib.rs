@@ -1,4 +1,4 @@
-use cosmwasm_std::{CanonicalAddr, Decimal, HumanAddr, Uint128};
+use cosmwasm_std::{Binary, CanonicalAddr, Decimal, HumanAddr, Uint128};
 use cw20::Cw20ReceiveMsg;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -20,6 +20,7 @@ pub struct Config {
     pub reward_contract: Option<CanonicalAddr>,
     pub token_contract: Option<CanonicalAddr>,
     pub validators_registry_contract: Option<CanonicalAddr>,
+    pub airdrop_registry_contract: Option<CanonicalAddr>,
 }
 
 impl State {
@@ -45,22 +46,16 @@ pub enum HandleMsg {
         owner: Option<HumanAddr>,
         reward_contract: Option<HumanAddr>,
         token_contract: Option<HumanAddr>,
-    },
-
-    /// Register receives the reward contract address
-    RegisterSubcontracts {
-        contract: Registration,
-        contract_address: HumanAddr,
+        validators_registry_contract: Option<HumanAddr>,
+        airdrop_registry_contract: Option<HumanAddr>,
     },
 
     /// update the parameters that is needed for the contract
     UpdateParams {
         epoch_period: Option<u64>,
-        underlying_coin_denom: Option<String>,
         unbonding_period: Option<u64>,
         peg_recovery_fee: Option<Decimal>,
         er_threshold: Option<Decimal>,
-        reward_denom: Option<String>,
     },
 
     ////////////////////
@@ -73,7 +68,7 @@ pub enum HandleMsg {
     Bond { validator: Option<HumanAddr> },
 
     /// Update global index
-    UpdateGlobalIndex {},
+    UpdateGlobalIndex { airdrop_hooks: Option<Vec<Binary>> },
 
     /// Send back unbonded coin to the user
     WithdrawUnbonded {},
@@ -89,14 +84,24 @@ pub enum HandleMsg {
     /// Unbond the underlying coin denom.
     /// Burn the received basset token.
     Receive(Cw20ReceiveMsg),
-}
 
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-#[serde(rename_all = "snake_case")]
-pub enum Registration {
-    Token,
-    Reward,
-    ValidatorsRegistry,
+    ////////////////////
+    /// internal operations
+    ///////////////////
+    ClaimAirdrop {
+        airdrop_token_contract: HumanAddr, // Contract address of MIR Cw20 Token
+        airdrop_contract: HumanAddr,       // Contract address of MIR Airdrop
+        airdrop_swap_contract: HumanAddr,  // E.g. Contract address of MIR <> UST Terraswap Pair
+        claim_msg: Binary,                 // Base64-encoded JSON of MIRAirdropHandleMsg::Claim
+        swap_msg: Binary,                  // Base64-encoded string of JSON of PairHandleMsg::Swap
+    },
+
+    /// Swaps claimed airdrop tokens to UST through Terraswap & sends resulting UST to bLuna Reward contract
+    SwapHook {
+        airdrop_token_contract: HumanAddr, // E.g. contract address of MIR Token
+        airdrop_swap_contract: HumanAddr,  // E.g. Contract address of MIR <> UST Terraswap Pair
+        swap_msg: Binary,                  // E.g. Base64-encoded JSON of PairHandleMsg::Swap
+    },
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

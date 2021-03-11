@@ -1,0 +1,22 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "InitMsg",
+  "type": "object",
+  "required": [
+    "hub_contract",
+    "reward_contract"
+  ],
+  "properties": {
+    "hub_contract": {
+      "$ref": "#/definitions/HumanAddr"
+    },
+    "reward_contract": {
+      "$ref": "#/definitions/HumanAddr"
+    }
+  },
+  "definitions": {
+    "HumanAddr": {
+      "type": "string"
+    }
+  }
+}
