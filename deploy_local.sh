@@ -30,10 +30,8 @@ echo "Initializing Token Contract..."
 TOKEN_CONTRACT=$(terracli tx wasm instantiate 3 "{\"decimals\":6,\"hub_contract\":\"${HUB_CONTRACT}\",\"initial_balances\":[],\"name\":\"bluna\",\"symbol\":\"BLUNA\",\"mint\":{\"minter\":\"${HUB_CONTRACT}\",\"cap\":null}}" --from test1 --chain-id=localterra --fees=10000uluna --gas=auto --broadcast-mode=block --output json -y | jq -r '."logs"[0]."events"[0]."attributes"[2]."value"')
 echo "Done!"
 
-echo "Registering Sub Contracts..."
-terracli tx wasm execute $HUB_CONTRACT "{\"register_subcontracts\":{\"contract\":\"reward\",\"contract_address\":\"${REWARD_CONTRACT}\"}}" --from test1 --chain-id=localterra --fees=1000000uluna --gas=auto --broadcast-mode=block
-terracli tx wasm execute $HUB_CONTRACT "{\"register_subcontracts\":{\"contract\":\"token\",\"contract_address\":\"${TOKEN_CONTRACT}\"}}" --from test1 --chain-id=localterra --fees=1000000uluna --gas=auto --broadcast-mode=block
-terracli tx wasm execute $HUB_CONTRACT "{\"register_subcontracts\":{\"contract\":\"validators_registry\",\"contract_address\":\"${VR_CONTRACT}\"}}" --from test1 --chain-id=localterra --fees=1000000uluna --gas=auto --broadcast-mode=block
+echo "Updating config with contracts..."
+terracli tx wasm execute $HUB_CONTRACT "{\"update_config\":{\"token_contract\":\"${TOKEN_CONTRACT}\",\"reward_contract\":\"${REWARD_CONTRACT}\", \"validators_registry_contract\": \"${VR_CONTRACT}\"}}" --from test1 --chain-id=localterra --fees=1000000uluna --gas=auto --broadcast-mode=block
 echo "Done!"
 
 echo "Validators Registry Contract address -" $VR_CONTRACT
