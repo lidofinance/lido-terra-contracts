@@ -34,7 +34,6 @@ use crate::msg::{
 };
 use hub_querier::HandleMsg;
 
-use crate::bond::calculate_delegations;
 use crate::contract::{handle, init, query};
 use crate::unbond::handle_unbond;
 
@@ -2677,53 +2676,6 @@ fn sample_delegation(addr: HumanAddr, amount: Coin) -> FullDelegation {
         amount,
         can_redelegate,
         accumulated_rewards,
-    }
-}
-
-#[cfg(test)]
-#[macro_export]
-macro_rules! default_validator_with_delegations {
-    ($total:expr, $max:expr) => {
-        RegistryValidator {
-            active: false,
-            total_delegated: Uint128($total),
-            address: Default::default(),
-        }
-    };
-}
-
-//TODO: implement more test cases
-#[test]
-fn test_calculate_delegations() {
-    let mut validators = vec![
-        default_validator_with_delegations!(0, 10),
-        default_validator_with_delegations!(0, 10),
-        default_validator_with_delegations!(0, 10),
-    ];
-    let expected_delegations: Vec<Uint128> = vec![Uint128(3), Uint128(3), Uint128(4)];
-
-    // sort validators for the right delegations
-    validators.sort_by(|v1, v2| v1.total_delegated.cmp(&v2.total_delegated));
-
-    let buffered_balance = Uint128(10);
-    let (remained_balance, delegations) =
-        calculate_delegations(buffered_balance, validators.as_slice()).unwrap();
-
-    assert_eq!(
-        validators.len(),
-        delegations.len(),
-        "Delegations are not correct"
-    );
-    assert_eq!(
-        remained_balance,
-        Uint128(0),
-        "Not all tokens were delegated"
-    );
-    for i in 0..expected_delegations.len() {
-        assert_eq!(
-            delegations[i], expected_delegations[i],
-            "Delegation is not correct"
-        )
     }
 }
 

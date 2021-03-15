@@ -7,24 +7,9 @@ use cosmwasm_std::{
 };
 use cw20::Cw20HandleMsg;
 use std::ops::{AddAssign, Sub};
+use validators_registry::contract::calculate_delegations;
 use validators_registry::msg::{HandleMsg as HandleMsgValidators, QueryMsg as QueryValidators};
 use validators_registry::registry::Validator;
-
-pub fn calculate_delegations(
-    mut buffered_balance: Uint128,
-    validators: &[Validator],
-) -> StdResult<(Uint128, Vec<Uint128>)> {
-    let mut delegations = vec![Uint128(0); validators.len()];
-    while buffered_balance.gt(&Uint128::zero()) {
-        for i in 0..validators.len() {
-            let to_delegate = buffered_balance
-                .multiply_ratio(Uint128(1), Uint128((validators.len() - i) as u128));
-            delegations[i].add_assign(to_delegate);
-            buffered_balance = buffered_balance.sub(to_delegate)?;
-        }
-    }
-    Ok((buffered_balance, delegations))
-}
 
 // Returns all validators
 pub fn read_validators<S: Storage, A: Api, Q: Querier>(

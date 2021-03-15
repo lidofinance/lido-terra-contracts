@@ -1,10 +1,11 @@
 use cosmwasm_std::{
-    to_binary, Api, Binary, Env, Extern, HandleResponse, HumanAddr, InitResponse, Querier,
-    StdError, StdResult, Storage,
+    to_binary, Api, Binary, Coin, CosmosMsg, Env, Extern, HandleResponse, HumanAddr, InitResponse,
+    Querier, StakingMsg, StdError, StdResult, Storage, Uint128, WasmMsg,
 };
 
-use crate::msg::{HandleMsg, InitMsg, QueryMsg};
+use crate::msg::{HandleMsg, HubMsg, InitMsg, QueryMsg};
 use crate::registry::{config, config_read, registry, registry_read, Config, Validator};
+use std::ops::{AddAssign, Sub};
 
 pub fn init<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
@@ -36,18 +37,27 @@ pub fn handle<S: Storage, A: Api, Q: Querier>(
     }
 }
 
-pub fn update_total_delegated<S: Storage, A: Api, Q: Querier>(
-    deps: &mut Extern<S, A, Q>,
-    env: Env,
-    updated_validators: Vec<Validator>,
-) -> StdResult<HandleResponse> {
-    let config = config_read(&deps.storage).load()?;
-    let hub_address = deps.api.human_address(&config.hub_contract)?;
-    if env.message.sender != hub_address {
-        return Err(StdError::unauthorized());
+pub fn calculate_delegations(
+    mut buffered_balance: Uint128,
+    validators: &[Validator],
+) -> StdResult<(Uint128, Vec<Uint128>)> {
+    let mut delegations = vec![Uint128(0); validators.len()];
+    while buffered_balance.gt(&Uint128::zero()) {
+        for i in 0..validators.len() {
+            let to_delegate = buffered_balance
+                .multiply_ratio(Uint128(1), Uint128((validators.len() - i) as u128));
+            delegations[i].add_assign(to_delegate);
+            buffered_balance = buffered_balance.sub(to_delegate)?;
+        }
     }
+    Ok((buffered_balance, delegations))
+}
 
-    for validator in updated_validators.iter() {
+fn _update_total_delegated<S: Storage, A: Api, Q: Querier>(
+    deps: &mut Extern<S, A, Q>,
+    validators: &[Validator],
+) -> StdResult<()> {
+    for validator in validators.iter() {
         registry(&mut deps.storage).update(validator.address.as_str().as_bytes(), |v| match v {
             None => Err(StdError::NotFound {
                 kind: validator.address.to_string(),
@@ -59,6 +69,22 @@ pub fn update_total_delegated<S: Storage, A: Api, Q: Querier>(
             }),
         })?;
     }
+    Ok(())
+}
+
+pub fn update_total_delegated<S: Storage, A: Api, Q: Querier>(
+    deps: &mut Extern<S, A, Q>,
+    env: Env,
+    updated_validators: Vec<Validator>,
+) -> StdResult<HandleResponse> {
+    let config = config_read(&deps.storage).load()?;
+    let hub_address = deps.api.human_address(&config.hub_contract)?;
+    if env.message.sender != hub_address {
+        return Err(StdError::unauthorized());
+    }
+
+    _update_total_delegated(deps, updated_validators.as_slice())?;
+
     Ok(HandleResponse::default())
 }
 
@@ -77,7 +103,56 @@ pub fn remove_validator<S: Storage, A: Api, Q: Querier>(
     validator_address: HumanAddr,
 ) -> StdResult<HandleResponse> {
     registry(&mut deps.storage).remove(validator_address.as_str().as_bytes());
-    Ok(HandleResponse::default())
+
+    let config = config_read(&deps.storage).load()?;
+    let hub_address = deps.api.human_address(&config.hub_contract)?;
+
+    let query = deps
+        .querier
+        .query_delegation(hub_address.clone(), validator_address.clone());
+
+    let mut messages: Vec<CosmosMsg> = vec![];
+
+    if let Ok(q) = query {
+        let delegated_amount = q;
+        let mut validators = query_validators(deps)?;
+        validators.sort_by(|v1, v2| v1.total_delegated.cmp(&v2.total_delegated));
+
+        if let Some(delegation) = delegated_amount {
+            let (_, delegations) =
+                calculate_delegations(delegation.amount.amount, validators.as_slice())?;
+
+            for i in 0..delegations.len() {
+                if delegations[i].is_zero() {
+                    continue;
+                }
+                messages.push(cosmwasm_std::CosmosMsg::Staking(StakingMsg::Redelegate {
+                    src_validator: validator_address.clone(),
+                    dst_validator: validators[i].address.clone(),
+                    amount: Coin::new(delegations[i].u128(), delegation.amount.denom.as_str()),
+                }));
+                validators[i].total_delegated.add_assign(delegations[i]);
+            }
+            _update_total_delegated(deps, validators.as_slice())?;
+
+            let msg = HubMsg::UpdateGlobalIndex {
+                airdrop_hooks: None,
+            };
+            messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
+                contract_addr: hub_address,
+                msg: to_binary(&msg)?,
+                send: vec![],
+            }));
+        }
+    }
+
+    let res = HandleResponse {
+        messages,
+        data: None,
+        log: vec![],
+    };
+
+    Ok(res)
 }
 
 pub fn query<S: Storage, A: Api, Q: Querier>(
@@ -109,7 +184,9 @@ fn query_validators<S: Storage, A: Api, Q: Querier>(
 mod tests {
     use super::*;
     use cosmwasm_std::testing::{mock_dependencies, mock_env};
-    use cosmwasm_std::{coins, Uint128};
+    use cosmwasm_std::{
+        coin, coins, to_binary, FullDelegation, Uint128, Validator as CosmosValidator,
+    };
 
     #[test]
     fn proper_initialization() {
@@ -177,31 +254,133 @@ mod tests {
     fn remove_validator() {
         let mut deps = mock_dependencies(20, &coins(2, "token"));
 
-        let validator = Validator {
+        let validator1 = Validator {
             active: true,
-            total_delegated: Default::default(),
-            address: Default::default(),
+            total_delegated: Uint128(10),
+            address: HumanAddr::from("validator"),
+        };
+
+        let validator2 = Validator {
+            active: true,
+            total_delegated: Uint128(20),
+            address: HumanAddr::from("validator2"),
+        };
+
+        let validator3 = Validator {
+            active: true,
+            total_delegated: Uint128(30),
+            address: HumanAddr::from("validator3"),
+        };
+
+        let validator4 = Validator {
+            active: true,
+            total_delegated: Uint128(50),
+            address: HumanAddr::from("validator4"),
         };
 
         let msg = InitMsg {
-            registry: vec![validator.clone()],
+            registry: vec![
+                validator1.clone(),
+                validator2.clone(),
+                validator3.clone(),
+                validator4.clone(),
+            ],
             hub_contract: HumanAddr::from("hub_contract_address"),
         };
+
         let env = mock_env("creator", &coins(2, "token"));
         let _res = init(&mut deps, env, msg).unwrap();
 
         // beneficiary can release it
         let env = mock_env("anyone", &coins(2, "token"));
 
+        deps.querier.update_staking(
+            "uluna",
+            &[CosmosValidator {
+                address: validator4.address.clone(),
+                commission: Default::default(),
+                max_commission: Default::default(),
+                max_change_rate: Default::default(),
+            }],
+            &[FullDelegation {
+                delegator: HumanAddr::from("hub_contract_address"),
+                validator: validator4.address.clone(),
+                amount: Coin {
+                    denom: "uluna".to_string(),
+                    amount: validator4.total_delegated,
+                },
+                can_redelegate: Default::default(),
+                accumulated_rewards: Default::default(),
+            }],
+        );
+
         let msg = HandleMsg::RemoveValidator {
-            address: validator.address.clone(),
+            address: validator4.address.clone(),
         };
         let _res = handle(&mut deps, env, msg);
 
         match _res {
-            Ok(_) => {
-                let reg = registry_read(&deps.storage).load(validator.address.as_str().as_bytes());
+            Ok(res) => {
+                let reg = registry_read(&deps.storage).load(validator4.address.as_str().as_bytes());
                 assert!(reg.is_err(), "Validator was not removed");
+
+                let redelegate = &res.messages[0];
+                match redelegate {
+                    CosmosMsg::Staking(StakingMsg::Redelegate {
+                        src_validator,
+                        dst_validator,
+                        amount,
+                    }) => {
+                        assert_eq!(*dst_validator, validator1.address);
+                        assert_eq!(amount, &coin(16, "uluna"));
+                    }
+                    _ => panic!("Unexpected message: {:?}", redelegate),
+                }
+
+                let redelegate = &res.messages[1];
+                match redelegate {
+                    CosmosMsg::Staking(StakingMsg::Redelegate {
+                        src_validator,
+                        dst_validator,
+                        amount,
+                    }) => {
+                        assert_eq!(*dst_validator, validator2.address);
+                        assert_eq!(amount, &coin(17, "uluna"));
+                    }
+                    _ => panic!("Unexpected message: {:?}", redelegate),
+                }
+
+                let redelegate = &res.messages[2];
+                match redelegate {
+                    CosmosMsg::Staking(StakingMsg::Redelegate {
+                        src_validator,
+                        dst_validator,
+                        amount,
+                    }) => {
+                        assert_eq!(*dst_validator, validator3.address);
+                        assert_eq!(amount, &coin(17, "uluna"));
+                    }
+                    _ => panic!("Unexpected message: {:?}", redelegate),
+                }
+
+                let update_global_index = &res.messages[3];
+                match update_global_index {
+                    CosmosMsg::Wasm(WasmMsg::Execute {
+                        contract_addr,
+                        msg,
+                        send,
+                    }) => {
+                        assert_eq!(
+                            *msg,
+                            to_binary(&HubMsg::UpdateGlobalIndex {
+                                airdrop_hooks: None
+                            })
+                            .unwrap()
+                        );
+                        assert_eq!(*contract_addr, HumanAddr::from("hub_contract_address"));
+                    }
+                    _ => panic!("Unexpected message: {:?}", update_global_index),
+                }
             }
             Err(e) => panic!(format!("Failed to handle RemoveValidator message: {}", e)),
         }
@@ -273,5 +452,51 @@ mod tests {
             handle(&mut deps, env, msg).unwrap_err(),
             StdError::unauthorized()
         );
+    }
+
+    #[macro_export]
+    macro_rules! default_validator_with_delegations {
+        ($total:expr, $max:expr) => {
+            Validator {
+                active: false,
+                total_delegated: Uint128($total),
+                address: Default::default(),
+            }
+        };
+    }
+
+    //TODO: implement more test cases
+    #[test]
+    fn test_calculate_delegations() {
+        let mut validators = vec![
+            default_validator_with_delegations!(0, 10),
+            default_validator_with_delegations!(0, 10),
+            default_validator_with_delegations!(0, 10),
+        ];
+        let expected_delegations: Vec<Uint128> = vec![Uint128(3), Uint128(3), Uint128(4)];
+
+        // sort validators for the right delegations
+        validators.sort_by(|v1, v2| v1.total_delegated.cmp(&v2.total_delegated));
+
+        let buffered_balance = Uint128(10);
+        let (remained_balance, delegations) =
+            calculate_delegations(buffered_balance, validators.as_slice()).unwrap();
+
+        assert_eq!(
+            validators.len(),
+            delegations.len(),
+            "Delegations are not correct"
+        );
+        assert_eq!(
+            remained_balance,
+            Uint128(0),
+            "Not all tokens were delegated"
+        );
+        for i in 0..expected_delegations.len() {
+            assert_eq!(
+                delegations[i], expected_delegations[i],
+                "Delegation is not correct"
+            )
+        }
     }
 }
