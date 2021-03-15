@@ -8,10 +8,10 @@ You can find information about the architecture, usage, and function of the smar
 ## Contracts
 | Contract                                            | Reference                                              | Description                                                                                                                        |
 | --------------------------------------------------- | ------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------- |
-| [`anchor_basset_hub`](https://github.com/Anchor-Protocol/anchor-bAsset-contracts/tree/master/contracts/anchor_basset_hub)|[doc](https://docs.anchorprotocol/contracts/anchor_basset_hub)| Manages all minted bluna and bonded luna
-| [`anchor_basset_reward`](https://github.com/Anchor-Protocol/anchor-bAsset-contracts/tree/master/contracts/anchor_basset_reward)|[doc](https://docs.anchorprotocol/contracts/anchor_basset_reward)|Manages delegation rewards distribution
+| [`anchor_basset_hub`](https://github.com/Anchor-Protocol/anchor-bAsset-contracts/tree/master/contracts/anchor_basset_hub)|[doc](https://docs.anchorprotocol/contracts/anchor_basset_hub)| Manages minted bLunas and bonded Lunas
+| [`anchor_basset_reward`](https://github.com/Anchor-Protocol/anchor-bAsset-contracts/tree/master/contracts/anchor_basset_reward)|[doc](https://docs.anchorprotocol/contracts/anchor_basset_reward)|Manages the distribution of delegation rewards
 | [`anchor_basset_token`](https://github.com/Anchor-Protocol/anchor-bAsset-contracts/tree/master/contracts/anchor_basset_token)| [doc](https://docs.anchorprotocol/contracts/anchor_basset_token)|CW20 compliance 
-| [`anchor_airdrop_registery`](https://github.com/Anchor-Protocol/anchor-bAsset-contracts/tree/master/contracts/anchor_airdrop_registry)| [doc](https://docs.anchorprotocol/contracts/anchor_basset_airdrop_registery)|Manages messages fabricators for MIR and ANC airdrops
+| [`anchor_airdrop_registery`](https://github.com/Anchor-Protocol/anchor-bAsset-contracts/tree/master/contracts/anchor_airdrop_registry)| [doc](https://docs.anchorprotocol/contracts/anchor_basset_airdrop_registery)|Manages message fabricators for MIR and ANC airdrops
 ## Development
 
 ### Environment Setup
@@ -33,7 +33,7 @@ rustup target add wasm32-unknown-unknown
 
 ### Unit / Integration Tests
 
-Each contract contains Rust unit and integration tests embedded within the contract source directories. You can run:
+Each contract contains Rust unit tests embedded within the contract source directories. You can run:
 
 ```sh
 cargo test unit-test
@@ -59,7 +59,7 @@ For production builds, run the following:
 docker run --rm -v "$(pwd)":/code \
   --mount type=volume,source="$(basename "$(pwd)")_cache",target=/code/target \
   --mount type=volume,source=registry_cache,target=/usr/local/cargo/registry \
-  cosmwasm/workspace-optimizer:0.10.14
+  cosmwasm/workspace-optimizer:0.10.4
 ```
 
 This performs several optimizations which can significantly reduce the final size of the contract binaries, which will be available inside the `artifacts/` directory.
