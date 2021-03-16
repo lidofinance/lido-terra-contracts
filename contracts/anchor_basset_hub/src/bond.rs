@@ -6,7 +6,7 @@ use cosmwasm_std::{
     QueryRequest, StakingMsg, StdError, StdResult, Storage, Uint128, WasmMsg, WasmQuery,
 };
 use cw20::Cw20HandleMsg;
-use std::ops::{AddAssign, Sub};
+use std::ops::AddAssign;
 use validators_registry::contract::calculate_delegations;
 use validators_registry::msg::{HandleMsg as HandleMsgValidators, QueryMsg as QueryValidators};
 use validators_registry::registry::Validator;

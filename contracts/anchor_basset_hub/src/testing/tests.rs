@@ -396,7 +396,7 @@ fn proper_auto_bond() {
     match delegate {
         CosmosMsg::Staking(StakingMsg::Delegate { validator, amount }) => {
             assert_eq!(validator.as_str(), DEFAULT_VALIDATOR);
-            assert_eq!(amount, &coin(3333, "uluna"));
+            assert_eq!(amount, &coin(3334, "uluna"));
         }
         _ => panic!("Unexpected message: {:?}", delegate),
     }
@@ -414,7 +414,7 @@ fn proper_auto_bond() {
     match delegate {
         CosmosMsg::Staking(StakingMsg::Delegate { validator, amount }) => {
             assert_eq!(validator.as_str(), DEFAULT_VALIDATOR3);
-            assert_eq!(amount, &coin(3334, "uluna"));
+            assert_eq!(amount, &coin(3333, "uluna"));
         }
         _ => panic!("Unexpected message: {:?}", delegate),
     }
@@ -432,7 +432,7 @@ fn proper_auto_bond() {
                 HandleMsgValidators::UpdateTotalDelegated { updated_validators } => {
                     assert_eq!(
                         updated_validators[0].total_delegated,
-                        Uint128::from(3333u128)
+                        Uint128::from(3334u128)
                     );
                     assert_eq!(
                         updated_validators[1].total_delegated,
@@ -440,7 +440,7 @@ fn proper_auto_bond() {
                     );
                     assert_eq!(
                         updated_validators[2].total_delegated,
-                        Uint128::from(3334u128)
+                        Uint128::from(3333u128)
                     );
                 }
                 _ => panic!("Unexpected message: {:?}", delegate),
