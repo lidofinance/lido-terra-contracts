@@ -38,19 +38,36 @@ pub fn handle<S: Storage, A: Api, Q: Querier>(
 }
 
 pub fn calculate_delegations(
-    mut buffered_balance: Uint128,
+    mut amoint_to_delegate: Uint128,
     validators: &[Validator],
 ) -> StdResult<(Uint128, Vec<Uint128>)> {
+    let total_delegated: u128 = validators.iter().map(|v| v.total_delegated.0).sum();
+    let total_coins_to_distribute = Uint128::from(total_delegated) + amoint_to_delegate;
+    let coins_per_validator = total_coins_to_distribute.0 / validators.len() as u128;
+    let remaining_coins = total_coins_to_distribute.0 % validators.len() as u128;
+
     let mut delegations = vec![Uint128(0); validators.len()];
-    while buffered_balance.gt(&Uint128::zero()) {
-        for i in 0..validators.len() {
-            let to_delegate = buffered_balance
-                .multiply_ratio(Uint128(1), Uint128((validators.len() - i) as u128));
-            delegations[i].add_assign(to_delegate);
-            buffered_balance = buffered_balance.sub(to_delegate)?;
+    for (index, validator) in validators.iter().enumerate() {
+        let extra_coin = if (index + 1) as u128 <= remaining_coins {
+            1u128
+        } else {
+            0u128
+        };
+        if coins_per_validator + extra_coin < validator.total_delegated.0 {
+            continue;
+        }
+        let mut to_delegate =
+            Uint128::from(coins_per_validator + extra_coin).sub(validator.total_delegated)?;
+        if to_delegate > amoint_to_delegate {
+            to_delegate = amoint_to_delegate
+        }
+        delegations[index] = to_delegate;
+        amoint_to_delegate = amoint_to_delegate.sub(to_delegate)?;
+        if amoint_to_delegate.is_zero() {
+            break;
         }
     }
-    Ok((buffered_balance, delegations))
+    Ok((amoint_to_delegate, delegations))
 }
 
 fn _update_total_delegated<S: Storage, A: Api, Q: Querier>(
@@ -331,8 +348,9 @@ mod tests {
                         dst_validator,
                         amount,
                     }) => {
+                        assert_eq!(*src_validator, validator4.address);
                         assert_eq!(*dst_validator, validator1.address);
-                        assert_eq!(amount, &coin(16, "uluna"));
+                        assert_eq!(amount, &coin(27, "uluna"));
                     }
                     _ => panic!("Unexpected message: {:?}", redelegate),
                 }
@@ -344,6 +362,7 @@ mod tests {
                         dst_validator,
                         amount,
                     }) => {
+                        assert_eq!(*src_validator, validator4.address);
                         assert_eq!(*dst_validator, validator2.address);
                         assert_eq!(amount, &coin(17, "uluna"));
                     }
@@ -357,8 +376,9 @@ mod tests {
                         dst_validator,
                         amount,
                     }) => {
+                        assert_eq!(*src_validator, validator4.address);
                         assert_eq!(*dst_validator, validator3.address);
-                        assert_eq!(amount, &coin(17, "uluna"));
+                        assert_eq!(amount, &coin(6, "uluna"));
                     }
                     _ => panic!("Unexpected message: {:?}", redelegate),
                 }
@@ -368,7 +388,7 @@ mod tests {
                     CosmosMsg::Wasm(WasmMsg::Execute {
                         contract_addr,
                         msg,
-                        send,
+                        send: _,
                     }) => {
                         assert_eq!(
                             *msg,
@@ -473,7 +493,7 @@ mod tests {
             default_validator_with_delegations!(0, 10),
             default_validator_with_delegations!(0, 10),
         ];
-        let expected_delegations: Vec<Uint128> = vec![Uint128(3), Uint128(3), Uint128(4)];
+        let expected_delegations: Vec<Uint128> = vec![Uint128(4), Uint128(3), Uint128(3)];
 
         // sort validators for the right delegations
         validators.sort_by(|v1, v2| v1.total_delegated.cmp(&v2.total_delegated));
