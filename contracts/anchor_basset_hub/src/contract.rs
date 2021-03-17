@@ -20,13 +20,13 @@ use crate::state::{
 use crate::unbond::{handle_unbond, handle_withdraw_unbonded};
 
 use crate::bond::handle_bond;
-use anchor_basset_reward::msg::HandleMsg::{SwapToRewardDenom, UpdateGlobalIndex};
 use cosmwasm_storage::to_length_prefixed;
 use cw20::{Cw20HandleMsg, Cw20ReceiveMsg};
 use cw20_base::state::TokenInfo;
 use hub_querier::HandleMsg::SwapHook;
 use hub_querier::{Config, State};
 use hub_querier::{Cw20HookMsg, HandleMsg};
+use reward_querier::HandleMsg::{SwapToRewardDenom, UpdateGlobalIndex};
 
 pub fn init<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,

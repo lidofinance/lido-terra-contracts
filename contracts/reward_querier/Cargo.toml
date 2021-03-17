@@ -1,0 +1,30 @@
+[package]
+name = "reward_querier"
+version = "0.1.0"
+authors = ["MSNTCS <mohammad@terra.money>"]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[profile.release]
+opt-level = 3
+debug = false
+rpath = false
+lto = true
+debug-assertions = false
+codegen-units = 1
+panic = 'abort'
+incremental = false
+overflow-checks = true
+
+[dependencies]
+cw20 = "0.2"
+cosmwasm-std = { version = "0.10.1" }
+cosmwasm-storage = { version = "0.10.1" }
+schemars = "0.7"
+serde = { version = "1.0.103", default-features = false, features = ["derive"] }
+thiserror = { version = "1.0.21" }
+terra-cosmwasm = { version = "1.2.2" }
+
+[dev-dependencies]
+cosmwasm-schema = { version = "0.11.0" }

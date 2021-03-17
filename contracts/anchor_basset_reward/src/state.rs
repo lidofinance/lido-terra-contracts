@@ -6,7 +6,7 @@ use cosmwasm_storage::{bucket, bucket_read, singleton, singleton_read, ReadonlyB
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use crate::msg::HolderResponse;
+use reward_querier::HolderResponse;
 
 pub static KEY_CONFIG: &[u8] = b"config";
 pub static KEY_STATE: &[u8] = b"state";

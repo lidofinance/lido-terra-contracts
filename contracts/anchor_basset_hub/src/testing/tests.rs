@@ -49,7 +49,7 @@ use crate::msg::QueryMsg::{
 use crate::state::{read_config, read_unbond_wait_list, Parameters};
 use anchor_airdrop_registry::msg::HandleMsg::{FabricateANCClaim, FabricateMIRClaim};
 use anchor_airdrop_registry::msg::PairHandleMsg;
-use anchor_basset_reward::msg::HandleMsg::{SwapToRewardDenom, UpdateGlobalIndex};
+use reward_querier::HandleMsg::{SwapToRewardDenom, UpdateGlobalIndex};
 
 const DEFAULT_VALIDATOR: &str = "default-validator";
 const DEFAULT_VALIDATOR2: &str = "default-validator2000";

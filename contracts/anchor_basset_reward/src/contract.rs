@@ -1,5 +1,4 @@
 use crate::global::{handle_swap, handle_update_global_index};
-use crate::msg::{ConfigResponse, HandleMsg, InitMsg, MigrateMsg, QueryMsg, StateResponse};
 use crate::state::{read_config, read_state, store_config, store_state, Config, State};
 use crate::user::{
     handle_claim_rewards, handle_decrease_balance, handle_increase_balance, query_accrued_rewards,
@@ -9,6 +8,7 @@ use cosmwasm_std::{
     to_binary, Api, Binary, Decimal, Env, Extern, HandleResponse, InitResponse, MigrateResponse,
     MigrateResult, Querier, StdResult, Storage, Uint128,
 };
+use reward_querier::{ConfigResponse, HandleMsg, InitMsg, MigrateMsg, QueryMsg, StateResponse};
 
 use terra_cosmwasm::TerraMsgWrapper;
 

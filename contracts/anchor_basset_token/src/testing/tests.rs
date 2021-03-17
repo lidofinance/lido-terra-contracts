@@ -3,10 +3,10 @@ use cosmwasm_std::{
     coins, to_binary, Api, CosmosMsg, Extern, HumanAddr, Querier, Storage, Uint128, WasmMsg,
 };
 
-use anchor_basset_reward::msg::HandleMsg::{DecreaseBalance, IncreaseBalance};
 use cw20::{Cw20ReceiveMsg, MinterResponse, TokenInfoResponse};
 use cw20_base::contract::{query_minter, query_token_info};
 use cw20_base::msg::HandleMsg;
+use reward_querier::HandleMsg::{DecreaseBalance, IncreaseBalance};
 
 use crate::contract::{handle, init};
 use crate::msg::TokenInitMsg;

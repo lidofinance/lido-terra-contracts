@@ -39,6 +39,7 @@ serde = { version = "1.0.103", default-features = false, features = ["derive"] }
 thiserror = { version = "1.0.21" }
 terra-cosmwasm = "1.2.4"
 hub_querier = {path = "../hub_querier" }
+reward_querier = {path = "../reward_querier" }
 basset = { path = "../../packages/basset", default-features = false, version = "0.1.0"}
 cosmwasm-bignumber = "1.0"
 
