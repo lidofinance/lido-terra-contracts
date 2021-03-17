@@ -92,6 +92,14 @@ pub fn swap_to_reward_denom() {
                 denom: "usdr".to_string(),
                 amount: Uint128(50u128),
             },
+            Coin {
+                denom: "mnt".to_string(),
+                amount: Uint128(50u128),
+            },
+            Coin {
+                denom: "uinr".to_string(),
+                amount: Uint128(50u128),
+            },
         ],
     );
 
@@ -119,6 +127,14 @@ pub fn swap_to_reward_denom() {
                 HumanAddr::from(MOCK_CONTRACT_ADDR),
                 Coin {
                     denom: "usdr".to_string(),
+                    amount: Uint128(50u128)
+                },
+                DEFAULT_REWARD_DENOM.to_string()
+            ),
+            create_swap_msg(
+                HumanAddr::from(MOCK_CONTRACT_ADDR),
+                Coin {
+                    denom: "uinr".to_string(),
                     amount: Uint128(50u128)
                 },
                 DEFAULT_REWARD_DENOM.to_string()

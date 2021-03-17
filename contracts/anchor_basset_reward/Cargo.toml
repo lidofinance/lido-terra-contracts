@@ -37,7 +37,7 @@ cosmwasm-storage = { version = "0.10.1", features = ["iterator"] }
 schemars = "0.7"
 serde = { version = "1.0.103", default-features = false, features = ["derive"] }
 thiserror = { version = "1.0.21" }
-terra-cosmwasm = { version = "1.2.2" }
+terra-cosmwasm = "1.2.4"
 hub_querier = {path = "../hub_querier" }
 basset = { path = "../../packages/basset", default-features = false, version = "0.1.0"}
 cosmwasm-bignumber = "1.0"

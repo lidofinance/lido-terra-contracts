@@ -5,7 +5,11 @@ use cosmwasm_std::{
 };
 use cosmwasm_storage::to_length_prefixed;
 use hub_querier::Config;
-use terra_cosmwasm::{TaxCapResponse, TaxRateResponse, TerraQuery, TerraQueryWrapper, TerraRoute};
+use std::str::FromStr;
+use terra_cosmwasm::{
+    ExchangeRateItem, ExchangeRatesResponse, TaxCapResponse, TaxRateResponse, TerraQuery,
+    TerraQueryWrapper, TerraRoute,
+};
 
 pub const MOCK_HUB_CONTRACT_ADDR: &str = "hub";
 pub const MOCK_REWARD_CONTRACT_ADDR: &str = "reward";
@@ -65,6 +69,28 @@ impl WasmMockQuerier {
                             let cap = Uint128(1000000u128);
                             let res = TaxCapResponse { cap };
                             Ok(to_binary(&res))
+                        }
+                        _ => panic!("DO NOT ENTER HERE"),
+                    }
+                } else if &TerraRoute::Oracle == route {
+                    match query_data {
+                        TerraQuery::ExchangeRates {
+                            base_denom,
+                            quote_denoms,
+                        } => {
+                            if quote_denoms
+                                .iter()
+                                .any(|item| item == &"mnt".to_string())
+                            {
+                                return Err(SystemError::Unknown {});
+                            }
+                            Ok(to_binary(&ExchangeRatesResponse {
+                                base_denom: base_denom.to_string(),
+                                exchange_rates: vec![ExchangeRateItem {
+                                    quote_denom: quote_denoms[0].to_string(),
+                                    exchange_rate: Decimal::from_str("22.1").unwrap(),
+                                }],
+                            }))
                         }
                         _ => panic!("DO NOT ENTER HERE"),
                     }
