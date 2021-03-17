@@ -78,10 +78,7 @@ impl WasmMockQuerier {
                             base_denom,
                             quote_denoms,
                         } => {
-                            if quote_denoms
-                                .iter()
-                                .any(|item| item == &"mnt".to_string())
-                            {
+                            if quote_denoms.iter().any(|item| item == &"mnt".to_string()) {
                                 return Err(SystemError::Unknown {});
                             }
                             Ok(to_binary(&ExchangeRatesResponse {
