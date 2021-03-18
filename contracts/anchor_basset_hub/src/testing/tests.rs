@@ -84,7 +84,8 @@ pub fn initialize<S: Storage, A: Api, Q: Querier>(
     mut deps: &mut Extern<S, A, Q>,
     owner: HumanAddr,
     reward_contract: HumanAddr,
-    token_contract: HumanAddr,
+    bluna_token_contract: HumanAddr,
+    stluna_token_contract: HumanAddr,
     validator: HumanAddr,
 ) {
     let msg = InitMsg {
@@ -103,7 +104,8 @@ pub fn initialize<S: Storage, A: Api, Q: Querier>(
     let register_msg = HandleMsg::UpdateConfig {
         owner: None,
         reward_contract: Some(reward_contract),
-        token_contract: Some(token_contract),
+        bluna_token_contract: Some(bluna_token_contract),
+        stluna_token_contract: Some(stluna_token_contract),
         airdrop_registry_contract: Some(HumanAddr::from("airdrop_registry")),
     };
     let res = handle(&mut deps, owner_env, register_msg).unwrap();
@@ -232,8 +234,9 @@ fn proper_initialization() {
     let expected_conf = ConfigResponse {
         owner: HumanAddr::from("owner1"),
         reward_contract: None,
-        token_contract: None,
+        bluna_token_contract: None,
         airdrop_registry_contract: None,
+        stluna_token_contract: None,
     };
 
     assert_eq!(expected_conf, query_conf);
@@ -263,6 +266,7 @@ fn proper_register_validator() {
 
     let owner = HumanAddr::from("owner1");
     let token_contract = HumanAddr::from("token");
+    let stluna_token_contract = HumanAddr::from("stluna_token");
     let reward_contract = HumanAddr::from("reward");
 
     initialize(
@@ -270,6 +274,7 @@ fn proper_register_validator() {
         owner,
         reward_contract,
         token_contract,
+        stluna_token_contract,
         validator.address.clone(),
     );
 
@@ -346,6 +351,7 @@ fn proper_bond() {
 
     let owner = HumanAddr::from("owner1");
     let token_contract = HumanAddr::from("token");
+    let stluna_token_contract = HumanAddr::from("stluna_token");
     let reward_contract = HumanAddr::from("reward");
 
     initialize(
@@ -353,6 +359,7 @@ fn proper_bond() {
         owner,
         reward_contract,
         token_contract,
+        stluna_token_contract,
         validator.address.clone(),
     );
 
@@ -492,6 +499,7 @@ fn proper_deregister() {
 
     let owner = HumanAddr::from("owner1");
     let token_contract = HumanAddr::from("token");
+    let stluna_token_contract = HumanAddr::from("stluna_token");
     let reward_contract = HumanAddr::from("reward");
 
     initialize(
@@ -499,6 +507,7 @@ fn proper_deregister() {
         owner.clone(),
         reward_contract,
         token_contract,
+        stluna_token_contract,
         validator.address.clone(),
     );
 
@@ -608,6 +617,7 @@ pub fn proper_update_global_index() {
 
     let owner = HumanAddr::from("owner1");
     let token_contract = HumanAddr::from("token");
+    let stluna_token_contract = HumanAddr::from("stluna_token");
     let reward_contract = HumanAddr::from("reward");
 
     initialize(
@@ -615,6 +625,7 @@ pub fn proper_update_global_index() {
         owner,
         reward_contract.clone(),
         token_contract,
+        stluna_token_contract,
         validator.address.clone(),
     );
 
@@ -710,6 +721,7 @@ pub fn proper_update_global_index_two_validators() {
 
     let owner = HumanAddr::from("owner1");
     let token_contract = HumanAddr::from("token");
+    let stluna_token_contract = HumanAddr::from("stluna_token");
     let reward_contract = HumanAddr::from("reward");
 
     initialize(
@@ -717,6 +729,7 @@ pub fn proper_update_global_index_two_validators() {
         owner,
         reward_contract,
         token_contract,
+        stluna_token_contract,
         validator.address.clone(),
     );
 
@@ -796,6 +809,7 @@ pub fn proper_update_global_index_respect_one_registered_validator() {
 
     let owner = HumanAddr::from("owner1");
     let token_contract = HumanAddr::from("token");
+    let stluna_token_contract = HumanAddr::from("stluna_token");
     let reward_contract = HumanAddr::from("reward");
 
     initialize(
@@ -803,6 +817,7 @@ pub fn proper_update_global_index_respect_one_registered_validator() {
         owner,
         reward_contract,
         token_contract,
+        stluna_token_contract,
         validator.address.clone(),
     );
 
@@ -867,12 +882,14 @@ pub fn proper_receive() {
 
     let owner = HumanAddr::from("owner1");
     let token_contract = HumanAddr::from("token");
+    let stluna_token_contract = HumanAddr::from("stluna_token");
     let reward_contract = HumanAddr::from("reward");
     initialize(
         &mut deps,
         owner,
         reward_contract,
         token_contract.clone(),
+        stluna_token_contract,
         validator.address.clone(),
     );
 
@@ -957,12 +974,14 @@ pub fn proper_unbond() {
 
     let owner = HumanAddr::from("owner1");
     let token_contract = HumanAddr::from("token");
+    let stluna_token_contract = HumanAddr::from("stluna_token");
     let reward_contract = HumanAddr::from("reward");
     initialize(
         &mut deps,
         owner,
         reward_contract,
         token_contract.clone(),
+        stluna_token_contract,
         validator.address.clone(),
     );
 
@@ -1142,6 +1161,7 @@ pub fn proper_pick_validator() {
 
     let owner = HumanAddr::from("owner1");
     let token_contract = HumanAddr::from("token");
+    let stluna_token_contract = HumanAddr::from("stluna_token");
     let reward_contract = HumanAddr::from("reward");
 
     initialize(
@@ -1149,6 +1169,7 @@ pub fn proper_pick_validator() {
         owner,
         reward_contract,
         token_contract.clone(),
+        stluna_token_contract,
         validator.address.clone(),
     );
 
@@ -1283,6 +1304,7 @@ pub fn proper_pick_validator_respect_distributed_delegation() {
 
     let owner = HumanAddr::from("owner1");
     let token_contract = HumanAddr::from("token");
+    let stluna_token_contract = HumanAddr::from("stluna_token");
     let reward_contract = HumanAddr::from("reward");
 
     initialize(
@@ -1290,6 +1312,7 @@ pub fn proper_pick_validator_respect_distributed_delegation() {
         owner,
         reward_contract,
         token_contract.clone(),
+        stluna_token_contract,
         validator.address.clone(),
     );
 
@@ -1367,12 +1390,14 @@ pub fn proper_slashing() {
 
     let owner = HumanAddr::from("owner1");
     let token_contract = HumanAddr::from("token");
+    let stluna_token_contract = HumanAddr::from("stluna_token");
     let reward_contract = HumanAddr::from("reward");
     initialize(
         &mut deps,
         owner,
         reward_contract,
         token_contract.clone(),
+        stluna_token_contract,
         validator.address.clone(),
     );
 
@@ -1516,6 +1541,7 @@ pub fn proper_withdraw_unbonded() {
 
     let owner = HumanAddr::from("owner1");
     let token_contract = HumanAddr::from("token");
+    let stluna_token_contract = HumanAddr::from("stluna_token");
     let reward_contract = HumanAddr::from("reward");
 
     initialize(
@@ -1523,6 +1549,7 @@ pub fn proper_withdraw_unbonded() {
         owner,
         reward_contract,
         token_contract,
+        stluna_token_contract,
         validator.address.clone(),
     );
 
@@ -1696,6 +1723,7 @@ pub fn proper_withdraw_unbonded_respect_slashing() {
 
     let owner = HumanAddr::from("owner1");
     let token_contract = HumanAddr::from("token");
+    let stluna_token_contract = HumanAddr::from("stluna_token");
     let reward_contract = HumanAddr::from("reward");
 
     initialize(
@@ -1703,6 +1731,7 @@ pub fn proper_withdraw_unbonded_respect_slashing() {
         owner,
         reward_contract,
         token_contract,
+        stluna_token_contract,
         validator.address.clone(),
     );
 
@@ -1849,6 +1878,7 @@ pub fn proper_withdraw_unbonded_respect_inactivity_slashing() {
 
     let owner = HumanAddr::from("owner1");
     let token_contract = HumanAddr::from("token");
+    let stluna_token_contract = HumanAddr::from("stluna_token");
     let reward_contract = HumanAddr::from("reward");
 
     initialize(
@@ -1856,6 +1886,7 @@ pub fn proper_withdraw_unbonded_respect_inactivity_slashing() {
         owner,
         reward_contract,
         token_contract,
+        stluna_token_contract,
         validator.address.clone(),
     );
 
@@ -2036,6 +2067,7 @@ pub fn proper_withdraw_unbond_with_dummies() {
 
     let owner = HumanAddr::from("owner1");
     let token_contract = HumanAddr::from("token");
+    let stluna_token_contract = HumanAddr::from("stluna_token");
     let reward_contract = HumanAddr::from("reward");
 
     initialize(
@@ -2043,6 +2075,7 @@ pub fn proper_withdraw_unbond_with_dummies() {
         owner,
         reward_contract,
         token_contract,
+        stluna_token_contract,
         validator.address.clone(),
     );
 
@@ -2178,6 +2211,7 @@ pub fn test_update_params() {
     };
     let owner = HumanAddr::from("owner1");
     let token_contract = HumanAddr::from("token");
+    let stluna_token_contract = HumanAddr::from("stluna_token");
     let reward_contract = HumanAddr::from("reward");
 
     initialize(
@@ -2185,6 +2219,7 @@ pub fn test_update_params() {
         owner,
         reward_contract,
         token_contract,
+        stluna_token_contract,
         validator.address,
     );
 
@@ -2241,6 +2276,7 @@ pub fn proper_recovery_fee() {
     };
     let owner = HumanAddr::from("owner1");
     let token_contract = HumanAddr::from("token");
+    let stluna_token_contract = HumanAddr::from("stluna_token");
     let reward_contract = HumanAddr::from("reward");
 
     let bond_amount = Uint128(1000000u128);
@@ -2251,6 +2287,7 @@ pub fn proper_recovery_fee() {
         owner,
         reward_contract,
         token_contract.clone(),
+        stluna_token_contract,
         validator.address.clone(),
     );
 
@@ -2443,6 +2480,7 @@ pub fn proper_update_config() {
     let new_owner = HumanAddr::from("new_owner");
     let invalid_owner = HumanAddr::from("invalid_owner");
     let token_contract = HumanAddr::from("token");
+    let stluna_token_contract = HumanAddr::from("stluna_token");
     let reward_contract = HumanAddr::from("reward");
     let airdrop_registry = HumanAddr::from("airdrop_registry");
 
@@ -2451,12 +2489,13 @@ pub fn proper_update_config() {
         owner.clone(),
         reward_contract.clone(),
         token_contract.clone(),
+        stluna_token_contract.clone(),
         validator.address,
     );
 
     let config = Config {};
     let config_query: ConfigResponse = from_binary(&query(&deps, config).unwrap()).unwrap();
-    assert_eq!(&config_query.token_contract.unwrap(), &token_contract);
+    assert_eq!(&config_query.bluna_token_contract.unwrap(), &token_contract);
     assert_eq!(
         &config_query.airdrop_registry_contract.unwrap(),
         &airdrop_registry
@@ -2470,8 +2509,9 @@ pub fn proper_update_config() {
     let update_config = UpdateConfig {
         owner: Some(new_owner.clone()),
         reward_contract: None,
-        token_contract: None,
+        bluna_token_contract: None,
         airdrop_registry_contract: None,
+        stluna_token_contract: None,
     };
     let env = mock_env(&invalid_owner, &[]);
     let res = handle(&mut deps, env, update_config);
@@ -2481,8 +2521,9 @@ pub fn proper_update_config() {
     let update_config = UpdateConfig {
         owner: Some(new_owner.clone()),
         reward_contract: None,
-        token_contract: None,
+        bluna_token_contract: None,
         airdrop_registry_contract: None,
+        stluna_token_contract: None,
     };
     let env = mock_env(&owner, &[]);
     let res = handle(&mut deps, env, update_config).unwrap();
@@ -2519,8 +2560,9 @@ pub fn proper_update_config() {
     let update_config = UpdateConfig {
         owner: None,
         reward_contract: Some(HumanAddr::from("new reward")),
-        token_contract: None,
+        bluna_token_contract: None,
         airdrop_registry_contract: None,
+        stluna_token_contract: None,
     };
     let new_owner_env = mock_env(&new_owner, &[]);
     let res = handle(&mut deps, new_owner_env, update_config).unwrap();
@@ -2542,8 +2584,9 @@ pub fn proper_update_config() {
     let update_config = UpdateConfig {
         owner: None,
         reward_contract: None,
-        token_contract: Some(HumanAddr::from("new token")),
+        bluna_token_contract: Some(HumanAddr::from("new token")),
         airdrop_registry_contract: None,
+        stluna_token_contract: None,
     };
     let new_owner_env = mock_env(&new_owner, &[]);
     let res = handle(&mut deps, new_owner_env, update_config).unwrap();
@@ -2552,7 +2595,7 @@ pub fn proper_update_config() {
     let config = Config {};
     let config_query: ConfigResponse = from_binary(&query(&deps, config).unwrap()).unwrap();
     assert_eq!(
-        config_query.token_contract.unwrap(),
+        config_query.bluna_token_contract.unwrap(),
         HumanAddr::from("new token")
     );
 
@@ -2566,8 +2609,9 @@ pub fn proper_update_config() {
     let update_config = UpdateConfig {
         owner: None,
         reward_contract: None,
-        token_contract: None,
+        bluna_token_contract: None,
         airdrop_registry_contract: Some(HumanAddr::from("new airdrop")),
+        stluna_token_contract: None,
     };
     let new_owner_env = mock_env(&new_owner, &[]);
     let res = handle(&mut deps, new_owner_env, update_config).unwrap();
@@ -2578,6 +2622,24 @@ pub fn proper_update_config() {
     assert_eq!(
         config_query.airdrop_registry_contract.unwrap(),
         HumanAddr::from("new airdrop")
+    );
+
+    let update_config = UpdateConfig {
+        owner: None,
+        reward_contract: None,
+        bluna_token_contract: None,
+        airdrop_registry_contract: None,
+        stluna_token_contract: Some(stluna_token_contract.clone()),
+    };
+    let new_owner_env = mock_env(&new_owner, &[]);
+    let res = handle(&mut deps, new_owner_env, update_config).unwrap();
+    assert_eq!(res.messages.len(), 0);
+
+    let config = Config {};
+    let config_query: ConfigResponse = from_binary(&query(&deps, config).unwrap()).unwrap();
+    assert_eq!(
+        config_query.stluna_token_contract.unwrap(),
+        stluna_token_contract
     );
 }
 
@@ -2590,6 +2652,7 @@ fn proper_claim_airdrop() {
 
     let owner = HumanAddr::from("owner1");
     let token_contract = HumanAddr::from("token");
+    let stluna_token_contract = HumanAddr::from("stluna_token");
     let reward_contract = HumanAddr::from("reward");
     let airdrop_registry = HumanAddr::from("airdrop_registry");
 
@@ -2598,6 +2661,7 @@ fn proper_claim_airdrop() {
         owner.clone(),
         reward_contract,
         token_contract,
+        stluna_token_contract,
         validator.address,
     );
 
@@ -2653,6 +2717,7 @@ fn proper_swap_hook() {
 
     let owner = HumanAddr::from("owner1");
     let token_contract = HumanAddr::from("token");
+    let stluna_token_contract = HumanAddr::from("stluna_token");
     let reward_contract = HumanAddr::from("reward");
 
     initialize(
@@ -2660,6 +2725,7 @@ fn proper_swap_hook() {
         owner.clone(),
         reward_contract.clone(),
         token_contract,
+        stluna_token_contract,
         validator.address,
     );
 
@@ -2732,6 +2798,7 @@ fn proper_update_global_index_with_airdrop() {
 
     let owner = HumanAddr::from("owner1");
     let token_contract = HumanAddr::from("token");
+    let stluna_token_contract = HumanAddr::from("stluna_token");
     let reward_contract = HumanAddr::from("reward");
 
     initialize(
@@ -2739,6 +2806,7 @@ fn proper_update_global_index_with_airdrop() {
         owner,
         reward_contract,
         token_contract,
+        stluna_token_contract,
         validator.address.clone(),
     );
 

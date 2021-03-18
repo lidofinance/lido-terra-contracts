@@ -19,6 +19,6 @@ pub fn query_token_contract<S: Storage, A: Api, Q: Querier>(
 
     let conf: Config = from_binary(&res)?;
     Ok(conf
-        .token_contract
+        .bluna_token_contract
         .expect("the token contract must have been registered"))
 }
