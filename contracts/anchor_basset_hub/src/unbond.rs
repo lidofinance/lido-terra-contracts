@@ -319,6 +319,7 @@ fn process_withdraw_rate<S: Storage, A: Api, Q: Querier>(
     Ok(())
 }
 
+//TODO:: reduce delegations equally
 fn pick_validator<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
     claim: Uint128,
