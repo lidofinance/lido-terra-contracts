@@ -18,12 +18,12 @@
 //! 4. Anywhere you see query(&deps, ...) you must replace it with query(&mut deps, ...)
 use cosmwasm_std::{
     coin, from_binary, to_binary, Api, BankMsg, Coin, CosmosMsg, Decimal, Env, Extern,
-    FullDelegation, HandleResponse, HumanAddr, InitResponse, Querier, StakingMsg, StdError,
-    Storage, Uint128, Validator, WasmMsg,
+    FullDelegation, HandleResponse, HumanAddr, InitResponse, Querier, QueryRequest, StakingMsg,
+    StdError, Storage, Uint128, Validator, WasmMsg, WasmQuery,
 };
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use validators_registry::msg::HandleMsg as HandleMsgValidators;
+use validators_registry::msg::{HandleMsg as HandleMsgValidators, QueryMsg as QueryValidators};
 use validators_registry::registry::Validator as RegistryValidator;
 
 use cosmwasm_std::testing::mock_env;
@@ -124,19 +124,24 @@ pub fn do_register_validator(
     });
 }
 
-pub fn do_bond<S: Storage, A: Api, Q: Querier>(
-    mut deps: &mut Extern<S, A, Q>,
+pub fn do_bond(
+    deps: &mut Extern<MockStorage, MockApi, WasmMockQuerier>,
     addr: HumanAddr,
     amount: Uint128,
-    validator: Validator,
 ) {
-    let bond = HandleMsg::Bond {
-        validator: Some(validator.address),
-    };
+    let validators: Vec<RegistryValidator> = deps
+        .querier
+        .query(&QueryRequest::Wasm(WasmQuery::Smart {
+            contract_addr: HumanAddr::from("validators_registry"),
+            msg: to_binary(&QueryValidators::GetValidatorsForDelegation {}).unwrap(),
+        }))
+        .unwrap();
+
+    let bond = HandleMsg::Bond { validator: None };
 
     let env = mock_env(&addr, &[coin(amount.0, "uluna")]);
-    let res = handle(&mut deps, env, bond).unwrap();
-    assert_eq!(2, res.messages.len());
+    let res = handle(deps, env, bond).unwrap();
+    assert_eq!(validators.len() + 2, res.messages.len());
 }
 
 pub fn do_unbond<S: Storage, A: Api, Q: Querier>(
@@ -553,7 +558,7 @@ pub fn proper_update_global_index() {
     assert_eq!(res.messages.len(), 2);
 
     // bond
-    do_bond(&mut deps, addr1.clone(), bond_amount, validator.clone());
+    do_bond(&mut deps, addr1.clone(), bond_amount);
 
     //set delegation for query-all-delegation
     let delegations: [FullDelegation; 1] =
@@ -640,7 +645,7 @@ pub fn proper_update_global_index_two_validators() {
     do_register_validator(&mut deps, validator.clone());
 
     // bond
-    do_bond(&mut deps, addr1.clone(), Uint128(10), validator.clone());
+    do_bond(&mut deps, addr1.clone(), Uint128(10));
 
     //set bob's balance to 10 in token contract
     deps.querier
@@ -650,7 +655,7 @@ pub fn proper_update_global_index_two_validators() {
     do_register_validator(&mut deps, validator2.clone());
 
     // bond to the second validator
-    do_bond(&mut deps, addr1.clone(), Uint128(10), validator2.clone());
+    do_bond(&mut deps, addr1.clone(), Uint128(10));
 
     //set delegation for query-all-delegation
     let delegations: [FullDelegation; 2] = [
@@ -720,7 +725,7 @@ pub fn proper_update_global_index_respect_one_registered_validator() {
     do_register_validator(&mut deps, validator.clone());
 
     // bond
-    do_bond(&mut deps, addr1.clone(), Uint128(10), validator.clone());
+    do_bond(&mut deps, addr1.clone(), Uint128(10));
 
     //set bob's balance to 10 in token contract
     deps.querier
@@ -784,7 +789,7 @@ pub fn proper_receive() {
     do_register_validator(&mut deps, validator.clone());
 
     // bond to the second validator
-    do_bond(&mut deps, addr1.clone(), Uint128(10), validator.clone());
+    do_bond(&mut deps, addr1.clone(), Uint128(10));
     set_delegation(&mut deps.querier, validator, 10, "uluna");
 
     //set bob's balance to 10 in token contract
@@ -1049,9 +1054,9 @@ pub fn proper_pick_validator() {
     do_register_validator(&mut deps, validator3.clone());
 
     // bond to a validator
-    do_bond(&mut deps, addr1.clone(), Uint128(10), validator.clone());
-    do_bond(&mut deps, addr2.clone(), Uint128(300), validator2.clone());
-    do_bond(&mut deps, addr3.clone(), Uint128(200), validator3.clone());
+    do_bond(&mut deps, addr1.clone(), Uint128(10));
+    do_bond(&mut deps, addr2.clone(), Uint128(300));
+    do_bond(&mut deps, addr3.clone(), Uint128(200));
 
     // give validators different delegation amount
     let delegations: [FullDelegation; 3] = [
@@ -1184,8 +1189,8 @@ pub fn proper_pick_validator_respect_distributed_delegation() {
     do_register_validator(&mut deps, validator3);
 
     // bond to a validator
-    do_bond(&mut deps, addr1.clone(), Uint128(1000), validator.clone());
-    do_bond(&mut deps, addr1.clone(), Uint128(1500), validator2.clone());
+    do_bond(&mut deps, addr1.clone(), Uint128(1000));
+    do_bond(&mut deps, addr1.clone(), Uint128(1500));
 
     // give validators different delegation amount
     let delegations: [FullDelegation; 2] = [
@@ -1260,7 +1265,7 @@ pub fn proper_slashing() {
     do_register_validator(&mut deps, validator.clone());
 
     //bond
-    do_bond(&mut deps, addr1.clone(), Uint128(1000), validator.clone());
+    do_bond(&mut deps, addr1.clone(), Uint128(1000));
 
     //this will set the balance of the user in token contract
     deps.querier
@@ -2597,7 +2602,7 @@ fn proper_update_global_index_with_airdrop() {
     do_register_validator(&mut deps, validator.clone());
 
     // bond
-    do_bond(&mut deps, addr1.clone(), bond_amount, validator.clone());
+    do_bond(&mut deps, addr1.clone(), bond_amount);
 
     //set delegation for query-all-delegation
     let delegations: [FullDelegation; 1] =
