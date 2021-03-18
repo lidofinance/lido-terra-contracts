@@ -52,7 +52,8 @@ pub struct StateResponse {
 pub struct ConfigResponse {
     pub owner: HumanAddr,
     pub reward_contract: Option<HumanAddr>,
-    pub token_contract: Option<HumanAddr>,
+    pub bluna_token_contract: Option<HumanAddr>,
+    pub stluna_token_contract: Option<HumanAddr>,
     pub airdrop_registry_contract: Option<HumanAddr>,
 }
 

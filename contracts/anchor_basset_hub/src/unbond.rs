@@ -1,4 +1,4 @@
-use crate::contract::{query_total_issued, slashing};
+use crate::contract::{query_total_bluna_issued, slashing};
 use crate::state::{
     get_finished_amount, get_unbond_batches, read_config, read_current_batch, read_parameters,
     read_state, read_unbond_history, remove_unbond_wait_list, store_current_batch, store_state,
@@ -33,15 +33,15 @@ pub(crate) fn handle_unbond<S: Storage, A: Api, Q: Querier>(
 
     let mut state = read_state(&deps.storage).load()?;
 
-    let mut total_supply = query_total_issued(&deps).unwrap_or_default();
+    let mut total_supply = query_total_bluna_issued(&deps).unwrap_or_default();
 
     // Collect all the requests within a epoch period
     // Apply peg recovery fee
     let amount_with_fee: Uint128;
-    if state.exchange_rate < threshold {
+    if state.bluna_exchange_rate < threshold {
         let max_peg_fee = amount * recovery_fee;
         let required_peg_fee =
-            ((total_supply + current_batch.requested_with_fee) - state.total_bond_amount)?;
+            ((total_supply + current_batch.requested_with_fee) - state.total_bond_bluna_amount)?;
         let peg_fee = Uint128::min(max_peg_fee, required_peg_fee);
         amount_with_fee = (amount - peg_fee)?;
     } else {
@@ -70,7 +70,7 @@ pub(crate) fn handle_unbond<S: Storage, A: Api, Q: Querier>(
     // If the epoch period is passed, the undelegate message would be sent.
     if passed_time > epoch_period {
         // Apply the current exchange rate.
-        let undelegation_amount = current_batch.requested_with_fee * state.exchange_rate;
+        let undelegation_amount = current_batch.requested_with_fee * state.bluna_exchange_rate;
 
         // the contract must stop if
         if undelegation_amount == Uint128(1) {
@@ -89,7 +89,7 @@ pub(crate) fn handle_unbond<S: Storage, A: Api, Q: Querier>(
 
         messages.append(&mut undelegated_msgs);
 
-        state.total_bond_amount = (state.total_bond_amount - undelegation_amount)
+        state.total_bond_bluna_amount = (state.total_bond_bluna_amount - undelegation_amount)
             .expect("undelegation amount can not be more than stored total bonded amount");
 
         // Store history for withdraw unbonded
@@ -97,8 +97,8 @@ pub(crate) fn handle_unbond<S: Storage, A: Api, Q: Querier>(
             batch_id: current_batch.id,
             time: env.block.time,
             amount: current_batch.requested_with_fee,
-            applied_exchange_rate: state.exchange_rate,
-            withdraw_rate: state.exchange_rate,
+            applied_exchange_rate: state.bluna_exchange_rate,
+            withdraw_rate: state.bluna_exchange_rate,
             released: false,
         };
         store_unbond_history(&mut deps.storage, current_batch.id, history)?;
@@ -120,7 +120,7 @@ pub(crate) fn handle_unbond<S: Storage, A: Api, Q: Querier>(
     let config = read_config(&deps.storage).load()?;
     let token_address = deps.api.human_address(
         &config
-            .token_contract
+            .bluna_token_contract
             .expect("the token contract must have been registered"),
     )?;
 

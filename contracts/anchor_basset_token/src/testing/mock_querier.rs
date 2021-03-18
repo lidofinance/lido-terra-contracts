@@ -9,6 +9,7 @@ use hub_querier::Config;
 pub const MOCK_HUB_CONTRACT_ADDR: &str = "hub";
 pub const MOCK_REWARD_CONTRACT_ADDR: &str = "reward";
 pub const MOCK_TOKEN_CONTRACT_ADDR: &str = "token";
+pub const MOCK_STLUNA_TOKEN_CONTRACT_ADDR: &str = "stluna_token";
 
 pub fn mock_dependencies(
     canonical_length: usize,
@@ -62,9 +63,15 @@ impl WasmMockQuerier {
                                 api.canonical_address(&HumanAddr::from(MOCK_REWARD_CONTRACT_ADDR))
                                     .unwrap(),
                             ),
-                            token_contract: Some(
+                            bluna_token_contract: Some(
                                 api.canonical_address(&HumanAddr::from(MOCK_TOKEN_CONTRACT_ADDR))
                                     .unwrap(),
+                            ),
+                            stluna_token_contract: Some(
+                                api.canonical_address(&HumanAddr::from(
+                                    MOCK_STLUNA_TOKEN_CONTRACT_ADDR,
+                                ))
+                                .unwrap(),
                             ),
                             airdrop_registry_contract: Some(
                                 api.canonical_address(&HumanAddr::from("airdrop")).unwrap(),
