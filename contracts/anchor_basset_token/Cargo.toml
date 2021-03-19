@@ -33,7 +33,7 @@ schemars = "0.7"
 serde = { version = "1.0.103", default-features = false, features = ["derive"] }
 snafu = { version = "0.6.3" }
 hub_querier = {path = "../hub_querier" }
-anchor_basset_reward = {path = "../anchor_basset_reward"}
+reward_querier = {path = "../reward_querier"}
 
 [dev-dependencies]
 # we only need to enable this if we use integration tests

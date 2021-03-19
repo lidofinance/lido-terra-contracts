@@ -36,7 +36,6 @@ name = "anchor_basset_hub"
 version = "1.0.0"
 dependencies = [
  "anchor_airdrop_registry",
- "anchor_basset_reward",
  "anchor_basset_token",
  "basset",
  "cosmwasm-schema",
@@ -47,6 +46,7 @@ dependencies = [
  "cw20-base",
  "hub_querier",
  "rand",
+ "reward_querier",
  "schemars",
  "serde",
  "signed_integer",
@@ -65,6 +65,7 @@ dependencies = [
  "cosmwasm-storage",
  "cw20",
  "hub_querier",
+ "reward_querier",
  "schemars",
  "serde",
  "terra-cosmwasm",
@@ -75,7 +76,6 @@ dependencies = [
 name = "anchor_basset_token"
 version = "1.0.0"
 dependencies = [
- "anchor_basset_reward",
  "cosmwasm-schema",
  "cosmwasm-std",
  "cosmwasm-storage",
@@ -83,6 +83,7 @@ dependencies = [
  "cw20",
  "cw20-base",
  "hub_querier",
+ "reward_querier",
  "schemars",
  "serde",
  "snafu",
@@ -888,6 +889,20 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "41cc0f7e4d5d4544e8861606a285bb08d3e70712ccc7d2b84d7c0ccfaf4b05ce"
 
 [[package]]
+name = "reward_querier"
+version = "0.1.0"
+dependencies = [
+ "cosmwasm-schema",
+ "cosmwasm-std",
+ "cosmwasm-storage",
+ "cw20",
+ "schemars",
+ "serde",
+ "terra-cosmwasm",
+ "thiserror",
+]
+
+[[package]]
 name = "rustc-demangle"
 version = "0.1.17"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1106,9 +1121,9 @@ checksum = "ab0e7238dcc7b40a7be719a25365910f6807bd864f4cce6b2e6b873658e2b19d"
 
 [[package]]
 name = "terra-cosmwasm"
-version = "1.2.2"
+version = "1.2.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e414791554fbc27ef2c50301e84b7b542778cb82ef5a93cfb486ea3ac27065ac"
+checksum = "4d7275aacd385e4f41647634c35692b1982085917b4dcfc1fdfa3984ee4ce45d"
 dependencies = [
  "cosmwasm-std",
  "schemars",

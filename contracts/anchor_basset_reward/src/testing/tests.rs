@@ -25,12 +25,12 @@ use terra_cosmwasm::create_swap_msg;
 
 use crate::contract::{handle, init, query};
 use crate::math::{decimal_multiplication_in_256, decimal_subtraction_in_256};
-use crate::msg::{
-    ConfigResponse, HandleMsg, HolderResponse, HoldersResponse, InitMsg, QueryMsg, StateResponse,
-};
 use crate::state::{store_holder, store_state, Holder, State};
 use crate::testing::mock_querier::{
     mock_dependencies, MOCK_HUB_CONTRACT_ADDR, MOCK_TOKEN_CONTRACT_ADDR,
+};
+use reward_querier::{
+    ConfigResponse, HandleMsg, HolderResponse, HoldersResponse, InitMsg, QueryMsg, StateResponse,
 };
 use std::str::FromStr;
 
@@ -92,6 +92,14 @@ pub fn swap_to_reward_denom() {
                 denom: "usdr".to_string(),
                 amount: Uint128(50u128),
             },
+            Coin {
+                denom: "mnt".to_string(),
+                amount: Uint128(50u128),
+            },
+            Coin {
+                denom: "uinr".to_string(),
+                amount: Uint128(50u128),
+            },
         ],
     );
 
@@ -119,6 +127,14 @@ pub fn swap_to_reward_denom() {
                 HumanAddr::from(MOCK_CONTRACT_ADDR),
                 Coin {
                     denom: "usdr".to_string(),
+                    amount: Uint128(50u128)
+                },
+                DEFAULT_REWARD_DENOM.to_string()
+            ),
+            create_swap_msg(
+                HumanAddr::from(MOCK_CONTRACT_ADDR),
+                Coin {
+                    denom: "uinr".to_string(),
                     amount: Uint128(50u128)
                 },
                 DEFAULT_REWARD_DENOM.to_string()

@@ -1,9 +1,9 @@
-use crate::msg::{AccruedRewardsResponse, HolderResponse, HoldersResponse};
 use crate::querier::query_token_contract;
 use crate::state::{
     read_config, read_holder, read_holders, read_state, store_holder, store_state, Config, Holder,
     State,
 };
+use reward_querier::{AccruedRewardsResponse, HolderResponse, HoldersResponse};
 
 use cosmwasm_std::{
     log, Api, BankMsg, Coin, Decimal, Env, Extern, HandleResponse, HumanAddr, Querier, StdError,

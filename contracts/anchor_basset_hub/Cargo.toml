@@ -44,7 +44,7 @@ schemars = "0.7"
 serde = { version = "1.0.103", default-features = false, features = ["derive"] }
 snafu = { version = "0.6.3" }
 rand = "0.5.0"
-anchor_basset_reward = {path = "../anchor_basset_reward" }
+reward_querier = {path = "../reward_querier"}
 anchor_basset_token = {path = "../anchor_basset_token"}
 hub_querier = {path = "../hub_querier" }
 anchor_airdrop_registry = {path = "../anchor_airdrop_registry", default-features = false, version = "1.0.0"}

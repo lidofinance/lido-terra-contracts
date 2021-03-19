@@ -5,10 +5,11 @@ use cosmwasm_std::{
     log, Api, CosmosMsg, Decimal, Env, Extern, HandleResponse, Querier, StdError, StdResult,
     Storage,
 };
-use terra_cosmwasm::{create_swap_msg, TerraMsgWrapper};
+use terra_cosmwasm::{create_swap_msg, ExchangeRatesResponse, TerraMsgWrapper, TerraQuerier};
 
 /// Swap all native tokens to reward_denom
 /// Only hub_contract is allowed to execute
+#[allow(clippy::if_same_then_else)]
 pub fn handle_swap<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
     env: Env,
@@ -26,16 +27,32 @@ pub fn handle_swap<S: Storage, A: Api, Q: Querier>(
 
     let reward_denom = config.reward_denom;
 
+    let mut is_listed = true;
+
+    let denoms: Vec<String> = balance.iter().map(|item| item.denom.clone()).collect();
+
+    if query_exchange_rates(deps, reward_denom.clone(), denoms).is_err() {
+        is_listed = false;
+    }
+
     for coin in balance {
-        if coin.denom == reward_denom {
+        if coin.denom == reward_denom.clone() {
             continue;
         }
-
-        msgs.push(create_swap_msg(
-            contr_addr.clone(),
-            coin,
-            reward_denom.to_string(),
-        ));
+        if is_listed {
+            msgs.push(create_swap_msg(
+                contr_addr.clone(),
+                coin,
+                reward_denom.to_string(),
+            ));
+        } else if query_exchange_rates(deps, reward_denom.clone(), vec![coin.denom.clone()]).is_ok()
+        {
+            msgs.push(create_swap_msg(
+                contr_addr.clone(),
+                coin,
+                reward_denom.to_string(),
+            ));
+        }
     }
 
     let res = HandleResponse {
@@ -96,5 +113,15 @@ pub fn handle_update_global_index<S: Storage, A: Api, Q: Querier>(
         data: None,
     };
 
+    Ok(res)
+}
+
+pub fn query_exchange_rates<S: Storage, A: Api, Q: Querier>(
+    deps: &Extern<S, A, Q>,
+    base_denom: String,
+    quote_denoms: Vec<String>,
+) -> StdResult<ExchangeRatesResponse> {
+    let querier = TerraQuerier::new(&deps.querier);
+    let res: ExchangeRatesResponse = querier.query_exchange_rates(base_denom, quote_denoms)?;
     Ok(res)
 }

@@ -1,14 +1,14 @@
 use crate::global::{handle_swap, handle_update_global_index};
-use crate::msg::{ConfigResponse, HandleMsg, InitMsg, QueryMsg, StateResponse};
 use crate::state::{read_config, read_state, store_config, store_state, Config, State};
 use crate::user::{
     handle_claim_rewards, handle_decrease_balance, handle_increase_balance, query_accrued_rewards,
     query_holder, query_holders,
 };
 use cosmwasm_std::{
-    to_binary, Api, Binary, Decimal, Env, Extern, HandleResponse, InitResponse, Querier, StdResult,
-    Storage, Uint128,
+    to_binary, Api, Binary, Decimal, Env, Extern, HandleResponse, InitResponse, MigrateResponse,
+    MigrateResult, Querier, StdResult, Storage, Uint128,
 };
+use reward_querier::{ConfigResponse, HandleMsg, InitMsg, MigrateMsg, QueryMsg, StateResponse};
 
 use terra_cosmwasm::TerraMsgWrapper;
 
@@ -85,4 +85,12 @@ fn query_state<S: Storage, A: Api, Q: Querier>(deps: &Extern<S, A, Q>) -> StdRes
         total_balance: state.total_balance,
         prev_reward_balance: state.prev_reward_balance,
     })
+}
+
+pub fn migrate<S: Storage, A: Api, Q: Querier>(
+    _deps: &mut Extern<S, A, Q>,
+    _env: Env,
+    _msg: MigrateMsg,
+) -> MigrateResult {
+    Ok(MigrateResponse::default())
 }
