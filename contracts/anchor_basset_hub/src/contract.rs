@@ -541,8 +541,10 @@ fn query_config<S: Storage, A: Api, Q: Querier>(
 fn query_state<S: Storage, A: Api, Q: Querier>(deps: &Extern<S, A, Q>) -> StdResult<StateResponse> {
     let state = read_state(&deps.storage).load()?;
     let res = StateResponse {
-        exchange_rate: state.bluna_exchange_rate,
-        total_bond_amount: state.total_bond_bluna_amount,
+        bluna_exchange_rate: state.bluna_exchange_rate,
+        stluna_exchange_rate: state.stluna_exchange_rate,
+        total_bond_bluna_amount: state.total_bond_bluna_amount,
+        total_bond_stluna_amount: state.total_bond_stluna_amount,
         last_index_modification: state.last_index_modification,
         prev_hub_balance: state.prev_hub_balance,
         actual_unbonded_amount: state.actual_unbonded_amount,
