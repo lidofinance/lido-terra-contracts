@@ -39,8 +39,10 @@ pub enum QueryMsg {
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct StateResponse {
-    pub exchange_rate: Decimal,
-    pub total_bond_amount: Uint128,
+    pub bluna_exchange_rate: Decimal,
+    pub stluna_exchange_rate: Decimal,
+    pub total_bond_bluna_amount: Uint128,
+    pub total_bond_stluna_amount: Uint128,
     pub last_index_modification: u64,
     pub prev_hub_balance: Uint128,
     pub actual_unbonded_amount: Uint128,
