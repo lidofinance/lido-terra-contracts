@@ -469,7 +469,7 @@ mod tests {
         let env = mock_env("creator", &coins(2, "token"));
         let _res = init(&mut deps, env, msg).unwrap();
 
-        let env = mock_env(hub_address.clone(), &[]);
+        let env = mock_env(hub_address, &[]);
 
         let updated_validator = Validator {
             total_delegated: Uint128(1483),

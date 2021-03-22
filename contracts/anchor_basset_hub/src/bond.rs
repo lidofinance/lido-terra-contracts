@@ -148,7 +148,7 @@ pub fn handle_bond_auto_validators<S: Storage, A: Api, Q: Querier>(
     }
 
     let mint_msg = Cw20HandleMsg::Mint {
-        recipient: sender.clone(),
+        recipient: sender,
         amount: mint_amount_with_fee,
     };
 

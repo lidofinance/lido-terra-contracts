@@ -1,5 +1,3 @@
-#![allow(clippy::field_reassign_with_default)] //https://github.com/CosmWasm/cosmwasm/issues/685
-
 use crate::registry::Validator;
 use cosmwasm_std::{Binary, HumanAddr};
 use schemars::JsonSchema;
