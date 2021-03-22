@@ -382,9 +382,9 @@ fn proper_auto_bond() {
     initialize(&mut deps, owner, reward_contract, token_contract);
 
     // register_validator
-    do_register_validator(&mut deps, validator.clone());
-    do_register_validator(&mut deps, validator2.clone());
-    do_register_validator(&mut deps, validator3.clone());
+    do_register_validator(&mut deps, validator);
+    do_register_validator(&mut deps, validator2);
+    do_register_validator(&mut deps, validator3);
 
     let bond_msg = HandleMsg::Bond { validator: None };
 
@@ -1166,7 +1166,7 @@ pub fn proper_pick_validator_respect_distributed_delegation() {
         (sample_delegation(validator2.address.clone(), coin(1500, "uluna"))),
     ];
 
-    let validators: [Validator; 2] = [(validator.clone()), (validator2.clone())];
+    let validators: [Validator; 2] = [(validator), (validator2)];
     set_delegation_query(&mut deps.querier, &delegations, &validators);
 
     deps.querier
@@ -1184,9 +1184,7 @@ pub fn proper_pick_validator_respect_distributed_delegation() {
         CosmosMsg::Staking(StakingMsg::Undelegate {
             validator: _,
             amount,
-        }) => {
-            assert_eq!(amount.amount, Uint128(1250))
-        }
+        }) => assert_eq!(amount.amount, Uint128(1250)),
         _ => panic!("Unexpected message: {:?}", &res.messages[1]),
     }
 
@@ -1194,9 +1192,7 @@ pub fn proper_pick_validator_respect_distributed_delegation() {
         CosmosMsg::Staking(StakingMsg::Undelegate {
             validator: _,
             amount,
-        }) => {
-            assert_eq!(amount.amount, Uint128(750))
-        }
+        }) => assert_eq!(amount.amount, Uint128(750)),
         _ => panic!("Unexpected message: {:?}", &res.messages[2]),
     }
 }
