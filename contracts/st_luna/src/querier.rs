@@ -7,7 +7,7 @@ use cosmwasm_storage::to_length_prefixed;
 use crate::state::read_hub_contract;
 use hub_querier::Config;
 
-pub fn query_reward_contract<S: Storage, A: Api, Q: Querier>(
+pub fn _query_reward_contract<S: Storage, A: Api, Q: Querier>(
     deps: &Extern<S, A, Q>,
 ) -> StdResult<HumanAddr> {
     let hub_address = deps

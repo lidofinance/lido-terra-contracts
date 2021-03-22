@@ -1,9 +1,7 @@
 use cosmwasm_std::{
-    to_binary, Api, Binary, CosmosMsg, Env, Extern, HandleResponse, HandleResult, HumanAddr,
-    Querier, Storage, Uint128, WasmMsg,
+    Api, Binary, Env, Extern, HandleResponse, HandleResult, HumanAddr, Querier, Storage, Uint128,
 };
 
-use crate::querier::query_reward_contract;
 use cw20_base::allowances::{
     handle_burn_from as cw20_burn_from, handle_send_from as cw20_send_from,
     handle_transfer_from as cw20_transfer_from,
@@ -19,10 +17,7 @@ pub fn handle_transfer<S: Storage, A: Api, Q: Querier>(
     recipient: HumanAddr,
     amount: Uint128,
 ) -> HandleResult {
-    let sender = env.message.sender.clone();
-    let reward_contract = query_reward_contract(&deps)?;
-
-    let res: HandleResponse = cw20_transfer(deps, env, recipient.clone(), amount)?;
+    cw20_transfer(deps, env, recipient, amount)?;
     Ok(HandleResponse::default())
 }
 
@@ -31,10 +26,7 @@ pub fn handle_burn<S: Storage, A: Api, Q: Querier>(
     env: Env,
     amount: Uint128,
 ) -> HandleResult {
-    let sender = env.message.sender.clone();
-    let reward_contract = query_reward_contract(&deps)?;
-
-    let res: HandleResponse = cw20_burn(deps, env, amount)?;
+    cw20_burn(deps, env, amount)?;
     Ok(HandleResponse::default())
 }
 
@@ -44,9 +36,7 @@ pub fn handle_mint<S: Storage, A: Api, Q: Querier>(
     recipient: HumanAddr,
     amount: Uint128,
 ) -> HandleResult {
-    let reward_contract = query_reward_contract(&deps)?;
-
-    let res: HandleResponse = cw20_mint(deps, env, recipient.clone(), amount)?;
+    cw20_mint(deps, env, recipient, amount)?;
     Ok(HandleResponse::default())
 }
 
@@ -57,10 +47,7 @@ pub fn handle_send<S: Storage, A: Api, Q: Querier>(
     amount: Uint128,
     msg: Option<Binary>,
 ) -> HandleResult {
-    let sender = env.message.sender.clone();
-    let reward_contract = query_reward_contract(&deps)?;
-
-    let res: HandleResponse = cw20_send(deps, env, contract.clone(), amount, msg)?;
+    cw20_send(deps, env, contract, amount, msg)?;
     Ok(HandleResponse::default())
 }
 
@@ -71,10 +58,7 @@ pub fn handle_transfer_from<S: Storage, A: Api, Q: Querier>(
     recipient: HumanAddr,
     amount: Uint128,
 ) -> HandleResult {
-    let reward_contract = query_reward_contract(&deps)?;
-
-    let res: HandleResponse =
-        cw20_transfer_from(deps, env, owner.clone(), recipient.clone(), amount)?;
+    cw20_transfer_from(deps, env, owner, recipient, amount)?;
     Ok(HandleResponse::default())
 }
 
@@ -84,9 +68,7 @@ pub fn handle_burn_from<S: Storage, A: Api, Q: Querier>(
     owner: HumanAddr,
     amount: Uint128,
 ) -> HandleResult {
-    let reward_contract = query_reward_contract(&deps)?;
-
-    let res: HandleResponse = cw20_burn_from(deps, env, owner.clone(), amount)?;
+    cw20_burn_from(deps, env, owner, amount)?;
     Ok(HandleResponse::default())
 }
 
@@ -98,9 +80,6 @@ pub fn handle_send_from<S: Storage, A: Api, Q: Querier>(
     amount: Uint128,
     msg: Option<Binary>,
 ) -> HandleResult {
-    let reward_contract = query_reward_contract(&deps)?;
-
-    let res: HandleResponse =
-        cw20_send_from(deps, env, owner.clone(), contract.clone(), amount, msg)?;
+    cw20_send_from(deps, env, owner, contract, amount, msg)?;
     Ok(HandleResponse::default())
 }
