@@ -65,7 +65,7 @@ pub enum HandleMsg {
     /// Receives `amount` in underlying coin denom from sender.
     /// Delegate `amount` equally between validators from the registry.
     /// Issue `amount` / exchange_rate for the user.
-    Bond { validator: Option<HumanAddr> },
+    Bond {},
 
     /// Update global index
     UpdateGlobalIndex { airdrop_hooks: Option<Vec<Binary>> },

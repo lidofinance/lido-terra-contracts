@@ -27,17 +27,6 @@
     {
       "type": "object",
       "required": [
-        "whitelisted_validators"
-      ],
-      "properties": {
-        "whitelisted_validators": {
-          "type": "object"
-        }
-      }
-    },
-    {
-      "type": "object",
-      "required": [
         "current_batch"
       ],
       "properties": {

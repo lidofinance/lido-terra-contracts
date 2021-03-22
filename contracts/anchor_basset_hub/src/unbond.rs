@@ -10,7 +10,7 @@ use cosmwasm_std::{
 };
 use cw20::Cw20HandleMsg;
 use signed_integer::SignedInt;
-use validators_registry::contract::calculate_undelegations;
+use validators_registry::common::calculate_undelegations;
 use validators_registry::registry::Validator;
 
 /// This message must be call by receive_cw20
