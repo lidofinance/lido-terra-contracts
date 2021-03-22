@@ -9,8 +9,9 @@ use cosmwasm_std::{
     HumanAddr, Querier, StakingMsg, StdError, StdResult, Storage, Uint128, WasmMsg,
 };
 use cw20::Cw20HandleMsg;
-use rand::{Rng, SeedableRng, XorShiftRng};
 use signed_integer::SignedInt;
+use validators_registry::contract::calculate_undelegations;
+use validators_registry::registry::Validator;
 
 /// This message must be call by receive_cw20
 /// This message will undelegate coin and burn basset token
@@ -81,11 +82,8 @@ pub(crate) fn handle_unbond<S: Storage, A: Api, Q: Querier>(
 
         let delegator = env.contract.address;
 
-        let block_height = env.block.height;
-
         // Send undelegated requests to possibly more than one validators
-        let mut undelegated_msgs =
-            pick_validator(deps, undelegation_amount, delegator, block_height)?;
+        let mut undelegated_msgs = pick_validator(deps, undelegation_amount, delegator)?;
 
         messages.append(&mut undelegated_msgs);
 
@@ -319,50 +317,44 @@ fn process_withdraw_rate<S: Storage, A: Api, Q: Querier>(
     Ok(())
 }
 
-//TODO:: reduce delegations equally
 fn pick_validator<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
     claim: Uint128,
     delegator: HumanAddr,
-    block_height: u64,
 ) -> StdResult<Vec<CosmosMsg>> {
     //read params
     let params = read_parameters(&deps.storage).load()?;
     let coin_denom = params.underlying_coin_denom;
 
     let mut messages: Vec<CosmosMsg> = vec![];
-    let mut claimed = claim;
 
     let all_delegations = deps
         .querier
         .query_all_delegations(delegator)
         .expect("There must be at least one delegation");
-    // pick a random validator
-    // if it does not have requested amount, undelegate all it has
-    // and pick another random validator
-    let mut iteration_index = 0;
-    let mut deletable_delegations = all_delegations;
-    while claimed.0 > 0 {
-        let mut rng = XorShiftRng::seed_from_u64(block_height + iteration_index);
-        let random_index = rng.gen_range(0, deletable_delegations.len());
-        let delegation = deletable_delegations.remove(random_index);
-        let val = delegation.amount.amount;
-        let undelegated_amount: Uint128;
-        if val.0 > claimed.0 {
-            undelegated_amount = claimed;
-            claimed = Uint128::zero();
-        } else {
-            undelegated_amount = val;
-            claimed = (claimed - val)?;
+
+    let mut validators = all_delegations
+        .iter()
+        .map(|d| Validator {
+            active: false,
+            total_delegated: d.amount.amount,
+            address: d.validator.clone(),
+        })
+        .collect::<Vec<Validator>>();
+    validators.sort_by(|v1, v2| v2.total_delegated.cmp(&v1.total_delegated));
+
+    let undelegations = calculate_undelegations(claim, validators.as_slice())?;
+
+    for (index, undelegated_amount) in undelegations.iter().enumerate() {
+        if undelegated_amount.is_zero() {
+            continue;
         }
-        if undelegated_amount.0 > 0 {
-            let msgs: CosmosMsg = CosmosMsg::Staking(StakingMsg::Undelegate {
-                validator: delegation.validator,
-                amount: coin(undelegated_amount.0, &*coin_denom),
-            });
-            messages.push(msgs);
-        }
-        iteration_index += 1;
+
+        let msgs: CosmosMsg = CosmosMsg::Staking(StakingMsg::Undelegate {
+            validator: validators[index].address.clone(),
+            amount: coin(undelegated_amount.u128(), &*coin_denom),
+        });
+        messages.push(msgs);
     }
     Ok(messages)
 }

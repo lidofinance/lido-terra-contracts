@@ -70,6 +70,45 @@ pub fn calculate_delegations(
     Ok((amoint_to_delegate, delegations))
 }
 
+pub fn calculate_undelegations(
+    mut undelegation_amount: Uint128,
+    validators: &[Validator],
+) -> StdResult<Vec<Uint128>> {
+    let total_delegated: u128 = validators.iter().map(|v| v.total_delegated.0).sum();
+
+    if undelegation_amount.0 > total_delegated {
+        println!("{} {}", undelegation_amount, total_delegated);
+        return Err(StdError::generic_err(
+            "undelegate amount can't be bigger than total delegated amount",
+        ));
+    }
+
+    let total_coins_after_undelegation = Uint128::from(total_delegated).sub(undelegation_amount)?;
+    let coins_per_validator = total_coins_after_undelegation.0 / validators.len() as u128;
+    let remaining_coins = total_coins_after_undelegation.0 % validators.len() as u128;
+
+    let mut undelegations = vec![Uint128(0); validators.len()];
+    for (index, validator) in validators.iter().enumerate() {
+        let extra_coin = if (index + 1) as u128 <= remaining_coins {
+            1u128
+        } else {
+            0u128
+        };
+        let mut to_undelegate = validator
+            .total_delegated
+            .sub(Uint128::from(coins_per_validator + extra_coin))?;
+        if to_undelegate > undelegation_amount {
+            to_undelegate = undelegation_amount
+        }
+        undelegations[index] = to_undelegate;
+        undelegation_amount = undelegation_amount.sub(to_undelegate)?;
+        if undelegation_amount.is_zero() {
+            break;
+        }
+    }
+    Ok(undelegations)
+}
+
 fn _update_total_delegated<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
     validators: &[Validator],
@@ -476,7 +515,7 @@ mod tests {
 
     #[macro_export]
     macro_rules! default_validator_with_delegations {
-        ($total:expr, $max:expr) => {
+        ($total:expr) => {
             Validator {
                 active: false,
                 total_delegated: Uint128($total),
@@ -489,9 +528,9 @@ mod tests {
     #[test]
     fn test_calculate_delegations() {
         let mut validators = vec![
-            default_validator_with_delegations!(0, 10),
-            default_validator_with_delegations!(0, 10),
-            default_validator_with_delegations!(0, 10),
+            default_validator_with_delegations!(0),
+            default_validator_with_delegations!(0),
+            default_validator_with_delegations!(0),
         ];
         let expected_delegations: Vec<Uint128> = vec![Uint128(4), Uint128(3), Uint128(3)];
 
@@ -517,6 +556,82 @@ mod tests {
                 delegations[i], expected_delegations[i],
                 "Delegation is not correct"
             )
+        }
+    }
+
+    //TODO: implement more test cases
+    #[test]
+    fn test_calculate_undelegations() {
+        let mut validators = vec![
+            default_validator_with_delegations!(100),
+            default_validator_with_delegations!(10),
+            default_validator_with_delegations!(10),
+        ];
+        let expected_undelegations: Vec<Uint128> = vec![Uint128(93), Uint128(3), Uint128(4)];
+
+        // sort validators for the right delegations
+        validators.sort_by(|v1, v2| v2.total_delegated.cmp(&v1.total_delegated));
+
+        let undelegate_amount = Uint128(100);
+        let undelegations =
+            calculate_undelegations(undelegate_amount, validators.as_slice()).unwrap();
+
+        assert_eq!(
+            validators.len(),
+            undelegations.len(),
+            "Delegations are not correct"
+        );
+        for i in 0..expected_undelegations.len() {
+            assert_eq!(
+                undelegations[i], expected_undelegations[i],
+                "Delegation is not correct"
+            )
+        }
+
+        let mut validators = vec![
+            default_validator_with_delegations!(10),
+            default_validator_with_delegations!(10),
+            default_validator_with_delegations!(10),
+        ];
+        let expected_undelegations: Vec<Uint128> = vec![Uint128(3), Uint128(3), Uint128(4)];
+
+        // sort validators for the right delegations
+        validators.sort_by(|v1, v2| v2.total_delegated.cmp(&v1.total_delegated));
+
+        let undelegate_amount = Uint128(10);
+        let undelegations =
+            calculate_undelegations(undelegate_amount, validators.as_slice()).unwrap();
+
+        assert_eq!(
+            validators.len(),
+            undelegations.len(),
+            "Delegations are not correct"
+        );
+        for i in 0..expected_undelegations.len() {
+            assert_eq!(
+                undelegations[i], expected_undelegations[i],
+                "Delegation is not correct"
+            )
+        }
+
+        let mut validators = vec![
+            default_validator_with_delegations!(10),
+            default_validator_with_delegations!(10),
+            default_validator_with_delegations!(10),
+        ];
+        // sort validators for the right delegations
+        validators.sort_by(|v1, v2| v2.total_delegated.cmp(&v1.total_delegated));
+
+        let undelegate_amount = Uint128(1000);
+        if let Some(e) = calculate_undelegations(undelegate_amount, validators.as_slice()).err() {
+            assert_eq!(
+                e,
+                StdError::generic_err(
+                    "undelegate amount can't be bigger than total delegated amount"
+                )
+            )
+        } else {
+            panic!("undelegations invalid")
         }
     }
 }

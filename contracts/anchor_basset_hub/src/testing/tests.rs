@@ -1098,7 +1098,7 @@ pub fn proper_pick_validator() {
 
     // send the second burn
     let res = do_unbond(&mut deps, addr2.clone(), token_env, Uint128(100));
-    assert!(res.messages.len() >= 2);
+    assert_eq!(res.messages.len(), 2);
 
     deps.querier.with_token_balances(&[(
         &HumanAddr::from("token"),
@@ -1110,54 +1110,22 @@ pub fn proper_pick_validator() {
     )]);
 
     //check if the undelegate message is send two more than one validator.
-    if res.messages.len() > 2 {
-        match &res.messages[0] {
-            CosmosMsg::Staking(StakingMsg::Undelegate {
-                validator: val,
-                amount,
-            }) => {
-                if val == &validator.address {
-                    assert_eq!(amount.amount, Uint128(10))
-                }
-                if val == &validator2.address {
-                    assert_eq!(amount.amount, Uint128(150))
-                }
-                if val == &validator3.address {
-                    assert_eq!(amount.amount, Uint128(150))
-                }
+    match &res.messages[0] {
+        CosmosMsg::Staking(StakingMsg::Undelegate {
+            validator: val,
+            amount,
+        }) => {
+            if val == &validator.address {
+                assert_eq!(amount.amount, Uint128(10))
             }
-            _ => panic!("Unexpected message: {:?}", &res.messages[1]),
-        }
-
-        match &res.messages[1] {
-            CosmosMsg::Staking(StakingMsg::Undelegate {
-                validator: val,
-                amount,
-            }) => {
-                if val == &validator2.address {
-                    assert_eq!(amount.amount, Uint128(140))
-                }
-                if val == &validator3.address {
-                    assert_eq!(amount.amount, Uint128(140))
-                }
+            if val == &validator2.address {
+                assert_eq!(amount.amount, Uint128(150))
             }
-            _ => panic!("Unexpected message: {:?}", &res.messages[2]),
-        }
-    } else {
-        match &res.messages[1] {
-            CosmosMsg::Staking(StakingMsg::Undelegate {
-                validator: val,
-                amount,
-            }) => {
-                if val == &validator2.address {
-                    assert_eq!(amount.amount, Uint128(150))
-                }
-                if val == &validator3.address {
-                    assert_eq!(amount.amount, Uint128(150))
-                }
+            if val == &validator3.address {
+                assert_eq!(amount.amount, Uint128(150))
             }
-            _ => panic!("Unexpected message: {:?}", &res.messages[1]),
         }
+        _ => panic!("Unexpected message: {:?}", &res.messages[0]),
     }
 }
 
@@ -1212,37 +1180,24 @@ pub fn proper_pick_validator_respect_distributed_delegation() {
     let res = do_unbond(&mut deps, addr2, token_env, Uint128(2000));
     assert_eq!(res.messages.len(), 3);
 
-    //check if the undelegate message is send two more than one validator.
-    if res.messages.len() > 2 {
-        match &res.messages[0] {
-            CosmosMsg::Staking(StakingMsg::Undelegate {
-                validator: val,
-                amount,
-            }) => {
-                if val == &validator.address {
-                    assert_eq!(amount.amount, Uint128(1000))
-                }
-                if val == &validator2.address {
-                    assert_eq!(amount.amount, Uint128(1500))
-                }
-            }
-            _ => panic!("Unexpected message: {:?}", &res.messages[1]),
+    match &res.messages[0] {
+        CosmosMsg::Staking(StakingMsg::Undelegate {
+            validator: _,
+            amount,
+        }) => {
+            assert_eq!(amount.amount, Uint128(1250))
         }
+        _ => panic!("Unexpected message: {:?}", &res.messages[1]),
+    }
 
-        match &res.messages[1] {
-            CosmosMsg::Staking(StakingMsg::Undelegate {
-                validator: val,
-                amount,
-            }) => {
-                if val == &validator.address {
-                    assert_eq!(amount.amount, Uint128(500))
-                }
-                if val == &validator2.address {
-                    assert_eq!(amount.amount, Uint128(1000))
-                }
-            }
-            _ => panic!("Unexpected message: {:?}", &res.messages[2]),
+    match &res.messages[1] {
+        CosmosMsg::Staking(StakingMsg::Undelegate {
+            validator: _,
+            amount,
+        }) => {
+            assert_eq!(amount.amount, Uint128(750))
         }
+        _ => panic!("Unexpected message: {:?}", &res.messages[2]),
     }
 }
 
