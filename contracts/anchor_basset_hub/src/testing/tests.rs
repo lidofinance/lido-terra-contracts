@@ -137,7 +137,7 @@ pub fn do_bond(
         }))
         .unwrap();
 
-    let bond = HandleMsg::Bond { validator: None };
+    let bond = HandleMsg::Bond {};
 
     let env = mock_env(&addr, &[coin(amount.0, "uluna")]);
     let res = handle(deps, env, bond).unwrap();
@@ -237,131 +237,6 @@ fn proper_initialization() {
     );
 }
 
-/// Covers if delegate message is sent to the specified validator,
-/// mint message is sent to the token contract, state is changed based on new mint,
-/// and check unsuccessful calls, like unsupported validators, and invalid coin.
-#[test]
-fn proper_bond() {
-    let mut deps = dependencies(20, &[]);
-
-    let validator = sample_validator(DEFAULT_VALIDATOR);
-    set_validator_mock(&mut deps.querier);
-
-    let addr1 = HumanAddr::from("addr1000");
-    let bond_amount = Uint128(10000);
-
-    let owner = HumanAddr::from("owner1");
-    let token_contract = HumanAddr::from("token");
-    let reward_contract = HumanAddr::from("reward");
-
-    initialize(&mut deps, owner, reward_contract, token_contract);
-
-    // register_validator
-    do_register_validator(&mut deps, validator.clone());
-
-    let bond_msg = HandleMsg::Bond {
-        validator: Some(validator.address),
-    };
-
-    let env = mock_env(&addr1, &[coin(bond_amount.0, "uluna")]);
-
-    let res = handle(&mut deps, env, bond_msg).unwrap();
-    assert_eq!(2, res.messages.len());
-
-    // set bob's balance in token contract
-    deps.querier
-        .with_token_balances(&[(&HumanAddr::from("token"), &[(&addr1, &bond_amount)])]);
-
-    let delegate = &res.messages[0];
-    match delegate {
-        CosmosMsg::Staking(StakingMsg::Delegate { validator, amount }) => {
-            assert_eq!(validator.as_str(), DEFAULT_VALIDATOR);
-            assert_eq!(amount, &coin(bond_amount.0, "uluna"));
-        }
-        _ => panic!("Unexpected message: {:?}", delegate),
-    }
-
-    let mint = &res.messages[1];
-    match mint {
-        CosmosMsg::Wasm(WasmMsg::Execute {
-            contract_addr,
-            msg,
-            send: _,
-        }) => {
-            assert_eq!(contract_addr, &HumanAddr::from("token"));
-            assert_eq!(
-                msg,
-                &to_binary(&Cw20HandleMsg::Mint {
-                    recipient: addr1.clone(),
-                    amount: bond_amount
-                })
-                .unwrap()
-            )
-        }
-        _ => panic!("Unexpected message: {:?}", mint),
-    }
-
-    // get total bonded
-    let state = State {};
-    let query_state: StateResponse = from_binary(&query(&deps, state).unwrap()).unwrap();
-    assert_eq!(query_state.total_bond_amount, bond_amount);
-    assert_eq!(query_state.exchange_rate, Decimal::one());
-
-    //test unsupported validator
-    let invalid_validator = sample_validator("invalid");
-    let bob = HumanAddr::from("bob");
-    let bond = HandleMsg::Bond {
-        validator: Some(invalid_validator.address),
-    };
-
-    let env = mock_env(&bob, &[coin(10, "uluna")]);
-    let res = handle(&mut deps, env, bond);
-    assert_eq!(
-        res.unwrap_err(),
-        StdError::generic_err("The chosen validator is currently not supported")
-    );
-
-    // no-send funds
-    let validator = sample_validator(DEFAULT_VALIDATOR);
-    let bob = HumanAddr::from("bob");
-    let failed_bond = HandleMsg::Bond {
-        validator: Some(validator.address),
-    };
-
-    let env = mock_env(&bob, &[]);
-    let res = handle(&mut deps, env, failed_bond);
-    assert_eq!(
-        res.unwrap_err(),
-        StdError::generic_err("No uluna assets are provided to bond")
-    );
-
-    //send other tokens than luna funds
-    let validator = sample_validator(DEFAULT_VALIDATOR);
-    let bob = HumanAddr::from("bob");
-    let failed_bond = HandleMsg::Bond {
-        validator: Some(validator.address),
-    };
-
-    let env = mock_env(&bob, &[coin(10, "ukrt")]);
-    let res = handle(&mut deps, env, failed_bond.clone());
-    assert_eq!(
-        res.unwrap_err(),
-        StdError::generic_err("No uluna assets are provided to bond")
-    );
-
-    //bond with more than one coin is not possible
-    let env = mock_env(
-        &addr1,
-        &[coin(bond_amount.0, "uluna"), coin(bond_amount.0, "uusd")],
-    );
-
-    let res = handle(&mut deps, env, failed_bond).unwrap_err();
-    assert_eq!(
-        res,
-        StdError::generic_err("More than one coin is sent; only one asset is supported")
-    );
-}
-
 #[test]
 fn proper_auto_bond() {
     let mut deps = dependencies(20, &[]);
@@ -386,7 +261,7 @@ fn proper_auto_bond() {
     do_register_validator(&mut deps, validator2);
     do_register_validator(&mut deps, validator3);
 
-    let bond_msg = HandleMsg::Bond { validator: None };
+    let bond_msg = HandleMsg::Bond {};
 
     let env = mock_env(&addr1, &[coin(bond_amount.0, "uluna")]);
 
@@ -480,23 +355,9 @@ fn proper_auto_bond() {
     assert_eq!(query_state.total_bond_amount, bond_amount);
     assert_eq!(query_state.exchange_rate, Decimal::one());
 
-    //test unsupported validator
-    let invalid_validator = sample_validator("invalid");
-    let bob = HumanAddr::from("bob");
-    let bond = HandleMsg::Bond {
-        validator: Some(invalid_validator.address),
-    };
-
-    let env = mock_env(&bob, &[coin(10, "uluna")]);
-    let res = handle(&mut deps, env, bond);
-    assert_eq!(
-        res.unwrap_err(),
-        StdError::generic_err("The chosen validator is currently not supported")
-    );
-
     // no-send funds
     let bob = HumanAddr::from("bob");
-    let failed_bond = HandleMsg::Bond { validator: None };
+    let failed_bond = HandleMsg::Bond {};
 
     let env = mock_env(&bob, &[]);
     let res = handle(&mut deps, env, failed_bond);
@@ -507,7 +368,7 @@ fn proper_auto_bond() {
 
     //send other tokens than luna funds
     let bob = HumanAddr::from("bob");
-    let failed_bond = HandleMsg::Bond { validator: None };
+    let failed_bond = HandleMsg::Bond {};
 
     let env = mock_env(&bob, &[coin(10, "ukrt")]);
     let res = handle(&mut deps, env, failed_bond.clone());
@@ -873,9 +734,7 @@ pub fn proper_unbond() {
     do_register_validator(&mut deps, validator.clone());
 
     let bob = HumanAddr::from("bob");
-    let bond = HandleMsg::Bond {
-        validator: Some(validator.address.clone()),
-    };
+    let bond = HandleMsg::Bond {};
 
     let env = mock_env(&bob, &[coin(10, "uluna")]);
 
@@ -884,7 +743,7 @@ pub fn proper_unbond() {
         .with_token_balances(&[(&HumanAddr::from("token"), &[(&bob, &Uint128(10u128))])]);
 
     let res = handle(&mut deps, env, bond).unwrap();
-    assert_eq!(2, res.messages.len());
+    assert_eq!(3, res.messages.len());
 
     let delegate = &res.messages[0];
     match delegate {
@@ -1235,14 +1094,12 @@ pub fn proper_slashing() {
     assert_eq!(query_exchange_rate.exchange_rate.to_string(), "0.9");
 
     //bond again to see the update exchange rate
-    let second_bond = HandleMsg::Bond {
-        validator: Some(validator.address.clone()),
-    };
+    let second_bond = HandleMsg::Bond {};
 
     let env = mock_env(&addr1, &[coin(1000, "uluna")]);
 
     let res = handle(&mut deps, env.clone(), second_bond).unwrap();
-    assert_eq!(2, res.messages.len());
+    assert_eq!(3, res.messages.len());
 
     // expected exchange rate must be more than 0.9
     let expected_er = Decimal::from_ratio(Uint128(1900), Uint128(2111));
@@ -1259,7 +1116,7 @@ pub fn proper_slashing() {
         _ => panic!("Unexpected message: {:?}", delegate),
     }
 
-    let message = &res.messages[1];
+    let message = &res.messages[2];
     match message {
         CosmosMsg::Wasm(WasmMsg::Execute {
             contract_addr,
@@ -1360,9 +1217,7 @@ pub fn proper_withdraw_unbonded() {
     do_register_validator(&mut deps, validator.clone());
 
     let bob = HumanAddr::from("bob");
-    let bond_msg = HandleMsg::Bond {
-        validator: Some(validator.address.clone()),
-    };
+    let bond_msg = HandleMsg::Bond {};
 
     let env = mock_env(&bob, &[coin(100, "uluna")]);
 
@@ -1371,7 +1226,7 @@ pub fn proper_withdraw_unbonded() {
         .with_token_balances(&[(&HumanAddr::from("token"), &[(&bob, &Uint128(100u128))])]);
 
     let res = handle(&mut deps, env.clone(), bond_msg).unwrap();
-    assert_eq!(2, res.messages.len());
+    assert_eq!(3, res.messages.len());
 
     let delegate = &res.messages[0];
     match delegate {
@@ -1534,9 +1389,7 @@ pub fn proper_withdraw_unbonded_respect_slashing() {
     do_register_validator(&mut deps, validator.clone());
 
     let bob = HumanAddr::from("bob");
-    let bond_msg = HandleMsg::Bond {
-        validator: Some(validator.address.clone()),
-    };
+    let bond_msg = HandleMsg::Bond {};
 
     let env = mock_env(&bob, &[coin(bond_amount.0, "uluna")]);
 
@@ -1545,7 +1398,7 @@ pub fn proper_withdraw_unbonded_respect_slashing() {
         .with_token_balances(&[(&HumanAddr::from("token"), &[(&bob, &bond_amount)])]);
 
     let res = handle(&mut deps, env.clone(), bond_msg).unwrap();
-    assert_eq!(2, res.messages.len());
+    assert_eq!(3, res.messages.len());
 
     let delegate = &res.messages[0];
     match delegate {
@@ -1681,9 +1534,7 @@ pub fn proper_withdraw_unbonded_respect_inactivity_slashing() {
     do_register_validator(&mut deps, validator.clone());
 
     let bob = HumanAddr::from("bob");
-    let bond_msg = HandleMsg::Bond {
-        validator: Some(validator.address.clone()),
-    };
+    let bond_msg = HandleMsg::Bond {};
 
     let env = mock_env(&bob, &[coin(bond_amount.0, "uluna")]);
 
@@ -1692,7 +1543,7 @@ pub fn proper_withdraw_unbonded_respect_inactivity_slashing() {
         .with_token_balances(&[(&HumanAddr::from("token"), &[(&bob, &bond_amount)])]);
 
     let res = handle(&mut deps, env.clone(), bond_msg).unwrap();
-    assert_eq!(2, res.messages.len());
+    assert_eq!(3, res.messages.len());
 
     let delegate = &res.messages[0];
     match delegate {
@@ -1862,9 +1713,7 @@ pub fn proper_withdraw_unbond_with_dummies() {
     do_register_validator(&mut deps, validator.clone());
 
     let bob = HumanAddr::from("bob");
-    let bond_msg = HandleMsg::Bond {
-        validator: Some(validator.address.clone()),
-    };
+    let bond_msg = HandleMsg::Bond {};
 
     let env = mock_env(&bob, &[coin(bond_amount.0, "uluna")]);
 
@@ -1873,7 +1722,7 @@ pub fn proper_withdraw_unbond_with_dummies() {
         .with_token_balances(&[(&HumanAddr::from("token"), &[(&bob, &bond_amount)])]);
 
     let res = handle(&mut deps, env.clone(), bond_msg).unwrap();
-    assert_eq!(2, res.messages.len());
+    assert_eq!(3, res.messages.len());
 
     set_delegation(&mut deps.querier, validator.clone(), bond_amount.0, "uluna");
 
@@ -2070,9 +1919,7 @@ pub fn proper_recovery_fee() {
     do_register_validator(&mut deps, validator.clone());
 
     let bob = HumanAddr::from("bob");
-    let bond_msg = HandleMsg::Bond {
-        validator: Some(validator.address.clone()),
-    };
+    let bond_msg = HandleMsg::Bond {};
 
     //this will set the balance of the user in token contract
     deps.querier
@@ -2081,7 +1928,7 @@ pub fn proper_recovery_fee() {
     let env = mock_env(&bob, &[coin(bond_amount.0, "uluna")]);
 
     let res = handle(&mut deps, env.clone(), bond_msg).unwrap();
-    assert_eq!(2, res.messages.len());
+    assert_eq!(3, res.messages.len());
 
     set_delegation(&mut deps.querier, validator.clone(), 900000, "uluna");
 
@@ -2095,9 +1942,7 @@ pub fn proper_recovery_fee() {
 
     //Bond again to see the applied result
     let bob = HumanAddr::from("bob");
-    let bond_msg = HandleMsg::Bond {
-        validator: Some(validator.address.clone()),
-    };
+    let bond_msg = HandleMsg::Bond {};
 
     deps.querier
         .with_token_balances(&[(&HumanAddr::from("token"), &[(&bob, &bond_amount)])]);
@@ -2112,7 +1957,7 @@ pub fn proper_recovery_fee() {
     let peg_fee = Uint128::min(max_peg_fee, required_peg_fee);
     let mint_amount_with_fee = (mint_amount - peg_fee).unwrap();
 
-    let mint_msg = &res.messages[1];
+    let mint_msg = &res.messages[2];
     match mint_msg {
         CosmosMsg::Wasm(WasmMsg::Execute {
             contract_addr: _,

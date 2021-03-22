@@ -1,5 +1,5 @@
 use crate::registry::Validator;
-use cosmwasm_std::{Binary, HumanAddr};
+use cosmwasm_std::HumanAddr;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -27,11 +27,4 @@ pub enum HandleMsg {
 pub enum QueryMsg {
     // GetValidatorsForDelegation returns validators sorted by available amount for delegation (delegation_limit - total_delegated)
     GetValidatorsForDelegation {},
-}
-
-// Need a copy of the structure to avoid cyclic dependency
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-#[serde(rename_all = "snake_case")]
-pub enum HubMsg {
-    UpdateGlobalIndex { airdrop_hooks: Option<Vec<Binary>> },
 }

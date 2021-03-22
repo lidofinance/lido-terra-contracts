@@ -16,7 +16,7 @@ use crate::state::{
 };
 use crate::unbond::{handle_unbond, handle_withdraw_unbonded};
 
-use crate::bond::{handle_bond_auto_validators, handle_bond_single_validator};
+use crate::bond::handle_bond_auto_validators;
 use anchor_basset_reward::msg::HandleMsg::{SwapToRewardDenom, UpdateGlobalIndex};
 use cosmwasm_storage::to_length_prefixed;
 use cw20::{Cw20HandleMsg, Cw20ReceiveMsg};
@@ -86,10 +86,7 @@ pub fn handle<S: Storage, A: Api, Q: Querier>(
 ) -> StdResult<HandleResponse> {
     match msg {
         HandleMsg::Receive(msg) => receive_cw20(deps, env, msg),
-        HandleMsg::Bond { validator } => match validator {
-            Some(v) => handle_bond_single_validator(deps, env, v),
-            None => handle_bond_auto_validators(deps, env),
-        },
+        HandleMsg::Bond {} => handle_bond_auto_validators(deps, env),
         HandleMsg::UpdateGlobalIndex { airdrop_hooks } => {
             handle_update_global(deps, env, airdrop_hooks)
         }
