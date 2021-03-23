@@ -73,7 +73,7 @@ pub fn handle_bond<S: Storage, A: Api, Q: Querier>(
     // exchange rate should be updated for future
     store_state(&mut deps.storage).update(|mut prev_state| {
         prev_state.total_bond_bluna_amount += payment.amount;
-        prev_state.update_exchange_rate(total_supply, requested_with_fee);
+        prev_state.update_bluna_exchange_rate(total_supply, requested_with_fee);
         Ok(prev_state)
     })?;
 
@@ -181,7 +181,7 @@ pub fn handle_bond_stluna<S: Storage, A: Api, Q: Querier>(
     // exchange rate should be updated for future
     store_state(&mut deps.storage).update(|mut prev_state| {
         prev_state.total_bond_stluna_amount += payment.amount;
-        prev_state.update_exchange_rate(total_supply, requested_with_fee);
+        prev_state.update_bluna_exchange_rate(total_supply, requested_with_fee);
         Ok(prev_state)
     })?;
 

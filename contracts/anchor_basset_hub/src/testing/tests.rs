@@ -361,7 +361,7 @@ fn proper_bond() {
         owner,
         reward_contract,
         token_contract,
-        stluna_token_contract,
+        stluna_token_contract.clone(),
         validator.address.clone(),
     );
 
@@ -374,10 +374,13 @@ fn proper_bond() {
         "uluna",
     );
 
-    deps.querier.with_token_balances(&[(
-        &HumanAddr::from("token"),
-        &[(&env.contract.address, &INITIAL_DEPOSIT_AMOUNT)],
-    )]);
+    deps.querier.with_token_balances(&[
+        (
+            &HumanAddr::from("token"),
+            &[(&env.contract.address, &INITIAL_DEPOSIT_AMOUNT)],
+        ),
+        (&stluna_token_contract, &[]),
+    ]);
 
     // register_validator
     do_register_validator(&mut deps, validator.clone());
@@ -521,10 +524,13 @@ fn proper_bond_for_st_luna() {
         "uluna",
     );
 
-    deps.querier.with_token_balances(&[(
-        &HumanAddr::from("token"),
-        &[(&env.contract.address, &INITIAL_DEPOSIT_AMOUNT)],
-    )]);
+    deps.querier.with_token_balances(&[
+        (
+            &HumanAddr::from("token"),
+            &[(&env.contract.address, &INITIAL_DEPOSIT_AMOUNT)],
+        ),
+        (&stluna_token_contract, &[]),
+    ]);
 
     // register_validator
     do_register_validator(&mut deps, validator.clone());
@@ -1035,7 +1041,7 @@ pub fn proper_receive() {
         owner,
         reward_contract,
         token_contract.clone(),
-        stluna_token_contract,
+        stluna_token_contract.clone(),
         validator.address.clone(),
     );
 
@@ -1047,8 +1053,10 @@ pub fn proper_receive() {
     set_delegation(&mut deps.querier, validator, 10, "uluna");
 
     //set bob's balance to 10 in token contract
-    deps.querier
-        .with_token_balances(&[(&HumanAddr::from("token"), &[(&addr1, &Uint128(10u128))])]);
+    deps.querier.with_token_balances(&[
+        (&HumanAddr::from("token"), &[(&addr1, &Uint128(10u128))]),
+        (&stluna_token_contract, &[]),
+    ]);
 
     // Null message
     let receive = Receive(Cw20ReceiveMsg {
@@ -1127,7 +1135,7 @@ pub fn proper_unbond() {
         owner,
         reward_contract,
         token_contract.clone(),
-        stluna_token_contract,
+        stluna_token_contract.clone(),
         validator.address.clone(),
     );
 
@@ -1142,8 +1150,10 @@ pub fn proper_unbond() {
     let env = mock_env(&bob, &[coin(10, "uluna")]);
 
     //set bob's balance to 10 in token contract
-    deps.querier
-        .with_token_balances(&[(&HumanAddr::from("token"), &[(&bob, &Uint128(10u128))])]);
+    deps.querier.with_token_balances(&[
+        (&HumanAddr::from("token"), &[(&bob, &Uint128(10u128))]),
+        (&stluna_token_contract, &[]),
+    ]);
 
     let res = handle(&mut deps, env, bond).unwrap();
     assert_eq!(2, res.messages.len());
@@ -1183,8 +1193,10 @@ pub fn proper_unbond() {
     });
     let res = handle(&mut deps, token_env, receive).unwrap();
     assert_eq!(1, res.messages.len());
-    deps.querier
-        .with_token_balances(&[(&HumanAddr::from("token"), &[(&bob, &Uint128(9u128))])]);
+    deps.querier.with_token_balances(&[
+        (&HumanAddr::from("token"), &[(&bob, &Uint128(9u128))]),
+        (&stluna_token_contract, &[]),
+    ]);
 
     //read the undelegated waitlist of the current epoch for the user bob
     let wait_list = read_unbond_wait_list(&deps.storage, 1, bob.clone()).unwrap();
@@ -1200,8 +1212,10 @@ pub fn proper_unbond() {
     let mut token_env = mock_env(&token_contract, &[]);
     let res = handle(&mut deps, token_env.clone(), receive).unwrap();
     assert_eq!(1, res.messages.len());
-    deps.querier
-        .with_token_balances(&[(&HumanAddr::from("token"), &[(&bob, &Uint128(4u128))])]);
+    deps.querier.with_token_balances(&[
+        (&HumanAddr::from("token"), &[(&bob, &Uint128(4u128))]),
+        (&stluna_token_contract, &[]),
+    ]);
 
     let msg = &res.messages[0];
     match msg {
@@ -1315,7 +1329,7 @@ pub fn proper_pick_validator() {
         owner,
         reward_contract,
         token_contract.clone(),
-        stluna_token_contract,
+        stluna_token_contract.clone(),
         validator.address.clone(),
     );
 
@@ -1341,28 +1355,34 @@ pub fn proper_pick_validator() {
         (validator3.clone()),
     ];
     set_delegation_query(&mut deps.querier, &delegations, &validators);
-    deps.querier.with_token_balances(&[(
-        &HumanAddr::from("token"),
-        &[
-            (&addr3, &Uint128(200)),
-            (&addr2, &Uint128(300)),
-            (&addr1, &Uint128(10)),
-        ],
-    )]);
+    deps.querier.with_token_balances(&[
+        (
+            &HumanAddr::from("token"),
+            &[
+                (&addr3, &Uint128(200)),
+                (&addr2, &Uint128(300)),
+                (&addr1, &Uint128(10)),
+            ],
+        ),
+        (&stluna_token_contract, &[]),
+    ]);
 
     // send the first burn
     let mut token_env = mock_env(&token_contract, &[]);
     let res = do_unbond(&mut deps, addr2.clone(), token_env.clone(), Uint128(50));
     assert_eq!(res.messages.len(), 1);
 
-    deps.querier.with_token_balances(&[(
-        &HumanAddr::from("token"),
-        &[
-            (&addr3, &Uint128(200)),
-            (&addr2, &Uint128(250)),
-            (&addr1, &Uint128(10)),
-        ],
-    )]);
+    deps.querier.with_token_balances(&[
+        (
+            &HumanAddr::from("token"),
+            &[
+                (&addr3, &Uint128(200)),
+                (&addr2, &Uint128(250)),
+                (&addr1, &Uint128(10)),
+            ],
+        ),
+        (&stluna_token_contract, &[]),
+    ]);
 
     token_env.block.time += 40;
 
@@ -1458,7 +1478,7 @@ pub fn proper_pick_validator_respect_distributed_delegation() {
         owner,
         reward_contract,
         token_contract.clone(),
-        stluna_token_contract,
+        stluna_token_contract.clone(),
         validator.address.clone(),
     );
 
@@ -1479,8 +1499,10 @@ pub fn proper_pick_validator_respect_distributed_delegation() {
     let validators: [Validator; 2] = [(validator.clone()), (validator2.clone())];
     set_delegation_query(&mut deps.querier, &delegations, &validators);
 
-    deps.querier
-        .with_token_balances(&[(&HumanAddr::from("token"), &[(&addr1, &Uint128(2500))])]);
+    deps.querier.with_token_balances(&[
+        (&HumanAddr::from("token"), &[(&addr1, &Uint128(2500))]),
+        (&stluna_token_contract, &[]),
+    ]);
 
     // send the first burn
     let mut token_env = mock_env(&token_contract, &[]);
@@ -1543,7 +1565,7 @@ pub fn proper_slashing() {
         owner,
         reward_contract,
         token_contract.clone(),
-        stluna_token_contract,
+        stluna_token_contract.clone(),
         validator.address.clone(),
     );
 
@@ -1554,8 +1576,10 @@ pub fn proper_slashing() {
     do_bond(&mut deps, addr1.clone(), Uint128(1000), validator.clone());
 
     //this will set the balance of the user in token contract
-    deps.querier
-        .with_token_balances(&[(&HumanAddr::from("token"), &[(&addr1, &Uint128(1000u128))])]);
+    deps.querier.with_token_balances(&[
+        (&HumanAddr::from("token"), &[(&addr1, &Uint128(1000u128))]),
+        (&stluna_token_contract, &[]),
+    ]);
 
     // slashing
     set_delegation(&mut deps.querier, validator.clone(), 900, "uluna");
@@ -1617,14 +1641,18 @@ pub fn proper_slashing() {
     set_delegation(&mut deps.querier, validator.clone(), 100900, "uluna");
 
     //update user balance
-    deps.querier
-        .with_token_balances(&[(&HumanAddr::from("token"), &[(&addr1, &Uint128(2111u128))])]);
+    deps.querier.with_token_balances(&[
+        (&HumanAddr::from("token"), &[(&addr1, &Uint128(2111u128))]),
+        (&stluna_token_contract, &[]),
+    ]);
 
     let mut env = mock_env(&addr1, &[]);
     let _res = handle_unbond(&mut deps, env.clone(), Uint128(500), addr1.clone()).unwrap();
 
-    deps.querier
-        .with_token_balances(&[(&HumanAddr::from("token"), &[(&addr1, &Uint128(1611u128))])]);
+    deps.querier.with_token_balances(&[
+        (&HumanAddr::from("token"), &[(&addr1, &Uint128(1611u128))]),
+        (&stluna_token_contract, &[]),
+    ]);
 
     env.block.time += 31;
     let res = handle_unbond(&mut deps, env.clone(), Uint128(500), addr1.clone()).unwrap();
@@ -1695,7 +1723,7 @@ pub fn proper_withdraw_unbonded() {
         owner,
         reward_contract,
         token_contract,
-        stluna_token_contract,
+        stluna_token_contract.clone(),
         validator.address.clone(),
     );
 
@@ -1710,8 +1738,10 @@ pub fn proper_withdraw_unbonded() {
     let env = mock_env(&bob, &[coin(100, "uluna")]);
 
     //set bob's balance to 10 in token contract
-    deps.querier
-        .with_token_balances(&[(&HumanAddr::from("token"), &[(&bob, &Uint128(100u128))])]);
+    deps.querier.with_token_balances(&[
+        (&HumanAddr::from("token"), &[(&bob, &Uint128(100u128))]),
+        (&stluna_token_contract, &[]),
+    ]);
 
     let res = handle(&mut deps, env.clone(), bond_msg).unwrap();
     assert_eq!(2, res.messages.len());
@@ -1730,8 +1760,10 @@ pub fn proper_withdraw_unbonded() {
     let res = handle_unbond(&mut deps, env, Uint128(10), bob.clone()).unwrap();
     assert_eq!(1, res.messages.len());
 
-    deps.querier
-        .with_token_balances(&[(&HumanAddr::from("token"), &[(&bob, &Uint128(90u128))])]);
+    deps.querier.with_token_balances(&[
+        (&HumanAddr::from("token"), &[(&bob, &Uint128(90u128))]),
+        (&stluna_token_contract, &[]),
+    ]);
 
     deps.querier.with_native_balances(&[(
         HumanAddr::from(MOCK_CONTRACT_ADDR),
@@ -1757,8 +1789,10 @@ pub fn proper_withdraw_unbonded() {
 
     let res = handle_unbond(&mut deps, env.clone(), Uint128(10), bob.clone()).unwrap();
     assert_eq!(res.messages.len(), 2);
-    deps.querier
-        .with_token_balances(&[(&HumanAddr::from("token"), &[(&bob, &Uint128(80u128))])]);
+    deps.querier.with_token_balances(&[
+        (&HumanAddr::from("token"), &[(&bob, &Uint128(80u128))]),
+        (&stluna_token_contract, &[]),
+    ]);
 
     //this query should be zero since the undelegated period is not passed
     let withdrawable = WithdrawableUnbonded {
@@ -1877,7 +1911,7 @@ pub fn proper_withdraw_unbonded_respect_slashing() {
         owner,
         reward_contract,
         token_contract,
-        stluna_token_contract,
+        stluna_token_contract.clone(),
         validator.address.clone(),
     );
 
@@ -1892,8 +1926,10 @@ pub fn proper_withdraw_unbonded_respect_slashing() {
     let env = mock_env(&bob, &[coin(bond_amount.0, "uluna")]);
 
     //set bob's balance to 10 in token contract
-    deps.querier
-        .with_token_balances(&[(&HumanAddr::from("token"), &[(&bob, &bond_amount)])]);
+    deps.querier.with_token_balances(&[
+        (&HumanAddr::from("token"), &[(&bob, &bond_amount)]),
+        (&stluna_token_contract, &[]),
+    ]);
 
     let res = handle(&mut deps, env.clone(), bond_msg).unwrap();
     assert_eq!(2, res.messages.len());
@@ -1911,8 +1947,10 @@ pub fn proper_withdraw_unbonded_respect_slashing() {
 
     let res = handle_unbond(&mut deps, env, unbond_amount, bob.clone()).unwrap();
     assert_eq!(1, res.messages.len());
-    deps.querier
-        .with_token_balances(&[(&HumanAddr::from("token"), &[(&bob, &Uint128(9500))])]);
+    deps.querier.with_token_balances(&[
+        (&HumanAddr::from("token"), &[(&bob, &Uint128(9500))]),
+        (&stluna_token_contract, &[]),
+    ]);
 
     deps.querier.with_native_balances(&[(
         HumanAddr::from(MOCK_CONTRACT_ADDR),
@@ -2032,7 +2070,7 @@ pub fn proper_withdraw_unbonded_respect_inactivity_slashing() {
         owner,
         reward_contract,
         token_contract,
-        stluna_token_contract,
+        stluna_token_contract.clone(),
         validator.address.clone(),
     );
 
@@ -2047,8 +2085,10 @@ pub fn proper_withdraw_unbonded_respect_inactivity_slashing() {
     let env = mock_env(&bob, &[coin(bond_amount.0, "uluna")]);
 
     //set bob's balance to 10 in token contract
-    deps.querier
-        .with_token_balances(&[(&HumanAddr::from("token"), &[(&bob, &bond_amount)])]);
+    deps.querier.with_token_balances(&[
+        (&HumanAddr::from("token"), &[(&bob, &bond_amount)]),
+        (&stluna_token_contract, &[]),
+    ]);
 
     let res = handle(&mut deps, env.clone(), bond_msg).unwrap();
     assert_eq!(2, res.messages.len());
@@ -2067,8 +2107,10 @@ pub fn proper_withdraw_unbonded_respect_inactivity_slashing() {
     let res = handle_unbond(&mut deps, env, unbond_amount, bob.clone()).unwrap();
     assert_eq!(1, res.messages.len());
 
-    deps.querier
-        .with_token_balances(&[(&HumanAddr::from("token"), &[(&bob, &Uint128(9500))])]);
+    deps.querier.with_token_balances(&[
+        (&HumanAddr::from("token"), &[(&bob, &Uint128(9500))]),
+        (&stluna_token_contract, &[]),
+    ]);
 
     deps.querier.with_native_balances(&[(
         HumanAddr::from(MOCK_CONTRACT_ADDR),
@@ -2221,7 +2263,7 @@ pub fn proper_withdraw_unbond_with_dummies() {
         owner,
         reward_contract,
         token_contract,
-        stluna_token_contract,
+        stluna_token_contract.clone(),
         validator.address.clone(),
     );
 
@@ -2236,8 +2278,10 @@ pub fn proper_withdraw_unbond_with_dummies() {
     let env = mock_env(&bob, &[coin(bond_amount.0, "uluna")]);
 
     //set bob's balance to 10 in token contract
-    deps.querier
-        .with_token_balances(&[(&HumanAddr::from("token"), &[(&bob, &bond_amount)])]);
+    deps.querier.with_token_balances(&[
+        (&HumanAddr::from("token"), &[(&bob, &bond_amount)]),
+        (&stluna_token_contract, &[]),
+    ]);
 
     let res = handle(&mut deps, env.clone(), bond_msg).unwrap();
     assert_eq!(2, res.messages.len());
@@ -2247,8 +2291,10 @@ pub fn proper_withdraw_unbond_with_dummies() {
     let res = handle_unbond(&mut deps, env, unbond_amount, bob.clone()).unwrap();
     assert_eq!(1, res.messages.len());
 
-    deps.querier
-        .with_token_balances(&[(&HumanAddr::from("token"), &[(&bob, &Uint128(9500))])]);
+    deps.querier.with_token_balances(&[
+        (&HumanAddr::from("token"), &[(&bob, &Uint128(9500))]),
+        (&stluna_token_contract, &[]),
+    ]);
 
     deps.querier.with_native_balances(&[(
         HumanAddr::from(MOCK_CONTRACT_ADDR),
@@ -2265,22 +2311,28 @@ pub fn proper_withdraw_unbond_with_dummies() {
     // trigger undelegation message
     let res = handle_unbond(&mut deps, env.clone(), unbond_amount, bob.clone()).unwrap();
     assert_eq!(2, res.messages.len());
-    deps.querier
-        .with_token_balances(&[(&HumanAddr::from("token"), &[(&bob, &Uint128(9000))])]);
+    deps.querier.with_token_balances(&[
+        (&HumanAddr::from("token"), &[(&bob, &Uint128(9000))]),
+        (&stluna_token_contract, &[]),
+    ]);
 
     // slashing
     set_delegation(&mut deps.querier, validator, bond_amount.0 - 2000, "uluna");
 
     let res = handle_unbond(&mut deps, env.clone(), unbond_amount, bob.clone()).unwrap();
     assert_eq!(1, res.messages.len());
-    deps.querier
-        .with_token_balances(&[(&HumanAddr::from("token"), &[(&bob, &Uint128(8500))])]);
+    deps.querier.with_token_balances(&[
+        (&HumanAddr::from("token"), &[(&bob, &Uint128(8500))]),
+        (&stluna_token_contract, &[]),
+    ]);
 
     env.block.time += 31;
     let res = handle_unbond(&mut deps, env.clone(), unbond_amount, bob.clone()).unwrap();
     assert_eq!(2, res.messages.len());
-    deps.querier
-        .with_token_balances(&[(&HumanAddr::from("token"), &[(&bob, &Uint128(8000))])]);
+    deps.querier.with_token_balances(&[
+        (&HumanAddr::from("token"), &[(&bob, &Uint128(8000))]),
+        (&stluna_token_contract, &[]),
+    ]);
 
     // fabricate balance of the hub contract
     deps.querier.with_native_balances(&[(
@@ -2433,7 +2485,7 @@ pub fn proper_recovery_fee() {
         owner,
         reward_contract,
         token_contract.clone(),
-        stluna_token_contract,
+        stluna_token_contract.clone(),
         validator.address.clone(),
     );
 
@@ -2458,8 +2510,10 @@ pub fn proper_recovery_fee() {
     };
 
     //this will set the balance of the user in token contract
-    deps.querier
-        .with_token_balances(&[(&HumanAddr::from("token"), &[(&bob, &bond_amount)])]);
+    deps.querier.with_token_balances(&[
+        (&HumanAddr::from("token"), &[(&bob, &bond_amount)]),
+        (&stluna_token_contract, &[]),
+    ]);
 
     let env = mock_env(&bob, &[coin(bond_amount.0, "uluna")]);
 
@@ -2482,8 +2536,10 @@ pub fn proper_recovery_fee() {
         validator: validator.address.clone(),
     };
 
-    deps.querier
-        .with_token_balances(&[(&HumanAddr::from("token"), &[(&bob, &bond_amount)])]);
+    deps.querier.with_token_balances(&[
+        (&HumanAddr::from("token"), &[(&bob, &bond_amount)]),
+        (&stluna_token_contract, &[]),
+    ]);
 
     let env = mock_env(&bob, &[coin(bond_amount.0, "uluna")]);
 
@@ -2534,8 +2590,10 @@ pub fn proper_recovery_fee() {
     assert_eq!(query_batch.id, 1);
     assert_eq!(query_batch.requested_with_fee, bonded_with_fee);
 
-    deps.querier
-        .with_token_balances(&[(&HumanAddr::from("token"), &[(&bob, &new_balance)])]);
+    deps.querier.with_token_balances(&[
+        (&HumanAddr::from("token"), &[(&bob, &new_balance)]),
+        (&stluna_token_contract, &[]),
+    ]);
 
     token_env.block.time += 60;
 

@@ -60,7 +60,7 @@ pub(crate) fn handle_unbond<S: Storage, A: Api, Q: Querier>(
         (total_supply - amount).expect("the requested can not be more than the total supply");
 
     // Update exchange rate
-    state.update_exchange_rate(total_supply, current_batch.requested_with_fee);
+    state.update_bluna_exchange_rate(total_supply, current_batch.requested_with_fee);
 
     let current_time = env.block.time;
     let passed_time = current_time - state.last_unbonded_time;

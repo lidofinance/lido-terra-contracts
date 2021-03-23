@@ -26,13 +26,26 @@ pub struct Config {
 }
 
 impl State {
-    pub fn update_exchange_rate(&mut self, total_issued: Uint128, requested_with_fee: Uint128) {
+    pub fn update_bluna_exchange_rate(
+        &mut self,
+        total_issued: Uint128,
+        requested_with_fee: Uint128,
+    ) {
         let actual_supply = total_issued + requested_with_fee;
         if self.total_bond_bluna_amount.is_zero() || actual_supply.is_zero() {
             self.bluna_exchange_rate = Decimal::one()
         } else {
             self.bluna_exchange_rate =
                 Decimal::from_ratio(self.total_bond_bluna_amount, actual_supply);
+        }
+    }
+
+    pub fn update_stluna_exchange_rate(&mut self, total_issued: Uint128) {
+        if self.total_bond_stluna_amount.is_zero() || total_issued.is_zero() {
+            self.stluna_exchange_rate = Decimal::one()
+        } else {
+            self.stluna_exchange_rate =
+                Decimal::from_ratio(self.total_bond_stluna_amount, total_issued);
         }
     }
 }
