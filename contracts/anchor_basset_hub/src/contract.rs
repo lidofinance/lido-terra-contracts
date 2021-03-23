@@ -320,8 +320,13 @@ pub fn slashing<S: Storage, A: Api, Q: Querier>(
     let params = read_parameters(&deps.storage).load()?;
     let coin_denom = params.underlying_coin_denom;
 
+    let state = read_state(&deps.storage).load()?;
+
     // Check the amount that contract thinks is bonded
-    let state_total_bonded = read_state(&deps.storage).load()?.total_bond_bluna_amount;
+    let state_total_bonded = state.total_bond_bluna_amount + state.total_bond_stluna_amount;
+
+    let bluna_bond_ratio = Decimal::from_ratio(state.total_bond_bluna_amount, state_total_bonded);
+    let stluna_bond_ratio = Decimal::from_ratio(state.total_bond_stluna_amount, state_total_bonded);
 
     // Check the actual bonded amount
     let delegations = deps.querier.query_all_delegations(env.contract.address)?;
@@ -336,14 +341,18 @@ pub fn slashing<S: Storage, A: Api, Q: Querier>(
         }
 
         // Need total issued for updating the exchange rate
-        let total_issued = query_total_bluna_issued(&deps)?;
+        let bluna_total_issued = query_total_bluna_issued(&deps)?;
+        let stluna_total_issued = query_total_stluna_issued(&deps)?;
         let current_requested_fee = read_current_batch(&deps.storage).load()?.requested_with_fee;
 
         // Slashing happens if the expected amount is less than stored amount
         if state_total_bonded.u128() > actual_total_bonded.u128() {
             store_state(&mut deps.storage).update(|mut state| {
-                state.total_bond_bluna_amount = actual_total_bonded;
-                state.update_exchange_rate(total_issued, current_requested_fee);
+                state.total_bond_bluna_amount = actual_total_bonded * bluna_bond_ratio;
+                state.total_bond_stluna_amount = actual_total_bonded * stluna_bond_ratio;
+
+                state.update_bluna_exchange_rate(bluna_total_issued, current_requested_fee);
+                state.update_stluna_exchange_rate(stluna_total_issued);
                 Ok(state)
             })?;
         }
