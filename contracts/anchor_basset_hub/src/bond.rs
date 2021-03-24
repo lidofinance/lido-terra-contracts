@@ -132,12 +132,6 @@ pub fn handle_bond_stluna<S: Storage, A: Api, Q: Querier>(
 
     let params = read_parameters(&deps.storage).load()?;
     let coin_denom = params.underlying_coin_denom;
-    let threshold = params.er_threshold;
-    let recovery_fee = params.peg_recovery_fee;
-
-    // current batch requested fee is need for accurate exchange rate computation.
-    let current_batch = read_current_batch(&deps.storage).load()?;
-    let requested_with_fee = current_batch.requested_with_fee;
 
     // coin must have be sent along with transaction and it should be in underlying coin denom
     if env.message.sent_funds.len() > 1usize {
@@ -164,24 +158,15 @@ pub fn handle_bond_stluna<S: Storage, A: Api, Q: Querier>(
     // get the total supply
     let mut total_supply = query_total_stluna_issued(&deps).unwrap_or_default();
 
-    // peg recovery fee should be considered
     let mint_amount = decimal_division(payment.amount, state.stluna_exchange_rate);
-    let mut mint_amount_with_fee = mint_amount;
-    if state.stluna_exchange_rate < threshold {
-        let max_peg_fee = mint_amount * recovery_fee;
-        let required_peg_fee = ((total_supply + mint_amount + current_batch.requested_with_fee)
-            - (state.total_bond_stluna_amount + payment.amount))?;
-        let peg_fee = Uint128::min(max_peg_fee, required_peg_fee);
-        mint_amount_with_fee = (mint_amount - peg_fee)?;
-    }
 
     // total supply should be updated for exchange rate calculation.
-    total_supply += mint_amount_with_fee;
+    total_supply += mint_amount;
 
     // exchange rate should be updated for future
     store_state(&mut deps.storage).update(|mut prev_state| {
         prev_state.total_bond_stluna_amount += payment.amount;
-        prev_state.update_bluna_exchange_rate(total_supply, requested_with_fee);
+        prev_state.update_stluna_exchange_rate(total_supply);
         Ok(prev_state)
     })?;
 
@@ -196,7 +181,7 @@ pub fn handle_bond_stluna<S: Storage, A: Api, Q: Querier>(
     // issue the basset token for sender
     let mint_msg = Cw20HandleMsg::Mint {
         recipient: sender.clone(),
-        amount: mint_amount_with_fee,
+        amount: mint_amount,
     };
 
     let config = read_config(&deps.storage).load()?;
@@ -218,7 +203,7 @@ pub fn handle_bond_stluna<S: Storage, A: Api, Q: Querier>(
             log("action", "mint"),
             log("from", sender),
             log("bonded", payment.amount),
-            log("minted", mint_amount_with_fee),
+            log("minted", mint_amount),
         ],
         data: None,
     };

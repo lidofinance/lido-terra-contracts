@@ -474,7 +474,8 @@ pub fn handle_slashing<S: Storage, A: Api, Q: Querier>(
         messages: vec![],
         log: vec![
             log("action", "check_slashing"),
-            log("new_exchange_rate", state.bluna_exchange_rate),
+            log("new_bluna_exchange_rate", state.bluna_exchange_rate),
+            log("new_stluna_exchange_rate", state.stluna_exchange_rate),
         ],
         data: None,
     })
