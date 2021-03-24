@@ -1079,14 +1079,12 @@ dependencies = [
 name = "st_luna"
 version = "1.0.0"
 dependencies = [
- "anchor_basset_reward",
  "cosmwasm-schema",
  "cosmwasm-std",
  "cosmwasm-storage",
  "cw2",
  "cw20",
  "cw20-base",
- "hub_querier",
  "schemars",
  "serde",
  "snafu",
