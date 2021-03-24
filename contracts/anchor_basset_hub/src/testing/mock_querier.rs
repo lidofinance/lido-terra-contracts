@@ -118,8 +118,12 @@ impl WasmMockQuerier {
                         reward_contract: Some(
                             api.canonical_address(&HumanAddr::from("reward")).unwrap(),
                         ),
-                        token_contract: Some(
+                        bluna_token_contract: Some(
                             api.canonical_address(&HumanAddr::from("token")).unwrap(),
+                        ),
+                        stluna_token_contract: Some(
+                            api.canonical_address(&HumanAddr::from("stluna_token"))
+                                .unwrap(),
                         ),
                         airdrop_registry_contract: Some(
                             api.canonical_address(&HumanAddr::from("airdrop")).unwrap(),
