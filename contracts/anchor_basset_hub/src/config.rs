@@ -43,6 +43,7 @@ pub fn handle_update_params<S: Storage, A: Api, Q: Querier>(
     Ok(res)
 }
 
+#[allow(clippy::too_many_arguments)]
 /// Update the config. Update the owner, reward and token contracts.
 /// Only creator/owner is allowed to execute
 pub fn handle_update_config<S: Storage, A: Api, Q: Querier>(
@@ -50,7 +51,8 @@ pub fn handle_update_config<S: Storage, A: Api, Q: Querier>(
     env: Env,
     owner: Option<HumanAddr>,
     reward_contract: Option<HumanAddr>,
-    token_contract: Option<HumanAddr>,
+    bluna_token_contract: Option<HumanAddr>,
+    stluna_token_contract: Option<HumanAddr>,
     airdrop_registry_contract: Option<HumanAddr>,
     validators_registry_contract: Option<HumanAddr>,
 ) -> StdResult<HandleResponse> {
@@ -87,11 +89,20 @@ pub fn handle_update_config<S: Storage, A: Api, Q: Querier>(
         messages.push(msg);
     }
 
-    if let Some(token) = token_contract {
+    if let Some(token) = bluna_token_contract {
         let token_raw = deps.api.canonical_address(&token)?;
 
         store_config(&mut deps.storage).update(|mut last_config| {
-            last_config.token_contract = Some(token_raw);
+            last_config.bluna_token_contract = Some(token_raw);
+            Ok(last_config)
+        })?;
+    }
+
+    if let Some(token) = stluna_token_contract {
+        let token_raw = deps.api.canonical_address(&token)?;
+
+        store_config(&mut deps.storage).update(|mut last_config| {
+            last_config.stluna_token_contract = Some(token_raw);
             Ok(last_config)
         })?;
     }
