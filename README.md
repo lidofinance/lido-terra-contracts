@@ -6,12 +6,12 @@ You can find information about the architecture, usage, and function of the smar
 
 
 ## Contracts
-
-| Name                                                                                  | Description                                                                     |
-| ---------------------------------------------------------------------------------------- | -----------------------------------------------------------------------------|
-| [`anchor_basset_hub`](https://github.com/Anchor-Protocol/anchor-bAsset-contracts/tree/master/contracts/anchor_basset_hub/README.md)       | control governance          |
-| [`anchor_basset_reward`](https://github.com/Anchor-Protocol/anchor-bAsset-contracts/tree/master/contracts/anchor_basset_reward/README.md) | control reward distribution |
-| [`anchor_basset_token`](https://github.com/Anchor-Protocol/anchor-bAsset-contracts/tree/master/contracts/anchor_basset_token/README.md)   | CW20 compliance             |
+| Contract                                            | Reference                                              | Description                                                                                                                        |
+| --------------------------------------------------- | ------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------- |
+| [`anchor_basset_hub`](https://github.com/Anchor-Protocol/anchor-bAsset-contracts/tree/master/contracts/anchor_basset_hub)|[doc](https://docs.anchorprotocol/contracts/anchor_basset_hub)| Manages minted bLunas and bonded Lunas
+| [`anchor_basset_reward`](https://github.com/Anchor-Protocol/anchor-bAsset-contracts/tree/master/contracts/anchor_basset_reward)|[doc](https://docs.anchorprotocol/contracts/anchor_basset_reward)|Manages the distribution of delegation rewards
+| [`anchor_basset_token`](https://github.com/Anchor-Protocol/anchor-bAsset-contracts/tree/master/contracts/anchor_basset_token)| [doc](https://docs.anchorprotocol/contracts/anchor_basset_token)|CW20 compliance 
+| [`anchor_airdrop_registery`](https://github.com/Anchor-Protocol/anchor-bAsset-contracts/tree/master/contracts/anchor_airdrop_registry)| [doc](https://docs.anchorprotocol/contracts/anchor_basset_airdrop_registery)|Manages message fabricators for MIR and ANC airdrops
 ## Development
 
 ### Environment Setup
@@ -33,7 +33,7 @@ rustup target add wasm32-unknown-unknown
 
 ### Unit / Integration Tests
 
-Each contract contains Rust unit and integration tests embedded within the contract source directories. You can run:
+Each contract contains Rust unit tests embedded within the contract source directories. You can run:
 
 ```sh
 cargo test unit-test
@@ -66,7 +66,7 @@ This performs several optimizations which can significantly reduce the final siz
 
 ## License
 
-Copyright 2020 Anchor Protocol
+Copyright 2021 Anchor Protocol
 
 Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except in compliance with the License. You may obtain a copy of the License at http://www.apache.org/licenses/LICENSE-2.0. Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 
