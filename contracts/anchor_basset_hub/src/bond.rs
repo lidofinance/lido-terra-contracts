@@ -1,27 +1,20 @@
 use crate::contract::{query_total_bluna_issued, query_total_stluna_issued, slashing};
 use crate::math::decimal_division;
-use crate::state::{
-    is_valid_validator, read_config, read_current_batch, read_parameters, read_state, store_state,
-};
+use crate::state::{read_config, read_current_batch, read_parameters, read_state, store_state};
 use cosmwasm_std::{
-    log, to_binary, Api, CosmosMsg, Env, Extern, HandleResponse, HumanAddr, Querier, StakingMsg,
-    StdError, StdResult, Storage, Uint128, WasmMsg,
+    to_binary, Api, Coin, CosmosMsg, Env, Extern, HandleResponse, Querier, QueryRequest,
+    StakingMsg, StdError, StdResult, Storage, Uint128, WasmMsg, WasmQuery,
 };
 use cw20::Cw20HandleMsg;
+use std::ops::AddAssign;
+use validators_registry::common::calculate_delegations;
+use validators_registry::msg::{HandleMsg as HandleMsgValidators, QueryMsg as QueryValidators};
+use validators_registry::registry::Validator;
 
 pub fn handle_bond<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
     env: Env,
-    validator: HumanAddr,
-) -> StdResult<HandleResponse> {
-    // validator must be whitelisted
-    let is_valid = is_valid_validator(&deps.storage, validator.clone())?;
-    if !is_valid {
-        return Err(StdError::generic_err(
-            "The chosen validator is currently not supported",
-        ));
-    }
-
+) -> Result<HandleResponse, StdError> {
     let params = read_parameters(&deps.storage).load()?;
     let coin_denom = params.underlying_coin_denom;
     let threshold = params.er_threshold;
@@ -38,6 +31,7 @@ pub fn handle_bond<S: Storage, A: Api, Q: Querier>(
         ));
     }
 
+    // coin must have be sent along with transaction and it should be in underlying coin denom
     let payment = env
         .message
         .sent_funds
@@ -57,6 +51,7 @@ pub fn handle_bond<S: Storage, A: Api, Q: Querier>(
     let mut total_supply = query_total_bluna_issued(&deps).unwrap_or_default();
 
     // peg recovery fee should be considered
+
     let mint_amount = decimal_division(payment.amount, state.bluna_exchange_rate);
     let mut mint_amount_with_fee = mint_amount;
     if state.bluna_exchange_rate < threshold {
@@ -77,17 +72,49 @@ pub fn handle_bond<S: Storage, A: Api, Q: Querier>(
         Ok(prev_state)
     })?;
 
-    let mut messages: Vec<CosmosMsg> = vec![];
+    let config = read_config(&deps.storage).load()?;
+    let validators_registry_contract = if let Some(v) = config.validators_registry_contract {
+        v
+    } else {
+        return Err(StdError::generic_err(
+            "Validators registry contract address is empty",
+        ));
+    };
+    let mut validators: Vec<Validator> =
+        deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
+            contract_addr: deps.api.human_address(&validators_registry_contract)?,
+            msg: to_binary(&QueryValidators::GetValidatorsForDelegation {})?,
+        }))?;
 
-    // send the delegate message
-    messages.push(CosmosMsg::Staking(StakingMsg::Delegate {
-        validator,
-        amount: payment.clone(),
-    }));
+    let (_remaining_buffered_balance, delegations) =
+        calculate_delegations(payment.amount, validators.as_slice())?;
 
-    // issue the basset token for sender
+    let mut external_call_msgs: Vec<cosmwasm_std::CosmosMsg> = vec![];
+    for i in 0..delegations.len() {
+        if delegations[i].is_zero() {
+            continue;
+        }
+        external_call_msgs.push(cosmwasm_std::CosmosMsg::Staking(StakingMsg::Delegate {
+            validator: validators[i].address.clone(),
+            amount: Coin::new(delegations[i].u128(), payment.denom.as_str()),
+        }));
+        validators[i].total_delegated.add_assign(delegations[i]);
+    }
+
+    if !external_call_msgs.is_empty() {
+        external_call_msgs.push(cosmwasm_std::CosmosMsg::Wasm(
+            cosmwasm_std::WasmMsg::Execute {
+                contract_addr: deps.api.human_address(&validators_registry_contract)?,
+                msg: to_binary(&HandleMsgValidators::UpdateTotalDelegated {
+                    updated_validators: validators,
+                })?,
+                send: vec![],
+            },
+        ));
+    }
+
     let mint_msg = Cw20HandleMsg::Mint {
-        recipient: sender.clone(),
+        recipient: sender,
         amount: mint_amount_with_fee,
     };
 
@@ -98,21 +125,16 @@ pub fn handle_bond<S: Storage, A: Api, Q: Querier>(
             .expect("the token contract must have been registered"),
     )?;
 
-    messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
+    external_call_msgs.push(CosmosMsg::Wasm(WasmMsg::Execute {
         contract_addr: token_address,
         msg: to_binary(&mint_msg)?,
         send: vec![],
     }));
 
     let res = HandleResponse {
-        messages,
-        log: vec![
-            log("action", "mint"),
-            log("from", sender),
-            log("bonded", payment.amount),
-            log("minted", mint_amount_with_fee),
-        ],
+        messages: external_call_msgs,
         data: None,
+        log: vec![],
     };
     Ok(res)
 }
@@ -120,16 +142,7 @@ pub fn handle_bond<S: Storage, A: Api, Q: Querier>(
 pub fn handle_bond_stluna<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
     env: Env,
-    validator: HumanAddr,
 ) -> StdResult<HandleResponse> {
-    // validator must be whitelisted
-    let is_valid = is_valid_validator(&deps.storage, validator.clone())?;
-    if !is_valid {
-        return Err(StdError::generic_err(
-            "The chosen validator is currently not supported",
-        ));
-    }
-
     let params = read_parameters(&deps.storage).load()?;
     let coin_denom = params.underlying_coin_denom;
 
@@ -170,17 +183,49 @@ pub fn handle_bond_stluna<S: Storage, A: Api, Q: Querier>(
         Ok(prev_state)
     })?;
 
-    let mut messages: Vec<CosmosMsg> = vec![];
+    let config = read_config(&deps.storage).load()?;
+    let validators_registry_contract = if let Some(v) = config.validators_registry_contract {
+        v
+    } else {
+        return Err(StdError::generic_err(
+            "Validators registry contract address is empty",
+        ));
+    };
+    let mut validators: Vec<Validator> =
+        deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
+            contract_addr: deps.api.human_address(&validators_registry_contract)?,
+            msg: to_binary(&QueryValidators::GetValidatorsForDelegation {})?,
+        }))?;
 
-    // send the delegate message
-    messages.push(CosmosMsg::Staking(StakingMsg::Delegate {
-        validator,
-        amount: payment.clone(),
-    }));
+    let (_remaining_buffered_balance, delegations) =
+        calculate_delegations(payment.amount, validators.as_slice())?;
 
-    // issue the basset token for sender
+    let mut external_call_msgs: Vec<cosmwasm_std::CosmosMsg> = vec![];
+    for i in 0..delegations.len() {
+        if delegations[i].is_zero() {
+            continue;
+        }
+        external_call_msgs.push(cosmwasm_std::CosmosMsg::Staking(StakingMsg::Delegate {
+            validator: validators[i].address.clone(),
+            amount: Coin::new(delegations[i].u128(), payment.denom.as_str()),
+        }));
+        validators[i].total_delegated.add_assign(delegations[i]);
+    }
+
+    if !external_call_msgs.is_empty() {
+        external_call_msgs.push(cosmwasm_std::CosmosMsg::Wasm(
+            cosmwasm_std::WasmMsg::Execute {
+                contract_addr: deps.api.human_address(&validators_registry_contract)?,
+                msg: to_binary(&HandleMsgValidators::UpdateTotalDelegated {
+                    updated_validators: validators,
+                })?,
+                send: vec![],
+            },
+        ));
+    }
+
     let mint_msg = Cw20HandleMsg::Mint {
-        recipient: sender.clone(),
+        recipient: sender,
         amount: mint_amount,
     };
 
@@ -191,21 +236,16 @@ pub fn handle_bond_stluna<S: Storage, A: Api, Q: Querier>(
             .expect("the token contract must have been registered"),
     )?;
 
-    messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
+    external_call_msgs.push(CosmosMsg::Wasm(WasmMsg::Execute {
         contract_addr: token_address,
         msg: to_binary(&mint_msg)?,
         send: vec![],
     }));
 
     let res = HandleResponse {
-        messages,
-        log: vec![
-            log("action", "mint"),
-            log("from", sender),
-            log("bonded", payment.amount),
-            log("minted", mint_amount),
-        ],
+        messages: external_call_msgs,
         data: None,
+        log: vec![],
     };
     Ok(res)
 }
