@@ -20,6 +20,7 @@ pub struct State {
 pub struct Config {
     pub creator: CanonicalAddr,
     pub reward_contract: Option<CanonicalAddr>,
+    pub validators_registry_contract: Option<CanonicalAddr>,
     pub bluna_token_contract: Option<CanonicalAddr>,
     pub stluna_token_contract: Option<CanonicalAddr>,
     pub airdrop_registry_contract: Option<CanonicalAddr>,
@@ -61,19 +62,10 @@ pub enum HandleMsg {
     UpdateConfig {
         owner: Option<HumanAddr>,
         reward_contract: Option<HumanAddr>,
+        validators_registry_contract: Option<HumanAddr>,
         bluna_token_contract: Option<HumanAddr>,
         stluna_token_contract: Option<HumanAddr>,
         airdrop_registry_contract: Option<HumanAddr>,
-    },
-
-    /// Register receives the reward contract address
-    RegisterValidator {
-        validator: HumanAddr,
-    },
-
-    // Remove the validator from validators whitelist
-    DeregisterValidator {
-        validator: HumanAddr,
     },
 
     /// update the parameters that is needed for the contract
@@ -89,15 +81,11 @@ pub enum HandleMsg {
     ////////////////////
 
     /// Receives `amount` in underlying coin denom from sender.
-    /// Delegate `amount` to a specific `validator`.
+    /// Delegate `amount` equally between validators from the registry.
     /// Issue `amount` / exchange_rate for the user.
-    Bond {
-        validator: HumanAddr,
-    },
+    Bond {},
 
-    BondForStLuna {
-        validator: HumanAddr,
-    },
+    BondForStLuna {},
 
     /// Update global index
     UpdateGlobalIndex {

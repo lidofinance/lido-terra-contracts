@@ -51,45 +51,16 @@
                   "type": "null"
                 }
               ]
-            }
-          }
-        }
-      }
-    },
-    {
-      "description": "Register receives the reward contract address",
-      "type": "object",
-      "required": [
-        "register_validator"
-      ],
-      "properties": {
-        "register_validator": {
-          "type": "object",
-          "required": [
-            "validator"
-          ],
-          "properties": {
-            "validator": {
-              "$ref": "#/definitions/HumanAddr"
-            }
-          }
-        }
-      }
-    },
-    {
-      "type": "object",
-      "required": [
-        "deregister_validator"
-      ],
-      "properties": {
-        "deregister_validator": {
-          "type": "object",
-          "required": [
-            "validator"
-          ],
-          "properties": {
-            "validator": {
-              "$ref": "#/definitions/HumanAddr"
+            },
+            "validators_registry_contract": {
+              "anyOf": [
+                {
+                  "$ref": "#/definitions/HumanAddr"
+                },
+                {
+                  "type": "null"
+                }
+              ]
             }
           }
         }
@@ -146,22 +117,14 @@
       }
     },
     {
-      "description": "User's operations Receives `amount` in underlying coin denom from sender. Delegate `amount` to a specific `validator`. Issue `amount` / exchange_rate for the user.",
+      "description": "User's operations Receives `amount` in underlying coin denom from sender. Delegate `amount` equally between validators from the registry. Issue `amount` / exchange_rate for the user.",
       "type": "object",
       "required": [
         "bond"
       ],
       "properties": {
         "bond": {
-          "type": "object",
-          "required": [
-            "validator"
-          ],
-          "properties": {
-            "validator": {
-              "$ref": "#/definitions/HumanAddr"
-            }
-          }
+          "type": "object"
         }
       }
     },

@@ -13,7 +13,6 @@ pub struct InitMsg {
     pub peg_recovery_fee: Decimal,
     pub er_threshold: Decimal,
     pub reward_denom: String,
-    pub validator: HumanAddr,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -21,7 +20,6 @@ pub struct InitMsg {
 pub enum QueryMsg {
     Config {},
     State {},
-    WhitelistedValidators {},
     CurrentBatch {},
     WithdrawableUnbonded {
         address: HumanAddr,
@@ -54,6 +52,7 @@ pub struct StateResponse {
 pub struct ConfigResponse {
     pub owner: HumanAddr,
     pub reward_contract: Option<HumanAddr>,
+    pub validators_registry_contract: Option<HumanAddr>,
     pub bluna_token_contract: Option<HumanAddr>,
     pub stluna_token_contract: Option<HumanAddr>,
     pub airdrop_registry_contract: Option<HumanAddr>,
