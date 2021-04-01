@@ -5,9 +5,6 @@ use crate::state::{read_config, store_config, Config};
 use terra_cosmwasm::{SwapResponse, TerraQuerier, TerraMsgWrapper, create_swap_msg};
 use std::ops::Mul;
 
-pub const LUNA_DENOM: &str = "uluna";
-pub const USD_DENOM: &str = "uusd";
-
 pub fn init<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
     _env: Env,
@@ -15,6 +12,8 @@ pub fn init<S: Storage, A: Api, Q: Querier>(
 ) -> StdResult<InitResponse> {
     let conf = Config {
         hub_contract: deps.api.canonical_address(&msg.hub_contract)?,
+        bluna_reward_denom: msg.bluna_reward_denom,
+        stluna_reward_denom: msg.stluna_reward_denom,
     };
 
     store_config(&mut deps.storage, &conf)?;
@@ -60,29 +59,33 @@ pub fn handle_swap<S: Storage, A: Api, Q: Querier>(
     let contr_addr = env.contract.address;
     let balance = deps.querier.query_all_balances(contr_addr.clone())?;
     let (
-        total_luna_available,
-        total_usd_available,
+        total_stluna_rewards_available,
+        total_bluna_rewards_available,
         mut msgs
     ) = convert_to_target_denoms(
         deps,
         contr_addr.clone(),
         balance,
-        LUNA_DENOM.to_string(),
-        USD_DENOM.to_string(),
+        config.stluna_reward_denom.clone(),
+        config.bluna_reward_denom.clone(),
     )?;
 
     let (
-        usd_2_luna_xchg_rate,
-        luna_2_usd_xchg_rate,
-    ) = get_exchange_rates(deps, USD_DENOM, LUNA_DENOM)?;
+        stluna_2_bluna_rewards_xchg_rate,
+        bluna_2_stluna_rewards_xchg_rate,
+    ) = get_exchange_rates(
+        deps,
+        config.stluna_reward_denom.as_str(),
+        config.bluna_reward_denom.as_str())?;
 
     let (offer_coin, ask_denom) = get_swap_info(
+        config,
         stluna_total_bond_amount,
         bluna_total_bond_amount,
-        total_luna_available,
-        total_usd_available,
-        usd_2_luna_xchg_rate,
-        luna_2_usd_xchg_rate,
+        total_stluna_rewards_available,
+        total_bluna_rewards_available,
+        bluna_2_stluna_rewards_xchg_rate,
+        stluna_2_bluna_rewards_xchg_rate,
     ).unwrap();
 
     msgs.push(create_swap_msg(contr_addr.clone(), offer_coin, ask_denom));
@@ -149,30 +152,40 @@ pub(crate) fn get_exchange_rates<S: Storage, A: Api, Q: Querier>(
     Ok((a_2_b_xchg_rates[0].exchange_rate, b_2_a_xchg_rates[0].exchange_rate))
 }
 
-pub(crate) fn get_swap_info(stluna_total_bond_amount: Uint128,
-                            bluna_total_bond_amount: Uint128,
-                            total_luna_available: Uint128,
-                            total_usd_available: Uint128,
-                            usd_2_luna_xchg_rate: Decimal,
-                            luna_2_usd_xchg_rate: Decimal) -> StdResult<(Coin, String)> {
+pub(crate) fn get_swap_info(
+    config: Config,
+    stluna_total_bond_amount: Uint128,
+    bluna_total_bond_amount: Uint128,
+    total_stluna_rewards_available: Uint128,
+    total_bluna_rewards_available: Uint128,
+    bluna_2_stluna_rewards_xchg_rate: Decimal,
+    stluna_2_bluna_rewards_xchg_rate: Decimal,
+) -> StdResult<(Coin, String)> {
     // Total rewards in stLuna rewards currency.
-    let total_rewards_luna = total_luna_available +
-        total_usd_available.mul(usd_2_luna_xchg_rate);
+    let total_rewards_in_stluna_rewards = total_stluna_rewards_available +
+        total_bluna_rewards_available.mul(bluna_2_stluna_rewards_xchg_rate);
 
-    let stluna_share_of_total_rewards = total_rewards_luna.multiply_ratio(
+    let stluna_share_of_total_rewards = total_rewards_in_stluna_rewards.multiply_ratio(
         stluna_total_bond_amount,
         stluna_total_bond_amount + bluna_total_bond_amount,
     );
 
-    if total_luna_available.gt(&stluna_share_of_total_rewards) {
-        let luna_to_sell = (total_luna_available - stluna_share_of_total_rewards)?;
+    if total_stluna_rewards_available.gt(&stluna_share_of_total_rewards) {
+        let stluna_rewards_to_sell = (total_stluna_rewards_available -
+            stluna_share_of_total_rewards)?;
 
-        Ok((Coin::new(luna_to_sell.u128(), LUNA_DENOM), USD_DENOM.to_string()))
+        Ok((Coin::new(
+            stluna_rewards_to_sell.u128(),
+            config.stluna_reward_denom.as_str()), config.bluna_reward_denom))
     } else {
-        let bluna_to_buy = (stluna_share_of_total_rewards - total_luna_available)?;
-        let usd_to_sell = bluna_to_buy.mul(luna_2_usd_xchg_rate);
+        let stluna_rewards_to_buy = (stluna_share_of_total_rewards -
+            total_stluna_rewards_available)?;
+        let bluna_rewards_to_sell = stluna_rewards_to_buy.mul(
+            stluna_2_bluna_rewards_xchg_rate);
 
-        Ok((Coin::new(usd_to_sell.u128(), USD_DENOM), LUNA_DENOM.to_string()))
+        Ok((Coin::new(
+            bluna_rewards_to_sell.u128(),
+            config.bluna_reward_denom.as_str()), config.stluna_reward_denom))
     }
 }
 
@@ -192,6 +205,8 @@ pub fn query<S: Storage, A: Api, Q: Querier>(
     }
 }
 
-fn query_get_buffered_rewards<S: Storage, A: Api, Q: Querier>(_deps: &Extern<S, A, Q>) -> StdResult<GetBufferedRewardsResponse> {
+fn query_get_buffered_rewards<S: Storage, A: Api, Q: Querier>(
+    _deps: &Extern<S, A, Q>
+) -> StdResult<GetBufferedRewardsResponse> {
     Ok(GetBufferedRewardsResponse {})
 }
