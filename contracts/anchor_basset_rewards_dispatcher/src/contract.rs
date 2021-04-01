@@ -1,4 +1,5 @@
-use cosmwasm_std::{to_binary, Api, Binary, Env, Extern, HandleResponse, InitResponse, Querier, StdError, StdResult, Storage, log, Uint128, Decimal, CosmosMsg, Coin, HumanAddr, LogAttribute};
+use cosmwasm_std::{to_binary, Api, Binary, Env, Extern, HandleResponse, InitResponse, Querier,
+                   StdError, StdResult, Storage, log, Uint128, Decimal, CosmosMsg, Coin, HumanAddr};
 
 use crate::msg::{HandleMsg, InitMsg, QueryMsg, GetBufferedRewardsResponse};
 use crate::state::{read_config, store_config, Config};
@@ -100,7 +101,7 @@ pub fn handle_swap<S: Storage, A: Api, Q: Querier>(
         messages: msgs,
         log: vec![
             log("action", "swap"),
-            log("initial_balance", balance),
+            log("initial_balance", format!("{:?}", balance)),
             log("total_stluna_rewards_available", total_stluna_rewards_available),
             log("total_bluna_rewards_available", total_bluna_rewards_available),
             log("offer_coin_denom", offer_coin.denom),
@@ -160,6 +161,7 @@ pub(crate) fn get_exchange_rates<S: Storage, A: Api, Q: Querier>(
     let a_2_b_xchg_rates = terra_querier.query_exchange_rates(
         denom_a.to_string(),
         vec![denom_b.to_string()])?.exchange_rates;
+
     let b_2_a_xchg_rates = terra_querier.query_exchange_rates(
         denom_b.to_string(),
         vec![denom_a.to_string()])?.exchange_rates;
