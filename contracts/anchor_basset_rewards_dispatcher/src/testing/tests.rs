@@ -20,13 +20,16 @@
 use cosmwasm_std::testing::{mock_env};
 use cosmwasm_std::{coins, HumanAddr, Uint128, Decimal, Coin};
 
-use crate::contract::{init, get_swap_info, USD_DENOM, LUNA_DENOM, handle};
+use crate::contract::{init, get_swap_info, handle};
 use crate::msg::{InitMsg, HandleMsg};
 use crate::testing::mock_querier::{MOCK_HUB_CONTRACT_ADDR, mock_dependencies};
+use crate::state::read_config;
 
 fn default_init() -> InitMsg {
     InitMsg {
         hub_contract: HumanAddr::from(MOCK_HUB_CONTRACT_ADDR),
+        bluna_reward_denom: "uusd".to_string(),
+        stluna_reward_denom: "uluna".to_string(),
     }
 }
 
@@ -47,8 +50,8 @@ fn swap_to_reward_denom() {
     let mut deps = mock_dependencies(
         20,
         &[
-            Coin::new(20, LUNA_DENOM),
-            Coin::new(20, USD_DENOM),
+            Coin::new(20, "uluna"),
+            Coin::new(20, "uusd"),
             Coin::new(20, "usdr")
         ],
     );
@@ -81,54 +84,59 @@ fn test_get_swap_info() {
     let res = init(&mut deps, env, msg).unwrap();
     assert_eq!(0, res.messages.len());
 
+    let config = read_config(&deps.storage).unwrap();
+
     let stluna_total_bond_amount = Uint128(2);
     let bluna_total_bond_amount = Uint128(2);
-    let total_luna_available = Uint128(20);
-    let total_ust_available = Uint128(20);
-    let ust_2_luna_xchg_rate = Decimal::from_ratio(Uint128(1), Uint128(1));
-    let luna_2_ust_xchg_rate = Decimal::from_ratio(Uint128(1), Uint128(1));
+    let total_stluna_rewards_available = Uint128(20);
+    let total_bluna_rewards_available = Uint128(20);
+    let bluna_2_stluna_rewards_xchg_rate = Decimal::from_ratio(Uint128(1), Uint128(1));
+    let stluna_2_bluna_rewards_xchg_rate = Decimal::from_ratio(Uint128(1), Uint128(1));
     let (offer_coin, _) = get_swap_info(
+        config.clone(),
         stluna_total_bond_amount,
         bluna_total_bond_amount,
-        total_luna_available,
-        total_ust_available,
-        ust_2_luna_xchg_rate,
-        luna_2_ust_xchg_rate,
+        total_stluna_rewards_available,
+        total_bluna_rewards_available,
+        bluna_2_stluna_rewards_xchg_rate,
+        stluna_2_bluna_rewards_xchg_rate,
     ).unwrap();
-    assert_eq!(offer_coin.denom, USD_DENOM);
+    assert_eq!(offer_coin.denom, config.bluna_reward_denom.clone());
     assert_eq!(offer_coin.amount, Uint128(0));
 
     let stluna_total_bond_amount = Uint128(2);
     let bluna_total_bond_amount = Uint128(2);
-    let total_luna_available = Uint128(20);
-    let total_ust_available = Uint128(20);
-    let ust_2_luna_xchg_rate = Decimal::from_ratio(Uint128(15), Uint128(10));
-    let luna_2_ust_xchg_rate = Decimal::from_ratio(Uint128(10), Uint128(15));
+    let total_stluna_rewards_available = Uint128(20);
+    let total_bluna_rewards_available = Uint128(20);
+    let bluna_2_stluna_rewards_xchg_rate = Decimal::from_ratio(Uint128(15), Uint128(10));
+    let stluna_2_bluna_rewards_xchg_rate = Decimal::from_ratio(Uint128(10), Uint128(15));
     let (offer_coin, _) = get_swap_info(
+        config.clone(),
         stluna_total_bond_amount,
         bluna_total_bond_amount,
-        total_luna_available,
-        total_ust_available,
-        ust_2_luna_xchg_rate,
-        luna_2_ust_xchg_rate,
+        total_stluna_rewards_available,
+        total_bluna_rewards_available,
+        bluna_2_stluna_rewards_xchg_rate,
+        stluna_2_bluna_rewards_xchg_rate,
     ).unwrap();
-    assert_eq!(offer_coin.denom, USD_DENOM);
+    assert_eq!(offer_coin.denom, config.bluna_reward_denom.clone());
     assert_eq!(offer_coin.amount, Uint128(3));
 
     let stluna_total_bond_amount = Uint128(2);
     let bluna_total_bond_amount = Uint128(2);
-    let total_luna_available = Uint128(20);
-    let total_ust_available = Uint128(20);
-    let ust_2_luna_xchg_rate = Decimal::from_ratio(Uint128(75), Uint128(100));
-    let luna_2_ust_xchg_rate = Decimal::from_ratio(Uint128(100), Uint128(75));
+    let total_stluna_rewards_available = Uint128(20);
+    let total_bluna_rewards_available = Uint128(20);
+    let bluna_2_stluna_rewards_xchg_rate = Decimal::from_ratio(Uint128(75), Uint128(100));
+    let stluna_2_bluna_rewards_xchg_rate = Decimal::from_ratio(Uint128(100), Uint128(75));
     let (offer_coin, _) = get_swap_info(
+        config.clone(),
         stluna_total_bond_amount,
         bluna_total_bond_amount,
-        total_luna_available,
-        total_ust_available,
-        ust_2_luna_xchg_rate,
-        luna_2_ust_xchg_rate,
+        total_stluna_rewards_available,
+        total_bluna_rewards_available,
+        bluna_2_stluna_rewards_xchg_rate,
+        stluna_2_bluna_rewards_xchg_rate,
     ).unwrap();
-    assert_eq!(offer_coin.denom, LUNA_DENOM);
+    assert_eq!(offer_coin.denom, config.stluna_reward_denom.clone());
     assert_eq!(offer_coin.amount, Uint128(3));
 }

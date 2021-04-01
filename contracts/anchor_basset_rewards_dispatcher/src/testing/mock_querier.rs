@@ -5,7 +5,6 @@ use cosmwasm_std::{
 };
 use cosmwasm_storage::to_length_prefixed;
 use terra_cosmwasm::{TaxCapResponse, TaxRateResponse, TerraQuery, TerraQueryWrapper, TerraRoute, SwapResponse};
-use crate::contract::{LUNA_DENOM, USD_DENOM};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -53,6 +52,10 @@ impl Querier for WasmMockQuerier {
 
 impl WasmMockQuerier {
     pub fn handle_query(&self, request: &QueryRequest<TerraQueryWrapper>) -> QuerierResult {
+        let (
+            luna_denom,
+            usd_denom,
+        ) = ("uluna", "uusd");
         match &request {
             QueryRequest::Custom(TerraQueryWrapper { route, query_data }) => {
                 if &TerraRoute::Treasury == route || &TerraRoute::Market == route || &TerraRoute::Oracle == route {
@@ -69,7 +72,7 @@ impl WasmMockQuerier {
                             Ok(to_binary(&res))
                         }
                         TerraQuery::ExchangeRates { base_denom, quote_denoms } => {
-                            if base_denom == LUNA_DENOM {
+                            if base_denom == luna_denom {
                                 let mut exchange_rates: Vec<ExchangeRateItem> = Vec::new();
                                 for quote_denom in quote_denoms {
                                     exchange_rates.push(ExchangeRateItem {
@@ -82,7 +85,7 @@ impl WasmMockQuerier {
                                     exchange_rates,
                                 };
                                 Ok(to_binary(&res))
-                            } else if base_denom == USD_DENOM {
+                            } else if base_denom == usd_denom {
                                 let mut exchange_rates: Vec<ExchangeRateItem> = Vec::new();
                                 for quote_denom in quote_denoms {
                                     exchange_rates.push(ExchangeRateItem {
