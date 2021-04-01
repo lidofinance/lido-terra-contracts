@@ -1,4 +1,4 @@
-use cosmwasm_std::{to_binary, Api, Binary, Env, Extern, HandleResponse, InitResponse, Querier, StdError, StdResult, Storage, log, Uint128, Decimal, CosmosMsg, Coin, HumanAddr};
+use cosmwasm_std::{to_binary, Api, Binary, Env, Extern, HandleResponse, InitResponse, Querier, StdError, StdResult, Storage, log, Uint128, Decimal, CosmosMsg, Coin, HumanAddr, LogAttribute};
 
 use crate::msg::{HandleMsg, InitMsg, QueryMsg, GetBufferedRewardsResponse};
 use crate::state::{read_config, store_config, Config};
@@ -65,7 +65,7 @@ pub fn handle_swap<S: Storage, A: Api, Q: Querier>(
     ) = convert_to_target_denoms(
         deps,
         contr_addr.clone(),
-        balance,
+        balance.clone(),
         config.stluna_reward_denom.clone(),
         config.bluna_reward_denom.clone(),
     )?;
@@ -88,10 +88,25 @@ pub fn handle_swap<S: Storage, A: Api, Q: Querier>(
         stluna_2_bluna_rewards_xchg_rate,
     ).unwrap();
 
-    msgs.push(create_swap_msg(contr_addr.clone(), offer_coin, ask_denom));
+    msgs.push(
+        create_swap_msg(
+            contr_addr.clone(),
+            offer_coin.clone(),
+            ask_denom.clone())
+    );
+
+
     let res = HandleResponse {
         messages: msgs,
-        log: vec![log("action", "swap")],
+        log: vec![
+            log("action", "swap"),
+            log("initial_balance", balance),
+            log("total_stluna_rewards_available", total_stluna_rewards_available),
+            log("total_bluna_rewards_available", total_bluna_rewards_available),
+            log("offer_coin_denom", offer_coin.denom),
+            log("offer_coin_amount", offer_coin.amount),
+            log("ask_denom", ask_denom)
+        ],
         data: None,
     };
 
