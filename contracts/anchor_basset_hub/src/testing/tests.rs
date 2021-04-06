@@ -581,7 +581,7 @@ fn proper_bond_rewards() {
         owner,
         reward_dispatcher_contract.clone(),
         token_contract,
-        stluna_token_contract.clone(),
+        stluna_token_contract,
     );
 
     // register_validator
