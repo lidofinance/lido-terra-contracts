@@ -51,7 +51,7 @@ pub struct StateResponse {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct ConfigResponse {
     pub owner: HumanAddr,
-    pub reward_contract: Option<HumanAddr>,
+    pub reward_dispatcher_contract: Option<HumanAddr>,
     pub validators_registry_contract: Option<HumanAddr>,
     pub bluna_token_contract: Option<HumanAddr>,
     pub stluna_token_contract: Option<HumanAddr>,

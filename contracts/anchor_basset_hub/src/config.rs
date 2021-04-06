@@ -77,7 +77,7 @@ pub fn handle_update_config<S: Storage, A: Api, Q: Querier>(
         let reward_raw = deps.api.canonical_address(&reward)?;
 
         store_config(&mut deps.storage).update(|mut last_config| {
-            last_config.reward_contract = Some(reward_raw);
+            last_config.reward_dispatcher_contract = Some(reward_raw);
             Ok(last_config)
         })?;
 
