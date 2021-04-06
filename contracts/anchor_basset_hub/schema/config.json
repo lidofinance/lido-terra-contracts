@@ -38,6 +38,16 @@
           "type": "null"
         }
       ]
+    },
+    "validators_registry_contract": {
+      "anyOf": [
+        {
+          "$ref": "#/definitions/CanonicalAddr"
+        },
+        {
+          "type": "null"
+        }
+      ]
     }
   },
   "definitions": {

@@ -4,22 +4,20 @@ use cosmwasm_std::{
     Uint128, WasmMsg, WasmQuery,
 };
 
-use crate::config::{
-    handle_deregister_validator, handle_register_validator, handle_update_config,
-    handle_update_params,
-};
+use crate::config::{handle_update_config, handle_update_params};
 use crate::msg::{
     AllHistoryResponse, ConfigResponse, CurrentBatchResponse, InitMsg, QueryMsg, StateResponse,
-    UnbondRequestsResponse, WhitelistedValidatorsResponse, WithdrawableUnbondedResponse,
+    UnbondRequestsResponse, WithdrawableUnbondedResponse,
 };
 use crate::state::{
     all_unbond_history, get_unbond_requests, query_get_finished_amount, read_config,
-    read_current_batch, read_parameters, read_state, read_valid_validators, store_config,
-    store_current_batch, store_parameters, store_state, CurrentBatch, Parameters,
+    read_current_batch, read_parameters, read_state, store_config, store_current_batch,
+    store_parameters, store_state, CurrentBatch, Parameters,
 };
 use crate::unbond::{handle_unbond, handle_withdraw_unbonded};
 
 use crate::bond::handle_bond;
+use crate::bond::handle_bond_stluna;
 use anchor_basset_reward::msg::HandleMsg::{SwapToRewardDenom, UpdateGlobalIndex};
 use cosmwasm_storage::to_length_prefixed;
 use cw20::{Cw20HandleMsg, Cw20ReceiveMsg};
@@ -36,31 +34,24 @@ pub fn init<S: Storage, A: Api, Q: Querier>(
     let sender = env.message.sender;
     let sndr_raw = deps.api.canonical_address(&sender)?;
 
-    let payment = env
-        .message
-        .sent_funds
-        .iter()
-        .find(|x| x.denom == msg.underlying_coin_denom && x.amount > Uint128::zero())
-        .ok_or_else(|| {
-            StdError::generic_err(format!("No {} assets are provided to bond", "uluna"))
-        })?;
-
     // store config
     let data = Config {
         creator: sndr_raw,
         reward_contract: None,
-        token_contract: None,
+        validators_registry_contract: None,
+        bluna_token_contract: None,
         airdrop_registry_contract: None,
+        stluna_token_contract: None,
     };
     store_config(&mut deps.storage).save(&data)?;
 
     // store state
     let state = State {
-        exchange_rate: Decimal::one(),
+        bluna_exchange_rate: Decimal::one(),
+        stluna_exchange_rate: Decimal::one(),
         last_index_modification: env.block.time,
         last_unbonded_time: env.block.time,
         last_processed_batch: 0u64,
-        total_bond_amount: payment.amount,
         ..Default::default()
     };
 
@@ -84,30 +75,9 @@ pub fn init<S: Storage, A: Api, Q: Querier>(
     };
     store_current_batch(&mut deps.storage).save(&batch)?;
 
-    let mut messages = vec![];
-
-    // register the given validator
-    let register_validator = HandleMsg::RegisterValidator {
-        validator: msg.validator.clone(),
-    };
-    messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
-        contract_addr: env.contract.address,
-        msg: to_binary(&register_validator).unwrap(),
-        send: vec![],
-    }));
-
-    // send the delegate message
-    messages.push(CosmosMsg::Staking(StakingMsg::Delegate {
-        validator: msg.validator.clone(),
-        amount: payment.clone(),
-    }));
-
     let res = InitResponse {
-        messages,
-        log: vec![
-            log("register-validator", msg.validator),
-            log("bond", payment.amount),
-        ],
+        messages: vec![],
+        log: vec![],
     };
     Ok(res)
 }
@@ -119,17 +89,12 @@ pub fn handle<S: Storage, A: Api, Q: Querier>(
 ) -> StdResult<HandleResponse> {
     match msg {
         HandleMsg::Receive(msg) => receive_cw20(deps, env, msg),
-        HandleMsg::Bond { validator } => handle_bond(deps, env, validator),
+        HandleMsg::Bond {} => handle_bond(deps, env),
+        HandleMsg::BondForStLuna {} => handle_bond_stluna(deps, env),
         HandleMsg::UpdateGlobalIndex { airdrop_hooks } => {
             handle_update_global(deps, env, airdrop_hooks)
         }
         HandleMsg::WithdrawUnbonded {} => handle_withdraw_unbonded(deps, env),
-        HandleMsg::RegisterValidator { validator } => {
-            handle_register_validator(deps, env, validator)
-        }
-        HandleMsg::DeregisterValidator { validator } => {
-            handle_deregister_validator(deps, env, validator)
-        }
         HandleMsg::CheckSlashing {} => handle_slashing(deps, env),
         HandleMsg::UpdateParams {
             epoch_period,
@@ -147,15 +112,19 @@ pub fn handle<S: Storage, A: Api, Q: Querier>(
         HandleMsg::UpdateConfig {
             owner,
             reward_contract,
-            token_contract,
+            bluna_token_contract,
             airdrop_registry_contract,
+            validators_registry_contract,
+            stluna_token_contract,
         } => handle_update_config(
             deps,
             env,
             owner,
             reward_contract,
-            token_contract,
+            bluna_token_contract,
+            stluna_token_contract,
             airdrop_registry_contract,
+            validators_registry_contract,
         ),
         HandleMsg::SwapHook {
             airdrop_token_contract,
@@ -201,7 +170,7 @@ pub fn receive_cw20<S: Storage, A: Api, Q: Querier>(
                 let conf = read_config(&deps.storage).load()?;
                 if deps.api.canonical_address(&contract_addr)?
                     != conf
-                        .token_contract
+                        .bluna_token_contract
                         .expect("the token contract must have been registered")
                 {
                     return Err(StdError::unauthorized());
@@ -315,8 +284,16 @@ pub fn slashing<S: Storage, A: Api, Q: Querier>(
     let params = read_parameters(&deps.storage).load()?;
     let coin_denom = params.underlying_coin_denom;
 
+    let state = read_state(&deps.storage).load()?;
+
     // Check the amount that contract thinks is bonded
-    let state_total_bonded = read_state(&deps.storage).load()?.total_bond_amount;
+    let state_total_bonded = state.total_bond_bluna_amount + state.total_bond_stluna_amount;
+    if state_total_bonded.is_zero() {
+        return Ok(());
+    }
+
+    let bluna_bond_ratio = Decimal::from_ratio(state.total_bond_bluna_amount, state_total_bonded);
+    let stluna_bond_ratio = Decimal::from_ratio(state.total_bond_stluna_amount, state_total_bonded);
 
     // Check the actual bonded amount
     let delegations = deps.querier.query_all_delegations(env.contract.address)?;
@@ -331,14 +308,18 @@ pub fn slashing<S: Storage, A: Api, Q: Querier>(
         }
 
         // Need total issued for updating the exchange rate
-        let total_issued = query_total_issued(&deps)?;
+        let bluna_total_issued = query_total_bluna_issued(&deps)?;
+        let stluna_total_issued = query_total_stluna_issued(&deps)?;
         let current_requested_fee = read_current_batch(&deps.storage).load()?.requested_with_fee;
 
         // Slashing happens if the expected amount is less than stored amount
         if state_total_bonded.u128() > actual_total_bonded.u128() {
             store_state(&mut deps.storage).update(|mut state| {
-                state.total_bond_amount = actual_total_bonded;
-                state.update_exchange_rate(total_issued, current_requested_fee);
+                state.total_bond_bluna_amount = actual_total_bonded * bluna_bond_ratio;
+                state.total_bond_stluna_amount = actual_total_bonded * stluna_bond_ratio;
+
+                state.update_bluna_exchange_rate(bluna_total_issued, current_requested_fee);
+                state.update_stluna_exchange_rate(stluna_total_issued);
                 Ok(state)
             })?;
         }
@@ -460,7 +441,8 @@ pub fn handle_slashing<S: Storage, A: Api, Q: Querier>(
         messages: vec![],
         log: vec![
             log("action", "check_slashing"),
-            log("new_exchange_rate", state.exchange_rate),
+            log("new_bluna_exchange_rate", state.bluna_exchange_rate),
+            log("new_stluna_exchange_rate", state.stluna_exchange_rate),
         ],
         data: None,
     })
@@ -474,7 +456,6 @@ pub fn query<S: Storage, A: Api, Q: Querier>(
         QueryMsg::Config {} => to_binary(&query_config(&deps)?),
         QueryMsg::State {} => to_binary(&query_state(&deps)?),
         QueryMsg::CurrentBatch {} => to_binary(&query_current_batch(&deps)?),
-        QueryMsg::WhitelistedValidators {} => to_binary(&query_white_validators(&deps)?),
         QueryMsg::WithdrawableUnbonded {
             address,
             block_time,
@@ -492,7 +473,9 @@ fn query_config<S: Storage, A: Api, Q: Querier>(
 ) -> StdResult<ConfigResponse> {
     let config = read_config(&deps.storage).load()?;
     let mut reward: Option<HumanAddr> = None;
-    let mut token: Option<HumanAddr> = None;
+    let mut validators_contract: Option<HumanAddr> = None;
+    let mut bluna_token: Option<HumanAddr> = None;
+    let mut stluna_token: Option<HumanAddr> = None;
     let mut airdrop: Option<HumanAddr> = None;
     if config.reward_contract.is_some() {
         reward = Some(
@@ -501,10 +484,24 @@ fn query_config<S: Storage, A: Api, Q: Querier>(
                 .unwrap(),
         );
     }
-    if config.token_contract.is_some() {
-        token = Some(
+    if config.bluna_token_contract.is_some() {
+        bluna_token = Some(
             deps.api
-                .human_address(&config.token_contract.unwrap())
+                .human_address(&config.bluna_token_contract.unwrap())
+                .unwrap(),
+        );
+    }
+    if config.stluna_token_contract.is_some() {
+        stluna_token = Some(
+            deps.api
+                .human_address(&config.stluna_token_contract.unwrap())
+                .unwrap(),
+        );
+    }
+    if config.validators_registry_contract.is_some() {
+        validators_contract = Some(
+            deps.api
+                .human_address(&config.validators_registry_contract.unwrap())
                 .unwrap(),
         );
     }
@@ -519,16 +516,20 @@ fn query_config<S: Storage, A: Api, Q: Querier>(
     Ok(ConfigResponse {
         owner: deps.api.human_address(&config.creator)?,
         reward_contract: reward,
-        token_contract: token,
+        validators_registry_contract: validators_contract,
+        bluna_token_contract: bluna_token,
         airdrop_registry_contract: airdrop,
+        stluna_token_contract: stluna_token,
     })
 }
 
 fn query_state<S: Storage, A: Api, Q: Querier>(deps: &Extern<S, A, Q>) -> StdResult<StateResponse> {
     let state = read_state(&deps.storage).load()?;
     let res = StateResponse {
-        exchange_rate: state.exchange_rate,
-        total_bond_amount: state.total_bond_amount,
+        bluna_exchange_rate: state.bluna_exchange_rate,
+        stluna_exchange_rate: state.stluna_exchange_rate,
+        total_bond_bluna_amount: state.total_bond_bluna_amount,
+        total_bond_stluna_amount: state.total_bond_stluna_amount,
         last_index_modification: state.last_index_modification,
         prev_hub_balance: state.prev_hub_balance,
         actual_unbonded_amount: state.actual_unbonded_amount,
@@ -536,14 +537,6 @@ fn query_state<S: Storage, A: Api, Q: Querier>(deps: &Extern<S, A, Q>) -> StdRes
         last_processed_batch: state.last_processed_batch,
     };
     Ok(res)
-}
-
-fn query_white_validators<S: Storage, A: Api, Q: Querier>(
-    deps: &Extern<S, A, Q>,
-) -> StdResult<WhitelistedValidatorsResponse> {
-    let validators = read_valid_validators(&deps.storage)?;
-    let response = WhitelistedValidatorsResponse { validators };
-    Ok(response)
 }
 
 fn query_current_batch<S: Storage, A: Api, Q: Querier>(
@@ -575,13 +568,30 @@ fn query_params<S: Storage, A: Api, Q: Querier>(deps: &Extern<S, A, Q>) -> StdRe
     read_parameters(&deps.storage).load()
 }
 
-pub(crate) fn query_total_issued<S: Storage, A: Api, Q: Querier>(
+pub(crate) fn query_total_bluna_issued<S: Storage, A: Api, Q: Querier>(
     deps: &Extern<S, A, Q>,
 ) -> StdResult<Uint128> {
     let token_address = deps.api.human_address(
         &read_config(&deps.storage)
             .load()?
-            .token_contract
+            .bluna_token_contract
+            .expect("token contract must have been registered"),
+    )?;
+    let res = deps.querier.query(&QueryRequest::Wasm(WasmQuery::Raw {
+        contract_addr: token_address,
+        key: Binary::from(to_length_prefixed(b"token_info")),
+    }))?;
+    let token_info: TokenInfo = from_binary(&res)?;
+    Ok(token_info.total_supply)
+}
+
+pub(crate) fn query_total_stluna_issued<S: Storage, A: Api, Q: Querier>(
+    deps: &Extern<S, A, Q>,
+) -> StdResult<Uint128> {
+    let token_address = deps.api.human_address(
+        &read_config(&deps.storage)
+            .load()?
+            .stluna_token_contract
             .expect("token contract must have been registered"),
     )?;
     let res = deps.querier.query(&QueryRequest::Wasm(WasmQuery::Raw {

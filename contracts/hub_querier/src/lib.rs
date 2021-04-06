@@ -5,8 +5,10 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema, Default)]
 pub struct State {
-    pub exchange_rate: Decimal,
-    pub total_bond_amount: Uint128,
+    pub bluna_exchange_rate: Decimal,
+    pub stluna_exchange_rate: Decimal,
+    pub total_bond_bluna_amount: Uint128,
+    pub total_bond_stluna_amount: Uint128,
     pub last_index_modification: u64,
     pub prev_hub_balance: Uint128,
     pub actual_unbonded_amount: Uint128,
@@ -18,17 +20,33 @@ pub struct State {
 pub struct Config {
     pub creator: CanonicalAddr,
     pub reward_contract: Option<CanonicalAddr>,
-    pub token_contract: Option<CanonicalAddr>,
+    pub validators_registry_contract: Option<CanonicalAddr>,
+    pub bluna_token_contract: Option<CanonicalAddr>,
+    pub stluna_token_contract: Option<CanonicalAddr>,
     pub airdrop_registry_contract: Option<CanonicalAddr>,
 }
 
 impl State {
-    pub fn update_exchange_rate(&mut self, total_issued: Uint128, requested_with_fee: Uint128) {
+    pub fn update_bluna_exchange_rate(
+        &mut self,
+        total_issued: Uint128,
+        requested_with_fee: Uint128,
+    ) {
         let actual_supply = total_issued + requested_with_fee;
-        if self.total_bond_amount.is_zero() || actual_supply.is_zero() {
-            self.exchange_rate = Decimal::one()
+        if self.total_bond_bluna_amount.is_zero() || actual_supply.is_zero() {
+            self.bluna_exchange_rate = Decimal::one()
         } else {
-            self.exchange_rate = Decimal::from_ratio(self.total_bond_amount, actual_supply);
+            self.bluna_exchange_rate =
+                Decimal::from_ratio(self.total_bond_bluna_amount, actual_supply);
+        }
+    }
+
+    pub fn update_stluna_exchange_rate(&mut self, total_issued: Uint128) {
+        if self.total_bond_stluna_amount.is_zero() || total_issued.is_zero() {
+            self.stluna_exchange_rate = Decimal::one()
+        } else {
+            self.stluna_exchange_rate =
+                Decimal::from_ratio(self.total_bond_stluna_amount, total_issued);
         }
     }
 }
@@ -44,18 +62,10 @@ pub enum HandleMsg {
     UpdateConfig {
         owner: Option<HumanAddr>,
         reward_contract: Option<HumanAddr>,
-        token_contract: Option<HumanAddr>,
+        validators_registry_contract: Option<HumanAddr>,
+        bluna_token_contract: Option<HumanAddr>,
+        stluna_token_contract: Option<HumanAddr>,
         airdrop_registry_contract: Option<HumanAddr>,
-    },
-
-    /// Register receives the reward contract address
-    RegisterValidator {
-        validator: HumanAddr,
-    },
-
-    // Remove the validator from validators whitelist
-    DeregisterValidator {
-        validator: HumanAddr,
     },
 
     /// update the parameters that is needed for the contract
@@ -71,11 +81,11 @@ pub enum HandleMsg {
     ////////////////////
 
     /// Receives `amount` in underlying coin denom from sender.
-    /// Delegate `amount` to a specific `validator`.
+    /// Delegate `amount` equally between validators from the registry.
     /// Issue `amount` / exchange_rate for the user.
-    Bond {
-        validator: HumanAddr,
-    },
+    Bond {},
+
+    BondForStLuna {},
 
     /// Update global index
     UpdateGlobalIndex {

@@ -1,0 +1,51 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "InitMsg",
+  "type": "object",
+  "required": [
+    "registry"
+  ],
+  "properties": {
+    "registry": {
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/Validator"
+      }
+    }
+  },
+  "definitions": {
+    "HumanAddr": {
+      "type": "string"
+    },
+    "Uint128": {
+      "type": "string"
+    },
+    "Validator": {
+      "type": "object",
+      "required": [
+        "active",
+        "address",
+        "delegation_limit"
+      ],
+      "properties": {
+        "active": {
+          "type": "boolean"
+        },
+        "address": {
+          "$ref": "#/definitions/HumanAddr"
+        },
+        "delegation_limit": {
+          "$ref": "#/definitions/Uint128"
+        },
+        "total_delegated": {
+          "default": "0",
+          "allOf": [
+            {
+              "$ref": "#/definitions/Uint128"
+            }
+          ]
+        }
+      }
+    }
+  }
+}
