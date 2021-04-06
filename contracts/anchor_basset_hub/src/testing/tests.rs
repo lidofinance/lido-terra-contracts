@@ -220,7 +220,7 @@ fn proper_initialization() {
     let query_conf: ConfigResponse = from_binary(&query(&deps, conf).unwrap()).unwrap();
     let expected_conf = ConfigResponse {
         owner: HumanAddr::from("owner1"),
-        reward_contract: None,
+        reward_dispatcher_contract: None,
         validators_registry_contract: None,
         bluna_token_contract: None,
         airdrop_registry_contract: None,
@@ -558,6 +558,148 @@ fn proper_bond_for_st_luna() {
         res,
         StdError::generic_err("More than one coin is sent; only one asset is supported")
     );
+}
+
+#[test]
+fn proper_bond_rewards() {
+    let mut deps = dependencies(20, &[]);
+
+    let validator = sample_validator(DEFAULT_VALIDATOR);
+    let validator2 = sample_validator(DEFAULT_VALIDATOR2);
+    let validator3 = sample_validator(DEFAULT_VALIDATOR3);
+    set_validator_mock(&mut deps.querier);
+
+    let bond_amount = Uint128(10000);
+
+    let owner = HumanAddr::from("owner1");
+    let token_contract = HumanAddr::from("token");
+    let stluna_token_contract = HumanAddr::from("stluna_token");
+    let reward_dispatcher_contract = HumanAddr::from("reward_dispatcher");
+
+    initialize(
+        &mut deps,
+        owner,
+        reward_dispatcher_contract.clone(),
+        token_contract,
+        stluna_token_contract.clone(),
+    );
+
+    // register_validator
+    do_register_validator(&mut deps, validator);
+    do_register_validator(&mut deps, validator2);
+    do_register_validator(&mut deps, validator3);
+
+    let bond_msg = HandleMsg::BondRewards {};
+
+    let env = mock_env(&reward_dispatcher_contract, &[coin(bond_amount.0, "uluna")]);
+
+    let res = handle(&mut deps, env, bond_msg).unwrap();
+    assert_eq!(4, res.messages.len());
+
+    let delegate = &res.messages[0];
+    match delegate {
+        CosmosMsg::Staking(StakingMsg::Delegate { validator, amount }) => {
+            assert_eq!(validator.as_str(), DEFAULT_VALIDATOR);
+            assert_eq!(amount, &coin(3334, "uluna"));
+        }
+        _ => panic!("Unexpected message: {:?}", delegate),
+    }
+
+    let delegate = &res.messages[1];
+    match delegate {
+        CosmosMsg::Staking(StakingMsg::Delegate { validator, amount }) => {
+            assert_eq!(validator.as_str(), DEFAULT_VALIDATOR2);
+            assert_eq!(amount, &coin(3333, "uluna"));
+        }
+        _ => panic!("Unexpected message: {:?}", delegate),
+    }
+
+    let delegate = &res.messages[2];
+    match delegate {
+        CosmosMsg::Staking(StakingMsg::Delegate { validator, amount }) => {
+            assert_eq!(validator.as_str(), DEFAULT_VALIDATOR3);
+            assert_eq!(amount, &coin(3333, "uluna"));
+        }
+        _ => panic!("Unexpected message: {:?}", delegate),
+    }
+
+    let update_total_delegated = &res.messages[3];
+    match update_total_delegated {
+        CosmosMsg::Wasm(WasmMsg::Execute {
+            contract_addr,
+            msg,
+            send: _,
+        }) => {
+            assert_eq!(contract_addr, &HumanAddr::from("validators_registry"));
+            let message: HandleMsgValidators = from_binary(msg).unwrap();
+            match message {
+                HandleMsgValidators::UpdateTotalDelegated { updated_validators } => {
+                    assert_eq!(
+                        updated_validators[0].total_delegated,
+                        Uint128::from(3334u128)
+                    );
+                    assert_eq!(
+                        updated_validators[1].total_delegated,
+                        Uint128::from(3333u128)
+                    );
+                    assert_eq!(
+                        updated_validators[2].total_delegated,
+                        Uint128::from(3333u128)
+                    );
+                }
+                _ => panic!("Unexpected message: {:?}", delegate),
+            }
+        }
+        _ => panic!("Unexpected message: {:?}", delegate),
+    }
+
+    // get total bonded
+    let state = State {};
+    let query_state: StateResponse = from_binary(&query(&deps, state).unwrap()).unwrap();
+    assert_eq!(query_state.total_bond_stluna_amount, bond_amount);
+    assert_eq!(query_state.stluna_exchange_rate, Decimal::one());
+
+    // no-send funds
+    let failed_bond = HandleMsg::BondRewards {};
+
+    let env = mock_env(&reward_dispatcher_contract, &[]);
+    let res = handle(&mut deps, env, failed_bond);
+    assert_eq!(
+        res.unwrap_err(),
+        StdError::generic_err("No uluna assets are provided to bond")
+    );
+
+    //send other tokens than luna funds
+    let failed_bond = HandleMsg::BondRewards {};
+
+    let env = mock_env(&reward_dispatcher_contract, &[coin(10, "ukrt")]);
+    let res = handle(&mut deps, env, failed_bond.clone());
+    assert_eq!(
+        res.unwrap_err(),
+        StdError::generic_err("No uluna assets are provided to bond")
+    );
+
+    //bond with more than one coin is not possible
+    let env = mock_env(
+        &reward_dispatcher_contract,
+        &[coin(bond_amount.0, "uluna"), coin(bond_amount.0, "uusd")],
+    );
+
+    let res = handle(&mut deps, env, failed_bond).unwrap_err();
+    assert_eq!(
+        res,
+        StdError::generic_err("More than one coin is sent; only one asset is supported")
+    );
+
+    //bond from non-dispatcher address
+    let env = mock_env(
+        &HumanAddr::from("random_address"),
+        &[coin(bond_amount.0, "uluna")],
+    );
+    let failed_bond = HandleMsg::BondRewards {};
+
+    let res = handle(&mut deps, env, failed_bond).unwrap_err();
+    assert_eq!(res, StdError::unauthorized());
 }
 
 /// Covers if Withdraw message, swap message, and update global index are sent.
@@ -2431,7 +2573,10 @@ pub fn proper_update_config() {
     );
 
     //make sure the other configs are still the same.
-    assert_eq!(&config_query.reward_contract.unwrap(), &reward_contract);
+    assert_eq!(
+        &config_query.reward_dispatcher_contract.unwrap(),
+        &reward_contract
+    );
     assert_eq!(&config_query.owner, &owner);
 
     // only the owner can call this message
@@ -2509,7 +2654,7 @@ pub fn proper_update_config() {
     let config = Config {};
     let config_query: ConfigResponse = from_binary(&query(&deps, config).unwrap()).unwrap();
     assert_eq!(
-        config_query.reward_contract.unwrap(),
+        config_query.reward_dispatcher_contract.unwrap(),
         HumanAddr::from("new reward")
     );
 
@@ -2534,7 +2679,7 @@ pub fn proper_update_config() {
 
     //make sure the other configs are still the same.
     assert_eq!(
-        config_query.reward_contract.unwrap(),
+        config_query.reward_dispatcher_contract.unwrap(),
         HumanAddr::from("new reward")
     );
     assert_eq!(config_query.owner, new_owner);
