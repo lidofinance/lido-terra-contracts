@@ -17,13 +17,13 @@
 //!      });
 //! 4. Anywhere you see query(&deps, ...) you must replace it with query(&mut deps, ...)
 
-use cosmwasm_std::testing::{mock_env};
-use cosmwasm_std::{coins, HumanAddr, Uint128, Decimal, Coin};
+use cosmwasm_std::testing::mock_env;
+use cosmwasm_std::{coins, Coin, Decimal, HumanAddr, Uint128};
 
-use crate::contract::{init, get_swap_info, handle};
-use crate::msg::{InitMsg, HandleMsg};
-use crate::testing::mock_querier::{MOCK_HUB_CONTRACT_ADDR, mock_dependencies};
+use crate::contract::{get_swap_info, handle, init};
+use crate::msg::{HandleMsg, InitMsg};
 use crate::state::read_config;
+use crate::testing::mock_querier::{mock_dependencies, MOCK_HUB_CONTRACT_ADDR};
 
 fn default_init() -> InitMsg {
     InitMsg {
@@ -52,7 +52,7 @@ fn swap_to_reward_denom() {
         &[
             Coin::new(20, "uluna"),
             Coin::new(20, "uusd"),
-            Coin::new(20, "usdr")
+            Coin::new(20, "usdr"),
         ],
     );
 
@@ -100,8 +100,9 @@ fn test_get_swap_info() {
         total_bluna_rewards_available,
         bluna_2_stluna_rewards_xchg_rate,
         stluna_2_bluna_rewards_xchg_rate,
-    ).unwrap();
-    assert_eq!(offer_coin.denom, config.bluna_reward_denom.clone());
+    )
+    .unwrap();
+    assert_eq!(offer_coin.denom, config.bluna_reward_denom);
     assert_eq!(offer_coin.amount, Uint128(0));
 
     let stluna_total_bond_amount = Uint128(2);
@@ -118,8 +119,9 @@ fn test_get_swap_info() {
         total_bluna_rewards_available,
         bluna_2_stluna_rewards_xchg_rate,
         stluna_2_bluna_rewards_xchg_rate,
-    ).unwrap();
-    assert_eq!(offer_coin.denom, config.bluna_reward_denom.clone());
+    )
+    .unwrap();
+    assert_eq!(offer_coin.denom, config.bluna_reward_denom);
     assert_eq!(offer_coin.amount, Uint128(3));
 
     let stluna_total_bond_amount = Uint128(2);
@@ -136,7 +138,8 @@ fn test_get_swap_info() {
         total_bluna_rewards_available,
         bluna_2_stluna_rewards_xchg_rate,
         stluna_2_bluna_rewards_xchg_rate,
-    ).unwrap();
-    assert_eq!(offer_coin.denom, config.stluna_reward_denom.clone());
+    )
+    .unwrap();
+    assert_eq!(offer_coin.denom, config.stluna_reward_denom);
     assert_eq!(offer_coin.amount, Uint128(3));
 }

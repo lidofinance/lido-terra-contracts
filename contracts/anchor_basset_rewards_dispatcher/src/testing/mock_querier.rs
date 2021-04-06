@@ -1,12 +1,13 @@
 use cosmwasm_std::testing::{MockApi, MockQuerier, MockStorage, MOCK_CONTRACT_ADDR};
 use cosmwasm_std::{
-    from_slice, to_binary, Coin, Decimal, Extern, HumanAddr, Querier, QuerierResult,
-    QueryRequest, SystemError, Uint128, WasmQuery,
+    from_slice, to_binary, Coin, Decimal, Extern, HumanAddr, Querier, QuerierResult, QueryRequest,
+    SystemError, Uint128, WasmQuery,
 };
-use cosmwasm_storage::to_length_prefixed;
-use terra_cosmwasm::{TaxCapResponse, TaxRateResponse, TerraQuery, TerraQueryWrapper, TerraRoute, SwapResponse};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
+use terra_cosmwasm::{
+    SwapResponse, TaxCapResponse, TaxRateResponse, TerraQuery, TerraQueryWrapper, TerraRoute,
+};
 
 pub const MOCK_HUB_CONTRACT_ADDR: &str = "hub";
 // pub const MOCK_REWARD_CONTRACT_ADDR: &str = "reward";
@@ -31,7 +32,7 @@ pub fn mock_dependencies(
 
 pub struct WasmMockQuerier {
     base: MockQuerier<TerraQueryWrapper>,
-    canonical_length: usize,
+    _canonical_length: usize,
 }
 
 impl Querier for WasmMockQuerier {
@@ -52,13 +53,13 @@ impl Querier for WasmMockQuerier {
 
 impl WasmMockQuerier {
     pub fn handle_query(&self, request: &QueryRequest<TerraQueryWrapper>) -> QuerierResult {
-        let (
-            luna_denom,
-            usd_denom,
-        ) = ("uluna", "uusd");
+        let (luna_denom, usd_denom) = ("uluna", "uusd");
         match &request {
             QueryRequest::Custom(TerraQueryWrapper { route, query_data }) => {
-                if &TerraRoute::Treasury == route || &TerraRoute::Market == route || &TerraRoute::Oracle == route {
+                if &TerraRoute::Treasury == route
+                    || &TerraRoute::Market == route
+                    || &TerraRoute::Oracle == route
+                {
                     match query_data {
                         TerraQuery::TaxRate {} => {
                             let res = TaxRateResponse {
@@ -71,21 +72,11 @@ impl WasmMockQuerier {
                             let res = TaxCapResponse { cap };
                             Ok(to_binary(&res))
                         }
-                        TerraQuery::ExchangeRates { base_denom, quote_denoms } => {
-                            if base_denom == luna_denom {
-                                let mut exchange_rates: Vec<ExchangeRateItem> = Vec::new();
-                                for quote_denom in quote_denoms {
-                                    exchange_rates.push(ExchangeRateItem {
-                                        quote_denom: quote_denom.clone(),
-                                        exchange_rate: Decimal::from_ratio(Uint128(1), Uint128(1)),
-                                    })
-                                }
-                                let res = ExchangeRatesResponse {
-                                    base_denom: base_denom.to_string(),
-                                    exchange_rates,
-                                };
-                                Ok(to_binary(&res))
-                            } else if base_denom == usd_denom {
+                        TerraQuery::ExchangeRates {
+                            base_denom,
+                            quote_denoms,
+                        } => {
+                            if base_denom == luna_denom || base_denom == usd_denom {
                                 let mut exchange_rates: Vec<ExchangeRateItem> = Vec::new();
                                 for quote_denom in quote_denoms {
                                     exchange_rates.push(ExchangeRateItem {
@@ -102,27 +93,25 @@ impl WasmMockQuerier {
                                 panic!("UNSUPPORTED DENOM: {}", base_denom);
                             }
                         }
-                        TerraQuery::Swap { offer_coin, ask_denom } => {
-                            Ok(to_binary(&SwapResponse {
-                                receive: Coin::new(offer_coin.amount.u128(), ask_denom),
-                            }))
-                        }
+                        TerraQuery::Swap {
+                            offer_coin,
+                            ask_denom,
+                        } => Ok(to_binary(&SwapResponse {
+                            receive: Coin::new(offer_coin.amount.u128(), ask_denom),
+                        })),
                     }
                 } else {
-                    panic!("UNSUPPORTED ROUTE! ROUTE: {:?}, DATA: {:?}", route, query_data)
+                    panic!(
+                        "UNSUPPORTED ROUTE! ROUTE: {:?}, DATA: {:?}",
+                        route, query_data
+                    )
                 }
             }
-            QueryRequest::Wasm(WasmQuery::Raw { contract_addr, key }) => {
-                if *contract_addr == HumanAddr::from(MOCK_HUB_CONTRACT_ADDR) {
-                    let prefix_config = to_length_prefixed(b"config").to_vec();
-                    if key.as_slice().to_vec() == prefix_config {
-                        unimplemented!()
-                    } else {
-                        unimplemented!()
-                    }
-                } else {
-                    unimplemented!()
-                }
+            QueryRequest::Wasm(WasmQuery::Raw {
+                contract_addr: _,
+                key: _,
+            }) => {
+                unimplemented!()
             }
             _ => self.base.handle_query(request),
         }
@@ -133,7 +122,7 @@ impl WasmMockQuerier {
     pub fn new(base: MockQuerier<TerraQueryWrapper>, canonical_length: usize) -> Self {
         WasmMockQuerier {
             base,
-            canonical_length,
+            _canonical_length: canonical_length,
         }
     }
 }
