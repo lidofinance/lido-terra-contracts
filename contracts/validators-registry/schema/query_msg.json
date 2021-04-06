@@ -1,0 +1,17 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "QueryMsg",
+  "anyOf": [
+    {
+      "type": "object",
+      "required": [
+        "get_validators_for_delegation"
+      ],
+      "properties": {
+        "get_validators_for_delegation": {
+          "type": "object"
+        }
+      }
+    }
+  ]
+}
