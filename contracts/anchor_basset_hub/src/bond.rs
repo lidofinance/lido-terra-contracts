@@ -22,7 +22,7 @@ pub fn handle_bond<S: Storage, A: Api, Q: Querier>(
 
     // current batch requested fee is need for accurate exchange rate computation.
     let current_batch = read_current_batch(&deps.storage).load()?;
-    let requested_with_fee = current_batch.requested_with_fee;
+    let requested_with_fee = current_batch.requested_bluna_with_fee;
 
     // coin must have be sent along with transaction and it should be in underlying coin denom
     if env.message.sent_funds.len() > 1usize {
@@ -56,8 +56,9 @@ pub fn handle_bond<S: Storage, A: Api, Q: Querier>(
     let mut mint_amount_with_fee = mint_amount;
     if state.bluna_exchange_rate < threshold {
         let max_peg_fee = mint_amount * recovery_fee;
-        let required_peg_fee = ((total_supply + mint_amount + current_batch.requested_with_fee)
-            - (state.total_bond_bluna_amount + payment.amount))?;
+        let required_peg_fee =
+            ((total_supply + mint_amount + current_batch.requested_bluna_with_fee)
+                - (state.total_bond_bluna_amount + payment.amount))?;
         let peg_fee = Uint128::min(max_peg_fee, required_peg_fee);
         mint_amount_with_fee = (mint_amount - peg_fee)?;
     }
