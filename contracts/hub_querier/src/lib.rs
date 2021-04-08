@@ -47,6 +47,10 @@ impl State {
         } else {
             self.stluna_exchange_rate =
                 Decimal::from_ratio(self.total_bond_stluna_amount, total_issued);
+            println!(
+                "KEKEKKE {} = {} / {}",
+                self.stluna_exchange_rate, self.total_bond_stluna_amount, total_issued
+            );
         }
     }
 }

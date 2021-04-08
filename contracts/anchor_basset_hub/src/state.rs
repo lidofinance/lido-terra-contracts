@@ -37,7 +37,8 @@ pub struct Parameters {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct CurrentBatch {
     pub id: u64,
-    pub requested_with_fee: Uint128,
+    pub requested_bluna_with_fee: Uint128,
+    pub requested_stluna: Uint128,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
