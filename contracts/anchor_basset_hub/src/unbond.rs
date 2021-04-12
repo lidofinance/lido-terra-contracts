@@ -397,7 +397,7 @@ pub(crate) fn handle_unbond_stluna<S: Storage, A: Api, Q: Querier>(
         // the contract must stop if
         if undelegation_amount == Uint128(1) {
             return Err(StdError::generic_err(
-                "Burn amount must be greater than 1 ubluna",
+                "Burn amount must be greater than 1 stluna",
             ));
         }
 

@@ -146,6 +146,26 @@ pub fn do_bond(
     assert_eq!(validators.len() + 2, res.messages.len());
 }
 
+pub fn do_bond_stluna(
+    deps: &mut Extern<MockStorage, MockApi, WasmMockQuerier>,
+    addr: HumanAddr,
+    amount: Uint128,
+) {
+    let validators: Vec<RegistryValidator> = deps
+        .querier
+        .query(&QueryRequest::Wasm(WasmQuery::Smart {
+            contract_addr: HumanAddr::from("validators_registry"),
+            msg: to_binary(&QueryValidators::GetValidatorsForDelegation {}).unwrap(),
+        }))
+        .unwrap();
+
+    let bond = HandleMsg::BondForStLuna {};
+
+    let env = mock_env(&addr, &[coin(amount.0, "uluna")]);
+    let res = handle(deps, env, bond).unwrap();
+    assert_eq!(validators.len() + 2, res.messages.len());
+}
+
 pub fn do_unbond<S: Storage, A: Api, Q: Querier>(
     mut deps: &mut Extern<S, A, Q>,
     addr: HumanAddr,
@@ -1099,6 +1119,104 @@ pub fn proper_unbond() {
     assert_eq!(res.history[0].applied_exchange_rate, Decimal::one());
     assert_eq!(res.history[0].released, false);
     assert_eq!(res.history[0].batch_id, 1);
+}
+
+/// Covers if the receive message is sent by token contract,
+/// if handle_unbond is executed.
+/*
+    A comprehensive test for unbond is prepared in proper_unbond tests
+*/
+#[test]
+pub fn proper_receive_stluna() {
+    let mut deps = dependencies(20, &[]);
+    let validator = sample_validator(DEFAULT_VALIDATOR);
+    set_validator_mock(&mut deps.querier);
+
+    let addr1 = HumanAddr::from("addr0001");
+    let invalid = HumanAddr::from("invalid");
+
+    let owner = HumanAddr::from("owner1");
+    let token_contract = HumanAddr::from("token");
+    let stluna_token_contract = HumanAddr::from("stluna_token");
+    let reward_contract = HumanAddr::from("reward");
+
+    initialize(
+        &mut deps,
+        owner,
+        reward_contract,
+        token_contract.clone(),
+        stluna_token_contract.clone(),
+    );
+
+    // register_validator
+    do_register_validator(&mut deps, validator.clone());
+
+    // bond to the second validator
+    do_bond_stluna(&mut deps, addr1.clone(), Uint128(10));
+    set_delegation(&mut deps.querier, validator, 10, "uluna");
+
+    //set bob's balance to 10 in token contract
+    deps.querier.with_token_balances(&[
+        (&stluna_token_contract, &[(&addr1, &Uint128(10u128))]),
+        (&HumanAddr::from("token"), &[]),
+    ]);
+
+    // Null message
+    let receive = Receive(Cw20ReceiveMsg {
+        sender: addr1.clone(),
+        amount: Uint128(10),
+        msg: None,
+    });
+
+    let token_env = mock_env(&stluna_token_contract, &[]);
+    let res = handle(&mut deps, token_env, receive);
+    assert_eq!(
+        res.unwrap_err(),
+        StdError::generic_err("Invalid request: \"unbond\" message not included in request")
+    );
+
+    // unauthorized
+    let failed_unbond = Unbond {};
+    let receive = Receive(Cw20ReceiveMsg {
+        sender: addr1.clone(),
+        amount: Uint128(10),
+        msg: Some(to_binary(&failed_unbond).unwrap()),
+    });
+
+    let invalid_env = mock_env(&invalid, &[]);
+    let res = handle(&mut deps, invalid_env, receive);
+    assert_eq!(res.unwrap_err(), StdError::unauthorized());
+
+    // successful call
+    let successful_unbond = Unbond {};
+    let receive = Receive(Cw20ReceiveMsg {
+        sender: addr1,
+        amount: Uint128(10),
+        msg: Some(to_binary(&successful_unbond).unwrap()),
+    });
+
+    let valid_env = mock_env(&stluna_token_contract, &[]);
+    let res = handle(&mut deps, valid_env, receive).unwrap();
+    assert_eq!(res.messages.len(), 1);
+
+    let msg = &res.messages[0];
+    match msg {
+        CosmosMsg::Wasm(WasmMsg::Execute {
+            contract_addr,
+            msg,
+            send: _,
+        }) => {
+            assert_eq!(contract_addr, &stluna_token_contract);
+            assert_eq!(
+                msg,
+                &to_binary(&Burn {
+                    amount: Uint128(10)
+                })
+                .unwrap()
+            );
+        }
+        _ => panic!("Unexpected message: {:?}", msg),
+    }
 }
 
 /// Covers if the epoch period is passed, Undelegate message is sent,
