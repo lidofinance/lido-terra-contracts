@@ -569,6 +569,7 @@ fn proper_bond_rewards() {
     let validator3 = sample_validator(DEFAULT_VALIDATOR3);
     set_validator_mock(&mut deps.querier);
 
+    let addr1 = HumanAddr::from("addr1000");
     let bond_amount = Uint128(10000);
 
     let owner = HumanAddr::from("owner1");
@@ -581,13 +582,24 @@ fn proper_bond_rewards() {
         owner,
         reward_dispatcher_contract.clone(),
         token_contract,
-        stluna_token_contract,
+        stluna_token_contract.clone(),
     );
 
     // register_validator
     do_register_validator(&mut deps, validator);
     do_register_validator(&mut deps, validator2);
     do_register_validator(&mut deps, validator3);
+
+    let bond_msg = HandleMsg::BondForStLuna {};
+
+    let env = mock_env(&addr1, &[coin(bond_amount.0, "uluna")]);
+
+    let res = handle(&mut deps, env, bond_msg).unwrap();
+    assert_eq!(5, res.messages.len());
+
+    // set bob's balance in token contract
+    deps.querier
+        .with_token_balances(&[(&stluna_token_contract, &[(&addr1, &bond_amount)])]);
 
     let bond_msg = HandleMsg::BondRewards {};
 
@@ -656,8 +668,14 @@ fn proper_bond_rewards() {
     // get total bonded
     let state = State {};
     let query_state: StateResponse = from_binary(&query(&deps, state).unwrap()).unwrap();
-    assert_eq!(query_state.total_bond_stluna_amount, bond_amount);
-    assert_eq!(query_state.stluna_exchange_rate, Decimal::one());
+    assert_eq!(
+        query_state.total_bond_stluna_amount,
+        bond_amount + bond_amount // BondForStLuna + BondRewards
+    );
+    assert_eq!(
+        query_state.stluna_exchange_rate,
+        Decimal::from_ratio(2u128, 1u128)
+    );
 
     // no-send funds
     let failed_bond = HandleMsg::BondRewards {};

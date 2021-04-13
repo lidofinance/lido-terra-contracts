@@ -286,8 +286,11 @@ pub fn handle_bond_rewards<S: Storage, A: Api, Q: Querier>(
     // check slashing
     slashing(deps, env.clone())?;
 
+    let total_supply = query_total_stluna_issued(&deps).unwrap_or_default();
+
     store_state(&mut deps.storage).update(|mut prev_state| {
         prev_state.total_bond_stluna_amount += payment.amount;
+        prev_state.update_stluna_exchange_rate(total_supply);
         Ok(prev_state)
     })?;
 
