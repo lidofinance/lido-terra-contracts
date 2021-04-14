@@ -249,3 +249,95 @@ pub fn handle_bond_stluna<S: Storage, A: Api, Q: Querier>(
     };
     Ok(res)
 }
+
+pub fn handle_bond_rewards<S: Storage, A: Api, Q: Querier>(
+    deps: &mut Extern<S, A, Q>,
+    env: Env,
+) -> StdResult<HandleResponse> {
+    let config = read_config(&deps.storage).load()?;
+    let reward_dispatcher_addr = deps.api.human_address(
+        &config
+            .reward_dispatcher_contract
+            .expect("the reward dispatcher contract must have been registered"),
+    )?;
+    if env.message.sender != reward_dispatcher_addr {
+        return Err(StdError::unauthorized());
+    }
+
+    let params = read_parameters(&deps.storage).load()?;
+    let coin_denom = params.underlying_coin_denom;
+
+    // coin must have be sent along with transaction and it should be in underlying coin denom
+    if env.message.sent_funds.len() > 1usize {
+        return Err(StdError::generic_err(
+            "More than one coin is sent; only one asset is supported",
+        ));
+    }
+
+    let payment = env
+        .message
+        .sent_funds
+        .iter()
+        .find(|x| x.denom == coin_denom && x.amount > Uint128::zero())
+        .ok_or_else(|| {
+            StdError::generic_err(format!("No {} assets are provided to bond", coin_denom))
+        })?;
+
+    // check slashing
+    slashing(deps, env.clone())?;
+
+    let total_supply = query_total_stluna_issued(&deps).unwrap_or_default();
+
+    store_state(&mut deps.storage).update(|mut prev_state| {
+        prev_state.total_bond_stluna_amount += payment.amount;
+        prev_state.update_stluna_exchange_rate(total_supply);
+        Ok(prev_state)
+    })?;
+
+    let validators_registry_contract = if let Some(v) = config.validators_registry_contract {
+        v
+    } else {
+        return Err(StdError::generic_err(
+            "Validators registry contract address is empty",
+        ));
+    };
+    let mut validators: Vec<Validator> =
+        deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
+            contract_addr: deps.api.human_address(&validators_registry_contract)?,
+            msg: to_binary(&QueryValidators::GetValidatorsForDelegation {})?,
+        }))?;
+
+    let (_remaining_buffered_balance, delegations) =
+        calculate_delegations(payment.amount, validators.as_slice())?;
+
+    let mut external_call_msgs: Vec<cosmwasm_std::CosmosMsg> = vec![];
+    for i in 0..delegations.len() {
+        if delegations[i].is_zero() {
+            continue;
+        }
+        external_call_msgs.push(cosmwasm_std::CosmosMsg::Staking(StakingMsg::Delegate {
+            validator: validators[i].address.clone(),
+            amount: Coin::new(delegations[i].u128(), payment.denom.as_str()),
+        }));
+        validators[i].total_delegated.add_assign(delegations[i]);
+    }
+
+    if !external_call_msgs.is_empty() {
+        external_call_msgs.push(cosmwasm_std::CosmosMsg::Wasm(
+            cosmwasm_std::WasmMsg::Execute {
+                contract_addr: deps.api.human_address(&validators_registry_contract)?,
+                msg: to_binary(&HandleMsgValidators::UpdateTotalDelegated {
+                    updated_validators: validators,
+                })?,
+                send: vec![],
+            },
+        ));
+    }
+
+    let res = HandleResponse {
+        messages: external_call_msgs,
+        data: None,
+        log: vec![],
+    };
+    Ok(res)
+}
