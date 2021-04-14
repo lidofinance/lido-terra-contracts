@@ -14,8 +14,8 @@ pub struct InitMsg {
 #[serde(rename_all = "snake_case")]
 pub enum HandleMsg {
     SwapToRewardDenom {
-        bluna_total_bond_amount: Uint128,
-        stluna_total_bond_amount: Uint128,
+        bluna_total_mint_amount: Uint128,
+        stluna_total_mint_amount: Uint128,
     },
     DispatchRewards {},
 }
