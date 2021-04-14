@@ -76,10 +76,12 @@ dependencies = [
 name = "anchor_basset_rewards_dispatcher"
 version = "0.1.0"
 dependencies = [
+ "anchor_basset_reward",
  "basset",
  "cosmwasm-schema 0.10.1",
  "cosmwasm-std",
  "cosmwasm-storage",
+ "hub_querier",
  "schemars",
  "serde",
  "snafu",

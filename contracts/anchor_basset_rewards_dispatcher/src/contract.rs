@@ -1,11 +1,13 @@
 use cosmwasm_std::{
-    log, Api, BankMsg, Binary, Coin, CosmosMsg, Decimal, Env, Extern, HandleResponse, HumanAddr,
-    InitResponse, Querier, StdError, StdResult, Storage, Uint128,
+    log, to_binary, Api, BankMsg, Binary, Coin, CosmosMsg, Decimal, Env, Extern, HandleResponse,
+    HumanAddr, InitResponse, Querier, StdError, StdResult, Storage, Uint128, WasmMsg,
 };
 
 use crate::msg::{HandleMsg, InitMsg, QueryMsg};
 use crate::state::{read_config, store_config, Config};
+use anchor_basset_reward::msg::HandleMsg::UpdateGlobalIndex;
 use basset::deduct_tax;
+use hub_querier::HandleMsg::BondForStLuna;
 use std::ops::Mul;
 use terra_cosmwasm::{create_swap_msg, SwapResponse, TerraMsgWrapper, TerraQuerier};
 
@@ -16,6 +18,7 @@ pub fn init<S: Storage, A: Api, Q: Querier>(
 ) -> StdResult<InitResponse> {
     let conf = Config {
         hub_contract: deps.api.canonical_address(&msg.hub_contract)?,
+        bluna_reward_contract: deps.api.canonical_address(&msg.bluna_reward_contract)?,
         bluna_reward_denom: msg.bluna_reward_denom,
         stluna_reward_denom: msg.stluna_reward_denom,
     };
@@ -46,11 +49,11 @@ pub fn handle_swap<S: Storage, A: Api, Q: Querier>(
     stluna_total_bond_amount: Uint128,
 ) -> StdResult<HandleResponse<TerraMsgWrapper>> {
     let config = read_config(&deps.storage)?;
-    // let owner_addr = deps.api.human_address(&config.hub_contract)?;
-    //
-    // if env.message.sender != owner_addr {
-    //     return Err(StdError::unauthorized());
-    // }
+    let owner_addr = deps.api.human_address(&config.hub_contract)?;
+
+    if env.message.sender != owner_addr {
+        return Err(StdError::unauthorized());
+    }
 
     let contr_addr = env.contract.address;
     let balance = deps.querier.query_all_balances(contr_addr.clone())?;
@@ -223,11 +226,13 @@ pub fn handle_dispatch_rewards<S: Storage, A: Api, Q: Querier>(
     env: Env,
 ) -> StdResult<HandleResponse<TerraMsgWrapper>> {
     let config = read_config(&deps.storage)?;
-    let owner_addr = deps.api.human_address(&config.hub_contract)?;
 
-    if env.message.sender != owner_addr {
+    let hub_addr = deps.api.human_address(&config.hub_contract)?;
+    if env.message.sender != hub_addr {
         return Err(StdError::unauthorized());
     }
+
+    let bluna_reward_addr = deps.api.human_address(&config.bluna_reward_contract)?;
 
     let contr_addr = env.contract.address;
     let stluna_rewards = deps
@@ -236,22 +241,34 @@ pub fn handle_dispatch_rewards<S: Storage, A: Api, Q: Querier>(
 
     let bluna_rewards = deps
         .querier
-        .query_balance(contr_addr.clone(), config.stluna_reward_denom.as_str())?;
-
-    let recipient = "basset_rewards_address";
+        .query_balance(contr_addr.clone(), config.bluna_reward_denom.as_str())?;
 
     Ok(HandleResponse {
-        messages: vec![BankMsg::Send {
-            from_address: contr_addr,
-            to_address: HumanAddr::from(recipient),
-            amount: vec![deduct_tax(&deps, stluna_rewards.clone())?],
-        }
-        .into()],
+        messages: vec![
+            BankMsg::Send {
+                from_address: contr_addr,
+                to_address: hub_addr,
+                amount: vec![deduct_tax(&deps, stluna_rewards.clone())?],
+            }
+            .into(),
+            CosmosMsg::Wasm(WasmMsg::Execute {
+                contract_addr: bluna_reward_addr.clone(),
+                msg: to_binary(&BondForStLuna {}).unwrap(),
+                send: vec![deduct_tax(&deps, bluna_rewards.clone())?],
+            }),
+            CosmosMsg::Wasm(WasmMsg::Execute {
+                contract_addr: bluna_reward_addr.clone(),
+                msg: to_binary(&UpdateGlobalIndex {}).unwrap(),
+                send: vec![],
+            }),
+        ],
         log: vec![
             log("action", "claim_reward"),
-            log("basset_reward_addr", recipient),
-            log("stluna_rewards", format!("{:?}", stluna_rewards)),
-            log("bluna_rewards", format!("{:?}", bluna_rewards)),
+            log("bluna_reward_addr", bluna_reward_addr),
+            log("stluna_rewards_denom", stluna_rewards.denom),
+            log("stluna_rewards_amount", stluna_rewards.amount),
+            log("bluna_rewards_denom", bluna_rewards.denom),
+            log("bluna_rewards_amount", bluna_rewards.amount),
         ],
         data: None,
     })
