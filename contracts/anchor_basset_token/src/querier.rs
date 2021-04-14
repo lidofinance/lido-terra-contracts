@@ -25,7 +25,7 @@ pub fn query_reward_contract<S: Storage, A: Api, Q: Querier>(
         .api
         .human_address(
             &config
-                .reward_contract
+                .reward_dispatcher_contract
                 .expect("the reward contract must have been registered"),
         )
         .unwrap();

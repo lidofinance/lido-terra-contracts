@@ -60,7 +60,7 @@ impl WasmMockQuerier {
                     if key.as_slice().to_vec() == prefix_config {
                         let config = Config {
                             creator: api.canonical_address(&HumanAddr::from("owner1")).unwrap(),
-                            reward_contract: Some(
+                            reward_dispatcher_contract: Some(
                                 api.canonical_address(&HumanAddr::from(MOCK_REWARD_CONTRACT_ADDR))
                                     .unwrap(),
                             ),

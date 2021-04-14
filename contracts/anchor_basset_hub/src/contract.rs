@@ -16,8 +16,8 @@ use crate::state::{
 };
 use crate::unbond::{handle_unbond, handle_withdraw_unbonded};
 
-use crate::bond::handle_bond;
 use crate::bond::handle_bond_stluna;
+use crate::bond::{handle_bond, handle_bond_rewards};
 use anchor_basset_reward::msg::HandleMsg::{SwapToRewardDenom, UpdateGlobalIndex};
 use cosmwasm_storage::to_length_prefixed;
 use cw20::{Cw20HandleMsg, Cw20ReceiveMsg};
@@ -37,7 +37,7 @@ pub fn init<S: Storage, A: Api, Q: Querier>(
     // store config
     let data = Config {
         creator: sndr_raw,
-        reward_contract: None,
+        reward_dispatcher_contract: None,
         validators_registry_contract: None,
         bluna_token_contract: None,
         airdrop_registry_contract: None,
@@ -91,6 +91,7 @@ pub fn handle<S: Storage, A: Api, Q: Querier>(
         HandleMsg::Receive(msg) => receive_cw20(deps, env, msg),
         HandleMsg::Bond {} => handle_bond(deps, env),
         HandleMsg::BondForStLuna {} => handle_bond_stluna(deps, env),
+        HandleMsg::BondRewards {} => handle_bond_rewards(deps, env),
         HandleMsg::UpdateGlobalIndex { airdrop_hooks } => {
             handle_update_global(deps, env, airdrop_hooks)
         }
@@ -198,7 +199,7 @@ pub fn handle_update_global<S: Storage, A: Api, Q: Querier>(
     let config = read_config(&deps.storage).load()?;
     let reward_addr = deps.api.human_address(
         &config
-            .reward_contract
+            .reward_dispatcher_contract
             .expect("the reward contract must have been registered"),
     )?;
 
@@ -477,10 +478,10 @@ fn query_config<S: Storage, A: Api, Q: Querier>(
     let mut bluna_token: Option<HumanAddr> = None;
     let mut stluna_token: Option<HumanAddr> = None;
     let mut airdrop: Option<HumanAddr> = None;
-    if config.reward_contract.is_some() {
+    if config.reward_dispatcher_contract.is_some() {
         reward = Some(
             deps.api
-                .human_address(&config.reward_contract.unwrap())
+                .human_address(&config.reward_dispatcher_contract.unwrap())
                 .unwrap(),
         );
     }
@@ -515,7 +516,7 @@ fn query_config<S: Storage, A: Api, Q: Querier>(
 
     Ok(ConfigResponse {
         owner: deps.api.human_address(&config.creator)?,
-        reward_contract: reward,
+        reward_dispatcher_contract: reward,
         validators_registry_contract: validators_contract,
         bluna_token_contract: bluna_token,
         airdrop_registry_contract: airdrop,
