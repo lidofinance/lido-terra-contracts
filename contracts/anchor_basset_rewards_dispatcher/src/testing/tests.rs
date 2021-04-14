@@ -23,11 +23,14 @@ use cosmwasm_std::{coins, Coin, Decimal, HumanAddr, Uint128};
 use crate::contract::{get_swap_info, handle, init};
 use crate::msg::{HandleMsg, InitMsg};
 use crate::state::read_config;
-use crate::testing::mock_querier::{mock_dependencies, MOCK_HUB_CONTRACT_ADDR};
+use crate::testing::mock_querier::{
+    mock_dependencies, MOCK_BLUNA_REWARD_CONTRACT_ADDR, MOCK_HUB_CONTRACT_ADDR,
+};
 
 fn default_init() -> InitMsg {
     InitMsg {
         hub_contract: HumanAddr::from(MOCK_HUB_CONTRACT_ADDR),
+        bluna_reward_contract: HumanAddr::from(MOCK_BLUNA_REWARD_CONTRACT_ADDR),
         bluna_reward_denom: "uusd".to_string(),
         stluna_reward_denom: "uluna".to_string(),
     }
@@ -46,7 +49,7 @@ fn proper_initialization() {
 }
 
 #[test]
-fn swap_to_reward_denom() {
+fn test_swap_to_reward_denom() {
     let mut deps = mock_dependencies(
         20,
         &[
@@ -57,7 +60,7 @@ fn swap_to_reward_denom() {
     );
 
     let msg = default_init();
-    let env = mock_env("creator", &coins(1000, "earth"));
+    let env = mock_env("creator", &[]);
 
     // we can just call .unwrap() to assert this was a success
     let res = init(&mut deps, env, msg).unwrap();
@@ -71,6 +74,46 @@ fn swap_to_reward_denom() {
 
     let res = handle(&mut deps, env, msg).unwrap();
     assert_eq!(2, res.messages.len());
+}
+
+#[test]
+fn test_dispatch_rewards() {
+    let mut deps = mock_dependencies(
+        20,
+        &[
+            Coin::new(20, "uluna"),
+            Coin::new(30, "uusd"),
+            Coin::new(20, "usdr"),
+        ],
+    );
+
+    let msg = default_init();
+    let env = mock_env("creator", &[]);
+
+    // we can just call .unwrap() to assert this was a success
+    let res = init(&mut deps, env, msg).unwrap();
+    assert_eq!(0, res.messages.len());
+
+    let env = mock_env(HumanAddr::from(MOCK_HUB_CONTRACT_ADDR), &[]);
+    let msg = HandleMsg::DispatchRewards {};
+
+    let res = handle(&mut deps, env, msg).unwrap();
+    assert_eq!(3, res.messages.len());
+
+    for log in res.log {
+        if log.key == "stluna_rewards_denom" {
+            assert_eq!("uluna", log.value)
+        }
+        if log.key == "stluna_rewards_amount" {
+            assert_eq!("20", log.value)
+        }
+        if log.key == "bluna_rewards_denom" {
+            assert_eq!("uusd", log.value)
+        }
+        if log.key == "bluna_rewards_amount" {
+            assert_eq!("30", log.value)
+        }
+    }
 }
 
 #[test]
