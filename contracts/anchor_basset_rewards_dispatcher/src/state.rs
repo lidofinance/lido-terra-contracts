@@ -2,16 +2,21 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use cosmwasm_std::{CanonicalAddr, ReadonlyStorage, StdResult, Storage};
-use cosmwasm_storage::{singleton, singleton_read};
+use cosmwasm_storage::{singleton, singleton_read, Singleton};
 
 pub static KEY_CONFIG: &[u8] = b"config";
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct Config {
+    pub owner: CanonicalAddr,
     pub hub_contract: CanonicalAddr,
     pub bluna_reward_contract: CanonicalAddr,
     pub stluna_reward_denom: String,
     pub bluna_reward_denom: String,
+}
+
+pub fn update_config<S: Storage>(storage: &mut S) -> Singleton<S, Config> {
+    singleton(storage, KEY_CONFIG)
 }
 
 pub fn store_config<S: Storage>(storage: &mut S, config: &Config) -> StdResult<()> {
