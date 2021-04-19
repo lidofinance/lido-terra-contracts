@@ -4,7 +4,7 @@ use cosmwasm_std::{
 };
 
 use crate::msg::{HandleMsg, InitMsg, QueryMsg};
-use crate::state::{read_config, store_config, Config};
+use crate::state::{read_config, store_config, update_config, Config};
 use anchor_basset_reward::msg::HandleMsg::UpdateGlobalIndex;
 use basset::deduct_tax;
 use hub_querier::HandleMsg::BondForStLuna;
@@ -13,10 +13,11 @@ use terra_cosmwasm::{create_swap_msg, SwapResponse, TerraMsgWrapper, TerraQuerie
 
 pub fn init<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
-    _env: Env,
+    env: Env,
     msg: InitMsg,
 ) -> StdResult<InitResponse> {
     let conf = Config {
+        owner: deps.api.canonical_address(&env.message.sender)?,
         hub_contract: deps.api.canonical_address(&msg.hub_contract)?,
         bluna_reward_contract: deps.api.canonical_address(&msg.bluna_reward_contract)?,
         bluna_reward_denom: msg.bluna_reward_denom,
@@ -39,7 +40,81 @@ pub fn handle<S: Storage, A: Api, Q: Querier>(
             stluna_total_bond_amount,
         } => handle_swap(deps, env, bluna_total_bond_amount, stluna_total_bond_amount),
         HandleMsg::DispatchRewards {} => handle_dispatch_rewards(deps, env),
+        HandleMsg::UpdateConfig {
+            owner,
+            hub_contract,
+            bluna_reward_contract,
+            stluna_reward_denom,
+            bluna_reward_denom,
+        } => handle_update_config(
+            deps,
+            env,
+            owner,
+            hub_contract,
+            bluna_reward_contract,
+            stluna_reward_denom,
+            bluna_reward_denom,
+        ),
     }
+}
+
+pub fn handle_update_config<S: Storage, A: Api, Q: Querier>(
+    deps: &mut Extern<S, A, Q>,
+    env: Env,
+    owner: Option<HumanAddr>,
+    hub_contract: Option<HumanAddr>,
+    bluna_reward_contract: Option<HumanAddr>,
+    stluna_reward_denom: Option<String>,
+    bluna_reward_denom: Option<String>,
+) -> StdResult<HandleResponse<TerraMsgWrapper>> {
+    let conf = read_config(&deps.storage)?;
+    let sender_raw = deps.api.canonical_address(&env.message.sender)?;
+    if sender_raw != conf.owner {
+        return Err(StdError::unauthorized());
+    }
+
+    if let Some(o) = owner {
+        let owner_raw = deps.api.canonical_address(&o)?;
+
+        update_config(&mut deps.storage).update(|mut last_config| {
+            last_config.owner = owner_raw;
+            Ok(last_config)
+        })?;
+    }
+
+    if let Some(h) = hub_contract {
+        let hub_raw = deps.api.canonical_address(&h)?;
+
+        update_config(&mut deps.storage).update(|mut last_config| {
+            last_config.hub_contract = hub_raw;
+            Ok(last_config)
+        })?;
+    }
+
+    if let Some(b) = bluna_reward_contract {
+        let bluna_raw = deps.api.canonical_address(&b)?;
+
+        update_config(&mut deps.storage).update(|mut last_config| {
+            last_config.bluna_reward_contract = bluna_raw;
+            Ok(last_config)
+        })?;
+    }
+
+    if let Some(s) = stluna_reward_denom {
+        update_config(&mut deps.storage).update(|mut last_config| {
+            last_config.stluna_reward_denom = s;
+            Ok(last_config)
+        })?;
+    }
+
+    if let Some(b) = bluna_reward_denom {
+        update_config(&mut deps.storage).update(|mut last_config| {
+            last_config.bluna_reward_denom = b;
+            Ok(last_config)
+        })?;
+    }
+
+    Ok(HandleResponse::default())
 }
 
 pub fn handle_swap<S: Storage, A: Api, Q: Querier>(
@@ -49,9 +124,9 @@ pub fn handle_swap<S: Storage, A: Api, Q: Querier>(
     stluna_total_bond_amount: Uint128,
 ) -> StdResult<HandleResponse<TerraMsgWrapper>> {
     let config = read_config(&deps.storage)?;
-    let owner_addr = deps.api.human_address(&config.hub_contract)?;
+    let hub_addr = deps.api.human_address(&config.hub_contract)?;
 
-    if env.message.sender != owner_addr {
+    if env.message.sender != hub_addr {
         return Err(StdError::unauthorized());
     }
 

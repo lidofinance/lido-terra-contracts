@@ -18,7 +18,7 @@
 //! 4. Anywhere you see query(&deps, ...) you must replace it with query(&mut deps, ...)
 
 use cosmwasm_std::testing::mock_env;
-use cosmwasm_std::{coins, Coin, Decimal, HumanAddr, Uint128};
+use cosmwasm_std::{coins, Api, Coin, Decimal, HumanAddr, StdError, Uint128};
 
 use crate::contract::{get_swap_info, handle, init};
 use crate::msg::{HandleMsg, InitMsg};
@@ -185,4 +185,117 @@ fn test_get_swap_info() {
     .unwrap();
     assert_eq!(offer_coin.denom, config.stluna_reward_denom);
     assert_eq!(offer_coin.amount, Uint128(3));
+}
+
+#[test]
+fn test_update_config() {
+    let mut deps = mock_dependencies(20, &[]);
+
+    let owner = HumanAddr::from("creator");
+    let msg = default_init();
+    let env = mock_env(&owner, &coins(1000, "earth"));
+
+    // we can just call .unwrap() to assert this was a success
+    let res = init(&mut deps, env, msg).unwrap();
+    assert_eq!(0, res.messages.len());
+
+    //check call from invalid owner
+    let invalid_owner = HumanAddr::from("invalid_owner");
+    let update_config_msg = HandleMsg::UpdateConfig {
+        owner: Some(HumanAddr::from("some_addr")),
+        hub_contract: None,
+        bluna_reward_contract: None,
+        stluna_reward_denom: None,
+        bluna_reward_denom: None,
+    };
+    let env = mock_env(&invalid_owner, &[]);
+    let res = handle(&mut deps, env, update_config_msg);
+    assert_eq!(res.unwrap_err(), StdError::unauthorized());
+
+    // change owner
+    let new_owner = HumanAddr::from("new_owner");
+    let update_config_msg = HandleMsg::UpdateConfig {
+        owner: Some(new_owner.clone()),
+        hub_contract: None,
+        bluna_reward_contract: None,
+        stluna_reward_denom: None,
+        bluna_reward_denom: None,
+    };
+    let env = mock_env(&owner, &[]);
+    let res = handle(&mut deps, env, update_config_msg);
+    assert!(res.is_ok());
+
+    let config = read_config(&deps.storage).unwrap();
+    let new_owner_raw = deps.api.canonical_address(&new_owner).unwrap();
+    assert_eq!(new_owner_raw, config.owner);
+
+    // change hub_contract
+    let update_config_msg = HandleMsg::UpdateConfig {
+        owner: None,
+        hub_contract: Some(HumanAddr::from("some_address")),
+        bluna_reward_contract: None,
+        stluna_reward_denom: None,
+        bluna_reward_denom: None,
+    };
+    let env = mock_env(&new_owner, &[]);
+    let res = handle(&mut deps, env, update_config_msg);
+    assert!(res.is_ok());
+
+    let config = read_config(&deps.storage).unwrap();
+    assert_eq!(
+        deps.api
+            .canonical_address(&HumanAddr::from("some_address"))
+            .unwrap(),
+        config.hub_contract
+    );
+
+    // change bluna_reward_contract
+    let update_config_msg = HandleMsg::UpdateConfig {
+        owner: None,
+        hub_contract: None,
+        bluna_reward_contract: Some(HumanAddr::from("some_address")),
+        stluna_reward_denom: None,
+        bluna_reward_denom: None,
+    };
+    let env = mock_env(&new_owner, &[]);
+    let res = handle(&mut deps, env, update_config_msg);
+    assert!(res.is_ok());
+
+    let config = read_config(&deps.storage).unwrap();
+    assert_eq!(
+        deps.api
+            .canonical_address(&HumanAddr::from("some_address"))
+            .unwrap(),
+        config.bluna_reward_contract
+    );
+
+    // change stluna_reward_denom
+    let update_config_msg = HandleMsg::UpdateConfig {
+        owner: None,
+        hub_contract: None,
+        bluna_reward_contract: None,
+        stluna_reward_denom: Some(String::from("new_denom")),
+        bluna_reward_denom: None,
+    };
+    let env = mock_env(&new_owner, &[]);
+    let res = handle(&mut deps, env, update_config_msg);
+    assert!(res.is_ok());
+
+    let config = read_config(&deps.storage).unwrap();
+    assert_eq!(String::from("new_denom"), config.stluna_reward_denom);
+
+    // change bluna_reward_denom
+    let update_config_msg = HandleMsg::UpdateConfig {
+        owner: None,
+        hub_contract: None,
+        bluna_reward_contract: None,
+        stluna_reward_denom: None,
+        bluna_reward_denom: Some(String::from("new_denom")),
+    };
+    let env = mock_env(&new_owner, &[]);
+    let res = handle(&mut deps, env, update_config_msg);
+    assert!(res.is_ok());
+
+    let config = read_config(&deps.storage).unwrap();
+    assert_eq!(String::from("new_denom"), config.bluna_reward_denom);
 }

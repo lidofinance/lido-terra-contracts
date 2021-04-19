@@ -3,12 +3,28 @@
   "title": "InitMsg",
   "type": "object",
   "required": [
-    "count"
+    "bluna_reward_contract",
+    "bluna_reward_denom",
+    "hub_contract",
+    "stluna_reward_denom"
   ],
   "properties": {
-    "count": {
-      "type": "integer",
-      "format": "int32"
+    "bluna_reward_contract": {
+      "$ref": "#/definitions/HumanAddr"
+    },
+    "bluna_reward_denom": {
+      "type": "string"
+    },
+    "hub_contract": {
+      "$ref": "#/definitions/HumanAddr"
+    },
+    "stluna_reward_denom": {
+      "type": "string"
+    }
+  },
+  "definitions": {
+    "HumanAddr": {
+      "type": "string"
     }
   }
 }
