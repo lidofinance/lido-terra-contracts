@@ -68,8 +68,8 @@ fn test_swap_to_reward_denom() {
 
     let env = mock_env(HumanAddr::from(MOCK_HUB_CONTRACT_ADDR), &[]);
     let msg = HandleMsg::SwapToRewardDenom {
-        stluna_total_bond_amount: Uint128(2),
-        bluna_total_bond_amount: Uint128(2),
+        stluna_total_mint_amount: Uint128(2),
+        bluna_total_mint_amount: Uint128(2),
     };
 
     let res = handle(&mut deps, env, msg).unwrap();

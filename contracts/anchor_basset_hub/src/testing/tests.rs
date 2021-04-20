@@ -51,7 +51,7 @@ use crate::msg::QueryMsg::{
 use crate::state::{read_config, read_unbond_wait_list, Parameters};
 use anchor_airdrop_registry::msg::HandleMsg::{FabricateANCClaim, FabricateMIRClaim};
 use anchor_airdrop_registry::msg::PairHandleMsg;
-use anchor_basset_reward::msg::HandleMsg::{SwapToRewardDenom, UpdateGlobalIndex};
+use anchor_basset_rewards_dispatcher::msg::HandleMsg::{DispatchRewards, SwapToRewardDenom};
 
 use cosmwasm_std::testing::{MockApi, MockStorage};
 
@@ -237,7 +237,7 @@ fn proper_initialization() {
         query_batch,
         CurrentBatchResponse {
             id: 1,
-            requested_with_fee: Default::default()
+            requested_with_fee: Default::default(),
         }
     );
 }
@@ -352,7 +352,7 @@ fn proper_bond() {
                 msg,
                 &to_binary(&Cw20HandleMsg::Mint {
                     recipient: addr1.clone(),
-                    amount: bond_amount
+                    amount: bond_amount,
                 })
                 .unwrap()
             )
@@ -511,7 +511,7 @@ fn proper_bond_for_st_luna() {
                 msg,
                 &to_binary(&Cw20HandleMsg::Mint {
                     recipient: addr1.clone(),
-                    amount: bond_amount
+                    amount: bond_amount,
                 })
                 .unwrap()
             )
@@ -740,11 +740,17 @@ pub fn proper_update_global_index() {
         owner,
         reward_contract.clone(),
         token_contract,
-        stluna_token_contract,
+        stluna_token_contract.clone(),
     );
 
     // register_validator
     do_register_validator(&mut deps, validator.clone());
+
+    //set bob's balance to 10 in token contract
+    deps.querier.with_token_balances(&[
+        (&HumanAddr::from("token"), &[(&addr1, &bond_amount)]),
+        (&stluna_token_contract, &[(&addr1, &bond_amount)]),
+    ]);
 
     // fails if there is no delegation
     let reward_msg = HandleMsg::UpdateGlobalIndex {
@@ -767,8 +773,10 @@ pub fn proper_update_global_index() {
     set_delegation_query(&mut deps.querier, &delegations, &validators);
 
     //set bob's balance to 10 in token contract
-    deps.querier
-        .with_token_balances(&[(&HumanAddr::from("token"), &[(&addr1, &bond_amount)])]);
+    deps.querier.with_token_balances(&[
+        (&HumanAddr::from("token"), &[(&addr1, &bond_amount)]),
+        (&stluna_token_contract, &[(&addr1, &bond_amount)]),
+    ]);
 
     let reward_msg = HandleMsg::UpdateGlobalIndex {
         airdrop_hooks: None,
@@ -803,7 +811,14 @@ pub fn proper_update_global_index() {
             send: _,
         }) => {
             assert_eq!(contract_addr, &reward_contract);
-            assert_eq!(msg, &to_binary(&SwapToRewardDenom {}).unwrap())
+            assert_eq!(
+                msg,
+                &to_binary(&SwapToRewardDenom {
+                    stluna_total_mint_amount: Uint128(10),
+                    bluna_total_mint_amount: Uint128(10),
+                })
+                .unwrap()
+            )
         }
         _ => panic!("Unexpected message: {:?}", swap),
     }
@@ -816,7 +831,7 @@ pub fn proper_update_global_index() {
             send: _,
         }) => {
             assert_eq!(contract_addr, &reward_contract);
-            assert_eq!(msg, &to_binary(&UpdateGlobalIndex {}).unwrap())
+            assert_eq!(msg, &to_binary(&DispatchRewards {}).unwrap())
         }
         _ => panic!("Unexpected message: {:?}", update_g_index),
     }
@@ -843,7 +858,7 @@ pub fn proper_update_global_index_two_validators() {
         owner,
         reward_contract,
         token_contract,
-        stluna_token_contract,
+        stluna_token_contract.clone(),
     );
 
     // register_validator
@@ -853,8 +868,10 @@ pub fn proper_update_global_index_two_validators() {
     do_bond(&mut deps, addr1.clone(), Uint128(10));
 
     //set bob's balance to 10 in token contract
-    deps.querier
-        .with_token_balances(&[(&HumanAddr::from("token"), &[(&addr1, &Uint128(10u128))])]);
+    deps.querier.with_token_balances(&[
+        (&HumanAddr::from("token"), &[(&addr1, &Uint128(10u128))]),
+        (&stluna_token_contract, &[(&addr1, &Uint128(10))]),
+    ]);
 
     // register_validator
     do_register_validator(&mut deps, validator2.clone());
@@ -872,8 +889,10 @@ pub fn proper_update_global_index_two_validators() {
     set_delegation_query(&mut deps.querier, &delegations, &validators);
 
     //set bob's balance to 10 in token contract
-    deps.querier
-        .with_token_balances(&[(&HumanAddr::from("token"), &[(&addr1, &Uint128(20u128))])]);
+    deps.querier.with_token_balances(&[
+        (&HumanAddr::from("token"), &[(&addr1, &Uint128(20u128))]),
+        (&stluna_token_contract, &[(&addr1, &Uint128(10))]),
+    ]);
 
     let reward_msg = HandleMsg::UpdateGlobalIndex {
         airdrop_hooks: None,
@@ -930,7 +949,7 @@ pub fn proper_update_global_index_respect_one_registered_validator() {
         owner,
         reward_contract,
         token_contract,
-        stluna_token_contract,
+        stluna_token_contract.clone(),
     );
 
     // register_validator
@@ -940,8 +959,10 @@ pub fn proper_update_global_index_respect_one_registered_validator() {
     do_bond(&mut deps, addr1.clone(), Uint128(10));
 
     //set bob's balance to 10 in token contract
-    deps.querier
-        .with_token_balances(&[(&HumanAddr::from("token"), &[(&addr1, &Uint128(10u128))])]);
+    deps.querier.with_token_balances(&[
+        (&HumanAddr::from("token"), &[(&addr1, &Uint128(10u128))]),
+        (&stluna_token_contract, &[(&addr1, &Uint128(10))]),
+    ]);
 
     // register_validator 2 but will not bond anything to it
     do_register_validator(&mut deps, validator2);
@@ -954,8 +975,10 @@ pub fn proper_update_global_index_respect_one_registered_validator() {
     set_delegation_query(&mut deps.querier, &delegations, &validators);
 
     //set bob's balance to 10 in token contract
-    deps.querier
-        .with_token_balances(&[(&HumanAddr::from("token"), &[(&addr1, &Uint128(20u128))])]);
+    deps.querier.with_token_balances(&[
+        (&HumanAddr::from("token"), &[(&addr1, &Uint128(20u128))]),
+        (&stluna_token_contract, &[(&addr1, &Uint128(10))]),
+    ]);
 
     let reward_msg = HandleMsg::UpdateGlobalIndex {
         airdrop_hooks: None,
@@ -1534,7 +1557,7 @@ pub fn proper_slashing() {
                 msg,
                 &to_binary(&Mint {
                     recipient: env.message.sender,
-                    amount: Uint128(1111)
+                    amount: Uint128(1111),
                 })
                 .unwrap()
             );
@@ -1780,7 +1803,7 @@ pub fn proper_withdraw_unbonded() {
         query_unbond,
         UnbondRequestsResponse {
             address: bob,
-            requests: vec![]
+            requests: vec![],
         }
     );
 
@@ -2447,7 +2470,7 @@ pub fn proper_recovery_fee() {
             msg,
             &to_binary(&Mint {
                 recipient: bob.clone(),
-                amount: mint_amount_with_fee
+                amount: mint_amount_with_fee,
             })
             .unwrap()
         ),
@@ -2805,7 +2828,7 @@ fn proper_claim_airdrop() {
         CosmosMsg::Wasm(WasmMsg::Execute {
             contract_addr: HumanAddr::from("MIR_contract"),
             msg: to_binary(&MIRMsg::MIRClaim {}).unwrap(),
-            send: vec![]
+            send: vec![],
         })
     );
     assert_eq!(
@@ -2815,10 +2838,10 @@ fn proper_claim_airdrop() {
             msg: to_binary(&HandleMsg::SwapHook {
                 airdrop_token_contract: HumanAddr::from("airdrop_token"),
                 airdrop_swap_contract: HumanAddr::from("airdrop_swap"),
-                swap_msg: Default::default()
+                swap_msg: Default::default(),
             })
             .unwrap(),
-            send: vec![]
+            send: vec![],
         })
     );
 }
@@ -2891,7 +2914,7 @@ fn proper_swap_hook() {
                         to: Some(reward_contract),
                     })
                     .unwrap()
-                )
+                ),
             })
             .unwrap(),
             send: vec![],
@@ -2919,7 +2942,7 @@ fn proper_update_global_index_with_airdrop() {
         owner,
         reward_contract,
         token_contract,
-        stluna_token_contract,
+        stluna_token_contract.clone(),
     );
 
     // register_validator
@@ -2937,8 +2960,10 @@ fn proper_update_global_index_with_airdrop() {
     set_delegation_query(&mut deps.querier, &delegations, &validators);
 
     //set bob's balance to 10 in token contract
-    deps.querier
-        .with_token_balances(&[(&HumanAddr::from("token"), &[(&addr1, &bond_amount)])]);
+    deps.querier.with_token_balances(&[
+        (&HumanAddr::from("token"), &[(&addr1, &bond_amount)]),
+        (&stluna_token_contract, &[(&addr1, &Uint128(10))]),
+    ]);
 
     let binary_msg = to_binary(&FabricateMIRClaim {
         stage: 0,
