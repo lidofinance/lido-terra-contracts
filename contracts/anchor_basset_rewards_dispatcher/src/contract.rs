@@ -35,9 +35,9 @@ pub fn handle<S: Storage, A: Api, Q: Querier>(
 ) -> StdResult<HandleResponse<TerraMsgWrapper>> {
     match msg {
         HandleMsg::SwapToRewardDenom {
-            bluna_total_bond_amount,
-            stluna_total_bond_amount,
-        } => handle_swap(deps, env, bluna_total_bond_amount, stluna_total_bond_amount),
+            bluna_total_mint_amount,
+            stluna_total_mint_amount,
+        } => handle_swap(deps, env, bluna_total_mint_amount, stluna_total_mint_amount),
         HandleMsg::DispatchRewards {} => handle_dispatch_rewards(deps, env),
     }
 }
@@ -45,8 +45,8 @@ pub fn handle<S: Storage, A: Api, Q: Querier>(
 pub fn handle_swap<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
     env: Env,
-    bluna_total_bond_amount: Uint128,
-    stluna_total_bond_amount: Uint128,
+    bluna_total_mint_amount: Uint128,
+    stluna_total_mint_amount: Uint128,
 ) -> StdResult<HandleResponse<TerraMsgWrapper>> {
     let config = read_config(&deps.storage)?;
     let owner_addr = deps.api.human_address(&config.hub_contract)?;
@@ -74,8 +74,8 @@ pub fn handle_swap<S: Storage, A: Api, Q: Querier>(
 
     let (offer_coin, ask_denom) = get_swap_info(
         config,
-        stluna_total_bond_amount,
-        bluna_total_bond_amount,
+        stluna_total_mint_amount,
+        bluna_total_mint_amount,
         total_stluna_rewards_available,
         total_bluna_rewards_available,
         bluna_2_stluna_rewards_xchg_rate,
@@ -179,8 +179,8 @@ pub(crate) fn get_exchange_rates<S: Storage, A: Api, Q: Querier>(
 
 pub(crate) fn get_swap_info(
     config: Config,
-    stluna_total_bond_amount: Uint128,
-    bluna_total_bond_amount: Uint128,
+    stluna_total_mint_amount: Uint128,
+    bluna_total_mint_amount: Uint128,
     total_stluna_rewards_available: Uint128,
     total_bluna_rewards_available: Uint128,
     bluna_2_stluna_rewards_xchg_rate: Decimal,
@@ -191,8 +191,8 @@ pub(crate) fn get_swap_info(
         + total_bluna_rewards_available.mul(bluna_2_stluna_rewards_xchg_rate);
 
     let stluna_share_of_total_rewards = total_rewards_in_stluna_rewards.multiply_ratio(
-        stluna_total_bond_amount,
-        stluna_total_bond_amount + bluna_total_bond_amount,
+        stluna_total_mint_amount,
+        stluna_total_mint_amount + bluna_total_mint_amount,
     );
 
     if total_stluna_rewards_available.gt(&stluna_share_of_total_rewards) {
