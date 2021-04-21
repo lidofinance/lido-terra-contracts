@@ -245,17 +245,17 @@ pub fn handle_dispatch_rewards<S: Storage, A: Api, Q: Querier>(
 
     Ok(HandleResponse {
         messages: vec![
+            CosmosMsg::Wasm(WasmMsg::Execute {
+                contract_addr: hub_addr,
+                msg: to_binary(&BondForStLuna {}).unwrap(),
+                send: vec![deduct_tax(&deps, stluna_rewards.clone())?],
+            }),
             BankMsg::Send {
                 from_address: contr_addr,
-                to_address: hub_addr,
-                amount: vec![deduct_tax(&deps, stluna_rewards.clone())?],
+                to_address: bluna_reward_addr.clone(),
+                amount: vec![deduct_tax(&deps, bluna_rewards.clone())?],
             }
             .into(),
-            CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: bluna_reward_addr.clone(),
-                msg: to_binary(&BondForStLuna {}).unwrap(),
-                send: vec![deduct_tax(&deps, bluna_rewards.clone())?],
-            }),
             CosmosMsg::Wasm(WasmMsg::Execute {
                 contract_addr: bluna_reward_addr.clone(),
                 msg: to_binary(&UpdateGlobalIndex {}).unwrap(),
