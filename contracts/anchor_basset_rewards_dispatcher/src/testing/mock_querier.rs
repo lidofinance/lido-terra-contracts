@@ -11,6 +11,7 @@ use terra_cosmwasm::{
 
 pub const MOCK_HUB_CONTRACT_ADDR: &str = "hub";
 pub const MOCK_BLUNA_REWARD_CONTRACT_ADDR: &str = "reward";
+pub const MOCK_LIDO_FEE_ADDRESS: &str = "lido_fee";
 // pub const MOCK_TOKEN_CONTRACT_ADDR: &str = "token";
 
 pub fn mock_dependencies(
@@ -110,9 +111,7 @@ impl WasmMockQuerier {
             QueryRequest::Wasm(WasmQuery::Raw {
                 contract_addr: _,
                 key: _,
-            }) => {
-                unimplemented!()
-            }
+            }) => unimplemented!(),
             _ => self.base.handle_query(request),
         }
     }
