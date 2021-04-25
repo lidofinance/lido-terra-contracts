@@ -25,6 +25,7 @@ use crate::msg::{HandleMsg, InitMsg};
 use crate::state::read_config;
 use crate::testing::mock_querier::{
     mock_dependencies, MOCK_BLUNA_REWARD_CONTRACT_ADDR, MOCK_HUB_CONTRACT_ADDR,
+    MOCK_LIDO_FEE_ADDRESS,
 };
 
 fn default_init() -> InitMsg {
@@ -33,6 +34,8 @@ fn default_init() -> InitMsg {
         bluna_reward_contract: HumanAddr::from(MOCK_BLUNA_REWARD_CONTRACT_ADDR),
         bluna_reward_denom: "uusd".to_string(),
         stluna_reward_denom: "uluna".to_string(),
+        lido_fee_address: HumanAddr::from(MOCK_LIDO_FEE_ADDRESS),
+        lido_fee_rate: Decimal::from_ratio(Uint128(5), Uint128(100)),
     }
 }
 
@@ -98,20 +101,26 @@ fn test_dispatch_rewards() {
     let msg = HandleMsg::DispatchRewards {};
 
     let res = handle(&mut deps, env, msg).unwrap();
-    assert_eq!(3, res.messages.len());
+    assert_eq!(4, res.messages.len());
 
     for log in res.log {
         if log.key == "stluna_rewards_denom" {
             assert_eq!("uluna", log.value)
         }
         if log.key == "stluna_rewards_amount" {
-            assert_eq!("20", log.value)
+            assert_eq!("19", log.value)
         }
         if log.key == "bluna_rewards_denom" {
             assert_eq!("uusd", log.value)
         }
         if log.key == "bluna_rewards_amount" {
-            assert_eq!("30", log.value)
+            assert_eq!("28", log.value)
+        }
+        if log.key == "lido_stluna_fee" {
+            assert_eq!("1", log.value)
+        }
+        if log.key == "lido_bluna_fee" {
+            assert_eq!("2", log.value)
         }
     }
 }

@@ -5,33 +5,41 @@
     {
       "type": "object",
       "required": [
-        "increment"
+        "swap_to_reward_denom"
       ],
       "properties": {
-        "increment": {
-          "type": "object"
+        "swap_to_reward_denom": {
+          "type": "object",
+          "required": [
+            "bluna_total_bond_amount",
+            "stluna_total_bond_amount"
+          ],
+          "properties": {
+            "bluna_total_bond_amount": {
+              "$ref": "#/definitions/Uint128"
+            },
+            "stluna_total_bond_amount": {
+              "$ref": "#/definitions/Uint128"
+            }
+          }
         }
       }
     },
     {
       "type": "object",
       "required": [
-        "reset"
+        "dispatch_rewards"
       ],
       "properties": {
-        "reset": {
-          "type": "object",
-          "required": [
-            "count"
-          ],
-          "properties": {
-            "count": {
-              "type": "integer",
-              "format": "int32"
-            }
-          }
+        "dispatch_rewards": {
+          "type": "object"
         }
       }
     }
-  ]
+  ],
+  "definitions": {
+    "Uint128": {
+      "type": "string"
+    }
+  }
 }

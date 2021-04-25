@@ -1,4 +1,4 @@
-use cosmwasm_std::{HumanAddr, Uint128};
+use cosmwasm_std::{Decimal, HumanAddr, Uint128};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -8,6 +8,8 @@ pub struct InitMsg {
     pub bluna_reward_contract: HumanAddr,
     pub stluna_reward_denom: String,
     pub bluna_reward_denom: String,
+    pub lido_fee_address: HumanAddr,
+    pub lido_fee_rate: Decimal,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
