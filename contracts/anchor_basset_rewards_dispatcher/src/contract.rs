@@ -6,7 +6,7 @@ use cosmwasm_std::{
 use crate::msg::{HandleMsg, InitMsg, QueryMsg};
 use crate::state::{read_config, store_config, Config};
 use anchor_basset_reward::msg::HandleMsg::UpdateGlobalIndex;
-use basset::deduct_tax;
+use basset::{compute_lido_fee, deduct_tax};
 use hub_querier::HandleMsg::BondForStLuna;
 use std::ops::Mul;
 use terra_cosmwasm::{create_swap_msg, SwapResponse, TerraMsgWrapper, TerraQuerier};
@@ -21,6 +21,8 @@ pub fn init<S: Storage, A: Api, Q: Querier>(
         bluna_reward_contract: deps.api.canonical_address(&msg.bluna_reward_contract)?,
         bluna_reward_denom: msg.bluna_reward_denom,
         stluna_reward_denom: msg.stluna_reward_denom,
+        lido_fee_address: deps.api.canonical_address(&msg.lido_fee_address)?,
+        lido_fee_rate: msg.lido_fee_rate,
     };
 
     store_config(&mut deps.storage, &conf)?;
@@ -235,13 +237,17 @@ pub fn handle_dispatch_rewards<S: Storage, A: Api, Q: Querier>(
     let bluna_reward_addr = deps.api.human_address(&config.bluna_reward_contract)?;
 
     let contr_addr = env.contract.address;
-    let stluna_rewards = deps
+    let mut stluna_rewards = deps
         .querier
         .query_balance(contr_addr.clone(), config.stluna_reward_denom.as_str())?;
+    let lido_stluna_fee = compute_lido_fee(stluna_rewards.amount, config.lido_fee_rate)?;
+    stluna_rewards.amount = (stluna_rewards.amount - lido_stluna_fee)?;
 
-    let bluna_rewards = deps
+    let mut bluna_rewards = deps
         .querier
         .query_balance(contr_addr.clone(), config.bluna_reward_denom.as_str())?;
+    let lido_bluna_fee = compute_lido_fee(bluna_rewards.amount, config.lido_fee_rate)?;
+    bluna_rewards.amount = (bluna_rewards.amount - lido_bluna_fee)?;
 
     Ok(HandleResponse {
         messages: vec![
@@ -250,6 +256,15 @@ pub fn handle_dispatch_rewards<S: Storage, A: Api, Q: Querier>(
                 msg: to_binary(&BondForStLuna {}).unwrap(),
                 send: vec![deduct_tax(&deps, stluna_rewards.clone())?],
             }),
+            BankMsg::Send {
+                from_address: contr_addr.clone(),
+                to_address: deps.api.human_address(&config.lido_fee_address)?,
+                amount: vec![
+                    Coin::new(lido_stluna_fee.0, stluna_rewards.denom.as_str()),
+                    Coin::new(lido_bluna_fee.0, bluna_rewards.denom.as_str()),
+                ],
+            }
+            .into(),
             BankMsg::Send {
                 from_address: contr_addr,
                 to_address: bluna_reward_addr.clone(),
@@ -269,6 +284,8 @@ pub fn handle_dispatch_rewards<S: Storage, A: Api, Q: Querier>(
             log("stluna_rewards_amount", stluna_rewards.amount),
             log("bluna_rewards_denom", bluna_rewards.denom),
             log("bluna_rewards_amount", bluna_rewards.amount),
+            log("lido_stluna_fee", lido_stluna_fee),
+            log("lido_bluna_fee", lido_bluna_fee),
         ],
         data: None,
     })

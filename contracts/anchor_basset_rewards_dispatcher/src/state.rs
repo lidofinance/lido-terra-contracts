@@ -1,7 +1,7 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use cosmwasm_std::{CanonicalAddr, ReadonlyStorage, StdResult, Storage};
+use cosmwasm_std::{CanonicalAddr, Decimal, ReadonlyStorage, StdResult, Storage};
 use cosmwasm_storage::{singleton, singleton_read};
 
 pub static KEY_CONFIG: &[u8] = b"config";
@@ -12,6 +12,8 @@ pub struct Config {
     pub bluna_reward_contract: CanonicalAddr,
     pub stluna_reward_denom: String,
     pub bluna_reward_denom: String,
+    pub lido_fee_address: CanonicalAddr,
+    pub lido_fee_rate: Decimal,
 }
 
 pub fn store_config<S: Storage>(storage: &mut S, config: &Config) -> StdResult<()> {
