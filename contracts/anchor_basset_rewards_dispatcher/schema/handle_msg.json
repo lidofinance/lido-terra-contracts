@@ -1,0 +1,45 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "HandleMsg",
+  "anyOf": [
+    {
+      "type": "object",
+      "required": [
+        "swap_to_reward_denom"
+      ],
+      "properties": {
+        "swap_to_reward_denom": {
+          "type": "object",
+          "required": [
+            "bluna_total_bond_amount",
+            "stluna_total_bond_amount"
+          ],
+          "properties": {
+            "bluna_total_bond_amount": {
+              "$ref": "#/definitions/Uint128"
+            },
+            "stluna_total_bond_amount": {
+              "$ref": "#/definitions/Uint128"
+            }
+          }
+        }
+      }
+    },
+    {
+      "type": "object",
+      "required": [
+        "dispatch_rewards"
+      ],
+      "properties": {
+        "dispatch_rewards": {
+          "type": "object"
+        }
+      }
+    }
+  ],
+  "definitions": {
+    "Uint128": {
+      "type": "string"
+    }
+  }
+}

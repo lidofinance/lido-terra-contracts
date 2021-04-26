@@ -19,7 +19,7 @@ pub struct State {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct Config {
     pub creator: CanonicalAddr,
-    pub reward_contract: Option<CanonicalAddr>,
+    pub reward_dispatcher_contract: Option<CanonicalAddr>,
     pub validators_registry_contract: Option<CanonicalAddr>,
     pub bluna_token_contract: Option<CanonicalAddr>,
     pub stluna_token_contract: Option<CanonicalAddr>,
@@ -86,6 +86,8 @@ pub enum HandleMsg {
     Bond {},
 
     BondForStLuna {},
+
+    BondRewards {},
 
     /// Update global index
     UpdateGlobalIndex {
