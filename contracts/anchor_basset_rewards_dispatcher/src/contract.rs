@@ -6,7 +6,7 @@ use cosmwasm_std::{
 use crate::msg::{HandleMsg, InitMsg, QueryMsg};
 use crate::state::{read_config, store_config, update_config, Config};
 use anchor_basset_reward::msg::HandleMsg::UpdateGlobalIndex;
-use basset::deduct_tax;
+use basset::{compute_lido_fee, deduct_tax};
 use hub_querier::HandleMsg::BondForStLuna;
 use std::ops::Mul;
 use terra_cosmwasm::{create_swap_msg, SwapResponse, TerraMsgWrapper, TerraQuerier};
@@ -22,6 +22,8 @@ pub fn init<S: Storage, A: Api, Q: Querier>(
         bluna_reward_contract: deps.api.canonical_address(&msg.bluna_reward_contract)?,
         bluna_reward_denom: msg.bluna_reward_denom,
         stluna_reward_denom: msg.stluna_reward_denom,
+        lido_fee_address: deps.api.canonical_address(&msg.lido_fee_address)?,
+        lido_fee_rate: msg.lido_fee_rate,
     };
 
     store_config(&mut deps.storage, &conf)?;
@@ -36,9 +38,9 @@ pub fn handle<S: Storage, A: Api, Q: Querier>(
 ) -> StdResult<HandleResponse<TerraMsgWrapper>> {
     match msg {
         HandleMsg::SwapToRewardDenom {
-            bluna_total_bond_amount,
-            stluna_total_bond_amount,
-        } => handle_swap(deps, env, bluna_total_bond_amount, stluna_total_bond_amount),
+            bluna_total_mint_amount,
+            stluna_total_mint_amount,
+        } => handle_swap(deps, env, bluna_total_mint_amount, stluna_total_mint_amount),
         HandleMsg::DispatchRewards {} => handle_dispatch_rewards(deps, env),
         HandleMsg::UpdateConfig {
             owner,
@@ -120,8 +122,8 @@ pub fn handle_update_config<S: Storage, A: Api, Q: Querier>(
 pub fn handle_swap<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
     env: Env,
-    bluna_total_bond_amount: Uint128,
-    stluna_total_bond_amount: Uint128,
+    bluna_total_mint_amount: Uint128,
+    stluna_total_mint_amount: Uint128,
 ) -> StdResult<HandleResponse<TerraMsgWrapper>> {
     let config = read_config(&deps.storage)?;
     let hub_addr = deps.api.human_address(&config.hub_contract)?;
@@ -149,8 +151,8 @@ pub fn handle_swap<S: Storage, A: Api, Q: Querier>(
 
     let (offer_coin, ask_denom) = get_swap_info(
         config,
-        stluna_total_bond_amount,
-        bluna_total_bond_amount,
+        stluna_total_mint_amount,
+        bluna_total_mint_amount,
         total_stluna_rewards_available,
         total_bluna_rewards_available,
         bluna_2_stluna_rewards_xchg_rate,
@@ -254,8 +256,8 @@ pub(crate) fn get_exchange_rates<S: Storage, A: Api, Q: Querier>(
 
 pub(crate) fn get_swap_info(
     config: Config,
-    stluna_total_bond_amount: Uint128,
-    bluna_total_bond_amount: Uint128,
+    stluna_total_mint_amount: Uint128,
+    bluna_total_mint_amount: Uint128,
     total_stluna_rewards_available: Uint128,
     total_bluna_rewards_available: Uint128,
     bluna_2_stluna_rewards_xchg_rate: Decimal,
@@ -266,8 +268,8 @@ pub(crate) fn get_swap_info(
         + total_bluna_rewards_available.mul(bluna_2_stluna_rewards_xchg_rate);
 
     let stluna_share_of_total_rewards = total_rewards_in_stluna_rewards.multiply_ratio(
-        stluna_total_bond_amount,
-        stluna_total_bond_amount + bluna_total_bond_amount,
+        stluna_total_mint_amount,
+        stluna_total_mint_amount + bluna_total_mint_amount,
     );
 
     if total_stluna_rewards_available.gt(&stluna_share_of_total_rewards) {
@@ -310,27 +312,40 @@ pub fn handle_dispatch_rewards<S: Storage, A: Api, Q: Querier>(
     let bluna_reward_addr = deps.api.human_address(&config.bluna_reward_contract)?;
 
     let contr_addr = env.contract.address;
-    let stluna_rewards = deps
+    let mut stluna_rewards = deps
         .querier
         .query_balance(contr_addr.clone(), config.stluna_reward_denom.as_str())?;
+    let lido_stluna_fee = compute_lido_fee(stluna_rewards.amount, config.lido_fee_rate)?;
+    stluna_rewards.amount = (stluna_rewards.amount - lido_stluna_fee)?;
 
-    let bluna_rewards = deps
+    let mut bluna_rewards = deps
         .querier
         .query_balance(contr_addr.clone(), config.bluna_reward_denom.as_str())?;
+    let lido_bluna_fee = compute_lido_fee(bluna_rewards.amount, config.lido_fee_rate)?;
+    bluna_rewards.amount = (bluna_rewards.amount - lido_bluna_fee)?;
 
     Ok(HandleResponse {
         messages: vec![
+            CosmosMsg::Wasm(WasmMsg::Execute {
+                contract_addr: hub_addr,
+                msg: to_binary(&BondForStLuna {}).unwrap(),
+                send: vec![deduct_tax(&deps, stluna_rewards.clone())?],
+            }),
             BankMsg::Send {
-                from_address: contr_addr,
-                to_address: hub_addr,
-                amount: vec![deduct_tax(&deps, stluna_rewards.clone())?],
+                from_address: contr_addr.clone(),
+                to_address: deps.api.human_address(&config.lido_fee_address)?,
+                amount: vec![
+                    Coin::new(lido_stluna_fee.0, stluna_rewards.denom.as_str()),
+                    Coin::new(lido_bluna_fee.0, bluna_rewards.denom.as_str()),
+                ],
             }
             .into(),
-            CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: bluna_reward_addr.clone(),
-                msg: to_binary(&BondForStLuna {}).unwrap(),
-                send: vec![deduct_tax(&deps, bluna_rewards.clone())?],
-            }),
+            BankMsg::Send {
+                from_address: contr_addr,
+                to_address: bluna_reward_addr.clone(),
+                amount: vec![deduct_tax(&deps, bluna_rewards.clone())?],
+            }
+            .into(),
             CosmosMsg::Wasm(WasmMsg::Execute {
                 contract_addr: bluna_reward_addr.clone(),
                 msg: to_binary(&UpdateGlobalIndex {}).unwrap(),
@@ -344,6 +359,8 @@ pub fn handle_dispatch_rewards<S: Storage, A: Api, Q: Querier>(
             log("stluna_rewards_amount", stluna_rewards.amount),
             log("bluna_rewards_denom", bluna_rewards.denom),
             log("bluna_rewards_amount", bluna_rewards.amount),
+            log("lido_stluna_fee", lido_stluna_fee),
+            log("lido_bluna_fee", lido_bluna_fee),
         ],
         data: None,
     })

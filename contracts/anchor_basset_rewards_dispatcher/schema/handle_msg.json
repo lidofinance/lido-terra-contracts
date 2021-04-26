@@ -11,14 +11,14 @@
         "swap_to_reward_denom": {
           "type": "object",
           "required": [
-            "bluna_total_bond_amount",
-            "stluna_total_bond_amount"
+            "bluna_total_mint_amount",
+            "stluna_total_mint_amount"
           ],
           "properties": {
-            "bluna_total_bond_amount": {
+            "bluna_total_mint_amount": {
               "$ref": "#/definitions/Uint128"
             },
-            "stluna_total_bond_amount": {
+            "stluna_total_mint_amount": {
               "$ref": "#/definitions/Uint128"
             }
           }
