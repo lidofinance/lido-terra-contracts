@@ -1,4 +1,4 @@
-use cosmwasm_std::{HumanAddr, Uint128};
+use cosmwasm_std::{Decimal, HumanAddr, Uint128};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -8,14 +8,16 @@ pub struct InitMsg {
     pub bluna_reward_contract: HumanAddr,
     pub stluna_reward_denom: String,
     pub bluna_reward_denom: String,
+    pub lido_fee_address: HumanAddr,
+    pub lido_fee_rate: Decimal,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum HandleMsg {
     SwapToRewardDenom {
-        bluna_total_bond_amount: Uint128,
-        stluna_total_bond_amount: Uint128,
+        bluna_total_mint_amount: Uint128,
+        stluna_total_mint_amount: Uint128,
     },
     UpdateConfig {
         owner: Option<HumanAddr>,

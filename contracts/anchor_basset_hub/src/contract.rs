@@ -18,7 +18,7 @@ use crate::unbond::{handle_unbond, handle_withdraw_unbonded};
 
 use crate::bond::handle_bond_stluna;
 use crate::bond::{handle_bond, handle_bond_rewards};
-use anchor_basset_reward::msg::HandleMsg::{SwapToRewardDenom, UpdateGlobalIndex};
+use anchor_basset_rewards_dispatcher::msg::HandleMsg::{DispatchRewards, SwapToRewardDenom};
 use cosmwasm_storage::to_length_prefixed;
 use cw20::{Cw20HandleMsg, Cw20ReceiveMsg};
 use cw20_base::state::TokenInfo;
@@ -221,7 +221,11 @@ pub fn handle_update_global<S: Storage, A: Api, Q: Querier>(
     messages.append(&mut withdraw_msgs);
 
     // Send Swap message to reward contract
-    let swap_msg = SwapToRewardDenom {};
+    let swap_msg = SwapToRewardDenom {
+        stluna_total_mint_amount: query_total_stluna_issued(&deps)?,
+        bluna_total_mint_amount: query_total_bluna_issued(&deps)?,
+    };
+
     messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
         contract_addr: reward_addr.clone(),
         msg: to_binary(&swap_msg).unwrap(),
@@ -230,7 +234,7 @@ pub fn handle_update_global<S: Storage, A: Api, Q: Querier>(
 
     messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
         contract_addr: reward_addr,
-        msg: to_binary(&UpdateGlobalIndex {}).unwrap(),
+        msg: to_binary(&DispatchRewards {}).unwrap(),
         send: vec![],
     }));
 
@@ -352,13 +356,11 @@ pub fn claim_airdrop<S: Storage, A: Api, Q: Querier>(
         )));
     }
 
-    let mut messages: Vec<CosmosMsg> = vec![];
-
-    messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
+    let mut messages: Vec<CosmosMsg> = vec![CosmosMsg::Wasm(WasmMsg::Execute {
         contract_addr: airdrop_contract,
         msg: claim_msg,
         send: vec![],
-    }));
+    })];
 
     messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
         contract_addr: env.contract.address,
@@ -407,8 +409,7 @@ pub fn swap_hook<S: Storage, A: Api, Q: Querier>(
             &env.contract.address, &airdrop_token_contract
         )));
     }
-    let mut messages: Vec<CosmosMsg> = vec![];
-    messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
+    let messages: Vec<CosmosMsg> = vec![CosmosMsg::Wasm(WasmMsg::Execute {
         contract_addr: airdrop_token_contract.clone(),
         msg: to_binary(&Cw20HandleMsg::Send {
             contract: airdrop_swap_contract,
@@ -416,7 +417,7 @@ pub fn swap_hook<S: Storage, A: Api, Q: Querier>(
             msg: Some(swap_msg),
         })?,
         send: vec![],
-    }));
+    })];
 
     Ok(HandleResponse {
         messages,

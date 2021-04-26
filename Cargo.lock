@@ -36,7 +36,7 @@ name = "anchor_basset_hub"
 version = "1.0.0"
 dependencies = [
  "anchor_airdrop_registry",
- "anchor_basset_reward",
+ "anchor_basset_rewards_dispatcher",
  "anchor_basset_token",
  "basset",
  "cosmwasm-schema 0.11.2",
