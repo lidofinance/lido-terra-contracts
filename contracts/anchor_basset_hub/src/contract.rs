@@ -14,7 +14,7 @@ use crate::state::{
     read_current_batch, read_parameters, read_state, store_config, store_current_batch,
     store_parameters, store_state, CurrentBatch, Parameters,
 };
-use crate::unbond::{handle_unbond, handle_withdraw_unbonded};
+use crate::unbond::{handle_unbond, handle_unbond_stluna, handle_withdraw_unbonded};
 
 use crate::bond::handle_bond_stluna;
 use crate::bond::{handle_bond, handle_bond_rewards};
@@ -71,7 +71,8 @@ pub fn init<S: Storage, A: Api, Q: Querier>(
 
     let batch = CurrentBatch {
         id: 1,
-        requested_with_fee: Default::default(),
+        requested_bluna_with_fee: Default::default(),
+        requested_stluna: Default::default(),
     };
     store_current_batch(&mut deps.storage).save(&batch)?;
 
@@ -170,13 +171,20 @@ pub fn receive_cw20<S: Storage, A: Api, Q: Querier>(
                 // only token contract can execute this message
                 let conf = read_config(&deps.storage).load()?;
                 if deps.api.canonical_address(&contract_addr)?
-                    != conf
+                    == conf
                         .bluna_token_contract
                         .expect("the token contract must have been registered")
                 {
-                    return Err(StdError::unauthorized());
+                    handle_unbond(deps, env, cw20_msg.amount, cw20_msg.sender)
+                } else if deps.api.canonical_address(&contract_addr)?
+                    == conf
+                        .stluna_token_contract
+                        .expect("the token contract must have been registered")
+                {
+                    handle_unbond_stluna(deps, env, cw20_msg.amount, cw20_msg.sender)
+                } else {
+                    Err(StdError::unauthorized())
                 }
-                handle_unbond(deps, env, cw20_msg.amount, cw20_msg.sender)
             }
         }
     } else {
@@ -315,7 +323,9 @@ pub fn slashing<S: Storage, A: Api, Q: Querier>(
         // Need total issued for updating the exchange rate
         let bluna_total_issued = query_total_bluna_issued(&deps)?;
         let stluna_total_issued = query_total_stluna_issued(&deps)?;
-        let current_requested_fee = read_current_batch(&deps.storage).load()?.requested_with_fee;
+        let current_requested_fee = read_current_batch(&deps.storage)
+            .load()?
+            .requested_bluna_with_fee;
 
         // Slashing happens if the expected amount is less than stored amount
         if state_total_bonded.u128() > actual_total_bonded.u128() {
@@ -547,7 +557,8 @@ fn query_current_batch<S: Storage, A: Api, Q: Querier>(
     let current_batch = read_current_batch(&deps.storage).load()?;
     Ok(CurrentBatchResponse {
         id: current_batch.id,
-        requested_with_fee: current_batch.requested_with_fee,
+        requested_bluna_with_fee: current_batch.requested_bluna_with_fee,
+        requested_stluna: current_batch.requested_stluna,
     })
 }
 
