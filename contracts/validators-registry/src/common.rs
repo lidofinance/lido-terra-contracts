@@ -42,7 +42,6 @@ pub fn calculate_undelegations(
     let total_delegated: u128 = validators.iter().map(|v| v.total_delegated.0).sum();
 
     if undelegation_amount.0 > total_delegated {
-        println!("{} {}", undelegation_amount, total_delegated);
         return Err(StdError::generic_err(
             "undelegate amount can't be bigger than total delegated amount",
         ));
