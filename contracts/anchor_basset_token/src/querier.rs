@@ -5,7 +5,8 @@ use cosmwasm_std::{
 use cosmwasm_storage::to_length_prefixed;
 
 use crate::state::read_hub_contract;
-use hub_querier::Config;
+use anchor_basset_rewards_dispatcher::state::Config as RewardsDispatcherConfig;
+use hub_querier::Config as HubConfig;
 
 pub fn query_reward_contract<S: Storage, A: Api, Q: Querier>(
     deps: &Extern<S, A, Q>,
@@ -20,14 +21,25 @@ pub fn query_reward_contract<S: Storage, A: Api, Q: Querier>(
         key: Binary::from(to_length_prefixed(b"config")),
     }))?;
 
-    let config: Config = from_binary(&res)?;
-    let address = deps
+    let hub_config: HubConfig = from_binary(&res)?;
+    let rewards_dispatcher_address = deps
         .api
         .human_address(
-            &config
+            &hub_config
                 .reward_dispatcher_contract
-                .expect("the reward contract must have been registered"),
+                .expect("the rewards dispatcher contract must have been registered"),
         )
         .unwrap();
-    Ok(address)
+
+    let res: Binary = deps.querier.query(&QueryRequest::Wasm(WasmQuery::Raw {
+        contract_addr: rewards_dispatcher_address,
+        key: Binary::from(to_length_prefixed(b"config")),
+    }))?;
+
+    let rewards_dispatcher_config: RewardsDispatcherConfig = from_binary(&res)?;
+    let rewards_address = deps
+        .api
+        .human_address(&rewards_dispatcher_config.bluna_reward_contract)
+        .unwrap();
+    Ok(rewards_address)
 }

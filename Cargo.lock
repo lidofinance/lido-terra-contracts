@@ -93,6 +93,7 @@ name = "anchor_basset_token"
 version = "1.0.0"
 dependencies = [
  "anchor_basset_reward",
+ "anchor_basset_rewards_dispatcher",
  "cosmwasm-schema 0.11.2",
  "cosmwasm-std",
  "cosmwasm-storage",
