@@ -1,11 +1,12 @@
 use anchor_basset_rewards_dispatcher::state::Config as RewardsDispatcherConfig;
 use cosmwasm_std::testing::{MockApi, MockQuerier, MockStorage, MOCK_CONTRACT_ADDR};
+
 use cosmwasm_std::{
     from_slice, to_binary, Api, Coin, Decimal, Empty, Extern, HumanAddr, Querier, QuerierResult,
-    QueryRequest, SystemError, WasmQuery,
-};
+    QueryRequest, SystemError, WasmQuery,  Uint128};
 use cosmwasm_storage::to_length_prefixed;
-use hub_querier::Config as HubConfig;
+use hub_querier::{Config as HubConfig, State};
+
 
 pub const MOCK_OWNER_ADDR: &str = "owner";
 pub const MOCK_HUB_CONTRACT_ADDR: &str = "hub";
@@ -47,7 +48,7 @@ impl Querier for WasmMockQuerier {
                 return Err(SystemError::InvalidRequest {
                     error: format!("Parsing query request: {}", e),
                     request: bin_request.into(),
-                })
+                });
             }
         };
         self.handle_query(&request)
@@ -60,6 +61,8 @@ impl WasmMockQuerier {
             QueryRequest::Wasm(WasmQuery::Raw { contract_addr, key }) => {
                 if *contract_addr == HumanAddr::from(MOCK_HUB_CONTRACT_ADDR) {
                     let prefix_config = to_length_prefixed(b"config").to_vec();
+                    let prefix_state = to_length_prefixed(b"state").to_vec();
+
                     let api: MockApi = MockApi::new(self.canonical_length);
                     if key.as_slice().to_vec() == prefix_config {
                         let config = HubConfig {
@@ -78,19 +81,32 @@ impl WasmMockQuerier {
                                 api.canonical_address(&HumanAddr::from(
                                     MOCK_VALIDATORS_REGISTRY_ADDR,
                                 ))
-                                .unwrap(),
+                                    .unwrap(),
                             ),
                             stluna_token_contract: Some(
                                 api.canonical_address(&HumanAddr::from(
                                     MOCK_STLUNA_TOKEN_CONTRACT_ADDR,
                                 ))
-                                .unwrap(),
+                                    .unwrap(),
                             ),
                             airdrop_registry_contract: Some(
                                 api.canonical_address(&HumanAddr::from("airdrop")).unwrap(),
                             ),
                         };
                         Ok(to_binary(&to_binary(&config).unwrap()))
+                    } else if key.as_slice().to_vec() == prefix_state {
+                        let state = State {
+                            bluna_exchange_rate: Decimal::from_ratio(Uint128(9), Uint128(10)),
+                            stluna_exchange_rate: Decimal::from_ratio(Uint128(8), Uint128(10)),
+                            total_bond_bluna_amount: Uint128(100),
+                            total_bond_stluna_amount: Uint128(100),
+                            last_index_modification: 1,
+                            prev_hub_balance: Uint128(100),
+                            actual_unbonded_amount: Uint128(100),
+                            last_unbonded_time: 1,
+                            last_processed_batch: 1,
+                        };
+                        Ok(to_binary(&to_binary(&state).unwrap()))
                     } else {
                         unimplemented!()
                     }

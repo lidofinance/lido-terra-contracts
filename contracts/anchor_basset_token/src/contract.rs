@@ -5,9 +5,10 @@ use cosmwasm_std::{
 use cw20_base::allowances::{handle_decrease_allowance, handle_increase_allowance};
 use cw20_base::contract::init as cw20_init;
 use cw20_base::contract::query as cw20_query;
-use cw20_base::msg::{HandleMsg, InitMsg, QueryMsg};
+use cw20_base::msg::{InitMsg, QueryMsg};
 
 use crate::handler::*;
+use crate::msg::HandleMsg;
 use crate::msg::TokenInitMsg;
 use crate::state::store_hub_contract;
 use cw20::MinterResponse;
@@ -46,6 +47,7 @@ pub fn handle<S: Storage, A: Api, Q: Querier>(
     msg: HandleMsg,
 ) -> StdResult<HandleResponse> {
     match msg {
+        HandleMsg::Receive(msg) => receive_cw20(deps, env, msg),
         HandleMsg::Transfer { recipient, amount } => handle_transfer(deps, env, recipient, amount),
         HandleMsg::Burn { amount } => handle_burn(deps, env, amount),
         HandleMsg::Send {

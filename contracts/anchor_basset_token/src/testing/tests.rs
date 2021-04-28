@@ -6,14 +6,15 @@ use cosmwasm_std::{
 use anchor_basset_reward::msg::HandleMsg::{DecreaseBalance, IncreaseBalance};
 use cw20::{Cw20ReceiveMsg, MinterResponse, TokenInfoResponse};
 use cw20_base::contract::{query_minter, query_token_info};
-use cw20_base::msg::HandleMsg;
 
+use crate::msg::HandleMsg;
 use crate::contract::{handle, init};
 use crate::msg::TokenInitMsg;
 use crate::state::read_hub_contract;
 use crate::testing::mock_querier::{
     mock_dependencies, MOCK_HUB_CONTRACT_ADDR, MOCK_REWARD_CONTRACT_ADDR,
 };
+use crate::msg::Cw20HookMsg::Convert;
 
 const CANONICAL_LENGTH: usize = 20;
 
@@ -61,7 +62,7 @@ fn _do_init<S: Storage, A: Api, Q: Querier>(
             total_supply: Uint128::zero(),
         }
     );
-    assert_eq!(query_minter(&deps).unwrap(), mint,);
+    assert_eq!(query_minter(&deps).unwrap(), mint, );
     meta
 }
 
@@ -112,7 +113,7 @@ fn proper_initialization() {
         query_minter(&deps).unwrap(),
         Some(MinterResponse {
             minter: hub_contract,
-            cap: None
+            cap: None,
         })
     );
 
@@ -145,7 +146,7 @@ fn transfer() {
                     address: addr1,
                     amount: Uint128(1u128),
                 })
-                .unwrap(),
+                    .unwrap(),
                 send: vec![],
             }),
             CosmosMsg::Wasm(WasmMsg::Execute {
@@ -154,7 +155,7 @@ fn transfer() {
                     address: addr2,
                     amount: Uint128(1u128),
                 })
-                .unwrap(),
+                    .unwrap(),
                 send: vec![],
             }),
         ]
@@ -197,7 +198,7 @@ fn transfer_from() {
                     address: addr1,
                     amount: Uint128(1u128),
                 })
-                .unwrap(),
+                    .unwrap(),
                 send: vec![],
             }),
             CosmosMsg::Wasm(WasmMsg::Execute {
@@ -206,7 +207,7 @@ fn transfer_from() {
                     address: addr2,
                     amount: Uint128(1u128),
                 })
-                .unwrap(),
+                    .unwrap(),
                 send: vec![],
             }),
         ]
@@ -235,9 +236,9 @@ fn mint() {
                 address: addr,
                 amount: Uint128(1u128),
             })
-            .unwrap(),
+                .unwrap(),
             send: vec![],
-        }),]
+        }), ]
     );
 }
 
@@ -264,9 +265,9 @@ fn burn() {
                 address: addr,
                 amount: Uint128(1u128),
             })
-            .unwrap(),
+                .unwrap(),
             send: vec![],
-        }),]
+        }), ]
     );
 }
 
@@ -303,9 +304,9 @@ fn burn_from() {
                 address: addr,
                 amount: Uint128(1u128),
             })
-            .unwrap(),
+                .unwrap(),
             send: vec![],
-        }),]
+        }), ]
     );
 }
 
@@ -342,7 +343,7 @@ fn send() {
                     address: addr1.clone(),
                     amount: Uint128(1u128),
                 })
-                .unwrap(),
+                    .unwrap(),
                 send: vec![],
             }),
             CosmosMsg::Wasm(WasmMsg::Execute {
@@ -351,7 +352,7 @@ fn send() {
                     address: dummny_contract_addr.clone(),
                     amount: Uint128(1u128),
                 })
-                .unwrap(),
+                    .unwrap(),
                 send: vec![],
             }),
         ]
@@ -363,8 +364,8 @@ fn send() {
             amount: Uint128(1),
             msg: Some(to_binary(&dummy_msg).unwrap()),
         }
-        .into_cosmos_msg(dummny_contract_addr)
-        .unwrap()
+            .into_cosmos_msg(dummny_contract_addr)
+            .unwrap()
     );
 }
 
@@ -411,7 +412,7 @@ fn send_from() {
                     address: addr1,
                     amount: Uint128(1u128),
                 })
-                .unwrap(),
+                    .unwrap(),
                 send: vec![],
             }),
             CosmosMsg::Wasm(WasmMsg::Execute {
@@ -420,7 +421,7 @@ fn send_from() {
                     address: dummny_contract_addr.clone(),
                     amount: Uint128(1u128),
                 })
-                .unwrap(),
+                    .unwrap(),
                 send: vec![],
             }),
         ]
@@ -433,7 +434,25 @@ fn send_from() {
             amount: Uint128(1),
             msg: Some(to_binary(&dummy_msg).unwrap()),
         }
-        .into_cosmos_msg(dummny_contract_addr)
-        .unwrap()
+            .into_cosmos_msg(dummny_contract_addr)
+            .unwrap()
     );
+}
+
+#[test]
+fn test_receive_cw20() {
+    let mut deps = mock_dependencies(20, &coins(2, "token"));
+    let stluna_addr = HumanAddr::from("stluna_token");
+    let sender_addr = HumanAddr::from("addr001");
+
+    do_init_with_minter(&mut deps, &HumanAddr::from(MOCK_HUB_CONTRACT_ADDR), None);
+
+    let env = mock_env(stluna_addr.clone(), &[]);
+    let msg = HandleMsg::Receive(Cw20ReceiveMsg {
+        sender: sender_addr.clone(),
+        amount: Uint128(10),
+        msg: Some(to_binary(&Convert {}).unwrap()),
+    });
+
+    let _ = handle(&mut deps, env, msg).unwrap();
 }
