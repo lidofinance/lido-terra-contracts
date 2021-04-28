@@ -291,9 +291,17 @@ pub fn handle_dispatch_rewards<S: Storage, A: Api, Q: Querier>(
     })
 }
 
+fn query_config<S: Storage, A: Api, Q: Querier>(deps: &Extern<S, A, Q>) -> StdResult<Config> {
+    let config = read_config(&deps.storage)?;
+    Ok(config)
+}
+
 pub fn query<S: Storage, A: Api, Q: Querier>(
-    _deps: &Extern<S, A, Q>,
-    _msg: QueryMsg,
+    deps: &Extern<S, A, Q>,
+    msg: QueryMsg,
 ) -> StdResult<Binary> {
-    unimplemented!()
+    match msg {
+        QueryMsg::Config {} => to_binary(&query_config(&deps)?),
+        QueryMsg::GetBufferedRewards {} => unimplemented!(),
+    }
 }
