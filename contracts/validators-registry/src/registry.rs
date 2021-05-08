@@ -14,10 +14,15 @@ pub static REGISTRY_KEY: &[u8] = b"validators_registry";
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct Config {
+    pub owner: CanonicalAddr,
     pub hub_contract: CanonicalAddr,
 }
 
 pub fn config<S: Storage>(storage: &mut S) -> Singleton<S, Config> {
+    singleton(storage, CONFIG_KEY)
+}
+
+pub fn store_config<S: Storage>(storage: &mut S) -> Singleton<S, Config> {
     singleton(storage, CONFIG_KEY)
 }
 
