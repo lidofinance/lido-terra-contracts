@@ -15,8 +15,8 @@ use cw20_base::contract::{
     handle_burn as cw20_burn, handle_mint as cw20_mint, handle_send as cw20_send,
     handle_transfer as cw20_transfer,
 };
-use std::ops::Mul;
 use cw20_base::state::token_info_read;
+use std::ops::Mul;
 
 pub fn handle_transfer<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
@@ -36,7 +36,7 @@ pub fn handle_transfer<S: Storage, A: Api, Q: Querier>(
                     address: sender,
                     amount,
                 })
-                    .unwrap(),
+                .unwrap(),
                 send: vec![],
             }),
             CosmosMsg::Wasm(WasmMsg::Execute {
@@ -45,7 +45,7 @@ pub fn handle_transfer<S: Storage, A: Api, Q: Querier>(
                     address: recipient,
                     amount,
                 })
-                    .unwrap(),
+                .unwrap(),
                 send: vec![],
             }),
         ],
@@ -70,7 +70,7 @@ pub fn handle_burn<S: Storage, A: Api, Q: Querier>(
                 address: sender,
                 amount,
             })
-                .unwrap(),
+            .unwrap(),
             send: vec![],
         })],
         log: res.log,
@@ -94,7 +94,7 @@ pub fn handle_mint<S: Storage, A: Api, Q: Querier>(
                 address: recipient,
                 amount,
             })
-                .unwrap(),
+            .unwrap(),
             send: vec![],
         })],
         log: res.log,
@@ -122,7 +122,7 @@ pub fn handle_send<S: Storage, A: Api, Q: Querier>(
                         address: sender,
                         amount,
                     })
-                        .unwrap(),
+                    .unwrap(),
                     send: vec![],
                 }),
                 CosmosMsg::Wasm(WasmMsg::Execute {
@@ -131,13 +131,13 @@ pub fn handle_send<S: Storage, A: Api, Q: Querier>(
                         address: contract,
                         amount,
                     })
-                        .unwrap(),
+                    .unwrap(),
                     send: vec![],
                 }),
             ],
             res.messages,
         ]
-            .concat(),
+        .concat(),
         log: res.log,
         data: None,
     })
@@ -162,7 +162,7 @@ pub fn handle_transfer_from<S: Storage, A: Api, Q: Querier>(
                     address: owner,
                     amount,
                 })
-                    .unwrap(),
+                .unwrap(),
                 send: vec![],
             }),
             CosmosMsg::Wasm(WasmMsg::Execute {
@@ -171,7 +171,7 @@ pub fn handle_transfer_from<S: Storage, A: Api, Q: Querier>(
                     address: recipient,
                     amount,
                 })
-                    .unwrap(),
+                .unwrap(),
                 send: vec![],
             }),
         ],
@@ -196,7 +196,7 @@ pub fn handle_burn_from<S: Storage, A: Api, Q: Querier>(
                 address: owner,
                 amount,
             })
-                .unwrap(),
+            .unwrap(),
             send: vec![],
         })],
         log: res.log,
@@ -225,7 +225,7 @@ pub fn handle_send_from<S: Storage, A: Api, Q: Querier>(
                         address: owner,
                         amount,
                     })
-                        .unwrap(),
+                    .unwrap(),
                     send: vec![],
                 }),
                 CosmosMsg::Wasm(WasmMsg::Execute {
@@ -234,13 +234,13 @@ pub fn handle_send_from<S: Storage, A: Api, Q: Querier>(
                         address: contract,
                         amount,
                     })
-                        .unwrap(),
+                    .unwrap(),
                     send: vec![],
                 }),
             ],
             res.messages,
         ]
-            .concat(),
+        .concat(),
         log: res.log,
         data: None,
     })
@@ -263,7 +263,13 @@ pub fn receive_cw20<S: Storage, A: Api, Q: Querier>(
                 if contract_addr != stluna_contract {
                     Err(StdError::unauthorized())
                 } else {
-                    handle_convert_stluna(deps, env, cw20_msg.amount, cw20_msg.sender, stluna_contract)
+                    handle_convert_stluna(
+                        deps,
+                        env,
+                        cw20_msg.amount,
+                        cw20_msg.sender,
+                        stluna_contract,
+                    )
                 }
             }
         }
@@ -298,7 +304,12 @@ fn handle_convert_stluna<S: Storage, A: Api, Q: Querier>(
         send: vec![],
     }));
 
-    handle_mint(deps, get_minter_env(deps, env)?, sender.clone(), bluna_to_mint)?;
+    handle_mint(
+        deps,
+        get_minter_env(deps, env)?,
+        sender.clone(),
+        bluna_to_mint,
+    )?;
 
     let res = HandleResponse {
         messages,
@@ -328,7 +339,8 @@ pub fn get_minter_env<S: Storage, A: Api, Q: Querier>(
     let config = token_info_read(&deps.storage).load()?;
     minter_env.message.sender = deps
         .api
-        .human_address(&config.mint.unwrap().minter).unwrap();
+        .human_address(&config.mint.unwrap().minter)
+        .unwrap();
 
     Ok(minter_env)
 }

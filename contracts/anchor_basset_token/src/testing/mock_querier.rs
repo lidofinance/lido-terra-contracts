@@ -3,7 +3,9 @@ use cosmwasm_std::testing::{MockApi, MockQuerier, MockStorage, MOCK_CONTRACT_ADD
 
 use cosmwasm_std::{
     from_slice, to_binary, Api, Coin, Decimal, Empty, Extern, HumanAddr, Querier, QuerierResult,
-    QueryRequest, SystemError, WasmQuery,  Uint128};
+    QueryRequest, SystemError, Uint128, WasmQuery,
+};
+
 use cosmwasm_storage::to_length_prefixed;
 use hub_querier::{Config as HubConfig, State};
 
@@ -81,13 +83,13 @@ impl WasmMockQuerier {
                                 api.canonical_address(&HumanAddr::from(
                                     MOCK_VALIDATORS_REGISTRY_ADDR,
                                 ))
-                                    .unwrap(),
+                                .unwrap(),
                             ),
                             stluna_token_contract: Some(
                                 api.canonical_address(&HumanAddr::from(
                                     MOCK_STLUNA_TOKEN_CONTRACT_ADDR,
                                 ))
-                                    .unwrap(),
+                                .unwrap(),
                             ),
                             airdrop_registry_contract: Some(
                                 api.canonical_address(&HumanAddr::from("airdrop")).unwrap(),

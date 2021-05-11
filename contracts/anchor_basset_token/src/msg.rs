@@ -1,5 +1,5 @@
-use cosmwasm_std::{HumanAddr, Uint128, Binary};
-use cw20::{Cw20CoinHuman, Cw20ReceiveMsg, MinterResponse, Expiration};
+use cosmwasm_std::{Binary, HumanAddr, Uint128};
+use cw20::{Cw20CoinHuman, Cw20ReceiveMsg, Expiration, MinterResponse};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
