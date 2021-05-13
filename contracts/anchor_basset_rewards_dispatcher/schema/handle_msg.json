@@ -11,15 +11,70 @@
         "swap_to_reward_denom": {
           "type": "object",
           "required": [
-            "bluna_total_bond_amount",
-            "stluna_total_bond_amount"
+            "bluna_total_mint_amount",
+            "stluna_total_mint_amount"
           ],
           "properties": {
-            "bluna_total_bond_amount": {
+            "bluna_total_mint_amount": {
               "$ref": "#/definitions/Uint128"
             },
-            "stluna_total_bond_amount": {
+            "stluna_total_mint_amount": {
               "$ref": "#/definitions/Uint128"
+            }
+          }
+        }
+      }
+    },
+    {
+      "type": "object",
+      "required": [
+        "update_config"
+      ],
+      "properties": {
+        "update_config": {
+          "type": "object",
+          "properties": {
+            "bluna_reward_contract": {
+              "anyOf": [
+                {
+                  "$ref": "#/definitions/HumanAddr"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "bluna_reward_denom": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "hub_contract": {
+              "anyOf": [
+                {
+                  "$ref": "#/definitions/HumanAddr"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "owner": {
+              "anyOf": [
+                {
+                  "$ref": "#/definitions/HumanAddr"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "stluna_reward_denom": {
+              "type": [
+                "string",
+                "null"
+              ]
             }
           }
         }
@@ -38,6 +93,9 @@
     }
   ],
   "definitions": {
+    "HumanAddr": {
+      "type": "string"
+    },
     "Uint128": {
       "type": "string"
     }
