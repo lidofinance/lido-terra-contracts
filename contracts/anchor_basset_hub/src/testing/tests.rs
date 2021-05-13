@@ -16,6 +16,10 @@
 //!          //...
 //!      });
 //! 4. Anywhere you see query(&deps, ...) you must replace it with query(&mut deps, ...)
+use anchor_basset_validators_registry::msg::{
+    HandleMsg as HandleMsgValidators, QueryMsg as QueryValidators,
+};
+use anchor_basset_validators_registry::registry::Validator as RegistryValidator;
 use cosmwasm_std::{
     coin, from_binary, to_binary, Api, BankMsg, Coin, CosmosMsg, Decimal, Env, Extern,
     FullDelegation, HandleResponse, HumanAddr, InitResponse, Querier, QueryRequest, StakingMsg,
@@ -23,8 +27,6 @@ use cosmwasm_std::{
 };
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use validators_registry::msg::{HandleMsg as HandleMsgValidators, QueryMsg as QueryValidators};
-use validators_registry::registry::Validator as RegistryValidator;
 
 use cosmwasm_std::testing::mock_env;
 
