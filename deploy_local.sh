@@ -19,7 +19,7 @@ terracli tx wasm store artifacts/validators_registry.wasm --from test1 --chain-i
 echo "Done!"
 
 echo "Uploading st_luna.wasm..."
-terracli tx wasm store artifacts/st_luna.wasm --from test1 --chain-id=localterra --gas=auto --fees=100000uluna --broadcast-mode=block -y
+terracli tx wasm store artifacts/anchor_basset_st_luna.wasm --from test1 --chain-id=localterra --gas=auto --fees=100000uluna --broadcast-mode=block -y
 echo "Done!"
 
 echo "Initializing Hub Contract..."

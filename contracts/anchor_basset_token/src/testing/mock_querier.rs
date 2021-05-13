@@ -98,6 +98,7 @@ impl WasmMockQuerier {
                     let api: MockApi = MockApi::new(self.canonical_length);
                     if key.as_slice().to_vec() == prefix_config {
                         let config = RewardsDispatcherConfig {
+                            owner: api.canonical_address(&HumanAddr::from("owner")).unwrap(),
                             hub_contract: api
                                 .canonical_address(&HumanAddr::from(MOCK_HUB_CONTRACT_ADDR))
                                 .unwrap(),
