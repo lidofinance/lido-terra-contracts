@@ -50,7 +50,7 @@ hub_querier = {path = "../hub_querier" }
 anchor_airdrop_registry = {path = "../anchor_airdrop_registry", default-features = false, version = "1.0.0"}
 basset = { path = "../../packages/basset", default-features = false, version = "0.1.0"}
 signed_integer = { path = "../../packages/signed_integers", default-features = false, version = "0.1.0"}
-validators-registry = {path = "../anchor_basset_validators_registry", features = ["library"]}
+anchor_basset_validators_registry = {path = "../anchor_basset_validators_registry", features = ["library"]}
 
 [dev-dependencies]
 cosmwasm-vm = { version = "0.10.1", default-features = false, features = ["iterator"] }

@@ -4,14 +4,14 @@ use crate::state::{
     read_state, read_unbond_history, remove_unbond_wait_list, store_current_batch, store_state,
     store_unbond_history, store_unbond_wait_list, UnbondHistory,
 };
+use anchor_basset_validators_registry::common::calculate_undelegations;
+use anchor_basset_validators_registry::registry::Validator;
 use cosmwasm_std::{
     coin, coins, log, to_binary, Api, BankMsg, CosmosMsg, Decimal, Env, Extern, HandleResponse,
     HumanAddr, Querier, StakingMsg, StdError, StdResult, Storage, Uint128, WasmMsg,
 };
 use cw20::Cw20HandleMsg;
 use signed_integer::SignedInt;
-use validators_registry::common::calculate_undelegations;
-use validators_registry::registry::Validator;
 
 /// This message must be call by receive_cw20
 /// This message will undelegate coin and burn basset token
