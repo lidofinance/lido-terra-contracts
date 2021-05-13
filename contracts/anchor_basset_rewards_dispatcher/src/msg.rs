@@ -19,6 +19,13 @@ pub enum HandleMsg {
         bluna_total_mint_amount: Uint128,
         stluna_total_mint_amount: Uint128,
     },
+    UpdateConfig {
+        owner: Option<HumanAddr>,
+        hub_contract: Option<HumanAddr>,
+        bluna_reward_contract: Option<HumanAddr>,
+        stluna_reward_denom: Option<String>,
+        bluna_reward_denom: Option<String>,
+    },
     DispatchRewards {},
 }
 
