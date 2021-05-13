@@ -34,6 +34,8 @@ pub enum HandleMsg {
 pub enum QueryMsg {
     // GetBufferedRewards returns the buffered amount of bLuna and stLuna rewards.
     GetBufferedRewards {},
+    // Config returns config
+    Config {},
 }
 
 // We define a custom struct for each query response
