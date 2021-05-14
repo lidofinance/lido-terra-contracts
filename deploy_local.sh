@@ -14,11 +14,11 @@ echo "Uploading anchor_basset_rewards_dispatcher.wasm..."
 terracli tx wasm store artifacts/anchor_basset_rewards_dispatcher.wasm --from test1 --chain-id=localterra --gas=auto --fees=100000uluna --broadcast-mode=block -y
 echo "Done!"
 
-echo "Uploading validators_registry.wasm..."
+echo "Uploading anchor_basset_validators_registry.wasm..."
 terracli tx wasm store artifacts/anchor_basset_validators_registry.wasm --from test1 --chain-id=localterra --gas=auto --fees=100000uluna --broadcast-mode=block -y
 echo "Done!"
 
-echo "Uploading st_luna.wasm..."
+echo "Uploading anchor_basset_token_stluna.wasm..."
 terracli tx wasm store artifacts/anchor_basset_token_stluna.wasm --from test1 --chain-id=localterra --gas=auto --fees=100000uluna --broadcast-mode=block -y
 echo "Done!"
 
@@ -53,6 +53,6 @@ echo "Done!"
 echo "Hub contract address -" $HUB_CONTRACT
 echo "Reward contract address -" $BLUNA_REWARD_CONTRACT
 echo "Rewards Dispatcher contract address -" $REWARDS_DISPATCHER_CONTRACT
-echo "STLuna token contract address -" $STLUNA_TOKEN_CONTRACT
+echo "StLuna token contract address -" $STLUNA_TOKEN_CONTRACT
 echo "BLuna token contract address -" $BLUNA_TOKEN_CONTRACT
 echo "Validators Registry Contract address -" $VR_CONTRACT
