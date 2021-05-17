@@ -10,7 +10,10 @@ use cosmwasm_std::{
 };
 use cw20::Cw20HandleMsg;
 use signed_integer::SignedInt;
+use std::collections::HashMap;
+use std::ops::Sub;
 use validators_registry::common::calculate_undelegations;
+use validators_registry::msg::HandleMsg as HandleMsgValidators;
 use validators_registry::registry::Validator;
 
 /// This message must be call by receive_cw20
@@ -30,7 +33,7 @@ pub(crate) fn handle_unbond<S: Storage, A: Api, Q: Querier>(
     let mut current_batch = read_current_batch(&deps.storage).load()?;
 
     // Check slashing, update state, and calculate the new exchange rate.
-    slashing(deps, env.clone())?;
+    let slashed_validators = slashing(deps, env.clone())?;
 
     let mut state = read_state(&deps.storage).load()?;
 
@@ -84,7 +87,8 @@ pub(crate) fn handle_unbond<S: Storage, A: Api, Q: Querier>(
         let delegator = env.contract.address;
 
         // Send undelegated requests to possibly more than one validators
-        let mut undelegated_msgs = pick_validator(deps, undelegation_amount, delegator)?;
+        let mut undelegated_msgs =
+            pick_validator(deps, undelegation_amount, delegator, slashed_validators)?;
 
         messages.append(&mut undelegated_msgs);
 
@@ -322,8 +326,18 @@ fn pick_validator<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
     claim: Uint128,
     delegator: HumanAddr,
+    slashed_validators: HashMap<HumanAddr, Validator>,
 ) -> StdResult<Vec<CosmosMsg>> {
     //read params
+    let config = read_config(&deps.storage).load()?;
+    let validators_registry_contract = if let Some(v) = config.validators_registry_contract {
+        v
+    } else {
+        return Err(StdError::generic_err(
+            "Validators registry contract address is empty",
+        ));
+    };
+
     let params = read_parameters(&deps.storage).load()?;
     let coin_denom = params.underlying_coin_denom;
 
@@ -343,6 +357,11 @@ fn pick_validator<S: Storage, A: Api, Q: Querier>(
         })
         .collect::<Vec<Validator>>();
     validators.sort_by(|v1, v2| v2.total_delegated.cmp(&v1.total_delegated));
+    for validator in &mut validators {
+        if let Some(slashed_validator) = slashed_validators.get(&validator.address) {
+            validator.total_delegated = slashed_validator.total_delegated
+        }
+    }
 
     let undelegations = calculate_undelegations(claim, validators.as_slice())?;
 
@@ -355,8 +374,21 @@ fn pick_validator<S: Storage, A: Api, Q: Querier>(
             validator: validators[index].address.clone(),
             amount: coin(undelegated_amount.u128(), &*coin_denom),
         });
+
+        validators[index].total_delegated =
+            validators[index].total_delegated.sub(*undelegated_amount)?;
+
         messages.push(msgs);
     }
+    messages.push(cosmwasm_std::CosmosMsg::Wasm(
+        cosmwasm_std::WasmMsg::Execute {
+            contract_addr: deps.api.human_address(&validators_registry_contract)?,
+            msg: to_binary(&HandleMsgValidators::UpdateTotalDelegated {
+                updated_validators: validators,
+            })?,
+            send: vec![],
+        },
+    ));
     Ok(messages)
 }
 
@@ -375,7 +407,7 @@ pub(crate) fn handle_unbond_stluna<S: Storage, A: Api, Q: Querier>(
     let mut current_batch = read_current_batch(&deps.storage).load()?;
 
     // Check slashing, update state, and calculate the new exchange rate.
-    slashing(deps, env.clone())?;
+    let slashed_validators = slashing(deps, env.clone())?;
 
     let mut state = read_state(&deps.storage).load()?;
 
@@ -404,7 +436,8 @@ pub(crate) fn handle_unbond_stluna<S: Storage, A: Api, Q: Querier>(
         let delegator = env.contract.address;
 
         // Send undelegated requests to possibly more than one validators
-        let mut undelegated_msgs = pick_validator(deps, undelegation_amount, delegator)?;
+        let mut undelegated_msgs =
+            pick_validator(deps, undelegation_amount, delegator, slashed_validators)?;
 
         messages.append(&mut undelegated_msgs);
 

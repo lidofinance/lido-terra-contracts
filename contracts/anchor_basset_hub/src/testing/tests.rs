@@ -1251,9 +1251,35 @@ pub fn proper_unbond() {
         msg: Some(to_binary(&successful_bond).unwrap()),
     });
     let res = handle(&mut deps, token_env.clone(), receive).unwrap();
-    assert_eq!(2, res.messages.len());
+    assert_eq!(3, res.messages.len());
 
-    let msg = &res.messages[1];
+    match &res.messages[1] {
+        CosmosMsg::Wasm(cosmwasm_std::WasmMsg::Execute {
+            contract_addr,
+            msg,
+            send: _,
+        }) => {
+            if !contract_addr.eq(&HumanAddr::from("validators_registry")) {
+                panic!("Unexpected contract call: {:?}", &res.messages[1])
+            }
+            let decoded_message: HandleMsgValidators = from_binary(msg).unwrap();
+            match decoded_message {
+                HandleMsgValidators::UpdateTotalDelegated { updated_validators } => {
+                    for v in updated_validators {
+                        if v.address == validator.address {
+                            assert_eq!(v.total_delegated, Uint128(2))
+                        } else {
+                            panic!("unknown validator: {:?}", v.address)
+                        }
+                    }
+                }
+                _ => panic!("Unexpected message: {:?}", &decoded_message),
+            }
+        }
+        _ => panic!("Unexpected message: {:?}", &res.messages[1]),
+    }
+
+    let msg = &res.messages[2];
     match msg {
         CosmosMsg::Wasm(WasmMsg::Execute {
             contract_addr,
@@ -1535,9 +1561,35 @@ pub fn proper_unbond_stluna() {
         msg: Some(to_binary(&successful_bond).unwrap()),
     });
     let res = handle(&mut deps, token_env.clone(), receive).unwrap();
-    assert_eq!(2, res.messages.len());
+    assert_eq!(3, res.messages.len());
 
-    let msg = &res.messages[1];
+    match &res.messages[1] {
+        CosmosMsg::Wasm(cosmwasm_std::WasmMsg::Execute {
+            contract_addr,
+            msg,
+            send: _,
+        }) => {
+            if !contract_addr.eq(&HumanAddr::from("validators_registry")) {
+                panic!("Unexpected contract call: {:?}", &res.messages[1])
+            }
+            let decoded_message: HandleMsgValidators = from_binary(msg).unwrap();
+            match decoded_message {
+                HandleMsgValidators::UpdateTotalDelegated { updated_validators } => {
+                    for v in updated_validators {
+                        if v.address == validator.address {
+                            assert_eq!(v.total_delegated, Uint128(2))
+                        } else {
+                            panic!("unknown validator: {:?}", v.address)
+                        }
+                    }
+                }
+                _ => panic!("Unexpected message: {:?}", &decoded_message),
+            }
+        }
+        _ => panic!("Unexpected message: {:?}", &res.messages[1]),
+    }
+
+    let msg = &res.messages[2];
     match msg {
         CosmosMsg::Wasm(WasmMsg::Execute {
             contract_addr,
@@ -1626,13 +1678,13 @@ pub fn proper_pick_validator() {
 
     // bond to a validator
     do_bond(&mut deps, addr1.clone(), Uint128(10));
-    do_bond(&mut deps, addr2.clone(), Uint128(300));
+    do_bond(&mut deps, addr2.clone(), Uint128(150));
     do_bond(&mut deps, addr3.clone(), Uint128(200));
 
     // give validators different delegation amount
     let delegations: [FullDelegation; 3] = [
         (sample_delegation(validator.address.clone(), coin(10, "uluna"))),
-        (sample_delegation(validator2.address.clone(), coin(300, "uluna"))),
+        (sample_delegation(validator2.address.clone(), coin(150, "uluna"))),
         (sample_delegation(validator3.address.clone(), coin(200, "uluna"))),
     ];
 
@@ -1647,7 +1699,7 @@ pub fn proper_pick_validator() {
             &HumanAddr::from("token"),
             &[
                 (&addr3, &Uint128(200)),
-                (&addr2, &Uint128(300)),
+                (&addr2, &Uint128(150)),
                 (&addr1, &Uint128(10)),
             ],
         ),
@@ -1664,7 +1716,7 @@ pub fn proper_pick_validator() {
             &HumanAddr::from("token"),
             &[
                 (&addr3, &Uint128(200)),
-                (&addr2, &Uint128(250)),
+                (&addr2, &Uint128(100)),
                 (&addr1, &Uint128(10)),
             ],
         ),
@@ -1675,13 +1727,13 @@ pub fn proper_pick_validator() {
 
     // send the second burn
     let res = do_unbond(&mut deps, addr2.clone(), token_env, Uint128(100));
-    assert_eq!(res.messages.len(), 2);
+    assert_eq!(res.messages.len(), 4);
 
     deps.querier.with_token_balances(&[(
         &HumanAddr::from("token"),
         &[
             (&addr3, &Uint128(200)),
-            (&addr2, &Uint128(150)),
+            (&addr2, &Uint128(0)),
             (&addr1, &Uint128(10)),
         ],
     )]);
@@ -1692,17 +1744,49 @@ pub fn proper_pick_validator() {
             validator: val,
             amount,
         }) => {
-            if val == &validator.address {
-                assert_eq!(amount.amount, Uint128(10))
-            }
-            if val == &validator2.address {
-                assert_eq!(amount.amount, Uint128(150))
-            }
-            if val == &validator3.address {
-                assert_eq!(amount.amount, Uint128(150))
-            }
+            assert_eq!(val, &validator3.address);
+            assert_eq!(amount.amount, Uint128(130));
         }
         _ => panic!("Unexpected message: {:?}", &res.messages[0]),
+    }
+    match &res.messages[1] {
+        CosmosMsg::Staking(StakingMsg::Undelegate {
+            validator: val,
+            amount,
+        }) => {
+            assert_eq!(val, &validator2.address);
+            assert_eq!(amount.amount, Uint128(20));
+        }
+        _ => panic!("Unexpected message: {:?}", &res.messages[0]),
+    }
+    match &res.messages[2] {
+        CosmosMsg::Wasm(cosmwasm_std::WasmMsg::Execute {
+            contract_addr,
+            msg,
+            send: _,
+        }) => {
+            if !contract_addr.eq(&HumanAddr::from("validators_registry")) {
+                panic!("Unexpected contract call: {:?}", &res.messages[2])
+            }
+            let decoded_message: HandleMsgValidators = from_binary(msg).unwrap();
+            match decoded_message {
+                HandleMsgValidators::UpdateTotalDelegated { updated_validators } => {
+                    for v in updated_validators {
+                        if v.address == validator.address {
+                            assert_eq!(v.total_delegated, Uint128(10))
+                        }
+                        if v.address == validator2.address {
+                            assert_eq!(v.total_delegated, Uint128(130))
+                        }
+                        if v.address == validator3.address {
+                            assert_eq!(v.total_delegated, Uint128(70))
+                        }
+                    }
+                }
+                _ => panic!("Unexpected message: {:?}", &decoded_message),
+            }
+        }
+        _ => panic!("Unexpected message: {:?}", &res.messages[2]),
     }
 }
 
@@ -1764,7 +1848,7 @@ pub fn proper_pick_validator_respect_distributed_delegation() {
     token_env.block.time += 40;
 
     let res = do_unbond(&mut deps, addr2, token_env, Uint128(2000));
-    assert_eq!(res.messages.len(), 3);
+    assert_eq!(res.messages.len(), 4);
 
     match &res.messages[0] {
         CosmosMsg::Staking(StakingMsg::Undelegate {
@@ -1772,14 +1856,6 @@ pub fn proper_pick_validator_respect_distributed_delegation() {
             amount,
         }) => assert_eq!(amount.amount, Uint128(1250)),
         _ => panic!("Unexpected message: {:?}", &res.messages[1]),
-    }
-
-    match &res.messages[1] {
-        CosmosMsg::Staking(StakingMsg::Undelegate {
-            validator: _,
-            amount,
-        }) => assert_eq!(amount.amount, Uint128(750)),
-        _ => panic!("Unexpected message: {:?}", &res.messages[2]),
     }
 }
 
@@ -1823,7 +1899,32 @@ pub fn proper_slashing() {
     let env = mock_env(&addr1, &[]);
     let report_slashing = CheckSlashing {};
     let res = handle(&mut deps, env, report_slashing).unwrap();
-    assert_eq!(0, res.messages.len());
+    assert_eq!(1, res.messages.len());
+    match &res.messages[0] {
+        CosmosMsg::Wasm(cosmwasm_std::WasmMsg::Execute {
+            contract_addr,
+            msg,
+            send: _,
+        }) => {
+            if !contract_addr.eq(&HumanAddr::from("validators_registry")) {
+                panic!("Unexpected contract call: {:?}", &res.messages[0])
+            }
+            let decoded_message: HandleMsgValidators = from_binary(msg).unwrap();
+            match decoded_message {
+                HandleMsgValidators::UpdateTotalDelegated { updated_validators } => {
+                    for v in updated_validators {
+                        if v.address == validator.address {
+                            assert_eq!(v.total_delegated, Uint128(900))
+                        } else {
+                            panic!("unknown validator: {:?}", validator)
+                        }
+                    }
+                }
+                _ => panic!("Unexpected message: {:?}", &decoded_message),
+            }
+        }
+        _ => panic!("Unexpected message: {:?}", &res.messages[0]),
+    }
 
     let ex_rate = State {};
     let query_exchange_rate: StateResponse = from_binary(&query(&deps, ex_rate).unwrap()).unwrap();
@@ -1977,7 +2078,32 @@ pub fn proper_slashing_stluna() {
     let env = mock_env(&addr1, &[]);
     let report_slashing = CheckSlashing {};
     let res = handle(&mut deps, env, report_slashing).unwrap();
-    assert_eq!(0, res.messages.len());
+    assert_eq!(1, res.messages.len());
+    match &res.messages[0] {
+        CosmosMsg::Wasm(cosmwasm_std::WasmMsg::Execute {
+            contract_addr,
+            msg,
+            send: _,
+        }) => {
+            if !contract_addr.eq(&HumanAddr::from("validators_registry")) {
+                panic!("Unexpected contract call: {:?}", &res.messages[0])
+            }
+            let decoded_message: HandleMsgValidators = from_binary(msg).unwrap();
+            match decoded_message {
+                HandleMsgValidators::UpdateTotalDelegated { updated_validators } => {
+                    for v in updated_validators {
+                        if v.address == validator.address {
+                            assert_eq!(v.total_delegated, Uint128(900))
+                        } else {
+                            panic!("unknown validator: {:?}", validator)
+                        }
+                    }
+                }
+                _ => panic!("Unexpected message: {:?}", &decoded_message),
+            }
+        }
+        _ => panic!("Unexpected message: {:?}", &res.messages[0]),
+    }
 
     let ex_rate = State {};
     let query_exchange_rate: StateResponse = from_binary(&query(&deps, ex_rate).unwrap()).unwrap();
@@ -2173,7 +2299,7 @@ pub fn proper_withdraw_unbonded() {
     );
 
     let res = handle_unbond(&mut deps, env.clone(), Uint128(10), bob.clone()).unwrap();
-    assert_eq!(res.messages.len(), 2);
+    assert_eq!(res.messages.len(), 3);
     deps.querier.with_token_balances(&[
         (&HumanAddr::from("token"), &[(&bob, &Uint128(80u128))]),
         (&stluna_token_contract, &[]),
@@ -2357,7 +2483,7 @@ pub fn proper_withdraw_unbonded_stluna() {
     );
 
     let res = handle_unbond_stluna(&mut deps, env.clone(), Uint128(10), bob.clone()).unwrap();
-    assert_eq!(res.messages.len(), 2);
+    assert_eq!(res.messages.len(), 3);
     deps.querier.with_token_balances(&[
         (&stluna_token_contract, &[(&bob, &Uint128(80u128))]),
         (&HumanAddr::from("token"), &[]),
@@ -2540,7 +2666,7 @@ pub fn proper_withdraw_unbonded_respect_slashing() {
 
     // trigger undelegation message
     let res = handle_unbond(&mut deps, env.clone(), unbond_amount, bob.clone()).unwrap();
-    assert_eq!(2, res.messages.len());
+    assert_eq!(3, res.messages.len());
     deps.querier
         .with_token_balances(&[(&HumanAddr::from("token"), &[(&bob, &Uint128(9000))])]);
 
@@ -2696,7 +2822,7 @@ pub fn proper_withdraw_unbonded_respect_slashing_stluna() {
 
     // trigger undelegation message
     let res = handle_unbond_stluna(&mut deps, env.clone(), unbond_amount, bob.clone()).unwrap();
-    assert_eq!(2, res.messages.len());
+    assert_eq!(3, res.messages.len());
     deps.querier
         .with_token_balances(&[(&stluna_token_contract, &[(&bob, &Uint128(9000))])]);
 
@@ -2859,7 +2985,7 @@ pub fn proper_withdraw_unbonded_respect_inactivity_slashing() {
 
     // trigger undelegation message
     let res = handle_unbond(&mut deps, env.clone(), unbond_amount, bob.clone()).unwrap();
-    assert_eq!(2, res.messages.len());
+    assert_eq!(3, res.messages.len());
     deps.querier
         .with_token_balances(&[(&HumanAddr::from("token"), &[(&bob, &Uint128(9000))])]);
 
@@ -3048,7 +3174,7 @@ pub fn proper_withdraw_unbonded_respect_inactivity_slashing_stluna() {
 
     // trigger undelegation message
     let res = handle_unbond_stluna(&mut deps, env.clone(), unbond_amount, bob.clone()).unwrap();
-    assert_eq!(2, res.messages.len());
+    assert_eq!(3, res.messages.len());
     deps.querier
         .with_token_balances(&[(&stluna_token_contract, &[(&bob, &Uint128(9000))])]);
 
@@ -3215,7 +3341,7 @@ pub fn proper_withdraw_unbond_with_dummies() {
     env.block.time += 31;
     // trigger undelegation message
     let res = handle_unbond(&mut deps, env.clone(), unbond_amount, bob.clone()).unwrap();
-    assert_eq!(2, res.messages.len());
+    assert_eq!(3, res.messages.len());
     deps.querier.with_token_balances(&[
         (&HumanAddr::from("token"), &[(&bob, &Uint128(9000))]),
         (&stluna_token_contract, &[]),
@@ -3233,7 +3359,7 @@ pub fn proper_withdraw_unbond_with_dummies() {
 
     env.block.time += 31;
     let res = handle_unbond(&mut deps, env.clone(), unbond_amount, bob.clone()).unwrap();
-    assert_eq!(2, res.messages.len());
+    assert_eq!(3, res.messages.len());
     deps.querier.with_token_balances(&[
         (&HumanAddr::from("token"), &[(&bob, &Uint128(8000))]),
         (&stluna_token_contract, &[]),
@@ -3361,7 +3487,7 @@ pub fn proper_withdraw_unbond_with_dummies_stluna() {
     env.block.time += 31;
     // trigger undelegation message
     let res = handle_unbond_stluna(&mut deps, env.clone(), unbond_amount, bob.clone()).unwrap();
-    assert_eq!(2, res.messages.len());
+    assert_eq!(3, res.messages.len());
     deps.querier.with_token_balances(&[
         (&stluna_token_contract, &[(&bob, &Uint128(9000))]),
         (&HumanAddr::from("token"), &[]),
@@ -3379,7 +3505,7 @@ pub fn proper_withdraw_unbond_with_dummies_stluna() {
 
     env.block.time += 31;
     let res = handle_unbond_stluna(&mut deps, env.clone(), unbond_amount, bob.clone()).unwrap();
-    assert_eq!(2, res.messages.len());
+    assert_eq!(3, res.messages.len());
     deps.querier.with_token_balances(&[
         (&stluna_token_contract, &[(&bob, &Uint128(8000))]),
         (&HumanAddr::from("token"), &[]),
@@ -3571,7 +3697,32 @@ pub fn proper_recovery_fee() {
 
     let report_slashing = CheckSlashing {};
     let res = handle(&mut deps, env, report_slashing).unwrap();
-    assert_eq!(0, res.messages.len());
+    assert_eq!(1, res.messages.len());
+    match &res.messages[0] {
+        CosmosMsg::Wasm(cosmwasm_std::WasmMsg::Execute {
+            contract_addr,
+            msg,
+            send: _,
+        }) => {
+            if !contract_addr.eq(&HumanAddr::from("validators_registry")) {
+                panic!("Unexpected contract call: {:?}", &res.messages[0])
+            }
+            let decoded_message: HandleMsgValidators = from_binary(msg).unwrap();
+            match decoded_message {
+                HandleMsgValidators::UpdateTotalDelegated { updated_validators } => {
+                    for v in updated_validators {
+                        if v.address == validator.address {
+                            assert_eq!(v.total_delegated, Uint128(900000))
+                        } else {
+                            panic!("unknown validator: {:?}", validator)
+                        }
+                    }
+                }
+                _ => panic!("Unexpected message: {:?}", &decoded_message),
+            }
+        }
+        _ => panic!("Unexpected message: {:?}", &res.messages[0]),
+    }
 
     let ex_rate = State {};
     let query_exchange_rate: StateResponse = from_binary(&query(&deps, ex_rate).unwrap()).unwrap();
@@ -3649,7 +3800,7 @@ pub fn proper_recovery_fee() {
         msg: Some(to_binary(&second_unbond).unwrap()),
     });
     let res = handle(&mut deps, token_env.clone(), receive).unwrap();
-    assert_eq!(2, res.messages.len());
+    assert_eq!(3, res.messages.len());
 
     let ex_rate = State {};
     let query_exchange_rate: StateResponse = from_binary(&query(&deps, ex_rate).unwrap()).unwrap();

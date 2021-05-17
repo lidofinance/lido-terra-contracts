@@ -25,6 +25,9 @@ use cw20_base::state::TokenInfo;
 use hub_querier::HandleMsg::SwapHook;
 use hub_querier::{Config, State};
 use hub_querier::{Cw20HookMsg, HandleMsg};
+use std::collections::HashMap;
+use validators_registry::msg::HandleMsg as HandleMsgValidators;
+use validators_registry::registry::Validator;
 
 pub fn init<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
@@ -292,17 +295,19 @@ fn withdraw_all_rewards<S: Storage, A: Api, Q: Querier>(
 pub fn slashing<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
     env: Env,
-) -> StdResult<()> {
+) -> StdResult<HashMap<HumanAddr, Validator>> {
     //read params
     let params = read_parameters(&deps.storage).load()?;
     let coin_denom = params.underlying_coin_denom;
 
     let state = read_state(&deps.storage).load()?;
 
+    let mut validators: HashMap<HumanAddr, Validator> = HashMap::new();
+
     // Check the amount that contract thinks is bonded
     let state_total_bonded = state.total_bond_bluna_amount + state.total_bond_stluna_amount;
     if state_total_bonded.is_zero() {
-        return Ok(());
+        return Ok(validators);
     }
 
     let bluna_bond_ratio = Decimal::from_ratio(state.total_bond_bluna_amount, state_total_bonded);
@@ -311,12 +316,12 @@ pub fn slashing<S: Storage, A: Api, Q: Querier>(
     // Check the actual bonded amount
     let delegations = deps.querier.query_all_delegations(env.contract.address)?;
     if delegations.is_empty() {
-        Ok(())
+        Ok(validators)
     } else {
         let mut actual_total_bonded = Uint128::zero();
-        for delegation in delegations {
+        for delegation in &delegations {
             if delegation.amount.denom == coin_denom {
-                actual_total_bonded += delegation.amount.amount
+                actual_total_bonded += delegation.amount.amount;
             }
         }
 
@@ -329,6 +334,20 @@ pub fn slashing<S: Storage, A: Api, Q: Querier>(
 
         // Slashing happens if the expected amount is less than stored amount
         if state_total_bonded.u128() > actual_total_bonded.u128() {
+            validators = delegations
+                .iter()
+                .map(|d| {
+                    (
+                        d.validator.clone(),
+                        Validator {
+                            active: false,
+                            total_delegated: d.amount.amount,
+                            address: d.validator.clone(),
+                        },
+                    )
+                })
+                .collect();
+
             store_state(&mut deps.storage).update(|mut state| {
                 state.total_bond_bluna_amount = actual_total_bonded * bluna_bond_ratio;
                 state.total_bond_stluna_amount = actual_total_bonded * stluna_bond_ratio;
@@ -339,7 +358,7 @@ pub fn slashing<S: Storage, A: Api, Q: Querier>(
             })?;
         }
 
-        Ok(())
+        Ok(validators)
     }
 }
 
@@ -446,11 +465,37 @@ pub fn handle_slashing<S: Storage, A: Api, Q: Querier>(
     env: Env,
 ) -> StdResult<HandleResponse> {
     // call slashing
-    slashing(deps, env)?;
+    let slashed_validators = slashing(deps, env)?;
     // read state for log
     let state = read_state(&deps.storage).load()?;
+
+    let config = read_config(&deps.storage).load()?;
+    let validators_registry_contract = if let Some(v) = config.validators_registry_contract {
+        v
+    } else {
+        return Err(StdError::generic_err(
+            "Validators registry contract address is empty",
+        ));
+    };
+
+    let mut messages: Vec<CosmosMsg> = vec![];
+    if !slashed_validators.is_empty() {
+        messages.push(cosmwasm_std::CosmosMsg::Wasm(
+            cosmwasm_std::WasmMsg::Execute {
+                contract_addr: deps.api.human_address(&validators_registry_contract)?,
+                msg: to_binary(&HandleMsgValidators::UpdateTotalDelegated {
+                    updated_validators: slashed_validators
+                        .iter()
+                        .map(|(_, v)| v.clone())
+                        .collect::<Vec<Validator>>(),
+                })?,
+                send: vec![],
+            },
+        ));
+    }
+
     Ok(HandleResponse {
-        messages: vec![],
+        messages,
         log: vec![
             log("action", "check_slashing"),
             log("new_bluna_exchange_rate", state.bluna_exchange_rate),
