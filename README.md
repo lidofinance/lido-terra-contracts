@@ -8,10 +8,10 @@ You can find information about the architecture, usage, and function of the smar
 ## Contracts
 | Contract                                            | Reference                                              | Description                                                                                                                        |
 | --------------------------------------------------- | ------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------- |
-| [`anchor_basset_hub`](https://github.com/Anchor-Protocol/anchor-bAsset-contracts/tree/master/contracts/anchor_basset_hub)|[doc](https://docs.anchorprotocol/contracts/anchor_basset_hub)| Manages minted bLunas and bonded Lunas
-| [`anchor_basset_reward`](https://github.com/Anchor-Protocol/anchor-bAsset-contracts/tree/master/contracts/anchor_basset_reward)|[doc](https://docs.anchorprotocol/contracts/anchor_basset_reward)|Manages the distribution of delegation rewards
-| [`anchor_basset_token`](https://github.com/Anchor-Protocol/anchor-bAsset-contracts/tree/master/contracts/anchor_basset_token)| [doc](https://docs.anchorprotocol/contracts/anchor_basset_token)|CW20 compliance 
-| [`anchor_airdrop_registery`](https://github.com/Anchor-Protocol/anchor-bAsset-contracts/tree/master/contracts/anchor_airdrop_registry)| [doc](https://docs.anchorprotocol/contracts/anchor_basset_airdrop_registery)|Manages message fabricators for MIR and ANC airdrops
+| [`anchor_basset_hub`](https://github.com/Anchor-Protocol/anchor-bAsset-contracts/tree/master/contracts/anchor_basset_hub)|[doc](https://docs.anchorprotocol.com/smart-contracts/bluna/hub-1)| Manages minted bLunas and bonded Lunas
+| [`anchor_basset_reward`](https://github.com/Anchor-Protocol/anchor-bAsset-contracts/tree/master/contracts/anchor_basset_reward)|[doc](https://docs.anchorprotocol.com/smart-contracts/bluna/reward)|Manages the distribution of delegation rewards
+| [`anchor_basset_token`](https://github.com/Anchor-Protocol/anchor-bAsset-contracts/tree/master/contracts/anchor_basset_token)| [doc](https://github.com/Anchor-Protocol/anchor-bAsset-contracts/tree/master/contracts/anchor_basset_token)|CW20 compliance 
+| [`anchor_airdrop_registery`](https://github.com/Anchor-Protocol/anchor-bAsset-contracts/tree/master/contracts/anchor_airdrop_registry)| [doc](https://docs.anchorprotocol.com/smart-contracts/bluna/airdrop-registry)|Manages message fabricators for MIR and ANC airdrops
 ## Development
 
 ### Environment Setup
