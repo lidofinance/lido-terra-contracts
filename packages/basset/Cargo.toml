@@ -26,13 +26,13 @@ cranelift = ["cosmwasm-vm/default-cranelift"]
 singlepass = ["cosmwasm-vm/default-singlepass"]
 
 [dependencies]
-cw20 = { version = "0.2" }
+cw20 = { version = "0.6.0" }
 cosmwasm-storage = { version = "0.10.1" }
-terra-cosmwasm = { version = "1.2.2" }
-cosmwasm-std = { version = "0.10.1" }
-schemars = "0.7"
+terra-cosmwasm = { version = "2.0.0" }
+cosmwasm-std = { version = "0.14.0" }
+schemars = "0.8"
+thiserror = { version = "1.0.20" }
 serde = { version = "1.0.103", default-features = false, features = ["derive"] }
-hub_querier = {path = "../../contracts/hub_querier" }
 
 [dev-dependencies]
 cosmwasm-vm = { version = "0.10.1", default-features = false }

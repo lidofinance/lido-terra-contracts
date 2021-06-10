@@ -16,9 +16,9 @@ impl SignedInt {
     ) -> SignedInt {
         let minuend: Uint128 = minuend.into();
         let subtrahend: Uint128 = subtrahend.into();
-        let subtraction = minuend - subtrahend;
+        let subtraction = minuend.checked_sub(subtrahend);
         if subtraction.is_err() {
-            return SignedInt((subtrahend - minuend).unwrap(), true);
+            return SignedInt((subtrahend.checked_sub(minuend)).unwrap(), true);
         }
         SignedInt(subtraction.unwrap(), false)
     }
