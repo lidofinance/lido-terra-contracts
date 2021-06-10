@@ -1,91 +1,98 @@
 use cosmwasm_std::{
-    to_binary, Api, Binary, CosmosMsg, Env, Extern, HandleResponse, HandleResult, HumanAddr,
-    Querier, Storage, Uint128, WasmMsg,
+    to_binary, Binary, CosmosMsg, DepsMut, Env, MessageInfo, Response, Uint128, WasmMsg,
 };
 
 use crate::querier::query_reward_contract;
+use basset::reward::ExecuteMsg::{DecreaseBalance, IncreaseBalance};
 use cw20_base::allowances::{
-    handle_burn_from as cw20_burn_from, handle_send_from as cw20_send_from,
-    handle_transfer_from as cw20_transfer_from,
+    execute_burn_from as cw20_burn_from, execute_send_from as cw20_send_from,
+    execute_transfer_from as cw20_transfer_from,
 };
 use cw20_base::contract::{
-    handle_burn as cw20_burn, handle_mint as cw20_mint, handle_send as cw20_send,
-    handle_transfer as cw20_transfer,
+    execute_burn as cw20_burn, execute_mint as cw20_mint, execute_send as cw20_send,
+    execute_transfer as cw20_transfer,
 };
-use reward_querier::HandleMsg::{DecreaseBalance, IncreaseBalance};
+use cw20_base::ContractError;
 
-pub fn handle_transfer<S: Storage, A: Api, Q: Querier>(
-    deps: &mut Extern<S, A, Q>,
+pub fn execute_transfer(
+    deps: DepsMut,
     env: Env,
-    recipient: HumanAddr,
+    info: MessageInfo,
+    recipient: String,
     amount: Uint128,
-) -> HandleResult {
-    let sender = env.message.sender.clone();
+) -> Result<Response, ContractError> {
+    let sender = info.sender.clone();
     let reward_contract = query_reward_contract(&deps)?;
 
-    let res: HandleResponse = cw20_transfer(deps, env, recipient.clone(), amount)?;
-    Ok(HandleResponse {
+    let rcpt_addr = deps.api.addr_validate(&recipient)?;
+
+    let res: Response = cw20_transfer(deps, env, info, recipient, amount)?;
+    Ok(Response {
         messages: vec![
             CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: reward_contract.clone(),
+                contract_addr: reward_contract.to_string(),
                 msg: to_binary(&DecreaseBalance {
-                    address: sender,
+                    address: sender.to_string(),
                     amount,
                 })
                 .unwrap(),
                 send: vec![],
             }),
             CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: reward_contract,
+                contract_addr: reward_contract.to_string(),
                 msg: to_binary(&IncreaseBalance {
-                    address: recipient,
+                    address: rcpt_addr.to_string(),
                     amount,
                 })
                 .unwrap(),
                 send: vec![],
             }),
         ],
-        log: res.log,
+        attributes: res.attributes,
+        submessages: vec![],
         data: None,
     })
 }
 
-pub fn handle_burn<S: Storage, A: Api, Q: Querier>(
-    deps: &mut Extern<S, A, Q>,
+pub fn execute_burn(
+    deps: DepsMut,
     env: Env,
+    info: MessageInfo,
     amount: Uint128,
-) -> HandleResult {
-    let sender = env.message.sender.clone();
+) -> Result<Response, ContractError> {
+    let sender = info.sender.clone();
     let reward_contract = query_reward_contract(&deps)?;
 
-    let res: HandleResponse = cw20_burn(deps, env, amount)?;
-    Ok(HandleResponse {
+    let res: Response = cw20_burn(deps, env, info, amount)?;
+    Ok(Response {
         messages: vec![CosmosMsg::Wasm(WasmMsg::Execute {
-            contract_addr: reward_contract,
+            contract_addr: reward_contract.to_string(),
             msg: to_binary(&DecreaseBalance {
-                address: sender,
+                address: sender.to_string(),
                 amount,
             })
             .unwrap(),
             send: vec![],
         })],
-        log: res.log,
+        attributes: res.attributes,
+        submessages: vec![],
         data: None,
     })
 }
 
-pub fn handle_mint<S: Storage, A: Api, Q: Querier>(
-    deps: &mut Extern<S, A, Q>,
+pub fn execute_mint(
+    deps: DepsMut,
     env: Env,
-    recipient: HumanAddr,
+    info: MessageInfo,
+    recipient: String,
     amount: Uint128,
-) -> HandleResult {
+) -> Result<Response, ContractError> {
     let reward_contract = query_reward_contract(&deps)?;
 
-    let res: HandleResponse = cw20_mint(deps, env, recipient.clone(), amount)?;
-    Ok(HandleResponse {
+    let res: Response = cw20_mint(deps, env, info, recipient.clone(), amount)?;
+    Ok(Response {
         messages: vec![CosmosMsg::Wasm(WasmMsg::Execute {
-            contract_addr: reward_contract,
+            contract_addr: reward_contract.to_string(),
             msg: to_binary(&IncreaseBalance {
                 address: recipient,
                 amount,
@@ -93,36 +100,39 @@ pub fn handle_mint<S: Storage, A: Api, Q: Querier>(
             .unwrap(),
             send: vec![],
         })],
-        log: res.log,
+        attributes: res.attributes,
+        submessages: vec![],
         data: None,
     })
 }
 
-pub fn handle_send<S: Storage, A: Api, Q: Querier>(
-    deps: &mut Extern<S, A, Q>,
+pub fn execute_send(
+    deps: DepsMut,
     env: Env,
-    contract: HumanAddr,
+    info: MessageInfo,
+    contract: String,
     amount: Uint128,
-    msg: Option<Binary>,
-) -> HandleResult {
-    let sender = env.message.sender.clone();
+    msg: Binary,
+) -> Result<Response, ContractError> {
+    let sender = info.sender.clone();
     let reward_contract = query_reward_contract(&deps)?;
 
-    let res: HandleResponse = cw20_send(deps, env, contract.clone(), amount, msg)?;
-    Ok(HandleResponse {
+    let res: Response = cw20_send(deps, env, info, contract.clone(), amount, msg)?;
+    Ok(Response {
+        submessages: vec![],
         messages: vec![
             vec![
                 CosmosMsg::Wasm(WasmMsg::Execute {
-                    contract_addr: reward_contract.clone(),
+                    contract_addr: reward_contract.to_string(),
                     msg: to_binary(&DecreaseBalance {
-                        address: sender,
+                        address: sender.to_string(),
                         amount,
                     })
                     .unwrap(),
                     send: vec![],
                 }),
                 CosmosMsg::Wasm(WasmMsg::Execute {
-                    contract_addr: reward_contract,
+                    contract_addr: reward_contract.to_string(),
                     msg: to_binary(&IncreaseBalance {
                         address: contract,
                         amount,
@@ -134,35 +144,38 @@ pub fn handle_send<S: Storage, A: Api, Q: Querier>(
             res.messages,
         ]
         .concat(),
-        log: res.log,
         data: None,
+        attributes: res.attributes,
     })
 }
 
-pub fn handle_transfer_from<S: Storage, A: Api, Q: Querier>(
-    deps: &mut Extern<S, A, Q>,
+pub fn execute_transfer_from(
+    deps: DepsMut,
     env: Env,
-    owner: HumanAddr,
-    recipient: HumanAddr,
+    info: MessageInfo,
+    owner: String,
+    recipient: String,
     amount: Uint128,
-) -> HandleResult {
+) -> Result<Response, ContractError> {
     let reward_contract = query_reward_contract(&deps)?;
 
-    let res: HandleResponse =
-        cw20_transfer_from(deps, env, owner.clone(), recipient.clone(), amount)?;
-    Ok(HandleResponse {
+    let valid_owner = deps.api.addr_validate(owner.as_str())?;
+
+    let res: Response = cw20_transfer_from(deps, env, info, owner, recipient.clone(), amount)?;
+    Ok(Response {
+        submessages: vec![],
         messages: vec![
             CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: reward_contract.clone(),
+                contract_addr: reward_contract.to_string(),
                 msg: to_binary(&DecreaseBalance {
-                    address: owner,
+                    address: valid_owner.to_string(),
                     amount,
                 })
                 .unwrap(),
                 send: vec![],
             }),
             CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: reward_contract,
+                contract_addr: reward_contract.to_string(),
                 msg: to_binary(&IncreaseBalance {
                     address: recipient,
                     amount,
@@ -171,61 +184,68 @@ pub fn handle_transfer_from<S: Storage, A: Api, Q: Querier>(
                 send: vec![],
             }),
         ],
-        log: res.log,
         data: None,
+        attributes: res.attributes,
     })
 }
 
-pub fn handle_burn_from<S: Storage, A: Api, Q: Querier>(
-    deps: &mut Extern<S, A, Q>,
+pub fn execute_burn_from(
+    deps: DepsMut,
     env: Env,
-    owner: HumanAddr,
+    info: MessageInfo,
+    owner: String,
     amount: Uint128,
-) -> HandleResult {
+) -> Result<Response, ContractError> {
     let reward_contract = query_reward_contract(&deps)?;
 
-    let res: HandleResponse = cw20_burn_from(deps, env, owner.clone(), amount)?;
-    Ok(HandleResponse {
+    let valid_owner = deps.api.addr_validate(owner.as_str())?;
+
+    let res: Response = cw20_burn_from(deps, env, info, owner, amount)?;
+    Ok(Response {
+        submessages: vec![],
         messages: vec![CosmosMsg::Wasm(WasmMsg::Execute {
-            contract_addr: reward_contract,
+            contract_addr: reward_contract.to_string(),
             msg: to_binary(&DecreaseBalance {
-                address: owner,
+                address: valid_owner.to_string(),
                 amount,
             })
             .unwrap(),
             send: vec![],
         })],
-        log: res.log,
         data: None,
+        attributes: res.attributes,
     })
 }
 
-pub fn handle_send_from<S: Storage, A: Api, Q: Querier>(
-    deps: &mut Extern<S, A, Q>,
+pub fn execute_send_from(
+    deps: DepsMut,
     env: Env,
-    owner: HumanAddr,
-    contract: HumanAddr,
+    info: MessageInfo,
+    owner: String,
+    contract: String,
     amount: Uint128,
-    msg: Option<Binary>,
-) -> HandleResult {
+    msg: Binary,
+) -> Result<Response, ContractError> {
     let reward_contract = query_reward_contract(&deps)?;
 
-    let res: HandleResponse =
-        cw20_send_from(deps, env, owner.clone(), contract.clone(), amount, msg)?;
-    Ok(HandleResponse {
+    let valid_owner = deps.api.addr_validate(owner.as_str())?;
+
+    let res: Response = cw20_send_from(deps, env, info, owner, contract.clone(), amount, msg)?;
+    Ok(Response {
+        submessages: vec![],
         messages: vec![
             vec![
                 CosmosMsg::Wasm(WasmMsg::Execute {
-                    contract_addr: reward_contract.clone(),
+                    contract_addr: reward_contract.to_string(),
                     msg: to_binary(&DecreaseBalance {
-                        address: owner,
+                        address: valid_owner.to_string(),
                         amount,
                     })
                     .unwrap(),
                     send: vec![],
                 }),
                 CosmosMsg::Wasm(WasmMsg::Execute {
-                    contract_addr: reward_contract,
+                    contract_addr: reward_contract.to_string(),
                     msg: to_binary(&IncreaseBalance {
                         address: contract,
                         amount,
@@ -237,7 +257,7 @@ pub fn handle_send_from<S: Storage, A: Api, Q: Querier>(
             res.messages,
         ]
         .concat(),
-        log: res.log,
         data: None,
+        attributes: res.attributes,
     })
 }

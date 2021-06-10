@@ -1,24 +1,28 @@
-use crate::msg::{
-    ANCAirdropHandleMsg, AirdropInfoElem, AirdropInfoResponse, ConfigResponse, HandleMsg, InitMsg,
-    MIRAirdropHandleMsg, PairHandleMsg, QueryMsg,
+#[cfg(not(feature = "library"))]
+use cosmwasm_std::entry_point;
+use cosmwasm_std::{
+    attr, to_binary, Binary, CosmosMsg, Deps, DepsMut, Env, MessageInfo, Response, StdError,
+    StdResult, Uint128, WasmMsg,
 };
+
 use crate::state::{
     read_airdrop_info, read_all_airdrop_infos, read_config, remove_airdrop_info,
-    store_airdrop_info, store_config, update_airdrop_info, AirdropInfo, Config,
+    store_airdrop_info, store_config, update_airdrop_info, Config, CONFIG,
 };
-use cosmwasm_std::{
-    log, to_binary, Api, Binary, CosmosMsg, Env, Extern, HandleResponse, HumanAddr, InitResponse,
-    Querier, StdError, StdResult, Storage, Uint128, WasmMsg,
+use basset::airdrop::{
+    ANCAirdropHandleMsg, AirdropInfo, AirdropInfoElem, AirdropInfoResponse, ConfigResponse,
+    ExecuteMsg, InstantiateMsg, MIRAirdropHandleMsg, PairHandleMsg, QueryMsg,
 };
-use hub_querier::HandleMsg as HubHandleMsg;
+use basset::hub::ExecuteMsg as HubHandleMsg;
 
-pub fn init<S: Storage, A: Api, Q: Querier>(
-    deps: &mut Extern<S, A, Q>,
-    env: Env,
-    msg: InitMsg,
-) -> StdResult<InitResponse> {
-    let sender = env.message.sender;
-    let sndr_raw = deps.api.canonical_address(&sender)?;
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn instantiate(
+    deps: DepsMut,
+    _env: Env,
+    info: MessageInfo,
+    msg: InstantiateMsg,
+) -> StdResult<Response> {
+    let sndr_raw = deps.api.addr_canonicalize(&info.sender.to_string())?;
 
     let config = Config {
         owner: sndr_raw,
@@ -27,58 +31,56 @@ pub fn init<S: Storage, A: Api, Q: Querier>(
         airdrop_tokens: vec![],
     };
 
-    store_config(&mut deps.storage).save(&config)?;
+    store_config(deps.storage, &config)?;
 
-    Ok(InitResponse::default())
+    Ok(Response::default())
 }
 
-pub fn handle<S: Storage, A: Api, Q: Querier>(
-    deps: &mut Extern<S, A, Q>,
-    env: Env,
-    msg: HandleMsg,
-) -> StdResult<HandleResponse> {
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> StdResult<Response> {
     match msg {
-        HandleMsg::FabricateMIRClaim {
+        ExecuteMsg::FabricateMIRClaim {
             stage,
             amount,
             proof,
-        } => handle_fabricate_mir_claim(deps, env, stage, amount, proof),
-        HandleMsg::FabricateANCClaim {
+        } => execute_fabricate_mir_claim(deps, env, info, stage, amount, proof),
+        ExecuteMsg::FabricateANCClaim {
             stage,
             amount,
             proof,
-        } => handle_fabricate_anchor_claim(deps, env, stage, amount, proof),
-        HandleMsg::UpdateConfig {
+        } => execute_fabricate_anchor_claim(deps, env, info, stage, amount, proof),
+        ExecuteMsg::UpdateConfig {
             owner,
             hub_contract,
             reward_contract,
-        } => handle_update_config(deps, env, owner, hub_contract, reward_contract),
-        HandleMsg::AddAirdropInfo {
+        } => execute_update_config(deps, env, info, owner, hub_contract, reward_contract),
+        ExecuteMsg::AddAirdropInfo {
             airdrop_token,
             airdrop_info,
-        } => handle_add_airdrop(deps, env, airdrop_token, airdrop_info),
-        HandleMsg::RemoveAirdropInfo { airdrop_token } => {
-            handle_remove_airdrop(deps, env, airdrop_token)
+        } => execute_add_airdrop(deps, env, info, airdrop_token, airdrop_info),
+        ExecuteMsg::RemoveAirdropInfo { airdrop_token } => {
+            execute_remove_airdrop(deps, env, info, airdrop_token)
         }
-        HandleMsg::UpdateAirdropInfo {
+        ExecuteMsg::UpdateAirdropInfo {
             airdrop_token,
             airdrop_info,
-        } => handle_update_airdrop(deps, env, airdrop_token, airdrop_info),
+        } => execute_update_airdrop(deps, env, info, airdrop_token, airdrop_info),
     }
 }
 
-fn handle_fabricate_mir_claim<S: Storage, A: Api, Q: Querier>(
-    deps: &mut Extern<S, A, Q>,
+fn execute_fabricate_mir_claim(
+    deps: DepsMut,
     _env: Env,
+    _info: MessageInfo,
     stage: u8,
     amount: Uint128,
     proof: Vec<String>,
-) -> StdResult<HandleResponse> {
-    let config = read_config(&deps.storage).load()?;
+) -> StdResult<Response> {
+    let config = read_config(deps.storage)?;
 
     let mut messages: Vec<CosmosMsg> = vec![];
 
-    let airdrop_info = read_airdrop_info(&deps.storage, "MIR".to_string()).unwrap();
+    let airdrop_info = read_airdrop_info(deps.storage, "MIR".to_string()).unwrap();
     messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
         contract_addr: config.hub_contract,
         msg: to_binary(&HubHandleMsg::ClaimAirdrop {
@@ -99,25 +101,27 @@ fn handle_fabricate_mir_claim<S: Storage, A: Api, Q: Querier>(
         send: vec![],
     }));
 
-    Ok(HandleResponse {
+    Ok(Response {
         messages,
-        log: vec![log("action", "fabricate_mir_claim")],
+        submessages: vec![],
+        attributes: vec![attr("action", "fabricate_mir_claim")],
         data: None,
     })
 }
 
-fn handle_fabricate_anchor_claim<S: Storage, A: Api, Q: Querier>(
-    deps: &mut Extern<S, A, Q>,
+fn execute_fabricate_anchor_claim(
+    deps: DepsMut,
     _env: Env,
+    _info: MessageInfo,
     stage: u8,
     amount: Uint128,
     proof: Vec<String>,
-) -> StdResult<HandleResponse> {
-    let config = read_config(&deps.storage).load()?;
+) -> StdResult<Response> {
+    let config = read_config(deps.storage)?;
 
     let mut messages: Vec<CosmosMsg> = vec![];
 
-    let airdrop_info = read_airdrop_info(&deps.storage, "ANC".to_string()).unwrap();
+    let airdrop_info = read_airdrop_info(deps.storage, "ANC".to_string())?;
     messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
         contract_addr: config.hub_contract,
         msg: to_binary(&HubHandleMsg::ClaimAirdrop {
@@ -138,28 +142,30 @@ fn handle_fabricate_anchor_claim<S: Storage, A: Api, Q: Querier>(
         send: vec![],
     }));
 
-    Ok(HandleResponse {
+    Ok(Response {
         messages,
-        log: vec![log("action", "fabricate_anc_claim")],
+        submessages: vec![],
+        attributes: vec![attr("action", "fabricate_anc_claim")],
         data: None,
     })
 }
-pub fn handle_update_config<S: Storage, A: Api, Q: Querier>(
-    deps: &mut Extern<S, A, Q>,
-    env: Env,
-    owner: Option<HumanAddr>,
-    hub_contract: Option<HumanAddr>,
-    reward_contract: Option<HumanAddr>,
-) -> StdResult<HandleResponse> {
+pub fn execute_update_config(
+    deps: DepsMut,
+    _env: Env,
+    info: MessageInfo,
+    owner: Option<String>,
+    hub_contract: Option<String>,
+    reward_contract: Option<String>,
+) -> StdResult<Response> {
     // only owner can send this message.
-    let mut config = read_config(&deps.storage).load()?;
-    let sender_raw = deps.api.canonical_address(&env.message.sender)?;
+    let mut config = read_config(deps.storage)?;
+    let sender_raw = deps.api.addr_canonicalize(&info.sender.to_string())?;
     if sender_raw != config.owner {
-        return Err(StdError::unauthorized());
+        return Err(StdError::generic_err("unauthorized"));
     }
 
     if let Some(o) = owner {
-        let owner_raw = deps.api.canonical_address(&o)?;
+        let owner_raw = deps.api.addr_canonicalize(&o)?;
         config.owner = owner_raw
     }
     if let Some(hub) = hub_contract {
@@ -169,29 +175,31 @@ pub fn handle_update_config<S: Storage, A: Api, Q: Querier>(
         config.reward_contract = reward_addr;
     }
 
-    store_config(&mut deps.storage).save(&config)?;
+    store_config(deps.storage, &config)?;
 
-    Ok(HandleResponse {
+    Ok(Response {
         messages: vec![],
-        log: vec![log("action", "update_config")],
+        submessages: vec![],
+        attributes: vec![attr("action", "update_config")],
         data: None,
     })
 }
 
-pub fn handle_add_airdrop<S: Storage, A: Api, Q: Querier>(
-    deps: &mut Extern<S, A, Q>,
-    env: Env,
+pub fn execute_add_airdrop(
+    deps: DepsMut,
+    _env: Env,
+    info: MessageInfo,
     airdrop_token: String,
     airdrop_info: AirdropInfo,
-) -> StdResult<HandleResponse> {
+) -> StdResult<Response> {
     // only owner can send this message.
-    let config = read_config(&deps.storage).load()?;
-    let sender_raw = deps.api.canonical_address(&env.message.sender)?;
+    let config = read_config(deps.storage)?;
+    let sender_raw = deps.api.addr_canonicalize(&info.sender.to_string())?;
     if sender_raw != config.owner {
-        return Err(StdError::unauthorized());
+        return Err(StdError::generic_err("unauthorized"));
     }
 
-    let exists = read_airdrop_info(&deps.storage, airdrop_token.clone());
+    let exists = read_airdrop_info(deps.storage, airdrop_token.clone());
     if exists.is_ok() {
         return Err(StdError::generic_err(format!(
             "There is a token info with this {}",
@@ -199,36 +207,38 @@ pub fn handle_add_airdrop<S: Storage, A: Api, Q: Querier>(
         )));
     }
 
-    store_config(&mut deps.storage).update(|mut conf| {
+    CONFIG.update(deps.storage, |mut conf| -> StdResult<Config> {
         conf.airdrop_tokens.push(airdrop_token.clone());
         Ok(conf)
     })?;
 
-    store_airdrop_info(&mut deps.storage, airdrop_token.clone(), airdrop_info)?;
-    Ok(HandleResponse {
+    store_airdrop_info(deps.storage, airdrop_token.clone(), airdrop_info)?;
+    Ok(Response {
         messages: vec![],
-        log: vec![
-            log("action", "add_airdrop_info"),
-            log("airdrop_token", airdrop_token),
+        submessages: vec![],
+        attributes: vec![
+            attr("action", "add_airdrop_info"),
+            attr("airdrop_token", airdrop_token),
         ],
         data: None,
     })
 }
 
-pub fn handle_update_airdrop<S: Storage, A: Api, Q: Querier>(
-    deps: &mut Extern<S, A, Q>,
-    env: Env,
+pub fn execute_update_airdrop(
+    deps: DepsMut,
+    _env: Env,
+    info: MessageInfo,
     airdrop_token: String,
     airdrop_info: AirdropInfo,
-) -> StdResult<HandleResponse> {
+) -> StdResult<Response> {
     // only owner can send this message.
-    let config = read_config(&deps.storage).load()?;
-    let sender_raw = deps.api.canonical_address(&env.message.sender)?;
+    let config = read_config(deps.storage)?;
+    let sender_raw = deps.api.addr_canonicalize(&info.sender.to_string())?;
     if sender_raw != config.owner {
-        return Err(StdError::unauthorized());
+        return Err(StdError::generic_err("unauthorized"));
     }
 
-    let exists = read_airdrop_info(&deps.storage, airdrop_token.clone());
+    let exists = read_airdrop_info(deps.storage, airdrop_token.clone());
     if exists.is_err() {
         return Err(StdError::generic_err(format!(
             "There is no token info with this {}",
@@ -236,30 +246,32 @@ pub fn handle_update_airdrop<S: Storage, A: Api, Q: Querier>(
         )));
     }
 
-    update_airdrop_info(&mut deps.storage, airdrop_token.clone(), airdrop_info)?;
-    Ok(HandleResponse {
+    update_airdrop_info(deps.storage, airdrop_token.clone(), airdrop_info)?;
+    Ok(Response {
         messages: vec![],
-        log: vec![
-            log("action", "update_airdrop_info"),
-            log("airdrop_token", airdrop_token),
+        submessages: vec![],
+        attributes: vec![
+            attr("action", "update_airdrop_info"),
+            attr("airdrop_token", airdrop_token),
         ],
         data: None,
     })
 }
 
-pub fn handle_remove_airdrop<S: Storage, A: Api, Q: Querier>(
-    deps: &mut Extern<S, A, Q>,
-    env: Env,
+pub fn execute_remove_airdrop(
+    deps: DepsMut,
+    _env: Env,
+    info: MessageInfo,
     airdrop_token: String,
-) -> StdResult<HandleResponse> {
+) -> StdResult<Response> {
     // only owner can send this message.
-    let config = read_config(&deps.storage).load()?;
-    let sender_raw = deps.api.canonical_address(&env.message.sender)?;
+    let config = read_config(deps.storage)?;
+    let sender_raw = deps.api.addr_canonicalize(&info.sender.to_string())?;
     if sender_raw != config.owner {
-        return Err(StdError::unauthorized());
+        return Err(StdError::generic_err("unauthorized"));
     }
 
-    let exists = read_airdrop_info(&deps.storage, airdrop_token.clone());
+    let exists = read_airdrop_info(deps.storage, airdrop_token.clone());
     if exists.is_err() {
         return Err(StdError::generic_err(format!(
             "There is no token info with this {}",
@@ -267,34 +279,33 @@ pub fn handle_remove_airdrop<S: Storage, A: Api, Q: Querier>(
         )));
     }
 
-    store_config(&mut deps.storage).update(|mut conf| {
+    CONFIG.update(deps.storage, |mut conf| -> StdResult<Config> {
         conf.airdrop_tokens.retain(|item| item != &airdrop_token);
         Ok(conf)
     })?;
 
-    remove_airdrop_info(&mut deps.storage, airdrop_token.clone())?;
-    Ok(HandleResponse {
+    remove_airdrop_info(deps.storage, airdrop_token.clone())?;
+    Ok(Response {
         messages: vec![],
-        log: vec![
-            log("action", "remove_airdrop_info"),
-            log("airdrop_token", airdrop_token),
+        submessages: vec![],
+        attributes: vec![
+            attr("action", "remove_airdrop_info"),
+            attr("airdrop_token", airdrop_token),
         ],
         data: None,
     })
 }
 
-pub fn query<S: Storage, A: Api, Q: Querier>(
-    deps: &Extern<S, A, Q>,
-    msg: QueryMsg,
-) -> StdResult<Binary> {
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
-        QueryMsg::Config {} => to_binary(&query_config(&deps)?),
+        QueryMsg::Config {} => to_binary(&query_config(deps)?),
         QueryMsg::AirdropInfo {
             airdrop_token,
             start_after,
             limit,
         } => to_binary(&query_airdrop_infos(
-            &deps,
+            deps,
             airdrop_token,
             start_after,
             limit,
@@ -302,28 +313,26 @@ pub fn query<S: Storage, A: Api, Q: Querier>(
     }
 }
 
-fn query_config<S: Storage, A: Api, Q: Querier>(
-    deps: &Extern<S, A, Q>,
-) -> StdResult<ConfigResponse> {
-    let config = read_config(&deps.storage).load()?;
-    let owner_addr = deps.api.human_address(&config.owner)?;
+fn query_config(deps: Deps) -> StdResult<ConfigResponse> {
+    let config = read_config(deps.storage)?;
+    let owner_addr = deps.api.addr_humanize(&config.owner)?;
 
     Ok(ConfigResponse {
-        owner: owner_addr,
+        owner: owner_addr.to_string(),
         hub_contract: config.hub_contract,
         reward_contract: config.reward_contract,
         airdrop_tokens: config.airdrop_tokens,
     })
 }
 
-fn query_airdrop_infos<S: Storage, A: Api, Q: Querier>(
-    deps: &Extern<S, A, Q>,
+fn query_airdrop_infos(
+    deps: Deps,
     airdrop_token: Option<String>,
     start_after: Option<String>,
     limit: Option<u32>,
 ) -> StdResult<AirdropInfoResponse> {
     if let Some(air_token) = airdrop_token {
-        let info = read_airdrop_info(&deps.storage, air_token.clone()).unwrap();
+        let info = read_airdrop_info(deps.storage, air_token.clone()).unwrap();
 
         Ok(AirdropInfoResponse {
             airdrop_info: vec![AirdropInfoElem {
@@ -332,7 +341,7 @@ fn query_airdrop_infos<S: Storage, A: Api, Q: Querier>(
             }],
         })
     } else {
-        let infos = read_all_airdrop_infos(&deps.storage, start_after, limit)?;
+        let infos = read_all_airdrop_infos(deps.storage, start_after, limit)?;
         Ok(AirdropInfoResponse {
             airdrop_info: infos,
         })

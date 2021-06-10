@@ -1,21 +1,16 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "title": "InitMsg",
+  "title": "InstantiateMsg",
   "type": "object",
   "required": [
     "hub_contract",
-    "reward_contract"
+    "reward_denom"
   ],
   "properties": {
     "hub_contract": {
-      "$ref": "#/definitions/HumanAddr"
+      "type": "string"
     },
-    "reward_contract": {
-      "$ref": "#/definitions/HumanAddr"
-    }
-  },
-  "definitions": {
-    "HumanAddr": {
+    "reward_denom": {
       "type": "string"
     }
   }

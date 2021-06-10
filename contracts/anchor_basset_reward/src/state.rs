@@ -1,17 +1,14 @@
-use cosmwasm_std::{
-    Api, CanonicalAddr, Decimal, Extern, HumanAddr, Order, Querier, ReadonlyStorage, StdResult,
-    Storage, Uint128,
-};
-use cosmwasm_storage::{bucket, bucket_read, singleton, singleton_read, ReadonlyBucket};
+use cosmwasm_std::{Addr, Api, CanonicalAddr, Decimal, Deps, Order, StdResult, Storage, Uint128};
+
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use reward_querier::HolderResponse;
+use basset::reward::HolderResponse;
+use cw_storage_plus::{Bound, Item, Map};
 
-pub static KEY_CONFIG: &[u8] = b"config";
-pub static KEY_STATE: &[u8] = b"state";
-
-pub static PREFIX_HOLDERS: &[u8] = b"holders";
+pub const STATE: Item<State> = Item::new("\u{0}\u{9}state");
+pub const CONFIG: Item<Config> = Item::new("\u{0}\u{9}config");
+pub const HOLDERS: Map<&[u8], Holder> = Map::new("holders");
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct Config {
@@ -19,12 +16,12 @@ pub struct Config {
     pub reward_denom: String,
 }
 
-pub fn store_config<S: Storage>(storage: &mut S, config: &Config) -> StdResult<()> {
-    singleton(storage, KEY_CONFIG).save(config)
+pub fn store_config(storage: &mut dyn Storage, config: &Config) -> StdResult<()> {
+    CONFIG.save(storage, config)
 }
 
-pub fn read_config<S: ReadonlyStorage>(storage: &S) -> StdResult<Config> {
-    singleton_read(storage, KEY_CONFIG).load()
+pub fn read_config(storage: &dyn Storage) -> StdResult<Config> {
+    CONFIG.load(storage)
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -34,12 +31,12 @@ pub struct State {
     pub prev_reward_balance: Uint128,
 }
 
-pub fn store_state<S: Storage>(storage: &mut S, state: &State) -> StdResult<()> {
-    singleton(storage, KEY_STATE).save(state)
+pub fn store_state(storage: &mut dyn Storage, state: &State) -> StdResult<()> {
+    STATE.save(storage, state)
 }
 
-pub fn read_state<S: ReadonlyStorage>(storage: &S) -> StdResult<State> {
-    singleton_read(storage, KEY_STATE).load()
+pub fn read_state(storage: &dyn Storage) -> StdResult<State> {
+    STATE.load(storage)
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -50,17 +47,16 @@ pub struct Holder {
 }
 
 // This is similar to HashMap<holder's address, Hodler>
-pub fn store_holder<S: Storage>(
-    storage: &mut S,
+pub fn store_holder(
+    storage: &mut dyn Storage,
     holder_address: &CanonicalAddr,
     holder: &Holder,
 ) -> StdResult<()> {
-    bucket(PREFIX_HOLDERS, storage).save(holder_address.as_slice(), holder)
+    HOLDERS.save(storage, holder_address.as_slice(), holder)
 }
 
-pub fn read_holder<S: Storage>(storage: &S, holder_address: &CanonicalAddr) -> StdResult<Holder> {
-    let res: Option<Holder> =
-        bucket_read(PREFIX_HOLDERS, storage).may_load(holder_address.as_slice())?;
+pub fn read_holder(storage: &dyn Storage, holder_address: &CanonicalAddr) -> StdResult<Holder> {
+    let res = HOLDERS.may_load(storage, holder_address.as_slice())?;
     match res {
         Some(holder) => Ok(holder),
         None => Ok(Holder {
@@ -74,22 +70,20 @@ pub fn read_holder<S: Storage>(storage: &S, holder_address: &CanonicalAddr) -> S
 // settings for pagination
 const MAX_LIMIT: u32 = 30;
 const DEFAULT_LIMIT: u32 = 10;
-pub fn read_holders<S: Storage, A: Api, Q: Querier>(
-    deps: &Extern<S, A, Q>,
-    start_after: Option<CanonicalAddr>,
+pub fn read_holders(
+    deps: Deps,
+    start_after: Option<Addr>,
     limit: Option<u32>,
 ) -> StdResult<Vec<HolderResponse>> {
-    let holder_bucket: ReadonlyBucket<S, Holder> = bucket_read(PREFIX_HOLDERS, &deps.storage);
-
     let limit = limit.unwrap_or(DEFAULT_LIMIT).min(MAX_LIMIT) as usize;
-    let start = calc_range_start(start_after);
+    let start = calc_range_start(deps.api, start_after.map(Addr::unchecked))?.map(Bound::exclusive);
 
-    holder_bucket
-        .range(start.as_deref(), None, Order::Ascending)
+    HOLDERS
+        .range(deps.storage, start, None, Order::Ascending)
         .take(limit)
         .map(|elem| {
             let (k, v) = elem?;
-            let address: HumanAddr = deps.api.human_address(&CanonicalAddr::from(k))?;
+            let address: String = deps.api.addr_humanize(&CanonicalAddr::from(k))?.to_string();
             Ok(HolderResponse {
                 address,
                 balance: v.balance,
@@ -101,10 +95,13 @@ pub fn read_holders<S: Storage, A: Api, Q: Querier>(
 }
 
 // this will set the first key after the provided key, by appending a 1 byte
-fn calc_range_start(start_after: Option<CanonicalAddr>) -> Option<Vec<u8>> {
-    start_after.map(|addr| {
-        let mut v = addr.as_slice().to_vec();
-        v.push(1);
-        v
-    })
+fn calc_range_start(api: &dyn Api, start_after: Option<Addr>) -> StdResult<Option<Vec<u8>>> {
+    match start_after {
+        Some(human) => {
+            let mut v: Vec<u8> = api.addr_canonicalize(human.as_ref())?.0.into();
+            v.push(0);
+            Ok(Some(v))
+        }
+        None => Ok(None),
+    }
 }
