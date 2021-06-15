@@ -5,16 +5,19 @@ use cosmwasm_std::{
 
 use crate::common::calculate_delegations;
 use crate::msg::{HandleMsg, InitMsg, QueryMsg};
-use crate::registry::{config, config_read, registry, registry_read, Config, Validator};
+use crate::registry::{
+    config, config_read, registry, registry_read, store_config, Config, Validator,
+};
 use hub_querier::HandleMsg::UpdateGlobalIndex;
 use std::ops::AddAssign;
 
 pub fn init<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
-    _env: Env,
+    env: Env,
     msg: InitMsg,
 ) -> StdResult<InitResponse> {
     config(&mut deps.storage).save(&Config {
+        owner: deps.api.canonical_address(&env.message.sender)?,
         hub_contract: deps.api.canonical_address(&msg.hub_contract)?,
     })?;
 
@@ -36,7 +39,47 @@ pub fn handle<S: Storage, A: Api, Q: Querier>(
         HandleMsg::UpdateTotalDelegated { updated_validators } => {
             update_total_delegated(deps, env, updated_validators)
         }
+        HandleMsg::UpdateConfig {
+            owner,
+            hub_contract,
+        } => handle_update_config(deps, env, owner, hub_contract),
     }
+}
+
+/// Update the config. Update the owner and hub contract address.
+/// Only creator/owner is allowed to execute
+pub fn handle_update_config<S: Storage, A: Api, Q: Querier>(
+    deps: &mut Extern<S, A, Q>,
+    env: Env,
+    owner: Option<HumanAddr>,
+    hub_contract: Option<HumanAddr>,
+) -> StdResult<HandleResponse> {
+    // only owner must be able to send this message.
+    let config = config_read(&deps.storage).load()?;
+    let owner_address = deps.api.human_address(&config.owner)?;
+    if env.message.sender != owner_address {
+        return Err(StdError::unauthorized());
+    }
+
+    if let Some(o) = owner {
+        let owner_raw = deps.api.canonical_address(&o)?;
+
+        store_config(&mut deps.storage).update(|mut last_config| {
+            last_config.owner = owner_raw;
+            Ok(last_config)
+        })?;
+    }
+
+    if let Some(hub) = hub_contract {
+        let hub_raw = deps.api.canonical_address(&hub)?;
+
+        store_config(&mut deps.storage).update(|mut last_config| {
+            last_config.hub_contract = hub_raw;
+            Ok(last_config)
+        })?;
+    }
+
+    Ok(HandleResponse::default())
 }
 
 fn _update_total_delegated<S: Storage, A: Api, Q: Querier>(
@@ -76,18 +119,30 @@ pub fn update_total_delegated<S: Storage, A: Api, Q: Querier>(
 
 pub fn add_validator<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
-    _env: Env,
+    env: Env,
     validator: Validator,
 ) -> StdResult<HandleResponse> {
+    let config = config_read(&deps.storage).load()?;
+    let owner_address = deps.api.human_address(&config.owner)?;
+    if env.message.sender != owner_address {
+        return Err(StdError::unauthorized());
+    }
+
     registry(&mut deps.storage).save(validator.address.as_str().as_bytes(), &validator)?;
     Ok(HandleResponse::default())
 }
 
 pub fn remove_validator<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
-    _env: Env,
+    env: Env,
     validator_address: HumanAddr,
 ) -> StdResult<HandleResponse> {
+    let config = config_read(&deps.storage).load()?;
+    let owner_address = deps.api.human_address(&config.owner)?;
+    if env.message.sender != owner_address {
+        return Err(StdError::unauthorized());
+    }
+
     registry(&mut deps.storage).remove(validator_address.as_str().as_bytes());
 
     let config = config_read(&deps.storage).load()?;
@@ -210,10 +265,7 @@ mod tests {
             hub_contract: HumanAddr::from("hub_contract_address"),
         };
         let env = mock_env("creator", &coins(2, "token"));
-        let _res = init(&mut deps, env, msg).unwrap();
-
-        // beneficiary can release it
-        let env = mock_env("anyone", &coins(2, "token"));
+        let _res = init(&mut deps, env.clone(), msg).unwrap();
 
         let validator = Validator {
             active: true,
@@ -235,6 +287,83 @@ mod tests {
             }
             Err(e) => panic!(format!("Failed to handle AddValidator message: {}", e)),
         }
+    }
+
+    #[test]
+    fn ownership_tests() {
+        let mut deps = mock_dependencies(20, &coins(2, "token"));
+
+        let msg = InitMsg {
+            registry: vec![],
+            hub_contract: HumanAddr::from("hub_contract_address"),
+        };
+        let env = mock_env("creator", &coins(2, "token"));
+        let _res = init(&mut deps, env, msg).unwrap();
+
+        let env = mock_env("villain", &coins(2, "token"));
+
+        let validator = Validator {
+            active: true,
+            total_delegated: Default::default(),
+            address: Default::default(),
+        };
+
+        let msg = HandleMsg::AddValidator {
+            validator: validator.clone(),
+        };
+        let res = handle(&mut deps, env.clone(), msg);
+        assert_eq!(res.err().unwrap(), StdError::unauthorized());
+
+        let msg = HandleMsg::RemoveValidator {
+            address: validator.address,
+        };
+        let res = handle(&mut deps, env.clone(), msg);
+        assert_eq!(res.err().unwrap(), StdError::unauthorized());
+
+        let msg = HandleMsg::UpdateConfig {
+            hub_contract: None,
+            owner: None,
+        };
+        let res = handle(&mut deps, env, msg);
+        assert_eq!(res.err().unwrap(), StdError::unauthorized());
+    }
+
+    #[test]
+    fn update_config() {
+        let mut deps = mock_dependencies(20, &coins(2, "token"));
+
+        let msg = InitMsg {
+            registry: vec![],
+            hub_contract: HumanAddr::from("hub_contract_address"),
+        };
+        let env = mock_env("creator", &coins(2, "token"));
+        let _res = init(&mut deps, env.clone(), msg).unwrap();
+
+        let new_hub_address = HumanAddr::from("new_hub_contract");
+        let msg = HandleMsg::UpdateConfig {
+            hub_contract: Some(new_hub_address.clone()),
+            owner: None,
+        };
+        let res = handle(&mut deps, env.clone(), msg);
+        assert!(res.is_ok());
+        let config = config_read(&deps.storage).load().unwrap();
+        assert_eq!(
+            deps.api.canonical_address(&new_hub_address).unwrap(),
+            config.hub_contract
+        );
+
+        let new_owner = HumanAddr::from("new_owner");
+        let msg = HandleMsg::UpdateConfig {
+            owner: Some(new_owner.clone()),
+            hub_contract: None,
+        };
+        let res = handle(&mut deps, env, msg);
+        assert!(res.is_ok());
+        let config = config_read(&deps.storage).load().unwrap();
+        assert_eq!(
+            deps.api.canonical_address(&new_owner).unwrap(),
+            config.owner
+        );
     }
 
     #[test]
@@ -276,10 +405,7 @@ mod tests {
         };
 
         let env = mock_env("creator", &coins(2, "token"));
-        let _res = init(&mut deps, env, msg).unwrap();
-
-        // beneficiary can release it
-        let env = mock_env("anyone", &coins(2, "token"));
+        let _res = init(&mut deps, env.clone(), msg).unwrap();
 
         deps.querier.update_staking(
             "uluna",
