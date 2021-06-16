@@ -20,6 +20,12 @@ pub enum HandleMsg {
 
     /// Update total_delegated field for validators in registry
     UpdateTotalDelegated { updated_validators: Vec<Validator> },
+
+    /// Update config
+    UpdateConfig {
+        owner: Option<HumanAddr>,
+        hub_contract: Option<HumanAddr>,
+    },
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
