@@ -1,6 +1,6 @@
 use cosmwasm_std::{
-    to_binary,from_binary, Api, Binary, Coin, CosmosMsg, Env, Extern, HandleResponse, HumanAddr, InitResponse,
-    Querier, StakingMsg, StdError, StdResult, Storage, WasmMsg,
+    to_binary, Api, Binary, Coin, CosmosMsg, Env, Extern, HandleResponse, HumanAddr, InitResponse,
+    Querier, StdError, StdResult, Storage, WasmMsg,
 };
 
 use crate::common::calculate_delegations;
