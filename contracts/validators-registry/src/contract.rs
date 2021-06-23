@@ -1,5 +1,5 @@
 use cosmwasm_std::{
-    to_binary, Api, Binary, Coin, CosmosMsg, Env, Extern, HandleResponse, HumanAddr, InitResponse,
+    to_binary,from_binary, Api, Binary, Coin, CosmosMsg, Env, Extern, HandleResponse, HumanAddr, InitResponse,
     Querier, StakingMsg, StdError, StdResult, Storage, WasmMsg,
 };
 
@@ -8,7 +8,7 @@ use crate::msg::{HandleMsg, InitMsg, QueryMsg};
 use crate::registry::{
     config, config_read, registry, registry_read, store_config, Config, Validator,
 };
-use hub_querier::HandleMsg::UpdateGlobalIndex;
+use hub_querier::HandleMsg::{UpdateGlobalIndex,RedelegateProxy};
 use std::ops::AddAssign;
 
 pub fn init<S: Storage, A: Api, Q: Querier>(
@@ -153,7 +153,6 @@ pub fn remove_validator<S: Storage, A: Api, Q: Querier>(
         .query_delegation(hub_address.clone(), validator_address.clone());
 
     let mut messages: Vec<CosmosMsg> = vec![];
-
     if let Ok(q) = query {
         let delegated_amount = q;
         let mut validators = query_validators(deps)?;
@@ -167,10 +166,15 @@ pub fn remove_validator<S: Storage, A: Api, Q: Querier>(
                 if delegations[i].is_zero() {
                     continue;
                 }
-                messages.push(cosmwasm_std::CosmosMsg::Staking(StakingMsg::Redelegate {
+                let regelegate_msg = RedelegateProxy{
                     src_validator: validator_address.clone(),
                     dst_validator: validators[i].address.clone(),
                     amount: Coin::new(delegations[i].u128(), delegation.amount.denom.as_str()),
+                };
+                messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
+                    contract_addr: hub_address.clone(),
+                    msg: to_binary(&regelegate_msg)?,
+                    send: vec![],
                 }));
                 validators[i].total_delegated.add_assign(delegations[i]);
             }
@@ -369,7 +373,7 @@ mod tests {
     #[test]
     fn remove_validator() {
         let mut deps = mock_dependencies(20, &coins(2, "token"));
-
+        let hub_contract_address = HumanAddr::from("hub_contract_address");
         let validator1 = Validator {
             active: true,
             total_delegated: Uint128(10),
@@ -401,7 +405,7 @@ mod tests {
                 validator3.clone(),
                 validator4.clone(),
             ],
-            hub_contract: HumanAddr::from("hub_contract_address"),
+            hub_contract: hub_contract_address.clone(),
         };
 
         let env = mock_env("creator", &coins(2, "token"));
@@ -416,7 +420,7 @@ mod tests {
                 max_change_rate: Default::default(),
             }],
             &[FullDelegation {
-                delegator: HumanAddr::from("hub_contract_address"),
+                delegator: hub_contract_address.clone(),
                 validator: validator4.address.clone(),
                 amount: Coin {
                     denom: "uluna".to_string(),
@@ -431,7 +435,6 @@ mod tests {
             address: validator4.address.clone(),
         };
         let _res = handle(&mut deps, env, msg);
-
         match _res {
             Ok(res) => {
                 let reg = registry_read(&deps.storage).load(validator4.address.as_str().as_bytes());
@@ -439,42 +442,51 @@ mod tests {
 
                 let redelegate = &res.messages[0];
                 match redelegate {
-                    CosmosMsg::Staking(StakingMsg::Redelegate {
-                        src_validator,
-                        dst_validator,
-                        amount,
+                    CosmosMsg::Wasm(WasmMsg::Execute {
+                        contract_addr,
+                        msg,
+                        send: _,
                     }) => {
-                        assert_eq!(*src_validator, validator4.address);
-                        assert_eq!(*dst_validator, validator1.address);
-                        assert_eq!(amount, &coin(27, "uluna"));
+                        assert_eq!(*msg,to_binary(&RedelegateProxy{
+                            src_validator:validator4.address.clone(),
+                            dst_validator:validator1.address,
+                            amount:coin(27, "uluna"),
+                        }).unwrap());
+                        assert_eq!(contract_addr.to_string(),hub_contract_address.clone().to_string());
                     }
                     _ => panic!("Unexpected message: {:?}", redelegate),
                 }
 
                 let redelegate = &res.messages[1];
                 match redelegate {
-                    CosmosMsg::Staking(StakingMsg::Redelegate {
-                        src_validator,
-                        dst_validator,
-                        amount,
+                    CosmosMsg::Wasm(WasmMsg::Execute {
+                        contract_addr,
+                        msg,
+                        send:_,
                     }) => {
-                        assert_eq!(*src_validator, validator4.address);
-                        assert_eq!(*dst_validator, validator2.address);
-                        assert_eq!(amount, &coin(17, "uluna"));
+                        assert_eq!(*msg,to_binary(&RedelegateProxy{
+                            src_validator:validator4.address.clone(),
+                            dst_validator:validator2.address,
+                            amount:coin(17, "uluna"),
+                        }).unwrap());
+                        assert_eq!(contract_addr.to_string(),hub_contract_address.clone().to_string());
                     }
                     _ => panic!("Unexpected message: {:?}", redelegate),
                 }
 
                 let redelegate = &res.messages[2];
                 match redelegate {
-                    CosmosMsg::Staking(StakingMsg::Redelegate {
-                        src_validator,
-                        dst_validator,
-                        amount,
+                    CosmosMsg::Wasm(WasmMsg::Execute {
+                        contract_addr,
+                        msg,
+                        send:_,
                     }) => {
-                        assert_eq!(*src_validator, validator4.address);
-                        assert_eq!(*dst_validator, validator3.address);
-                        assert_eq!(amount, &coin(6, "uluna"));
+                        assert_eq!(*msg,to_binary(&RedelegateProxy{
+                            src_validator:validator4.address.clone(),
+                            dst_validator:validator3.address,
+                            amount:coin(6, "uluna"),
+                        }).unwrap());
+                        assert_eq!(contract_addr.to_string(),hub_contract_address.clone().to_string());
                     }
                     _ => panic!("Unexpected message: {:?}", redelegate),
                 }

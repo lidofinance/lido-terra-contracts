@@ -1,4 +1,4 @@
-use cosmwasm_std::{Binary, CanonicalAddr, Decimal, HumanAddr, Uint128};
+use cosmwasm_std::{Binary, Coin, CanonicalAddr, Decimal, HumanAddr, Uint128};
 use cw20::Cw20ReceiveMsg;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -125,6 +125,13 @@ pub enum HandleMsg {
         airdrop_token_contract: HumanAddr, // E.g. contract address of MIR Token
         airdrop_swap_contract: HumanAddr,  // E.g. Contract address of MIR <> UST Terraswap Pair
         swap_msg: Binary,                  // E.g. Base64-encoded JSON of PairHandleMsg::Swap
+    },
+
+    RedelegateProxy {
+        // delegator is automatically set to address of the calling contract
+        src_validator: HumanAddr,
+        dst_validator: HumanAddr,
+        amount: Coin,
     },
 }
 
