@@ -50,7 +50,7 @@ pub fn handle_update_config<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
     env: Env,
     owner: Option<HumanAddr>,
-    reward_contract: Option<HumanAddr>,
+    rewards_dispatcher_contract: Option<HumanAddr>,
     bluna_token_contract: Option<HumanAddr>,
     stluna_token_contract: Option<HumanAddr>,
     airdrop_registry_contract: Option<HumanAddr>,
@@ -73,7 +73,7 @@ pub fn handle_update_config<S: Storage, A: Api, Q: Querier>(
             Ok(last_config)
         })?;
     }
-    if let Some(reward) = reward_contract {
+    if let Some(reward) = rewards_dispatcher_contract {
         let reward_raw = deps.api.canonical_address(&reward)?;
 
         store_config(&mut deps.storage).update(|mut last_config| {
