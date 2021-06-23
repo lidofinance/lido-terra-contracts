@@ -2,9 +2,6 @@ on:
   push:
     branches:
       - '**'
-  pull_request:
-    branches:
-      - lido_basset_v2
 
 name: tests
 
