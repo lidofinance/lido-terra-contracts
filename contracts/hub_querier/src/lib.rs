@@ -61,7 +61,7 @@ pub enum HandleMsg {
     /// Set the owener
     UpdateConfig {
         owner: Option<HumanAddr>,
-        reward_contract: Option<HumanAddr>,
+        rewards_dispatcher_contract: Option<HumanAddr>,
         validators_registry_contract: Option<HumanAddr>,
         bluna_token_contract: Option<HumanAddr>,
         stluna_token_contract: Option<HumanAddr>,
