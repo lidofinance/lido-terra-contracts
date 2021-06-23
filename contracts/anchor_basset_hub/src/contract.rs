@@ -113,7 +113,7 @@ pub fn handle<S: Storage, A: Api, Q: Querier>(
         ),
         HandleMsg::UpdateConfig {
             owner,
-            reward_contract,
+            rewards_dispatcher_contract,
             bluna_token_contract,
             airdrop_registry_contract,
             validators_registry_contract,
@@ -122,7 +122,7 @@ pub fn handle<S: Storage, A: Api, Q: Querier>(
             deps,
             env,
             owner,
-            reward_contract,
+            rewards_dispatcher_contract,
             bluna_token_contract,
             stluna_token_contract,
             airdrop_registry_contract,
