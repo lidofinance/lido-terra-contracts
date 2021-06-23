@@ -4,7 +4,7 @@ on:
       - '**'
   pull_request:
     branches:
-      - master
+      - lido_basset_v2
 
 name: tests
 
