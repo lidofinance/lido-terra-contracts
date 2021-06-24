@@ -7,7 +7,7 @@ use crate::msg::{HandleMsg, InitMsg, QueryMsg};
 use crate::state::{read_config, store_config, update_config, Config};
 use anchor_basset_reward::msg::HandleMsg::UpdateGlobalIndex;
 use basset::{compute_lido_fee, deduct_tax};
-use hub_querier::HandleMsg::BondForStLuna;
+use hub_querier::HandleMsg::BondRewards;
 use std::ops::Mul;
 use terra_cosmwasm::{create_swap_msg, SwapResponse, TerraMsgWrapper, TerraQuerier};
 
@@ -328,7 +328,7 @@ pub fn handle_dispatch_rewards<S: Storage, A: Api, Q: Querier>(
         messages: vec![
             CosmosMsg::Wasm(WasmMsg::Execute {
                 contract_addr: hub_addr,
-                msg: to_binary(&BondForStLuna {}).unwrap(),
+                msg: to_binary(&BondRewards {}).unwrap(),
                 send: vec![deduct_tax(&deps, stluna_rewards.clone())?],
             }),
             BankMsg::Send {
