@@ -456,10 +456,7 @@ mod tests {
                             })
                             .unwrap()
                         );
-                        assert_eq!(
-                            contract_addr.to_string(),
-                            hub_contract_address.to_string()
-                        );
+                        assert_eq!(contract_addr.to_string(), hub_contract_address.to_string());
                     }
                     _ => panic!("Unexpected message: {:?}", redelegate),
                 }
@@ -480,10 +477,7 @@ mod tests {
                             })
                             .unwrap()
                         );
-                        assert_eq!(
-                            contract_addr.to_string(),
-                            hub_contract_address.to_string()
-                        );
+                        assert_eq!(contract_addr.to_string(), hub_contract_address.to_string());
                     }
                     _ => panic!("Unexpected message: {:?}", redelegate),
                 }
@@ -504,10 +498,7 @@ mod tests {
                             })
                             .unwrap()
                         );
-                        assert_eq!(
-                            contract_addr.to_string(),
-                            hub_contract_address.to_string()
-                        );
+                        assert_eq!(contract_addr.to_string(), hub_contract_address.to_string());
                     }
                     _ => panic!("Unexpected message: {:?}", redelegate),
                 }
