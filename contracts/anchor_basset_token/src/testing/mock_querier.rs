@@ -7,6 +7,7 @@ use cosmwasm_std::{
 use cosmwasm_storage::to_length_prefixed;
 use hub_querier::Config as HubConfig;
 
+pub const MOCK_OWNER_ADDR: &str = "owner";
 pub const MOCK_HUB_CONTRACT_ADDR: &str = "hub";
 pub const MOCK_REWARDS_DISPATCHER_CONTRACT_ADDR: &str = "rewards_dispatcher";
 pub const MOCK_REWARD_CONTRACT_ADDR: &str = "reward";
@@ -98,6 +99,9 @@ impl WasmMockQuerier {
                     let api: MockApi = MockApi::new(self.canonical_length);
                     if key.as_slice().to_vec() == prefix_config {
                         let config = RewardsDispatcherConfig {
+                            owner: api
+                                .canonical_address(&HumanAddr::from(MOCK_OWNER_ADDR))
+                                .unwrap(),
                             hub_contract: api
                                 .canonical_address(&HumanAddr::from(MOCK_HUB_CONTRACT_ADDR))
                                 .unwrap(),
