@@ -169,17 +169,13 @@ pub fn handle_redelegate_proxy<S: Storage, A: Api, Q: Querier>(
     dst_validator: HumanAddr,
     amount: Coin,
 ) -> StdResult<HandleResponse> {
-    let sender_contract_addr = env.message.sender.clone();
+    let sender_contract_addr = env.message.sender;
     let conf = read_config(&deps.storage).load()?;
     let validators_registry_contract =
         deps.api
-            .human_address(
-                &conf
-                    .validators_registry_contract
-                    .ok_or(StdError::generic_err(
-                        "the validator registry contract must have been registered",
-                    ))?,
-            )?;
+            .human_address(&conf.validators_registry_contract.ok_or_else(|| {
+                StdError::generic_err("the validator registry contract must have been registered")
+            })?)?;
     if sender_contract_addr != validators_registry_contract {
         return Err(StdError::unauthorized());
     }
