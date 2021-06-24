@@ -185,9 +185,9 @@ pub fn handle_redelegate_proxy<S: Storage, A: Api, Q: Querier>(
     }
     let mut messages: Vec<CosmosMsg> = vec![];
     messages.push(cosmwasm_std::CosmosMsg::Staking(StakingMsg::Redelegate {
-        src_validator: src_validator,
-        dst_validator: dst_validator,
-        amount: amount,
+        src_validator,
+        dst_validator,
+        amount,
     }));
 
     let res = HandleResponse {
