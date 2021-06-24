@@ -458,7 +458,7 @@ mod tests {
                         );
                         assert_eq!(
                             contract_addr.to_string(),
-                            hub_contract_address.clone().to_string()
+                            hub_contract_address.to_string()
                         );
                     }
                     _ => panic!("Unexpected message: {:?}", redelegate),
@@ -482,7 +482,7 @@ mod tests {
                         );
                         assert_eq!(
                             contract_addr.to_string(),
-                            hub_contract_address.clone().to_string()
+                            hub_contract_address.to_string()
                         );
                     }
                     _ => panic!("Unexpected message: {:?}", redelegate),
@@ -498,7 +498,7 @@ mod tests {
                         assert_eq!(
                             *msg,
                             to_binary(&RedelegateProxy {
-                                src_validator: validator4.address.clone(),
+                                src_validator: validator4.address,
                                 dst_validator: validator3.address,
                                 amount: coin(6, "uluna"),
                             })
@@ -506,7 +506,7 @@ mod tests {
                         );
                         assert_eq!(
                             contract_addr.to_string(),
-                            hub_contract_address.clone().to_string()
+                            hub_contract_address.to_string()
                         );
                     }
                     _ => panic!("Unexpected message: {:?}", redelegate),
