@@ -348,7 +348,7 @@ pub fn handle_dispatch_rewards<S: Storage, A: Api, Q: Querier>(
             send: vec![deduct_tax(&deps, stluna_rewards.clone())?],
         }));
     }
-    if lido_fees.len() > 0 {
+    if !lido_fees.is_empty() {
         messages.push(
             BankMsg::Send {
                 from_address: contr_addr.clone(),
