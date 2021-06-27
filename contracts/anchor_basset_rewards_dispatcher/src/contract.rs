@@ -7,7 +7,7 @@ use crate::msg::{HandleMsg, InitMsg, QueryMsg};
 use crate::state::{read_config, store_config, update_config, Config};
 use anchor_basset_reward::msg::HandleMsg::UpdateGlobalIndex;
 use basset::{compute_lido_fee, deduct_tax};
-use hub_querier::HandleMsg::BondForStLuna;
+use hub_querier::HandleMsg::BondRewards;
 use std::ops::Mul;
 use terra_cosmwasm::{create_swap_msg, SwapResponse, TerraMsgWrapper, TerraQuerier};
 
@@ -160,11 +160,13 @@ pub fn handle_swap<S: Storage, A: Api, Q: Querier>(
     )
     .unwrap();
 
-    msgs.push(create_swap_msg(
-        contr_addr,
-        offer_coin.clone(),
-        ask_denom.clone(),
-    ));
+    if !offer_coin.amount.is_zero() {
+        msgs.push(create_swap_msg(
+            contr_addr,
+            offer_coin.clone(),
+            ask_denom.clone(),
+        ));
+    }
 
     let res = HandleResponse {
         messages: msgs,
@@ -324,34 +326,56 @@ pub fn handle_dispatch_rewards<S: Storage, A: Api, Q: Querier>(
     let lido_bluna_fee = compute_lido_fee(bluna_rewards.amount, config.lido_fee_rate)?;
     bluna_rewards.amount = (bluna_rewards.amount - lido_bluna_fee)?;
 
-    Ok(HandleResponse {
-        messages: vec![
-            CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: hub_addr,
-                msg: to_binary(&BondForStLuna {}).unwrap(),
-                send: vec![deduct_tax(&deps, stluna_rewards.clone())?],
-            }),
+    let mut lido_fees: Vec<Coin> = vec![];
+    if !lido_stluna_fee.is_zero() {
+        lido_fees.push(Coin {
+            amount: lido_stluna_fee,
+            denom: stluna_rewards.denom.clone(),
+        })
+    }
+    if !lido_bluna_fee.is_zero() {
+        lido_fees.push(Coin {
+            amount: lido_bluna_fee,
+            denom: bluna_rewards.denom.clone(),
+        })
+    }
+
+    let mut messages: Vec<CosmosMsg<TerraMsgWrapper>> = vec![];
+    if !stluna_rewards.amount.is_zero() {
+        messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
+            contract_addr: hub_addr,
+            msg: to_binary(&BondRewards {}).unwrap(),
+            send: vec![deduct_tax(&deps, stluna_rewards.clone())?],
+        }));
+    }
+    if !lido_fees.is_empty() {
+        messages.push(
             BankMsg::Send {
                 from_address: contr_addr.clone(),
                 to_address: deps.api.human_address(&config.lido_fee_address)?,
-                amount: vec![
-                    Coin::new(lido_stluna_fee.0, stluna_rewards.denom.as_str()),
-                    Coin::new(lido_bluna_fee.0, bluna_rewards.denom.as_str()),
-                ],
+                amount: lido_fees,
             }
             .into(),
+        )
+    }
+    if !bluna_rewards.amount.is_zero() {
+        messages.push(
             BankMsg::Send {
                 from_address: contr_addr,
                 to_address: bluna_reward_addr.clone(),
                 amount: vec![deduct_tax(&deps, bluna_rewards.clone())?],
             }
             .into(),
-            CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: bluna_reward_addr.clone(),
-                msg: to_binary(&UpdateGlobalIndex {}).unwrap(),
-                send: vec![],
-            }),
-        ],
+        )
+    }
+    messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
+        contract_addr: bluna_reward_addr.clone(),
+        msg: to_binary(&UpdateGlobalIndex {}).unwrap(),
+        send: vec![],
+    }));
+
+    Ok(HandleResponse {
+        messages,
         log: vec![
             log("action", "claim_reward"),
             log("bluna_reward_addr", bluna_reward_addr),
