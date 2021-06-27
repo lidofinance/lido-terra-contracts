@@ -105,7 +105,7 @@ pub fn initialize<S: Storage, A: Api, Q: Querier>(
 
     let register_msg = HandleMsg::UpdateConfig {
         owner: None,
-        reward_contract: Some(reward_contract),
+        rewards_dispatcher_contract: Some(reward_contract),
         bluna_token_contract: Some(bluna_token_contract),
         stluna_token_contract: Some(stluna_token_contract),
         airdrop_registry_contract: Some(HumanAddr::from("airdrop_registry")),
@@ -3910,7 +3910,7 @@ pub fn proper_update_config() {
     // only the owner can call this message
     let update_config = UpdateConfig {
         owner: Some(new_owner.clone()),
-        reward_contract: None,
+        rewards_dispatcher_contract: None,
         bluna_token_contract: None,
         airdrop_registry_contract: None,
         validators_registry_contract: None,
@@ -3923,7 +3923,7 @@ pub fn proper_update_config() {
     // change the owner
     let update_config = UpdateConfig {
         owner: Some(new_owner.clone()),
-        reward_contract: None,
+        rewards_dispatcher_contract: None,
         bluna_token_contract: None,
         airdrop_registry_contract: None,
         validators_registry_contract: None,
@@ -3963,7 +3963,7 @@ pub fn proper_update_config() {
 
     let update_config = UpdateConfig {
         owner: None,
-        reward_contract: Some(HumanAddr::from("new reward")),
+        rewards_dispatcher_contract: Some(HumanAddr::from("new reward")),
         bluna_token_contract: None,
         airdrop_registry_contract: None,
         validators_registry_contract: None,
@@ -3988,7 +3988,7 @@ pub fn proper_update_config() {
 
     let update_config = UpdateConfig {
         owner: None,
-        reward_contract: None,
+        rewards_dispatcher_contract: None,
         bluna_token_contract: Some(HumanAddr::from("new token")),
         airdrop_registry_contract: None,
         validators_registry_contract: None,
@@ -4014,7 +4014,7 @@ pub fn proper_update_config() {
 
     let update_config = UpdateConfig {
         owner: None,
-        reward_contract: None,
+        rewards_dispatcher_contract: None,
         bluna_token_contract: None,
         airdrop_registry_contract: Some(HumanAddr::from("new airdrop")),
         validators_registry_contract: None,
@@ -4033,7 +4033,7 @@ pub fn proper_update_config() {
 
     let update_config = UpdateConfig {
         owner: None,
-        reward_contract: None,
+        rewards_dispatcher_contract: None,
         airdrop_registry_contract: None,
         validators_registry_contract: Some(HumanAddr::from("new registry")),
         bluna_token_contract: None,
@@ -4052,7 +4052,7 @@ pub fn proper_update_config() {
 
     let update_config = UpdateConfig {
         owner: None,
-        reward_contract: None,
+        rewards_dispatcher_contract: None,
         airdrop_registry_contract: None,
         validators_registry_contract: None,
         bluna_token_contract: None,

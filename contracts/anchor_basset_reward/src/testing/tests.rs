@@ -30,7 +30,8 @@ use crate::msg::{
 };
 use crate::state::{store_holder, store_state, Holder, State};
 use crate::testing::mock_querier::{
-    mock_dependencies, MOCK_HUB_CONTRACT_ADDR, MOCK_TOKEN_CONTRACT_ADDR,
+    mock_dependencies, MOCK_HUB_CONTRACT_ADDR, MOCK_REWARDS_DISPATCHER_ADDR,
+    MOCK_TOKEN_CONTRACT_ADDR,
 };
 use std::str::FromStr;
 
@@ -100,7 +101,7 @@ pub fn swap_to_reward_denom() {
 
     init(&mut deps, env, init_msg).unwrap();
 
-    let env = mock_env(HumanAddr::from(MOCK_HUB_CONTRACT_ADDR), &[]);
+    let env = mock_env(HumanAddr::from(MOCK_REWARDS_DISPATCHER_ADDR), &[]);
     let msg = HandleMsg::SwapToRewardDenom {};
 
     let res = handle(&mut deps, env, msg).unwrap();
@@ -153,7 +154,7 @@ fn update_global_index() {
     }
 
     // Failed zero staking balance
-    let env = mock_env(MOCK_HUB_CONTRACT_ADDR, &[]);
+    let env = mock_env(MOCK_REWARDS_DISPATCHER_ADDR, &[]);
     let res = handle(&mut deps, env.clone(), msg.clone());
     match res {
         Err(StdError::GenericErr { msg, .. }) => assert_eq!(msg, "No asset is bonded by Hub"),
@@ -236,7 +237,7 @@ fn increase_balance() {
 
     // claimed_rewards = 100, total_balance = 100
     // global_index == 1
-    let env = mock_env(MOCK_HUB_CONTRACT_ADDR, &[]);
+    let env = mock_env(MOCK_REWARDS_DISPATCHER_ADDR, &[]);
     let msg = HandleMsg::UpdateGlobalIndex {};
     handle(&mut deps, env, msg).unwrap();
 
@@ -316,7 +317,7 @@ fn increase_balance_with_decimals() {
 
     // claimed_rewards = 100000 , total_balance = 11
     // global_index == 9077.727272727272727272
-    let env = mock_env(MOCK_HUB_CONTRACT_ADDR, &[]);
+    let env = mock_env(MOCK_REWARDS_DISPATCHER_ADDR, &[]);
     let msg = HandleMsg::UpdateGlobalIndex {};
     handle(&mut deps, env, msg).unwrap();
 
@@ -403,7 +404,7 @@ fn decrease_balance() {
 
     // claimed_rewards = 100, total_balance = 100
     // global_index == 1
-    let env = mock_env(MOCK_HUB_CONTRACT_ADDR, &[]);
+    let env = mock_env(MOCK_REWARDS_DISPATCHER_ADDR, &[]);
     let msg = HandleMsg::UpdateGlobalIndex {};
     handle(&mut deps, env, msg).unwrap();
 
@@ -476,7 +477,7 @@ fn claim_rewards() {
 
     // claimed_rewards = 100, total_balance = 100
     // global_index == 1
-    let env = mock_env(MOCK_HUB_CONTRACT_ADDR, &[]);
+    let env = mock_env(MOCK_REWARDS_DISPATCHER_ADDR, &[]);
     let msg = HandleMsg::UpdateGlobalIndex {};
     handle(&mut deps, env, msg).unwrap();
 
@@ -498,7 +499,7 @@ fn claim_rewards() {
     // Set recipient
     // claimed_rewards = 100, total_balance = 100
     // global_index == 1
-    let env = mock_env(MOCK_HUB_CONTRACT_ADDR, &[]);
+    let env = mock_env(MOCK_REWARDS_DISPATCHER_ADDR, &[]);
     let msg = HandleMsg::UpdateGlobalIndex {};
     handle(&mut deps, env, msg).unwrap();
 
@@ -563,7 +564,7 @@ fn claim_rewards_with_decimals() {
 
     // claimed_rewards = 1000000, total_balance = 11
     // global_index ==
-    let env = mock_env(MOCK_HUB_CONTRACT_ADDR, &[]);
+    let env = mock_env(MOCK_REWARDS_DISPATCHER_ADDR, &[]);
 
     let msg = HandleMsg::UpdateGlobalIndex {};
     handle(&mut deps, env, msg).unwrap();
