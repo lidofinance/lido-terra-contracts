@@ -8,7 +8,7 @@ use hub_querier::Config;
 use terra_cosmwasm::{TaxCapResponse, TaxRateResponse, TerraQuery, TerraQueryWrapper, TerraRoute};
 
 pub const MOCK_HUB_CONTRACT_ADDR: &str = "hub";
-pub const MOCK_REWARD_CONTRACT_ADDR: &str = "reward";
+pub const MOCK_REWARDS_DISPATCHER_ADDR: &str = "rewards_dispatcher";
 pub const MOCK_TOKEN_CONTRACT_ADDR: &str = "token";
 pub const MOCK_VALIDATORS_REGISTRY_ADDR: &str = "validators";
 pub const MOCK_STLUNA_TOKEN_CONTRACT_ADDR: &str = "stluna_token";
@@ -82,8 +82,10 @@ impl WasmMockQuerier {
                         let config = Config {
                             creator: api.canonical_address(&HumanAddr::from("owner1")).unwrap(),
                             reward_dispatcher_contract: Some(
-                                api.canonical_address(&HumanAddr::from(MOCK_REWARD_CONTRACT_ADDR))
-                                    .unwrap(),
+                                api.canonical_address(&HumanAddr::from(
+                                    MOCK_REWARDS_DISPATCHER_ADDR,
+                                ))
+                                .unwrap(),
                             ),
                             bluna_token_contract: Some(
                                 api.canonical_address(&HumanAddr::from(MOCK_TOKEN_CONTRACT_ADDR))

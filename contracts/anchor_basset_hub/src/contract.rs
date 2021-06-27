@@ -1,7 +1,7 @@
 use cosmwasm_std::{
-    from_binary, log, to_binary, Api, Binary, CosmosMsg, Decimal, Env, Extern, HandleResponse,
-    HumanAddr, InitResponse, Querier, QueryRequest, StakingMsg, StdError, StdResult, Storage,
-    Uint128, WasmMsg, WasmQuery,
+    from_binary, log, to_binary, Api, Binary, Coin, CosmosMsg, Decimal, Env, Extern,
+    HandleResponse, HumanAddr, InitResponse, Querier, QueryRequest, StakingMsg, StdError,
+    StdResult, Storage, Uint128, WasmMsg, WasmQuery,
 };
 
 use crate::config::{handle_update_config, handle_update_params};
@@ -113,7 +113,7 @@ pub fn handle<S: Storage, A: Api, Q: Querier>(
         ),
         HandleMsg::UpdateConfig {
             owner,
-            reward_contract,
+            rewards_dispatcher_contract,
             bluna_token_contract,
             airdrop_registry_contract,
             validators_registry_contract,
@@ -122,7 +122,7 @@ pub fn handle<S: Storage, A: Api, Q: Querier>(
             deps,
             env,
             owner,
-            reward_contract,
+            rewards_dispatcher_contract,
             bluna_token_contract,
             stluna_token_contract,
             airdrop_registry_contract,
@@ -154,7 +154,45 @@ pub fn handle<S: Storage, A: Api, Q: Querier>(
             claim_msg,
             swap_msg,
         ),
+        HandleMsg::RedelegateProxy {
+            src_validator,
+            dst_validator,
+            amount,
+        } => handle_redelegate_proxy(deps, env, src_validator, dst_validator, amount),
     }
+}
+
+pub fn handle_redelegate_proxy<S: Storage, A: Api, Q: Querier>(
+    deps: &mut Extern<S, A, Q>,
+    env: Env,
+    src_validator: HumanAddr,
+    dst_validator: HumanAddr,
+    amount: Coin,
+) -> StdResult<HandleResponse> {
+    let sender_contract_addr = env.message.sender;
+    let conf = read_config(&deps.storage).load()?;
+    let validators_registry_contract =
+        deps.api
+            .human_address(&conf.validators_registry_contract.ok_or_else(|| {
+                StdError::generic_err("the validator registry contract must have been registered")
+            })?)?;
+    if sender_contract_addr != validators_registry_contract {
+        return Err(StdError::unauthorized());
+    }
+    let mut messages: Vec<CosmosMsg> = vec![];
+    messages.push(cosmwasm_std::CosmosMsg::Staking(StakingMsg::Redelegate {
+        src_validator,
+        dst_validator,
+        amount,
+    }));
+
+    let res = HandleResponse {
+        messages,
+        data: None,
+        log: vec![],
+    };
+
+    Ok(res)
 }
 
 /// CW20 token receive handler.
