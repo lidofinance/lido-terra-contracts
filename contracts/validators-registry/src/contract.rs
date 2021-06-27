@@ -1,20 +1,23 @@
 use cosmwasm_std::{
     to_binary, Api, Binary, Coin, CosmosMsg, Env, Extern, HandleResponse, HumanAddr, InitResponse,
-    Querier, StakingMsg, StdError, StdResult, Storage, WasmMsg,
+    Querier, StdError, StdResult, Storage, WasmMsg,
 };
 
 use crate::common::calculate_delegations;
 use crate::msg::{HandleMsg, InitMsg, QueryMsg};
-use crate::registry::{config, config_read, registry, registry_read, Config, Validator};
-use hub_querier::HandleMsg::UpdateGlobalIndex;
+use crate::registry::{
+    config, config_read, registry, registry_read, store_config, Config, Validator,
+};
+use hub_querier::HandleMsg::{RedelegateProxy, UpdateGlobalIndex};
 use std::ops::AddAssign;
 
 pub fn init<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
-    _env: Env,
+    env: Env,
     msg: InitMsg,
 ) -> StdResult<InitResponse> {
     config(&mut deps.storage).save(&Config {
+        owner: deps.api.canonical_address(&env.message.sender)?,
         hub_contract: deps.api.canonical_address(&msg.hub_contract)?,
     })?;
 
@@ -36,7 +39,47 @@ pub fn handle<S: Storage, A: Api, Q: Querier>(
         HandleMsg::UpdateTotalDelegated { updated_validators } => {
             update_total_delegated(deps, env, updated_validators)
         }
+        HandleMsg::UpdateConfig {
+            owner,
+            hub_contract,
+        } => handle_update_config(deps, env, owner, hub_contract),
     }
+}
+
+/// Update the config. Update the owner and hub contract address.
+/// Only creator/owner is allowed to execute
+pub fn handle_update_config<S: Storage, A: Api, Q: Querier>(
+    deps: &mut Extern<S, A, Q>,
+    env: Env,
+    owner: Option<HumanAddr>,
+    hub_contract: Option<HumanAddr>,
+) -> StdResult<HandleResponse> {
+    // only owner must be able to send this message.
+    let config = config_read(&deps.storage).load()?;
+    let owner_address = deps.api.human_address(&config.owner)?;
+    if env.message.sender != owner_address {
+        return Err(StdError::unauthorized());
+    }
+
+    if let Some(o) = owner {
+        let owner_raw = deps.api.canonical_address(&o)?;
+
+        store_config(&mut deps.storage).update(|mut last_config| {
+            last_config.owner = owner_raw;
+            Ok(last_config)
+        })?;
+    }
+
+    if let Some(hub) = hub_contract {
+        let hub_raw = deps.api.canonical_address(&hub)?;
+
+        store_config(&mut deps.storage).update(|mut last_config| {
+            last_config.hub_contract = hub_raw;
+            Ok(last_config)
+        })?;
+    }
+
+    Ok(HandleResponse::default())
 }
 
 fn _update_total_delegated<S: Storage, A: Api, Q: Querier>(
@@ -76,18 +119,30 @@ pub fn update_total_delegated<S: Storage, A: Api, Q: Querier>(
 
 pub fn add_validator<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
-    _env: Env,
+    env: Env,
     validator: Validator,
 ) -> StdResult<HandleResponse> {
+    let config = config_read(&deps.storage).load()?;
+    let owner_address = deps.api.human_address(&config.owner)?;
+    if env.message.sender != owner_address {
+        return Err(StdError::unauthorized());
+    }
+
     registry(&mut deps.storage).save(validator.address.as_str().as_bytes(), &validator)?;
     Ok(HandleResponse::default())
 }
 
 pub fn remove_validator<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
-    _env: Env,
+    env: Env,
     validator_address: HumanAddr,
 ) -> StdResult<HandleResponse> {
+    let config = config_read(&deps.storage).load()?;
+    let owner_address = deps.api.human_address(&config.owner)?;
+    if env.message.sender != owner_address {
+        return Err(StdError::unauthorized());
+    }
+
     registry(&mut deps.storage).remove(validator_address.as_str().as_bytes());
 
     let config = config_read(&deps.storage).load()?;
@@ -98,7 +153,6 @@ pub fn remove_validator<S: Storage, A: Api, Q: Querier>(
         .query_delegation(hub_address.clone(), validator_address.clone());
 
     let mut messages: Vec<CosmosMsg> = vec![];
-
     if let Ok(q) = query {
         let delegated_amount = q;
         let mut validators = query_validators(deps)?;
@@ -112,10 +166,15 @@ pub fn remove_validator<S: Storage, A: Api, Q: Querier>(
                 if delegations[i].is_zero() {
                     continue;
                 }
-                messages.push(cosmwasm_std::CosmosMsg::Staking(StakingMsg::Redelegate {
+                let regelegate_msg = RedelegateProxy {
                     src_validator: validator_address.clone(),
                     dst_validator: validators[i].address.clone(),
                     amount: Coin::new(delegations[i].u128(), delegation.amount.denom.as_str()),
+                };
+                messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
+                    contract_addr: hub_address.clone(),
+                    msg: to_binary(&regelegate_msg)?,
+                    send: vec![],
                 }));
                 validators[i].total_delegated.add_assign(delegations[i]);
             }
@@ -210,10 +269,7 @@ mod tests {
             hub_contract: HumanAddr::from("hub_contract_address"),
         };
         let env = mock_env("creator", &coins(2, "token"));
-        let _res = init(&mut deps, env, msg).unwrap();
-
-        // beneficiary can release it
-        let env = mock_env("anyone", &coins(2, "token"));
+        let _res = init(&mut deps, env.clone(), msg).unwrap();
 
         let validator = Validator {
             active: true,
@@ -238,9 +294,86 @@ mod tests {
     }
 
     #[test]
-    fn remove_validator() {
+    fn ownership_tests() {
         let mut deps = mock_dependencies(20, &coins(2, "token"));
 
+        let msg = InitMsg {
+            registry: vec![],
+            hub_contract: HumanAddr::from("hub_contract_address"),
+        };
+        let env = mock_env("creator", &coins(2, "token"));
+        let _res = init(&mut deps, env, msg).unwrap();
+
+        let env = mock_env("villain", &coins(2, "token"));
+
+        let validator = Validator {
+            active: true,
+            total_delegated: Default::default(),
+            address: Default::default(),
+        };
+
+        let msg = HandleMsg::AddValidator {
+            validator: validator.clone(),
+        };
+        let res = handle(&mut deps, env.clone(), msg);
+        assert_eq!(res.err().unwrap(), StdError::unauthorized());
+
+        let msg = HandleMsg::RemoveValidator {
+            address: validator.address,
+        };
+        let res = handle(&mut deps, env.clone(), msg);
+        assert_eq!(res.err().unwrap(), StdError::unauthorized());
+
+        let msg = HandleMsg::UpdateConfig {
+            hub_contract: None,
+            owner: None,
+        };
+        let res = handle(&mut deps, env, msg);
+        assert_eq!(res.err().unwrap(), StdError::unauthorized());
+    }
+
+    #[test]
+    fn update_config() {
+        let mut deps = mock_dependencies(20, &coins(2, "token"));
+
+        let msg = InitMsg {
+            registry: vec![],
+            hub_contract: HumanAddr::from("hub_contract_address"),
+        };
+        let env = mock_env("creator", &coins(2, "token"));
+        let _res = init(&mut deps, env.clone(), msg).unwrap();
+
+        let new_hub_address = HumanAddr::from("new_hub_contract");
+        let msg = HandleMsg::UpdateConfig {
+            hub_contract: Some(new_hub_address.clone()),
+            owner: None,
+        };
+        let res = handle(&mut deps, env.clone(), msg);
+        assert!(res.is_ok());
+        let config = config_read(&deps.storage).load().unwrap();
+        assert_eq!(
+            deps.api.canonical_address(&new_hub_address).unwrap(),
+            config.hub_contract
+        );
+
+        let new_owner = HumanAddr::from("new_owner");
+        let msg = HandleMsg::UpdateConfig {
+            owner: Some(new_owner.clone()),
+            hub_contract: None,
+        };
+        let res = handle(&mut deps, env, msg);
+        assert!(res.is_ok());
+        let config = config_read(&deps.storage).load().unwrap();
+        assert_eq!(
+            deps.api.canonical_address(&new_owner).unwrap(),
+            config.owner
+        );
+    }
+
+    #[test]
+    fn remove_validator() {
+        let mut deps = mock_dependencies(20, &coins(2, "token"));
+        let hub_contract_address = HumanAddr::from("hub_contract_address");
         let validator1 = Validator {
             active: true,
             total_delegated: Uint128(10),
@@ -272,14 +405,11 @@ mod tests {
                 validator3.clone(),
                 validator4.clone(),
             ],
-            hub_contract: HumanAddr::from("hub_contract_address"),
+            hub_contract: hub_contract_address.clone(),
         };
 
         let env = mock_env("creator", &coins(2, "token"));
-        let _res = init(&mut deps, env, msg).unwrap();
-
-        // beneficiary can release it
-        let env = mock_env("anyone", &coins(2, "token"));
+        let _res = init(&mut deps, env.clone(), msg).unwrap();
 
         deps.querier.update_staking(
             "uluna",
@@ -290,7 +420,7 @@ mod tests {
                 max_change_rate: Default::default(),
             }],
             &[FullDelegation {
-                delegator: HumanAddr::from("hub_contract_address"),
+                delegator: hub_contract_address.clone(),
                 validator: validator4.address.clone(),
                 amount: Coin {
                     denom: "uluna".to_string(),
@@ -305,7 +435,6 @@ mod tests {
             address: validator4.address.clone(),
         };
         let _res = handle(&mut deps, env, msg);
-
         match _res {
             Ok(res) => {
                 let reg = registry_read(&deps.storage).load(validator4.address.as_str().as_bytes());
@@ -313,42 +442,63 @@ mod tests {
 
                 let redelegate = &res.messages[0];
                 match redelegate {
-                    CosmosMsg::Staking(StakingMsg::Redelegate {
-                        src_validator,
-                        dst_validator,
-                        amount,
+                    CosmosMsg::Wasm(WasmMsg::Execute {
+                        contract_addr,
+                        msg,
+                        send: _,
                     }) => {
-                        assert_eq!(*src_validator, validator4.address);
-                        assert_eq!(*dst_validator, validator1.address);
-                        assert_eq!(amount, &coin(27, "uluna"));
+                        assert_eq!(
+                            *msg,
+                            to_binary(&RedelegateProxy {
+                                src_validator: validator4.address.clone(),
+                                dst_validator: validator1.address,
+                                amount: coin(27, "uluna"),
+                            })
+                            .unwrap()
+                        );
+                        assert_eq!(contract_addr.to_string(), hub_contract_address.to_string());
                     }
                     _ => panic!("Unexpected message: {:?}", redelegate),
                 }
 
                 let redelegate = &res.messages[1];
                 match redelegate {
-                    CosmosMsg::Staking(StakingMsg::Redelegate {
-                        src_validator,
-                        dst_validator,
-                        amount,
+                    CosmosMsg::Wasm(WasmMsg::Execute {
+                        contract_addr,
+                        msg,
+                        send: _,
                     }) => {
-                        assert_eq!(*src_validator, validator4.address);
-                        assert_eq!(*dst_validator, validator2.address);
-                        assert_eq!(amount, &coin(17, "uluna"));
+                        assert_eq!(
+                            *msg,
+                            to_binary(&RedelegateProxy {
+                                src_validator: validator4.address.clone(),
+                                dst_validator: validator2.address,
+                                amount: coin(17, "uluna"),
+                            })
+                            .unwrap()
+                        );
+                        assert_eq!(contract_addr.to_string(), hub_contract_address.to_string());
                     }
                     _ => panic!("Unexpected message: {:?}", redelegate),
                 }
 
                 let redelegate = &res.messages[2];
                 match redelegate {
-                    CosmosMsg::Staking(StakingMsg::Redelegate {
-                        src_validator,
-                        dst_validator,
-                        amount,
+                    CosmosMsg::Wasm(WasmMsg::Execute {
+                        contract_addr,
+                        msg,
+                        send: _,
                     }) => {
-                        assert_eq!(*src_validator, validator4.address);
-                        assert_eq!(*dst_validator, validator3.address);
-                        assert_eq!(amount, &coin(6, "uluna"));
+                        assert_eq!(
+                            *msg,
+                            to_binary(&RedelegateProxy {
+                                src_validator: validator4.address,
+                                dst_validator: validator3.address,
+                                amount: coin(6, "uluna"),
+                            })
+                            .unwrap()
+                        );
+                        assert_eq!(contract_addr.to_string(), hub_contract_address.to_string());
                     }
                     _ => panic!("Unexpected message: {:?}", redelegate),
                 }

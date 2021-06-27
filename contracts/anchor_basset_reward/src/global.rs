@@ -1,6 +1,7 @@
 use crate::state::{read_config, read_state, store_state, Config, State};
 
 use crate::math::decimal_summation_in_256;
+use crate::querier::query_rewards_dispatcher_contract;
 use cosmwasm_std::{
     log, Api, CosmosMsg, Decimal, Env, Extern, HandleResponse, Querier, StdError, StdResult,
     Storage,
@@ -14,7 +15,10 @@ pub fn handle_swap<S: Storage, A: Api, Q: Querier>(
     env: Env,
 ) -> StdResult<HandleResponse<TerraMsgWrapper>> {
     let config = read_config(&deps.storage)?;
-    let owner_addr = deps.api.human_address(&config.hub_contract).unwrap();
+    let hub_addr = deps.api.human_address(&config.hub_contract)?;
+    let owner_addr = deps
+        .api
+        .human_address(&query_rewards_dispatcher_contract(&deps, hub_addr)?)?;
 
     if env.message.sender != owner_addr {
         return Err(StdError::unauthorized());
@@ -56,7 +60,11 @@ pub fn handle_update_global_index<S: Storage, A: Api, Q: Querier>(
     let mut state: State = read_state(&deps.storage)?;
 
     // Permission check
-    if config.hub_contract != deps.api.canonical_address(&env.message.sender)? {
+    let hub_addr = deps.api.human_address(&config.hub_contract)?;
+    let owner_addr = deps
+        .api
+        .human_address(&query_rewards_dispatcher_contract(&deps, hub_addr)?)?;
+    if owner_addr != env.message.sender {
         return Err(StdError::unauthorized());
     }
 
