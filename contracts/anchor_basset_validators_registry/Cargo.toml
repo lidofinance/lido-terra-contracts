@@ -1,5 +1,5 @@
 [package]
-name = "validators-registry"
+name = "anchor_basset_validators_registry"
 version = "0.1.0"
 authors = ["pr0n00gler <programmer10110@yandex.ru>"]
 edition = "2018"
