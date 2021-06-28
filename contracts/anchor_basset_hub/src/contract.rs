@@ -19,6 +19,8 @@ use crate::unbond::{handle_unbond, handle_unbond_stluna, handle_withdraw_unbonde
 use crate::bond::handle_bond_stluna;
 use crate::bond::{handle_bond, handle_bond_rewards};
 use anchor_basset_rewards_dispatcher::msg::HandleMsg::{DispatchRewards, SwapToRewardDenom};
+use anchor_basset_validators_registry::msg::HandleMsg as HandleMsgValidators;
+use anchor_basset_validators_registry::registry::Validator;
 use cosmwasm_storage::to_length_prefixed;
 use cw20::{Cw20HandleMsg, Cw20ReceiveMsg};
 use cw20_base::state::TokenInfo;
@@ -26,8 +28,6 @@ use hub_querier::HandleMsg::SwapHook;
 use hub_querier::{Config, State};
 use hub_querier::{Cw20HookMsg, HandleMsg};
 use std::collections::HashMap;
-use validators_registry::msg::HandleMsg as HandleMsgValidators;
-use validators_registry::registry::Validator;
 
 pub fn init<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
