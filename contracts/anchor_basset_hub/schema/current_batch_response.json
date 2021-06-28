@@ -4,7 +4,8 @@
   "type": "object",
   "required": [
     "id",
-    "requested_with_fee"
+    "requested_bluna_with_fee",
+    "requested_stluna"
   ],
   "properties": {
     "id": {
@@ -12,7 +13,10 @@
       "format": "uint64",
       "minimum": 0.0
     },
-    "requested_with_fee": {
+    "requested_bluna_with_fee": {
+      "$ref": "#/definitions/Uint128"
+    },
+    "requested_stluna": {
       "$ref": "#/definitions/Uint128"
     }
   },
