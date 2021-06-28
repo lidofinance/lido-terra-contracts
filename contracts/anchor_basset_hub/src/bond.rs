@@ -1,15 +1,17 @@
 use crate::contract::{query_total_bluna_issued, query_total_stluna_issued, slashing};
 use crate::math::decimal_division;
 use crate::state::{read_config, read_current_batch, read_parameters, read_state, store_state};
+use anchor_basset_validators_registry::common::calculate_delegations;
+use anchor_basset_validators_registry::msg::{
+    HandleMsg as HandleMsgValidators, QueryMsg as QueryValidators,
+};
+use anchor_basset_validators_registry::registry::Validator;
 use cosmwasm_std::{
     to_binary, Api, Coin, CosmosMsg, Env, Extern, HandleResponse, Querier, QueryRequest,
     StakingMsg, StdError, StdResult, Storage, Uint128, WasmMsg, WasmQuery,
 };
 use cw20::Cw20HandleMsg;
 use std::ops::AddAssign;
-use validators_registry::common::calculate_delegations;
-use validators_registry::msg::{HandleMsg as HandleMsgValidators, QueryMsg as QueryValidators};
-use validators_registry::registry::Validator;
 
 pub fn handle_bond<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,

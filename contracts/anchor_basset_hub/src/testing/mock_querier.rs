@@ -1,3 +1,4 @@
+use anchor_basset_validators_registry::registry::Validator as RegistryValidator;
 use cosmwasm_std::testing::{MockApi, MockQuerier, MockStorage};
 use cosmwasm_std::{
     from_slice, to_binary, AllBalanceResponse, Api, BalanceResponse, BankQuery, CanonicalAddr,
@@ -8,7 +9,6 @@ use cosmwasm_storage::to_length_prefixed;
 use cw20_base::state::{MinterData, TokenInfo};
 use hub_querier::Config;
 use std::collections::HashMap;
-use validators_registry::registry::Validator as RegistryValidator;
 
 use terra_cosmwasm::{TaxCapResponse, TaxRateResponse, TerraQuery, TerraQueryWrapper, TerraRoute};
 
