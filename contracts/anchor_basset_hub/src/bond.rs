@@ -44,7 +44,7 @@ pub fn handle_bond<S: Storage, A: Api, Q: Querier>(
         })?;
 
     // check slashing
-    slashing(deps, env.clone())?;
+    let slashed_validators = slashing(deps, env.clone())?;
 
     let state = read_state(&deps.storage).load()?;
     let sender = env.message.sender.clone();
@@ -88,6 +88,12 @@ pub fn handle_bond<S: Storage, A: Api, Q: Querier>(
             contract_addr: deps.api.human_address(&validators_registry_contract)?,
             msg: to_binary(&QueryValidators::GetValidatorsForDelegation {})?,
         }))?;
+
+    for validator in &mut validators {
+        if let Some(slashed_validator) = slashed_validators.get(&validator.address) {
+            validator.total_delegated = slashed_validator.total_delegated
+        }
+    }
 
     let (_remaining_buffered_balance, delegations) =
         calculate_delegations(payment.amount, validators.as_slice())?;
@@ -166,7 +172,7 @@ pub fn handle_bond_stluna<S: Storage, A: Api, Q: Querier>(
         })?;
 
     // check slashing
-    slashing(deps, env.clone())?;
+    let slashed_validators = slashing(deps, env.clone())?;
 
     let state = read_state(&deps.storage).load()?;
     let sender = env.message.sender.clone();
@@ -199,6 +205,12 @@ pub fn handle_bond_stluna<S: Storage, A: Api, Q: Querier>(
             contract_addr: deps.api.human_address(&validators_registry_contract)?,
             msg: to_binary(&QueryValidators::GetValidatorsForDelegation {})?,
         }))?;
+
+    for validator in &mut validators {
+        if let Some(slashed_validator) = slashed_validators.get(&validator.address) {
+            validator.total_delegated = slashed_validator.total_delegated
+        }
+    }
 
     let (_remaining_buffered_balance, delegations) =
         calculate_delegations(payment.amount, validators.as_slice())?;
@@ -287,7 +299,7 @@ pub fn handle_bond_rewards<S: Storage, A: Api, Q: Querier>(
         })?;
 
     // check slashing
-    slashing(deps, env.clone())?;
+    let slashed_validators = slashing(deps, env.clone())?;
 
     let total_supply = query_total_stluna_issued(&deps).unwrap_or_default();
 
@@ -309,6 +321,12 @@ pub fn handle_bond_rewards<S: Storage, A: Api, Q: Querier>(
             contract_addr: deps.api.human_address(&validators_registry_contract)?,
             msg: to_binary(&QueryValidators::GetValidatorsForDelegation {})?,
         }))?;
+
+    for validator in &mut validators {
+        if let Some(slashed_validator) = slashed_validators.get(&validator.address) {
+            validator.total_delegated = slashed_validator.total_delegated
+        }
+    }
 
     let (_remaining_buffered_balance, delegations) =
         calculate_delegations(payment.amount, validators.as_slice())?;
