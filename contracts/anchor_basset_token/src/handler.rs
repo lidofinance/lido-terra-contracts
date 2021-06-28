@@ -304,7 +304,7 @@ fn handle_convert_stluna<S: Storage, A: Api, Q: Querier>(
         send: vec![],
     }));
 
-    handle_mint(
+    let mint_res = handle_mint(
         deps,
         get_minter_env(deps, env)?,
         sender.clone(),
@@ -312,7 +312,7 @@ fn handle_convert_stluna<S: Storage, A: Api, Q: Querier>(
     )?;
 
     let res = HandleResponse {
-        messages,
+        messages: vec![messages, mint_res.messages].concat(),
         log: vec![
             log("action", "convert_stluna"),
             log("from", sender),
