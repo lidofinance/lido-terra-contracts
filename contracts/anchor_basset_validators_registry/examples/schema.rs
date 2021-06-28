@@ -3,8 +3,8 @@ use std::fs::create_dir_all;
 
 use cosmwasm_schema::{export_schema, remove_schemas, schema_for};
 
-use validators_registry::msg::{HandleMsg, InitMsg, QueryMsg};
-use validators_registry::registry::Validator;
+use anchor_basset_validators_registry::msg::{HandleMsg, InitMsg, QueryMsg};
+use anchor_basset_validators_registry::registry::Validator;
 
 fn main() {
     let mut out_dir = current_dir().unwrap();
