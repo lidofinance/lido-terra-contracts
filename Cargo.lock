@@ -38,6 +38,7 @@ dependencies = [
  "anchor_airdrop_registry",
  "anchor_basset_rewards_dispatcher",
  "anchor_basset_token",
+ "anchor_basset_validators_registry",
  "basset",
  "cosmwasm-schema 0.11.2",
  "cosmwasm-std",
@@ -52,7 +53,6 @@ dependencies = [
  "signed_integer",
  "snafu",
  "terra-cosmwasm",
- "validators-registry",
 ]
 
 [[package]]
@@ -100,6 +100,34 @@ dependencies = [
  "cw2",
  "cw20",
  "cw20-base",
+ "hub_querier",
+ "schemars",
+ "serde",
+ "snafu",
+]
+
+[[package]]
+name = "anchor_basset_token_stluna"
+version = "1.0.0"
+dependencies = [
+ "cosmwasm-schema 0.11.2",
+ "cosmwasm-std",
+ "cosmwasm-storage",
+ "cw2",
+ "cw20",
+ "cw20-base",
+ "schemars",
+ "serde",
+ "snafu",
+]
+
+[[package]]
+name = "anchor_basset_validators_registry"
+version = "0.1.0"
+dependencies = [
+ "cosmwasm-schema 0.11.2",
+ "cosmwasm-std",
+ "cosmwasm-storage",
  "hub_querier",
  "schemars",
  "serde",
@@ -1096,21 +1124,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "st_luna"
-version = "1.0.0"
-dependencies = [
- "cosmwasm-schema 0.11.2",
- "cosmwasm-std",
- "cosmwasm-storage",
- "cw2",
- "cw20",
- "cw20-base",
- "schemars",
- "serde",
- "snafu",
-]
-
-[[package]]
 name = "stable_deref_trait"
 version = "1.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1181,19 +1194,6 @@ name = "unicode-xid"
 version = "0.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f7fe0bb3479651439c9112f72b6c505038574c9fbb575ed1bf3b797fa39dd564"
-
-[[package]]
-name = "validators-registry"
-version = "0.1.0"
-dependencies = [
- "cosmwasm-schema 0.11.2",
- "cosmwasm-std",
- "cosmwasm-storage",
- "hub_querier",
- "schemars",
- "serde",
- "snafu",
-]
 
 [[package]]
 name = "version_check"
