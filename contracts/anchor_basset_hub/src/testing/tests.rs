@@ -4328,3 +4328,37 @@ fn sample_delegation(addr: HumanAddr, amount: Coin) -> FullDelegation {
 pub enum MIRMsg {
     MIRClaim {},
 }
+
+// #[test]
+// fn test_receive_cw20() {
+//     let mut deps = mock_dependencies(20, &coins(2, "token"));
+//     // let stluna_addr = HumanAddr::from("stluna_token");
+//     let sender_addr = HumanAddr::from("addr001");
+//     let owner = HumanAddr::from("owner1");
+//     let token_contract = HumanAddr::from("token");
+//     let stluna_token_contract = HumanAddr::from("stluna_token");
+//     let reward_contract = HumanAddr::from("reward");
+
+//     initialize(
+//         &mut deps,
+//         owner.clone(),
+//         reward_contract.clone(),
+//         token_contract,
+//         stluna_token_contract.clone(),
+//     );
+//     store_state(&mut deps.storage).update(|mut prev_state| {
+//         prev_state.total_bond_stluna_amount = Uint128(1_000_000_000_000_u128);
+//         Ok(prev_state)
+//     }).unwrap();
+
+//     // do_init_with_minter(&mut deps, &HumanAddr::from(MOCK_HUB_CONTRACT_ADDR), None);
+
+//     let env = mock_env(stluna_token_contract.clone(), &[]);
+//     let msg = HandleMsg::Receive(Cw20ReceiveMsg {
+//         sender: sender_addr.clone(),
+//         amount: Uint128(10),
+//         msg: Some(to_binary(&Cw20HookMsg::Convert {}).unwrap()),
+//     });
+
+//     let _ = handle(&mut deps, env, msg).unwrap();
+// }

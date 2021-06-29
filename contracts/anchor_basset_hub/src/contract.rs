@@ -5,6 +5,7 @@ use cosmwasm_std::{
 };
 
 use crate::config::{handle_update_config, handle_update_params};
+use crate::math::decimal_division;
 use crate::msg::{
     AllHistoryResponse, ConfigResponse, CurrentBatchResponse, InitMsg, QueryMsg, StateResponse,
     UnbondRequestsResponse, WithdrawableUnbondedResponse,
@@ -28,6 +29,7 @@ use hub_querier::HandleMsg::SwapHook;
 use hub_querier::{Config, State};
 use hub_querier::{Cw20HookMsg, HandleMsg};
 use std::collections::HashMap;
+use std::ops::Mul;
 
 pub fn init<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
@@ -223,6 +225,24 @@ pub fn receive_cw20<S: Storage, A: Api, Q: Querier>(
                         .expect("the token contract must have been registered")
                 {
                     handle_unbond_stluna(deps, env, cw20_msg.amount, cw20_msg.sender)
+                } else {
+                    Err(StdError::unauthorized())
+                }
+            }
+            Cw20HookMsg::Convert {} => {
+                let conf = read_config(&deps.storage).load()?;
+                if deps.api.canonical_address(&contract_addr)?
+                    == conf
+                        .bluna_token_contract
+                        .expect("the token contract must have been registered")
+                {
+                    convert_bluna_stluna(deps, env, cw20_msg.amount, cw20_msg.sender)
+                } else if deps.api.canonical_address(&contract_addr)?
+                    == conf
+                        .stluna_token_contract
+                        .expect("the token contract must have been registered")
+                {
+                    convert_stluna_bluna(deps, env, cw20_msg.amount, cw20_msg.sender)
                 } else {
                     Err(StdError::unauthorized())
                 }
@@ -541,6 +561,174 @@ pub fn handle_slashing<S: Storage, A: Api, Q: Querier>(
         ],
         data: None,
     })
+}
+
+
+fn convert_stluna_bluna<S: Storage, A: Api, Q: Querier>(
+    deps: &mut Extern<S, A, Q>,
+    _env: Env,
+    stluna_amount: Uint128,
+    sender: HumanAddr,
+) -> StdResult<HandleResponse> {
+    let conf = read_config(&deps.storage).load()?;
+    let state = read_state(&deps.storage).load()?;
+    let params = read_parameters(&deps.storage).load()?;
+    let threshold = params.er_threshold;
+    let recovery_fee = params.peg_recovery_fee;
+
+    let stluna_contract = deps.api.human_address(
+        &conf
+            .stluna_token_contract
+            .ok_or(StdError::generic_err("stluna contract must be registred"))?,
+    )?;
+    let bluna_contract = deps.api.human_address(
+        &conf
+            .bluna_token_contract
+            .ok_or(StdError::generic_err("bluna contract must be registred"))?,
+    )?;
+
+    let denom_equiv = state.stluna_exchange_rate.mul(stluna_amount);
+
+    let bluna_to_mint = decimal_division(denom_equiv, state.bluna_exchange_rate);
+    let current_batch = read_current_batch(&deps.storage).load()?;
+    let requested_with_fee = current_batch.requested_bluna_with_fee;
+
+    let total_bluna_supply = query_total_bluna_issued(&deps).unwrap_or_default();
+    let total_stluna_supply = query_total_stluna_issued(&deps).unwrap_or_default();
+    let mut bluna_mint_amount_with_fee = bluna_to_mint;
+    if state.bluna_exchange_rate < threshold {
+        let max_peg_fee = bluna_to_mint * recovery_fee;
+        let required_peg_fee =
+            ((total_bluna_supply + bluna_to_mint + current_batch.requested_bluna_with_fee)
+                - (state.total_bond_bluna_amount + denom_equiv))?;
+        let peg_fee = Uint128::min(max_peg_fee, required_peg_fee);
+        bluna_mint_amount_with_fee = (bluna_to_mint - peg_fee)?;
+    }
+
+    store_state(&mut deps.storage).update(|mut prev_state| {
+        prev_state.total_bond_bluna_amount += denom_equiv;
+        prev_state.total_bond_stluna_amount = (prev_state.total_bond_stluna_amount - denom_equiv)
+            .or(Err(StdError::generic_err(format!(
+            "Decrease amount cannot exceed total stluna bond amount: {}",
+            prev_state.total_bond_stluna_amount,
+        ))))?;
+        prev_state
+            .update_bluna_exchange_rate(total_bluna_supply + bluna_to_mint, requested_with_fee);
+        prev_state.update_stluna_exchange_rate((total_stluna_supply - stluna_amount).or(Err(
+            StdError::generic_err(format!(
+                "Decrease amount cannot exceed total stluna supply: {}",
+                total_stluna_supply,
+            )),
+        ))?);
+        Ok(prev_state)
+    })?;
+
+    let messages: Vec<CosmosMsg> = vec![
+        mint_message(bluna_contract, sender.clone(), bluna_mint_amount_with_fee)?,
+        burn_message(stluna_contract, stluna_amount)?,
+    ];
+
+    let res = HandleResponse {
+        messages,
+        log: vec![
+            log("action", "convert_stluna"),
+            log("from", sender),
+            log("bluna_exchange_rate", state.bluna_exchange_rate),
+            log("stluna_exchange_rate", state.stluna_exchange_rate),
+            log("stluna_amount", stluna_amount),
+            log("bluna_amount", bluna_to_mint),
+        ],
+        data: None,
+    };
+    Ok(res)
+}
+
+fn convert_bluna_stluna<S: Storage, A: Api, Q: Querier>(
+    deps: &mut Extern<S, A, Q>,
+    _env: Env,
+    bluna_amount: Uint128,
+    sender: HumanAddr,
+) -> StdResult<HandleResponse> {
+    let conf = read_config(&deps.storage).load()?;
+    let state = read_state(&deps.storage).load()?;
+
+    let stluna_contract = deps.api.human_address(
+        &conf
+            .stluna_token_contract
+            .ok_or(StdError::generic_err("stluna contract must be registred"))?,
+    )?;
+    let bluna_contract = deps.api.human_address(
+        &conf
+            .bluna_token_contract
+            .ok_or(StdError::generic_err("bluna contract must be registred"))?,
+    )?;
+
+    let denom_equiv = state.bluna_exchange_rate.mul(bluna_amount);
+
+    let stluna_to_mint = decimal_division(denom_equiv, state.stluna_exchange_rate);
+    let current_batch = read_current_batch(&deps.storage).load()?;
+    let requested_with_fee = current_batch.requested_bluna_with_fee;
+
+    let total_bluna_supply = query_total_bluna_issued(&deps).unwrap_or_default();
+    let total_stluna_supply = query_total_stluna_issued(&deps).unwrap_or_default();
+    store_state(&mut deps.storage).update(|mut prev_state| {
+        prev_state.total_bond_bluna_amount = (prev_state.total_bond_bluna_amount - denom_equiv)
+            .or(Err(StdError::generic_err(format!(
+                "Decrease amount cannot exceed total stluna bond amount: {}",
+                prev_state.total_bond_stluna_amount,
+            ))))?;
+        prev_state.total_bond_stluna_amount = prev_state.total_bond_stluna_amount + denom_equiv;
+        prev_state.update_bluna_exchange_rate(
+            (total_bluna_supply - bluna_amount).or(Err(StdError::generic_err(format!(
+                "Decrease amount cannot exceed total stluna supply: {}",
+                total_stluna_supply,
+            ))))?,
+            requested_with_fee,
+        );
+        prev_state.update_stluna_exchange_rate(total_stluna_supply + stluna_to_mint);
+        Ok(prev_state)
+    })?;
+
+    let messages: Vec<CosmosMsg> = vec![
+        mint_message(stluna_contract, sender.clone(), stluna_to_mint)?,
+        burn_message(bluna_contract, bluna_amount)?,
+    ];
+
+    let res = HandleResponse {
+        messages,
+        log: vec![
+            log("action", "convert_stluna"),
+            log("from", sender),
+            log("bluna_exchange_rate", state.bluna_exchange_rate),
+            log("stluna_exchange_rate", state.stluna_exchange_rate),
+            log("bluna_amount", bluna_amount),
+            log("stluna_amount", stluna_to_mint),
+        ],
+        data: None,
+    };
+    Ok(res)
+}
+
+fn mint_message(
+    contract: HumanAddr,
+    recipient: HumanAddr,
+    amount: Uint128,
+) -> StdResult<CosmosMsg> {
+    let mint_msg = Cw20HandleMsg::Mint { recipient, amount };
+    Ok(CosmosMsg::Wasm(WasmMsg::Execute {
+        contract_addr: contract,
+        msg: to_binary(&mint_msg)?,
+        send: vec![],
+    }))
+}
+
+fn burn_message(contract: HumanAddr, amount: Uint128) -> StdResult<CosmosMsg> {
+    let burn_msg = Cw20HandleMsg::Burn { amount };
+    Ok(CosmosMsg::Wasm(WasmMsg::Execute {
+        contract_addr: contract,
+        msg: to_binary(&burn_msg)?,
+        send: vec![],
+    }))
 }
 
 pub fn query<S: Storage, A: Api, Q: Querier>(

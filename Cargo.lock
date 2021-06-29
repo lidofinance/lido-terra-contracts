@@ -110,7 +110,6 @@ dependencies = [
 name = "anchor_basset_token_stluna"
 version = "1.0.0"
 dependencies = [
- "anchor_basset_token",
  "cosmwasm-schema 0.11.2",
  "cosmwasm-std",
  "cosmwasm-storage",
