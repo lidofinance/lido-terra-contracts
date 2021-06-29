@@ -47,7 +47,6 @@ pub fn handle<S: Storage, A: Api, Q: Querier>(
     msg: HandleMsg,
 ) -> StdResult<HandleResponse> {
     match msg {
-        HandleMsg::Receive(msg) => receive_cw20(deps, env, msg),
         HandleMsg::Transfer { recipient, amount } => handle_transfer(deps, env, recipient, amount),
         HandleMsg::Burn { amount } => handle_burn(deps, env, amount),
         HandleMsg::Send {

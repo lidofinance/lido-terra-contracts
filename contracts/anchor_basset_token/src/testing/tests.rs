@@ -8,7 +8,6 @@ use cw20::{Cw20ReceiveMsg, MinterResponse, TokenInfoResponse};
 use cw20_base::contract::{query_minter, query_token_info};
 
 use crate::contract::{handle, init};
-use crate::msg::Cw20HookMsg::Convert;
 use crate::msg::HandleMsg;
 use crate::msg::TokenInitMsg;
 use crate::state::read_hub_contract;
@@ -439,20 +438,4 @@ fn send_from() {
     );
 }
 
-#[test]
-fn test_receive_cw20() {
-    let mut deps = mock_dependencies(20, &coins(2, "token"));
-    let stluna_addr = HumanAddr::from("stluna_token");
-    let sender_addr = HumanAddr::from("addr001");
 
-    do_init_with_minter(&mut deps, &HumanAddr::from(MOCK_HUB_CONTRACT_ADDR), None);
-
-    let env = mock_env(stluna_addr.clone(), &[]);
-    let msg = HandleMsg::Receive(Cw20ReceiveMsg {
-        sender: sender_addr.clone(),
-        amount: Uint128(10),
-        msg: Some(to_binary(&Convert {}).unwrap()),
-    });
-
-    let _ = handle(&mut deps, env, msg).unwrap();
-}

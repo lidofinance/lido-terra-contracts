@@ -1,5 +1,5 @@
 use cosmwasm_std::{Binary, HumanAddr, Uint128};
-use cw20::{Cw20CoinHuman, Cw20ReceiveMsg, Expiration, MinterResponse};
+use cw20::{Cw20CoinHuman, Expiration, MinterResponse};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -16,11 +16,6 @@ pub struct TokenInitMsg {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum HandleMsg {
-    /// Receive interface for send token.
-    /// Mint the corresponding amount of bluna token.
-    /// Burn the received stluna token.
-    Receive(Cw20ReceiveMsg),
-
     /// Transfer is a base message to move tokens to another account without triggering actions
     Transfer {
         recipient: HumanAddr,
