@@ -110,12 +110,14 @@ dependencies = [
 name = "anchor_basset_token_stluna"
 version = "1.0.0"
 dependencies = [
+ "anchor_basset_token",
  "cosmwasm-schema 0.11.2",
  "cosmwasm-std",
  "cosmwasm-storage",
  "cw2",
  "cw20",
  "cw20-base",
+ "hub_querier",
  "schemars",
  "serde",
  "snafu",
@@ -1124,26 +1126,6 @@ dependencies = [
 ]
 
 [[package]]
-<<<<<<< HEAD
-=======
-name = "st_luna"
-version = "1.0.0"
-dependencies = [
- "anchor_basset_token",
- "cosmwasm-schema 0.11.2",
- "cosmwasm-std",
- "cosmwasm-storage",
- "cw2",
- "cw20",
- "cw20-base",
- "hub_querier",
- "schemars",
- "serde",
- "snafu",
-]
-
-[[package]]
->>>>>>> added bluna -> stluna convarsion
 name = "stable_deref_trait"
 version = "1.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
