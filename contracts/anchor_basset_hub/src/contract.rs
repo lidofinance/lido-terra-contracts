@@ -607,20 +607,20 @@ fn convert_stluna_bluna<S: Storage, A: Api, Q: Querier>(
     store_state(&mut deps.storage).update(|mut prev_state| {
         prev_state.total_bond_bluna_amount += denom_equiv;
         prev_state.total_bond_stluna_amount = (prev_state.total_bond_stluna_amount - denom_equiv)
-            .or_else(|_| {
-            Err(StdError::generic_err(format!(
+            .map_err(|_| {
+            StdError::generic_err(format!(
                 "Decrease amount cannot exceed total stluna bond amount: {}",
                 prev_state.total_bond_stluna_amount,
-            )))
+            ))
         })?;
         prev_state
             .update_bluna_exchange_rate(total_bluna_supply + bluna_to_mint, requested_with_fee);
-        prev_state.update_stluna_exchange_rate((total_stluna_supply - stluna_amount).or_else(
+        prev_state.update_stluna_exchange_rate((total_stluna_supply - stluna_amount).map_err(
             |_| {
-                Err(StdError::generic_err(format!(
+                StdError::generic_err(format!(
                     "Decrease amount cannot exceed total stluna supply: {}",
                     total_stluna_supply,
-                )))
+                ))
             },
         )?);
         Ok(prev_state)
@@ -676,19 +676,19 @@ fn convert_bluna_stluna<S: Storage, A: Api, Q: Querier>(
     let total_stluna_supply = query_total_stluna_issued(&deps).unwrap_or_default();
     store_state(&mut deps.storage).update(|mut prev_state| {
         prev_state.total_bond_bluna_amount = (prev_state.total_bond_bluna_amount - denom_equiv)
-            .or_else(|_| {
-                Err(StdError::generic_err(format!(
+            .map_err(|_| {
+                StdError::generic_err(format!(
                     "Decrease amount cannot exceed total bluna bond amount: {}",
                     prev_state.total_bond_stluna_amount,
-                )))
+                ))
             })?;
         prev_state.total_bond_stluna_amount += denom_equiv;
         prev_state.update_bluna_exchange_rate(
-            (total_bluna_supply - bluna_amount).or_else(|_| {
-                Err(StdError::generic_err(format!(
+            (total_bluna_supply - bluna_amount).map_err(|_| {
+                StdError::generic_err(format!(
                     "Decrease amount cannot exceed total bluna supply: {}",
                     total_stluna_supply,
-                )))
+                ))
             })?,
             requested_with_fee,
         );
