@@ -437,5 +437,3 @@ fn send_from() {
         .unwrap()
     );
 }
-
-
