@@ -21,7 +21,7 @@ use anchor_basset_validators_registry::msg::{
 };
 use anchor_basset_validators_registry::registry::Validator as RegistryValidator;
 use cosmwasm_std::{
-    coin, from_binary, to_binary, Api, BankMsg, Coin, CosmosMsg, Decimal, Env, Extern,
+    coin, coins, from_binary, to_binary, Api, BankMsg, Coin, CosmosMsg, Decimal, Env, Extern,
     FullDelegation, HandleResponse, HumanAddr, InitResponse, Querier, QueryRequest, StakingMsg,
     StdError, Storage, Uint128, Validator, WasmMsg, WasmQuery,
 };
@@ -34,7 +34,7 @@ use crate::msg::{
     AllHistoryResponse, ConfigResponse, CurrentBatchResponse, InitMsg, StateResponse,
     UnbondRequestsResponse, WithdrawableUnbondedResponse,
 };
-use hub_querier::HandleMsg;
+use hub_querier::{Cw20HookMsg, HandleMsg};
 
 use crate::contract::{handle, init, query};
 use crate::unbond::{handle_unbond, handle_unbond_stluna};
@@ -50,7 +50,7 @@ use crate::msg::QueryMsg::{
     AllHistory, Config, CurrentBatch, Parameters as Params, State, UnbondRequests,
     WithdrawableUnbonded,
 };
-use crate::state::{read_config, read_unbond_wait_list, Parameters};
+use crate::state::{read_config, read_unbond_wait_list, store_state, Parameters};
 use anchor_airdrop_registry::msg::HandleMsg::{FabricateANCClaim, FabricateMIRClaim};
 use anchor_airdrop_registry::msg::PairHandleMsg;
 use anchor_basset_rewards_dispatcher::msg::HandleMsg::{DispatchRewards, SwapToRewardDenom};
@@ -4329,36 +4329,88 @@ pub enum MIRMsg {
     MIRClaim {},
 }
 
-// #[test]
-// fn test_receive_cw20() {
-//     let mut deps = mock_dependencies(20, &coins(2, "token"));
-//     // let stluna_addr = HumanAddr::from("stluna_token");
-//     let sender_addr = HumanAddr::from("addr001");
-//     let owner = HumanAddr::from("owner1");
-//     let token_contract = HumanAddr::from("token");
-//     let stluna_token_contract = HumanAddr::from("stluna_token");
-//     let reward_contract = HumanAddr::from("reward");
+#[test]
+fn test_receive_cw20() {
+    let mut deps = dependencies(20, &coins(2, "token"));
+    // let stluna_addr = HumanAddr::from("stluna_token");
+    let sender_addr = HumanAddr::from("addr001");
+    let owner = HumanAddr::from("owner1");
+    let bluna_token_contract = HumanAddr::from("token");
+    let stluna_token_contract = HumanAddr::from("stluna_token");
+    let reward_contract = HumanAddr::from("reward");
 
-//     initialize(
-//         &mut deps,
-//         owner.clone(),
-//         reward_contract.clone(),
-//         token_contract,
-//         stluna_token_contract.clone(),
-//     );
-//     store_state(&mut deps.storage).update(|mut prev_state| {
-//         prev_state.total_bond_stluna_amount = Uint128(1_000_000_000_000_u128);
-//         Ok(prev_state)
-//     }).unwrap();
+    initialize(
+        &mut deps,
+        owner.clone(),
+        reward_contract.clone(),
+        bluna_token_contract.clone(),
+        stluna_token_contract.clone(),
+    );
+    store_state(&mut deps.storage)
+        .update(|mut prev_state| {
+            prev_state.total_bond_stluna_amount = Uint128(1000);
+            prev_state.total_bond_bluna_amount = Uint128(1000);
+            Ok(prev_state)
+        })
+        .unwrap();
+    deps.querier.with_token_balances(&[
+        (
+            &HumanAddr::from("stluna_token"),
+            &[(&sender_addr, &Uint128(1000))],
+        ),
+        (&HumanAddr::from("token"), &[(&sender_addr, &Uint128(1000))]),
+    ]);
+    {
+        // just enough stluna tockens to convert
+        let env = mock_env(stluna_token_contract.clone(), &[]);
+        let msg = HandleMsg::Receive(Cw20ReceiveMsg {
+            sender: sender_addr.clone(),
+            amount: Uint128(1000),
+            msg: Some(to_binary(&Cw20HookMsg::Convert {}).unwrap()),
+        });
+        let _ = handle(&mut deps, env, msg).unwrap();
+    }
+    {
+        // does not enough stluna tokens to convert
+        let env = mock_env(stluna_token_contract.clone(), &[]);
+        let msg = HandleMsg::Receive(Cw20ReceiveMsg {
+            sender: sender_addr.clone(),
+            amount: Uint128(1001),
+            msg: Some(to_binary(&Cw20HookMsg::Convert {}).unwrap()),
+        });
+        let err = handle(&mut deps, env, msg).unwrap_err();
+        assert_eq!(
+            StdError::generic_err(
+                "Decrease amount cannot exceed total stluna bond amount: 0. Trying to reduce: 1001"
+            ),
+            err
+        );
+    }
 
-//     // do_init_with_minter(&mut deps, &HumanAddr::from(MOCK_HUB_CONTRACT_ADDR), None);
-
-//     let env = mock_env(stluna_token_contract.clone(), &[]);
-//     let msg = HandleMsg::Receive(Cw20ReceiveMsg {
-//         sender: sender_addr.clone(),
-//         amount: Uint128(10),
-//         msg: Some(to_binary(&Cw20HookMsg::Convert {}).unwrap()),
-//     });
-
-//     let _ = handle(&mut deps, env, msg).unwrap();
-// }
+    {
+        // just enough bluna tockens to convert
+        let env = mock_env(bluna_token_contract.clone(), &[]);
+        let msg = HandleMsg::Receive(Cw20ReceiveMsg {
+            sender: sender_addr.clone(),
+            amount: Uint128(1000),
+            msg: Some(to_binary(&Cw20HookMsg::Convert {}).unwrap()),
+        });
+        let _ = handle(&mut deps, env, msg).unwrap();
+    }
+    {
+        // does not enough bluna tokens to convert
+        let env = mock_env(bluna_token_contract.clone(), &[]);
+        let msg = HandleMsg::Receive(Cw20ReceiveMsg {
+            sender: sender_addr.clone(),
+            amount: Uint128(1001),
+            msg: Some(to_binary(&Cw20HookMsg::Convert {}).unwrap()),
+        });
+        let err = handle(&mut deps, env, msg).unwrap_err();
+        assert_eq!(
+            StdError::generic_err(
+                "Decrease amount cannot exceed total bluna bond amount: 1000. Trying to reduce: 1001"
+            ),
+            err
+        );
+    }
+}
