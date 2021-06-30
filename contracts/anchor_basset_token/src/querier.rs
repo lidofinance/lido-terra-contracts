@@ -10,7 +10,6 @@ use anchor_basset_rewards_dispatcher::state::Config as RewardsDispatcherConfig;
 
 use hub_querier::{Config as HubConfig, State};
 
-
 pub fn query_reward_contract<S: Storage, A: Api, Q: Querier>(
     deps: &Extern<S, A, Q>,
 ) -> StdResult<HumanAddr> {

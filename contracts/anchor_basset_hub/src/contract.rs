@@ -563,7 +563,6 @@ pub fn handle_slashing<S: Storage, A: Api, Q: Querier>(
     })
 }
 
-
 fn convert_stluna_bluna<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
     _env: Env,
@@ -579,12 +578,12 @@ fn convert_stluna_bluna<S: Storage, A: Api, Q: Querier>(
     let stluna_contract = deps.api.human_address(
         &conf
             .stluna_token_contract
-            .ok_or(StdError::generic_err("stluna contract must be registred"))?,
+            .ok_or_else(|| StdError::generic_err("stluna contract must be registred"))?,
     )?;
     let bluna_contract = deps.api.human_address(
         &conf
             .bluna_token_contract
-            .ok_or(StdError::generic_err("bluna contract must be registred"))?,
+            .ok_or_else(|| StdError::generic_err("bluna contract must be registred"))?,
     )?;
 
     let denom_equiv = state.stluna_exchange_rate.mul(stluna_amount);
@@ -608,18 +607,22 @@ fn convert_stluna_bluna<S: Storage, A: Api, Q: Querier>(
     store_state(&mut deps.storage).update(|mut prev_state| {
         prev_state.total_bond_bluna_amount += denom_equiv;
         prev_state.total_bond_stluna_amount = (prev_state.total_bond_stluna_amount - denom_equiv)
-            .or(Err(StdError::generic_err(format!(
-            "Decrease amount cannot exceed total stluna bond amount: {}",
-            prev_state.total_bond_stluna_amount,
-        ))))?;
+            .or_else(|_| {
+            Err(StdError::generic_err(format!(
+                "Decrease amount cannot exceed total stluna bond amount: {}",
+                prev_state.total_bond_stluna_amount,
+            )))
+        })?;
         prev_state
             .update_bluna_exchange_rate(total_bluna_supply + bluna_to_mint, requested_with_fee);
-        prev_state.update_stluna_exchange_rate((total_stluna_supply - stluna_amount).or(Err(
-            StdError::generic_err(format!(
-                "Decrease amount cannot exceed total stluna supply: {}",
-                total_stluna_supply,
-            )),
-        ))?);
+        prev_state.update_stluna_exchange_rate((total_stluna_supply - stluna_amount).or_else(
+            |_| {
+                Err(StdError::generic_err(format!(
+                    "Decrease amount cannot exceed total stluna supply: {}",
+                    total_stluna_supply,
+                )))
+            },
+        )?);
         Ok(prev_state)
     })?;
 
@@ -655,12 +658,12 @@ fn convert_bluna_stluna<S: Storage, A: Api, Q: Querier>(
     let stluna_contract = deps.api.human_address(
         &conf
             .stluna_token_contract
-            .ok_or(StdError::generic_err("stluna contract must be registred"))?,
+            .ok_or_else(|| StdError::generic_err("stluna contract must be registred"))?,
     )?;
     let bluna_contract = deps.api.human_address(
         &conf
             .bluna_token_contract
-            .ok_or(StdError::generic_err("bluna contract must be registred"))?,
+            .ok_or_else(|| StdError::generic_err("bluna contract must be registred"))?,
     )?;
 
     let denom_equiv = state.bluna_exchange_rate.mul(bluna_amount);
@@ -673,16 +676,20 @@ fn convert_bluna_stluna<S: Storage, A: Api, Q: Querier>(
     let total_stluna_supply = query_total_stluna_issued(&deps).unwrap_or_default();
     store_state(&mut deps.storage).update(|mut prev_state| {
         prev_state.total_bond_bluna_amount = (prev_state.total_bond_bluna_amount - denom_equiv)
-            .or(Err(StdError::generic_err(format!(
-                "Decrease amount cannot exceed total stluna bond amount: {}",
-                prev_state.total_bond_stluna_amount,
-            ))))?;
-        prev_state.total_bond_stluna_amount = prev_state.total_bond_stluna_amount + denom_equiv;
+            .or_else(|_| {
+                Err(StdError::generic_err(format!(
+                    "Decrease amount cannot exceed total bluna bond amount: {}",
+                    prev_state.total_bond_stluna_amount,
+                )))
+            })?;
+        prev_state.total_bond_stluna_amount += denom_equiv;
         prev_state.update_bluna_exchange_rate(
-            (total_bluna_supply - bluna_amount).or(Err(StdError::generic_err(format!(
-                "Decrease amount cannot exceed total stluna supply: {}",
-                total_stluna_supply,
-            ))))?,
+            (total_bluna_supply - bluna_amount).or_else(|_| {
+                Err(StdError::generic_err(format!(
+                    "Decrease amount cannot exceed total bluna supply: {}",
+                    total_stluna_supply,
+                )))
+            })?,
             requested_with_fee,
         );
         prev_state.update_stluna_exchange_rate(total_stluna_supply + stluna_to_mint);

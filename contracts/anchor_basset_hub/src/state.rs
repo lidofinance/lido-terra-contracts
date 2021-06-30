@@ -102,8 +102,6 @@ pub fn store_unbond_wait_list<'a, S: Storage>(
     Ok(())
 }
 
-
-
 /// Remove unbond batch id from user's wait list
 pub fn remove_unbond_wait_list<'a, S: Storage>(
     storage: &'a mut S,

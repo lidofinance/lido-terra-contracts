@@ -9,7 +9,6 @@ use cosmwasm_std::{
 use cosmwasm_storage::to_length_prefixed;
 use hub_querier::{Config as HubConfig, State};
 
-
 pub const MOCK_OWNER_ADDR: &str = "owner";
 pub const MOCK_HUB_CONTRACT_ADDR: &str = "hub";
 pub const MOCK_REWARDS_DISPATCHER_CONTRACT_ADDR: &str = "rewards_dispatcher";
