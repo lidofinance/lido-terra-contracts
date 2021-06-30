@@ -609,8 +609,8 @@ fn convert_stluna_bluna<S: Storage, A: Api, Q: Querier>(
         prev_state.total_bond_stluna_amount = (prev_state.total_bond_stluna_amount - denom_equiv)
             .map_err(|_| {
             StdError::generic_err(format!(
-                "Decrease amount cannot exceed total stluna bond amount: {}",
-                prev_state.total_bond_stluna_amount,
+                "Decrease amount cannot exceed total stluna bond amount: {}. Trying to reduce: {}",
+                prev_state.total_bond_stluna_amount, denom_equiv,
             ))
         })?;
         prev_state
@@ -618,8 +618,8 @@ fn convert_stluna_bluna<S: Storage, A: Api, Q: Querier>(
         prev_state.update_stluna_exchange_rate((total_stluna_supply - stluna_amount).map_err(
             |_| {
                 StdError::generic_err(format!(
-                    "Decrease amount cannot exceed total stluna supply: {}",
-                    total_stluna_supply,
+                    "Decrease amount cannot exceed total stluna supply: {}. Trying to reduce: {}",
+                    total_stluna_supply, stluna_amount,
                 ))
             },
         )?);
@@ -678,16 +678,16 @@ fn convert_bluna_stluna<S: Storage, A: Api, Q: Querier>(
         prev_state.total_bond_bluna_amount = (prev_state.total_bond_bluna_amount - denom_equiv)
             .map_err(|_| {
                 StdError::generic_err(format!(
-                    "Decrease amount cannot exceed total bluna bond amount: {}",
-                    prev_state.total_bond_stluna_amount,
+                    "Decrease amount cannot exceed total bluna bond amount: {}. Trying to reduce: {}",
+                    prev_state.total_bond_bluna_amount, denom_equiv,
                 ))
             })?;
         prev_state.total_bond_stluna_amount += denom_equiv;
         prev_state.update_bluna_exchange_rate(
             (total_bluna_supply - bluna_amount).map_err(|_| {
                 StdError::generic_err(format!(
-                    "Decrease amount cannot exceed total bluna supply: {}",
-                    total_stluna_supply,
+                    "Decrease amount cannot exceed total bluna supply: {}. Trying to reduce: {}",
+                    total_bluna_supply, bluna_amount,
                 ))
             })?,
             requested_with_fee,
