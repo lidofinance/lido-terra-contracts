@@ -4361,7 +4361,7 @@ fn test_receive_cw20() {
         (&HumanAddr::from("token"), &[(&sender_addr, &Uint128(1000))]),
     ]);
     {
-        // just enough stluna tockens to convert
+        // just enough stluna tokens to convert
         let env = mock_env(stluna_token_contract.clone(), &[]);
         let msg = HandleMsg::Receive(Cw20ReceiveMsg {
             sender: sender_addr.clone(),
@@ -4388,7 +4388,7 @@ fn test_receive_cw20() {
     }
 
     {
-        // just enough bluna tockens to convert
+        // just enough bluna tokens to convert
         let env = mock_env(bluna_token_contract.clone(), &[]);
         let msg = HandleMsg::Receive(Cw20ReceiveMsg {
             sender: sender_addr.clone(),
