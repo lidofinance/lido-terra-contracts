@@ -4341,8 +4341,8 @@ fn test_receive_cw20() {
 
     initialize(
         &mut deps,
-        owner.clone(),
-        reward_contract.clone(),
+        owner,
+        reward_contract,
         bluna_token_contract.clone(),
         stluna_token_contract.clone(),
     );
@@ -4372,7 +4372,7 @@ fn test_receive_cw20() {
     }
     {
         // does not enough stluna tokens to convert
-        let env = mock_env(stluna_token_contract.clone(), &[]);
+        let env = mock_env(stluna_token_contract, &[]);
         let msg = HandleMsg::Receive(Cw20ReceiveMsg {
             sender: sender_addr.clone(),
             amount: Uint128(1001),
@@ -4399,9 +4399,9 @@ fn test_receive_cw20() {
     }
     {
         // does not enough bluna tokens to convert
-        let env = mock_env(bluna_token_contract.clone(), &[]);
+        let env = mock_env(bluna_token_contract, &[]);
         let msg = HandleMsg::Receive(Cw20ReceiveMsg {
-            sender: sender_addr.clone(),
+            sender: sender_addr,
             amount: Uint128(1001),
             msg: Some(to_binary(&Cw20HookMsg::Convert {}).unwrap()),
         });
