@@ -2,16 +2,13 @@ use crate::contract::{query_total_bluna_issued, query_total_stluna_issued, slash
 use crate::math::decimal_division;
 use crate::state::{read_config, read_current_batch, read_parameters, read_state, store_state};
 use anchor_basset_validators_registry::common::calculate_delegations;
-use anchor_basset_validators_registry::msg::{
-    HandleMsg as HandleMsgValidators, QueryMsg as QueryValidators,
-};
+use anchor_basset_validators_registry::msg::QueryMsg as QueryValidators;
 use anchor_basset_validators_registry::registry::Validator;
 use cosmwasm_std::{
     to_binary, Api, Coin, CosmosMsg, Env, Extern, HandleResponse, Querier, QueryRequest,
     StakingMsg, StdError, StdResult, Storage, Uint128, WasmMsg, WasmQuery,
 };
 use cw20::Cw20HandleMsg;
-use std::ops::AddAssign;
 
 pub fn handle_bond<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
@@ -44,7 +41,7 @@ pub fn handle_bond<S: Storage, A: Api, Q: Querier>(
         })?;
 
     // check slashing
-    let slashed_validators = slashing(deps, env.clone())?;
+    slashing(deps, env.clone())?;
 
     let state = read_state(&deps.storage).load()?;
     let sender = env.message.sender.clone();
@@ -83,17 +80,10 @@ pub fn handle_bond<S: Storage, A: Api, Q: Querier>(
             "Validators registry contract address is empty",
         ));
     };
-    let mut validators: Vec<Validator> =
-        deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
-            contract_addr: deps.api.human_address(&validators_registry_contract)?,
-            msg: to_binary(&QueryValidators::GetValidatorsForDelegation {})?,
-        }))?;
-
-    for validator in &mut validators {
-        if let Some(slashed_validator) = slashed_validators.get(&validator.address) {
-            validator.total_delegated = slashed_validator.total_delegated
-        }
-    }
+    let validators: Vec<Validator> = deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
+        contract_addr: deps.api.human_address(&validators_registry_contract)?,
+        msg: to_binary(&QueryValidators::GetValidatorsForDelegation {})?,
+    }))?;
 
     let (_remaining_buffered_balance, delegations) =
         calculate_delegations(payment.amount, validators.as_slice())?;
@@ -107,19 +97,6 @@ pub fn handle_bond<S: Storage, A: Api, Q: Querier>(
             validator: validators[i].address.clone(),
             amount: Coin::new(delegations[i].u128(), payment.denom.as_str()),
         }));
-        validators[i].total_delegated.add_assign(delegations[i]);
-    }
-
-    if !external_call_msgs.is_empty() {
-        external_call_msgs.push(cosmwasm_std::CosmosMsg::Wasm(
-            cosmwasm_std::WasmMsg::Execute {
-                contract_addr: deps.api.human_address(&validators_registry_contract)?,
-                msg: to_binary(&HandleMsgValidators::UpdateTotalDelegated {
-                    updated_validators: validators,
-                })?,
-                send: vec![],
-            },
-        ));
     }
 
     let mint_msg = Cw20HandleMsg::Mint {
@@ -172,7 +149,7 @@ pub fn handle_bond_stluna<S: Storage, A: Api, Q: Querier>(
         })?;
 
     // check slashing
-    let slashed_validators = slashing(deps, env.clone())?;
+    slashing(deps, env.clone())?;
 
     let state = read_state(&deps.storage).load()?;
     let sender = env.message.sender.clone();
@@ -200,17 +177,10 @@ pub fn handle_bond_stluna<S: Storage, A: Api, Q: Querier>(
             "Validators registry contract address is empty",
         ));
     };
-    let mut validators: Vec<Validator> =
-        deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
-            contract_addr: deps.api.human_address(&validators_registry_contract)?,
-            msg: to_binary(&QueryValidators::GetValidatorsForDelegation {})?,
-        }))?;
-
-    for validator in &mut validators {
-        if let Some(slashed_validator) = slashed_validators.get(&validator.address) {
-            validator.total_delegated = slashed_validator.total_delegated
-        }
-    }
+    let validators: Vec<Validator> = deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
+        contract_addr: deps.api.human_address(&validators_registry_contract)?,
+        msg: to_binary(&QueryValidators::GetValidatorsForDelegation {})?,
+    }))?;
 
     let (_remaining_buffered_balance, delegations) =
         calculate_delegations(payment.amount, validators.as_slice())?;
@@ -224,19 +194,6 @@ pub fn handle_bond_stluna<S: Storage, A: Api, Q: Querier>(
             validator: validators[i].address.clone(),
             amount: Coin::new(delegations[i].u128(), payment.denom.as_str()),
         }));
-        validators[i].total_delegated.add_assign(delegations[i]);
-    }
-
-    if !external_call_msgs.is_empty() {
-        external_call_msgs.push(cosmwasm_std::CosmosMsg::Wasm(
-            cosmwasm_std::WasmMsg::Execute {
-                contract_addr: deps.api.human_address(&validators_registry_contract)?,
-                msg: to_binary(&HandleMsgValidators::UpdateTotalDelegated {
-                    updated_validators: validators,
-                })?,
-                send: vec![],
-            },
-        ));
     }
 
     let mint_msg = Cw20HandleMsg::Mint {
@@ -299,7 +256,7 @@ pub fn handle_bond_rewards<S: Storage, A: Api, Q: Querier>(
         })?;
 
     // check slashing
-    let slashed_validators = slashing(deps, env.clone())?;
+    slashing(deps, env.clone())?;
 
     let total_supply = query_total_stluna_issued(&deps).unwrap_or_default();
 
@@ -316,17 +273,10 @@ pub fn handle_bond_rewards<S: Storage, A: Api, Q: Querier>(
             "Validators registry contract address is empty",
         ));
     };
-    let mut validators: Vec<Validator> =
-        deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
-            contract_addr: deps.api.human_address(&validators_registry_contract)?,
-            msg: to_binary(&QueryValidators::GetValidatorsForDelegation {})?,
-        }))?;
-
-    for validator in &mut validators {
-        if let Some(slashed_validator) = slashed_validators.get(&validator.address) {
-            validator.total_delegated = slashed_validator.total_delegated
-        }
-    }
+    let validators: Vec<Validator> = deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
+        contract_addr: deps.api.human_address(&validators_registry_contract)?,
+        msg: to_binary(&QueryValidators::GetValidatorsForDelegation {})?,
+    }))?;
 
     let (_remaining_buffered_balance, delegations) =
         calculate_delegations(payment.amount, validators.as_slice())?;
@@ -340,19 +290,6 @@ pub fn handle_bond_rewards<S: Storage, A: Api, Q: Querier>(
             validator: validators[i].address.clone(),
             amount: Coin::new(delegations[i].u128(), payment.denom.as_str()),
         }));
-        validators[i].total_delegated.add_assign(delegations[i]);
-    }
-
-    if !external_call_msgs.is_empty() {
-        external_call_msgs.push(cosmwasm_std::CosmosMsg::Wasm(
-            cosmwasm_std::WasmMsg::Execute {
-                contract_addr: deps.api.human_address(&validators_registry_contract)?,
-                msg: to_binary(&HandleMsgValidators::UpdateTotalDelegated {
-                    updated_validators: validators,
-                })?,
-                send: vec![],
-            },
-        ));
     }
 
     let res = HandleResponse {
