@@ -18,9 +18,6 @@ pub enum HandleMsg {
     /// Remove a validator from the registry
     RemoveValidator { address: HumanAddr },
 
-    /// Update total_delegated field for validators in registry
-    UpdateTotalDelegated { updated_validators: Vec<Validator> },
-
     /// Update config
     UpdateConfig {
         owner: Option<HumanAddr>,

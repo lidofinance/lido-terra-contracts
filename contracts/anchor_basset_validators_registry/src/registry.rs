@@ -32,8 +32,6 @@ pub fn config_read<S: Storage>(storage: &S) -> ReadonlySingleton<S, Config> {
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct Validator {
-    pub active: bool,
-
     #[serde(default)]
     pub total_delegated: Uint128,
 
