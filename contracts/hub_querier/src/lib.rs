@@ -139,4 +139,5 @@ pub enum HandleMsg {
 #[serde(rename_all = "snake_case")]
 pub enum Cw20HookMsg {
     Unbond {},
+    Convert {},
 }

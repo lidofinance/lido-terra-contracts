@@ -22,6 +22,16 @@
                 }
               ]
             },
+            "bluna_token_contract": {
+              "anyOf": [
+                {
+                  "$ref": "#/definitions/HumanAddr"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
             "owner": {
               "anyOf": [
                 {
@@ -32,7 +42,7 @@
                 }
               ]
             },
-            "reward_contract": {
+            "rewards_dispatcher_contract": {
               "anyOf": [
                 {
                   "$ref": "#/definitions/HumanAddr"
@@ -42,7 +52,7 @@
                 }
               ]
             },
-            "token_contract": {
+            "stluna_token_contract": {
               "anyOf": [
                 {
                   "$ref": "#/definitions/HumanAddr"
@@ -124,6 +134,28 @@
       ],
       "properties": {
         "bond": {
+          "type": "object"
+        }
+      }
+    },
+    {
+      "type": "object",
+      "required": [
+        "bond_for_st_luna"
+      ],
+      "properties": {
+        "bond_for_st_luna": {
+          "type": "object"
+        }
+      }
+    },
+    {
+      "type": "object",
+      "required": [
+        "bond_rewards"
+      ],
+      "properties": {
+        "bond_rewards": {
           "type": "object"
         }
       }
@@ -250,12 +282,54 @@
           }
         }
       }
+    },
+    {
+      "type": "object",
+      "required": [
+        "redelegate_proxy"
+      ],
+      "properties": {
+        "redelegate_proxy": {
+          "type": "object",
+          "required": [
+            "amount",
+            "dst_validator",
+            "src_validator"
+          ],
+          "properties": {
+            "amount": {
+              "$ref": "#/definitions/Coin"
+            },
+            "dst_validator": {
+              "$ref": "#/definitions/HumanAddr"
+            },
+            "src_validator": {
+              "$ref": "#/definitions/HumanAddr"
+            }
+          }
+        }
+      }
     }
   ],
   "definitions": {
     "Binary": {
       "description": "Binary is a wrapper around Vec<u8> to add base64 de/serialization with serde. It also adds some helper methods to help encode inline.\n\nThis is only needed as serde-json-{core,wasm} has a horrible encoding for Vec<u8>",
       "type": "string"
+    },
+    "Coin": {
+      "type": "object",
+      "required": [
+        "amount",
+        "denom"
+      ],
+      "properties": {
+        "amount": {
+          "$ref": "#/definitions/Uint128"
+        },
+        "denom": {
+          "type": "string"
+        }
+      }
     },
     "Cw20ReceiveMsg": {
       "description": "Cw20ReceiveMsg should be de/serialized under `Receive()` variant in a HandleMsg",
