@@ -39,7 +39,6 @@ pub fn handle_bond<S: Storage, A: Api, Q: Querier>(
         .ok_or_else(|| {
             StdError::generic_err(format!("No {} assets are provided to bond", coin_denom))
         })?;
-
     // check slashing
     slashing(deps, env.clone())?;
 

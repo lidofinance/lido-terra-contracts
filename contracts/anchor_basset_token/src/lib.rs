@@ -3,7 +3,7 @@ pub mod msg;
 pub mod state;
 
 mod handler;
-mod querier;
+pub mod querier;
 
 #[cfg(test)]
 mod testing;
