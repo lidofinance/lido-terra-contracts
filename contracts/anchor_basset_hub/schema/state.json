@@ -4,18 +4,20 @@
   "type": "object",
   "required": [
     "actual_unbonded_amount",
-    "exchange_rate",
+    "bluna_exchange_rate",
     "last_index_modification",
     "last_processed_batch",
     "last_unbonded_time",
     "prev_hub_balance",
-    "total_bond_amount"
+    "stluna_exchange_rate",
+    "total_bond_bluna_amount",
+    "total_bond_stluna_amount"
   ],
   "properties": {
     "actual_unbonded_amount": {
       "$ref": "#/definitions/Uint128"
     },
-    "exchange_rate": {
+    "bluna_exchange_rate": {
       "$ref": "#/definitions/Decimal"
     },
     "last_index_modification": {
@@ -36,7 +38,13 @@
     "prev_hub_balance": {
       "$ref": "#/definitions/Uint128"
     },
-    "total_bond_amount": {
+    "stluna_exchange_rate": {
+      "$ref": "#/definitions/Decimal"
+    },
+    "total_bond_bluna_amount": {
+      "$ref": "#/definitions/Uint128"
+    },
+    "total_bond_stluna_amount": {
       "$ref": "#/definitions/Uint128"
     }
   },

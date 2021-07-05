@@ -16,10 +16,7 @@
         }
       ]
     },
-    "creator": {
-      "$ref": "#/definitions/CanonicalAddr"
-    },
-    "reward_contract": {
+    "bluna_token_contract": {
       "anyOf": [
         {
           "$ref": "#/definitions/CanonicalAddr"
@@ -29,7 +26,20 @@
         }
       ]
     },
-    "token_contract": {
+    "creator": {
+      "$ref": "#/definitions/CanonicalAddr"
+    },
+    "reward_dispatcher_contract": {
+      "anyOf": [
+        {
+          "$ref": "#/definitions/CanonicalAddr"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "stluna_token_contract": {
       "anyOf": [
         {
           "$ref": "#/definitions/CanonicalAddr"

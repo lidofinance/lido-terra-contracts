@@ -6,9 +6,9 @@ use cosmwasm_std::{
 use anchor_basset_reward::msg::HandleMsg::{DecreaseBalance, IncreaseBalance};
 use cw20::{Cw20ReceiveMsg, MinterResponse, TokenInfoResponse};
 use cw20_base::contract::{query_minter, query_token_info};
-use cw20_base::msg::HandleMsg;
 
 use crate::contract::{handle, init};
+use crate::msg::HandleMsg;
 use crate::msg::TokenInitMsg;
 use crate::state::read_hub_contract;
 use crate::testing::mock_querier::{
@@ -112,7 +112,7 @@ fn proper_initialization() {
         query_minter(&deps).unwrap(),
         Some(MinterResponse {
             minter: hub_contract,
-            cap: None
+            cap: None,
         })
     );
 

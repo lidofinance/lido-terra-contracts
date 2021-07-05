@@ -4,7 +4,9 @@ use cosmwasm_std::{
 };
 
 use crate::querier::query_reward_contract;
+
 use anchor_basset_reward::msg::HandleMsg::{DecreaseBalance, IncreaseBalance};
+
 use cw20_base::allowances::{
     handle_burn_from as cw20_burn_from, handle_send_from as cw20_send_from,
     handle_transfer_from as cw20_transfer_from,
