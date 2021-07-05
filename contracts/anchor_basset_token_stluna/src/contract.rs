@@ -10,6 +10,7 @@ use cw20_base::msg::{HandleMsg, InitMsg, QueryMsg};
 use crate::handler::*;
 use crate::msg::TokenInitMsg;
 use crate::state::store_hub_contract;
+// use anchor_basset_token::msg::HandleMsg;
 use cw20::MinterResponse;
 
 pub fn init<S: Storage, A: Api, Q: Querier>(
