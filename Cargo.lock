@@ -133,6 +133,7 @@ dependencies = [
  "schemars",
  "serde",
  "snafu",
+ "terra-cosmwasm",
 ]
 
 [[package]]
