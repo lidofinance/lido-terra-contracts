@@ -188,6 +188,8 @@ fn query_validators<S: Storage, A: Api, Q: Querier>(
     let config = config_read(&deps.storage).load()?;
     let hub_address = deps.api.human_address(&config.hub_contract)?;
 
+    let delegations = deps.querier.query_all_delegations(&hub_address)?;
+
     let mut validators: Vec<Validator> = vec![];
     let registry = registry_read(&deps.storage);
     for item in registry.range(None, None, cosmwasm_std::Order::Ascending) {
@@ -195,11 +197,17 @@ fn query_validators<S: Storage, A: Api, Q: Querier>(
             total_delegated: Default::default(),
             address: item?.1.address,
         };
-        let delegation = deps
-            .querier
-            .query_delegation(&hub_address, &validator.address)
-            .unwrap_or_default();
-        validator.total_delegated = if let Some(d) = delegation {
+        // There is a bug in terra/core.
+        // The bug happens when we do query_delegation() but there are no delegation pair (delegator-validator)
+        // but query_delegation() fails with a parse error cause terra/core returns an empty FullDelegation struct
+        // instead of a nil pointer to the struct.
+        // https://github.com/terra-money/core/blob/58602320d2907814cfccdf43e9679468bb4bd8d3/x/staking/wasm/interface.go#L227
+        // So we do query_all_delegations() instead of query_delegation().unwrap()
+        // and try to find delegation in the returned vec
+        validator.total_delegated = if let Some(d) = delegations
+            .iter()
+            .find(|d| d.validator == validator.address)
+        {
             d.amount.amount
         } else {
             Uint128::zero()
