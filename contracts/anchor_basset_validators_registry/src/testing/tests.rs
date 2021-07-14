@@ -306,7 +306,7 @@ fn remove_validator() {
                     assert_eq!(
                         *msg,
                         to_binary(&RedelegateProxy {
-                            src_validator: validator4.clone().address,
+                            src_validator: validator4.address,
                             dst_validator: validator3.clone().address,
                             amount: coin(6, "uluna"),
                         })
@@ -430,7 +430,7 @@ fn remove_validator() {
                     assert_eq!(
                         *msg,
                         to_binary(&RedelegateProxy {
-                            src_validator: validator3.address.clone(),
+                            src_validator: validator3.address,
                             dst_validator: validator2.clone().address,
                             amount: coin(18, "uluna"),
                         })
@@ -519,7 +519,7 @@ fn remove_validator() {
                     assert_eq!(
                         *msg,
                         to_binary(&RedelegateProxy {
-                            src_validator: validator2.address.clone(),
+                            src_validator: validator2.address,
                             dst_validator: validator1.clone().address,
                             amount: coin(55, "uluna"),
                         })
@@ -562,7 +562,7 @@ fn remove_validator() {
     set_delegation_query(
         &mut deps.querier,
         &[sample_delegation(
-            hub_contract_address.clone(),
+            hub_contract_address,
             validator1.address.clone(),
             Coin {
                 denom: "uluna".to_string(),
@@ -572,9 +572,9 @@ fn remove_validator() {
         &validators,
     );
     let msg = HandleMsg::RemoveValidator {
-        address: validator1.address.clone(),
+        address: validator1.address,
     };
-    let res = handle(&mut deps, env.clone(), msg);
+    let res = handle(&mut deps, env, msg);
     assert_eq!(
         res.expect_err("The last validator was removed from registry"),
         StdError::generic_err("Cannot remove the last validator in the registry",)
