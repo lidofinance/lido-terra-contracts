@@ -104,6 +104,16 @@ pub fn remove_validator<S: Storage, A: Api, Q: Querier>(
         return Err(StdError::unauthorized());
     }
 
+    let validators_number = registry(&mut deps.storage)
+        .range(None, None, cosmwasm_std::Order::Ascending)
+        .count();
+
+    if validators_number == 1 {
+        return Err(StdError::generic_err(
+            "Cannot remove the last validator in the registry",
+        ));
+    }
+
     registry(&mut deps.storage).remove(validator_address.as_str().as_bytes());
 
     let config = config_read(&deps.storage).load()?;
