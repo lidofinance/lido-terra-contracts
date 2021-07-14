@@ -244,10 +244,11 @@ fn remove_validator() {
     let env = mock_env("creator", &coins(2, "token"));
     let _res = init(&mut deps, env.clone(), msg).unwrap();
 
+    // try to remove validator4
     let msg = HandleMsg::RemoveValidator {
         address: validator4.address.clone(),
     };
-    let _res = handle(&mut deps, env, msg);
+    let _res = handle(&mut deps, env.clone(), msg);
     match _res {
         Ok(res) => {
             let reg = registry_read(&deps.storage).load(validator4.address.as_str().as_bytes());
@@ -264,7 +265,7 @@ fn remove_validator() {
                         *msg,
                         to_binary(&RedelegateProxy {
                             src_validator: validator4.address.clone(),
-                            dst_validator: validator1.address,
+                            dst_validator: validator1.clone().address,
                             amount: coin(27, "uluna"),
                         })
                         .unwrap()
@@ -285,7 +286,7 @@ fn remove_validator() {
                         *msg,
                         to_binary(&RedelegateProxy {
                             src_validator: validator4.address.clone(),
-                            dst_validator: validator2.address,
+                            dst_validator: validator2.clone().address,
                             amount: coin(17, "uluna"),
                         })
                         .unwrap()
@@ -305,8 +306,8 @@ fn remove_validator() {
                     assert_eq!(
                         *msg,
                         to_binary(&RedelegateProxy {
-                            src_validator: validator4.address,
-                            dst_validator: validator3.address,
+                            src_validator: validator4.clone().address,
+                            dst_validator: validator3.clone().address,
                             amount: coin(6, "uluna"),
                         })
                         .unwrap()
@@ -337,6 +338,247 @@ fn remove_validator() {
         }
         Err(e) => panic!(format!("Failed to handle RemoveValidator message: {}", e)),
     }
+
+    // try to remove validator 3
+    let validators = [
+        CosmosValidator {
+            address: validator1.address.clone(),
+            commission: Default::default(),
+            max_commission: Default::default(),
+            max_change_rate: Default::default(),
+        },
+        CosmosValidator {
+            address: validator2.address.clone(),
+            commission: Default::default(),
+            max_commission: Default::default(),
+            max_change_rate: Default::default(),
+        },
+        CosmosValidator {
+            address: validator3.address.clone(),
+            commission: Default::default(),
+            max_commission: Default::default(),
+            max_change_rate: Default::default(),
+        },
+    ];
+    set_delegation_query(
+        &mut deps.querier,
+        &[
+            sample_delegation(
+                hub_contract_address.clone(),
+                validator1.address.clone(),
+                Coin {
+                    denom: "uluna".to_string(),
+                    amount: Uint128::from(37u64),
+                },
+            ),
+            sample_delegation(
+                hub_contract_address.clone(),
+                validator2.address.clone(),
+                Coin {
+                    denom: "uluna".to_string(),
+                    amount: Uint128::from(37u64),
+                },
+            ),
+            sample_delegation(
+                hub_contract_address.clone(),
+                validator3.address.clone(),
+                Coin {
+                    denom: "uluna".to_string(),
+                    amount: Uint128::from(36u64),
+                },
+            ),
+        ],
+        &validators,
+    );
+    let msg = HandleMsg::RemoveValidator {
+        address: validator3.address.clone(),
+    };
+    let _res = handle(&mut deps, env.clone(), msg);
+    match _res {
+        Ok(res) => {
+            let reg = registry_read(&deps.storage).load(validator3.address.as_str().as_bytes());
+            assert!(reg.is_err(), "Validator was not removed");
+
+            let redelegate = &res.messages[0];
+            match redelegate {
+                CosmosMsg::Wasm(WasmMsg::Execute {
+                    contract_addr,
+                    msg,
+                    send: _,
+                }) => {
+                    assert_eq!(
+                        *msg,
+                        to_binary(&RedelegateProxy {
+                            src_validator: validator3.address.clone(),
+                            dst_validator: validator1.clone().address,
+                            amount: coin(18, "uluna"),
+                        })
+                        .unwrap()
+                    );
+                    assert_eq!(contract_addr.to_string(), hub_contract_address.to_string());
+                }
+                _ => panic!("Unexpected message: {:?}", redelegate),
+            }
+
+            let redelegate = &res.messages[1];
+            match redelegate {
+                CosmosMsg::Wasm(WasmMsg::Execute {
+                    contract_addr,
+                    msg,
+                    send: _,
+                }) => {
+                    assert_eq!(
+                        *msg,
+                        to_binary(&RedelegateProxy {
+                            src_validator: validator3.address.clone(),
+                            dst_validator: validator2.clone().address,
+                            amount: coin(18, "uluna"),
+                        })
+                        .unwrap()
+                    );
+                    assert_eq!(contract_addr.to_string(), hub_contract_address.to_string());
+                }
+                _ => panic!("Unexpected message: {:?}", redelegate),
+            }
+
+            let update_global_index = &res.messages[2];
+            match update_global_index {
+                CosmosMsg::Wasm(WasmMsg::Execute {
+                    contract_addr,
+                    msg,
+                    send: _,
+                }) => {
+                    assert_eq!(
+                        *msg,
+                        to_binary(&UpdateGlobalIndex {
+                            airdrop_hooks: None
+                        })
+                        .unwrap()
+                    );
+                    assert_eq!(*contract_addr, HumanAddr::from("hub_contract_address"));
+                }
+                _ => panic!("Unexpected message: {:?}", update_global_index),
+            }
+        }
+        Err(e) => panic!(format!("Failed to handle RemoveValidator message: {}", e)),
+    }
+
+    // try to remove validator 2
+    let validators = [
+        CosmosValidator {
+            address: validator1.address.clone(),
+            commission: Default::default(),
+            max_commission: Default::default(),
+            max_change_rate: Default::default(),
+        },
+        CosmosValidator {
+            address: validator2.address.clone(),
+            commission: Default::default(),
+            max_commission: Default::default(),
+            max_change_rate: Default::default(),
+        },
+    ];
+    set_delegation_query(
+        &mut deps.querier,
+        &[
+            sample_delegation(
+                hub_contract_address.clone(),
+                validator1.address.clone(),
+                Coin {
+                    denom: "uluna".to_string(),
+                    amount: Uint128::from(55u64),
+                },
+            ),
+            sample_delegation(
+                hub_contract_address.clone(),
+                validator2.address.clone(),
+                Coin {
+                    denom: "uluna".to_string(),
+                    amount: Uint128::from(55u64),
+                },
+            ),
+        ],
+        &validators,
+    );
+    let msg = HandleMsg::RemoveValidator {
+        address: validator2.address.clone(),
+    };
+    let _res = handle(&mut deps, env.clone(), msg);
+    match _res {
+        Ok(res) => {
+            let reg = registry_read(&deps.storage).load(validator2.address.as_str().as_bytes());
+            assert!(reg.is_err(), "Validator was not removed");
+
+            let redelegate = &res.messages[0];
+            match redelegate {
+                CosmosMsg::Wasm(WasmMsg::Execute {
+                    contract_addr,
+                    msg,
+                    send: _,
+                }) => {
+                    assert_eq!(
+                        *msg,
+                        to_binary(&RedelegateProxy {
+                            src_validator: validator2.address.clone(),
+                            dst_validator: validator1.clone().address,
+                            amount: coin(55, "uluna"),
+                        })
+                        .unwrap()
+                    );
+                    assert_eq!(contract_addr.to_string(), hub_contract_address.to_string());
+                }
+                _ => panic!("Unexpected message: {:?}", redelegate),
+            }
+
+            let update_global_index = &res.messages[1];
+            match update_global_index {
+                CosmosMsg::Wasm(WasmMsg::Execute {
+                    contract_addr,
+                    msg,
+                    send: _,
+                }) => {
+                    assert_eq!(
+                        *msg,
+                        to_binary(&UpdateGlobalIndex {
+                            airdrop_hooks: None
+                        })
+                        .unwrap()
+                    );
+                    assert_eq!(*contract_addr, HumanAddr::from("hub_contract_address"));
+                }
+                _ => panic!("Unexpected message: {:?}", update_global_index),
+            }
+        }
+        Err(e) => panic!(format!("Failed to handle RemoveValidator message: {}", e)),
+    }
+
+    // try to remove the last validator
+    let validators = [CosmosValidator {
+        address: validator1.address.clone(),
+        commission: Default::default(),
+        max_commission: Default::default(),
+        max_change_rate: Default::default(),
+    }];
+    set_delegation_query(
+        &mut deps.querier,
+        &[sample_delegation(
+            hub_contract_address.clone(),
+            validator1.address.clone(),
+            Coin {
+                denom: "uluna".to_string(),
+                amount: Uint128::from(110u64),
+            },
+        )],
+        &validators,
+    );
+    let msg = HandleMsg::RemoveValidator {
+        address: validator1.address.clone(),
+    };
+    let res = handle(&mut deps, env.clone(), msg);
+    assert_eq!(
+        res.expect_err("The last validator was removed from registry"),
+        StdError::generic_err("Cannot remove the last validator in the registry",)
+    );
 }
 
 #[macro_export]
