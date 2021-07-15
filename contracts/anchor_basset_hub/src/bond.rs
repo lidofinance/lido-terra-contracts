@@ -84,6 +84,10 @@ pub fn handle_bond<S: Storage, A: Api, Q: Querier>(
         msg: to_binary(&QueryValidators::GetValidatorsForDelegation {})?,
     }))?;
 
+    if validators.is_empty() {
+        return Err(StdError::generic_err("Validators registry is empty"));
+    }
+
     let (_remaining_buffered_balance, delegations) =
         calculate_delegations(payment.amount, validators.as_slice())?;
 
@@ -181,6 +185,10 @@ pub fn handle_bond_stluna<S: Storage, A: Api, Q: Querier>(
         msg: to_binary(&QueryValidators::GetValidatorsForDelegation {})?,
     }))?;
 
+    if validators.is_empty() {
+        return Err(StdError::generic_err("Validators registry is empty"));
+    }
+
     let (_remaining_buffered_balance, delegations) =
         calculate_delegations(payment.amount, validators.as_slice())?;
 
@@ -276,6 +284,10 @@ pub fn handle_bond_rewards<S: Storage, A: Api, Q: Querier>(
         contract_addr: deps.api.human_address(&validators_registry_contract)?,
         msg: to_binary(&QueryValidators::GetValidatorsForDelegation {})?,
     }))?;
+
+    if validators.is_empty() {
+        return Err(StdError::generic_err("Validators registry is empty"));
+    }
 
     let (_remaining_buffered_balance, delegations) =
         calculate_delegations(payment.amount, validators.as_slice())?;

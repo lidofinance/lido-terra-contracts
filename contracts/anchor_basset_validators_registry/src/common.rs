@@ -6,6 +6,9 @@ pub fn calculate_delegations(
     mut amoint_to_delegate: Uint128,
     validators: &[Validator],
 ) -> StdResult<(Uint128, Vec<Uint128>)> {
+    if validators.is_empty() {
+        return Err(StdError::generic_err("Empty validators set"));
+    }
     let total_delegated: u128 = validators.iter().map(|v| v.total_delegated.0).sum();
     let total_coins_to_distribute = Uint128::from(total_delegated) + amoint_to_delegate;
     let coins_per_validator = total_coins_to_distribute.0 / validators.len() as u128;
@@ -39,6 +42,10 @@ pub fn calculate_undelegations(
     mut undelegation_amount: Uint128,
     validators: &[Validator],
 ) -> StdResult<Vec<Uint128>> {
+    if validators.is_empty() {
+        return Err(StdError::generic_err("Empty validators set"));
+    }
+
     let total_delegated: u128 = validators.iter().map(|v| v.total_delegated.0).sum();
 
     if undelegation_amount.0 > total_delegated {
