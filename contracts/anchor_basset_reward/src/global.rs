@@ -15,7 +15,7 @@ pub fn execute_swap(
     info: MessageInfo,
 ) -> StdResult<Response<TerraMsgWrapper>> {
     let config = read_config(deps.storage)?;
-    let sender_raw = deps.api.addr_canonicalize(info.sender.as_str()).unwrap();
+    let sender_raw = deps.api.addr_canonicalize(info.sender.as_str())?;
 
     if sender_raw != config.hub_contract {
         return Err(StdError::generic_err("unauthorized"));
@@ -81,8 +81,7 @@ pub fn execute_update_global_index(
     // Load the reward contract balance
     let balance = deps
         .querier
-        .query_balance(env.contract.address, reward_denom.as_str())
-        .unwrap();
+        .query_balance(env.contract.address, reward_denom.as_str())?;
 
     let previous_balance = state.prev_reward_balance;
 

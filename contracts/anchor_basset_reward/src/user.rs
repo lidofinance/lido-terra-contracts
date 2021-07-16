@@ -39,7 +39,7 @@ pub fn execute_claim_rewards(
 
     let all_reward_with_decimals =
         decimal_summation_in_256(reward_with_decimals, holder.pending_rewards);
-    let decimals = get_decimals(all_reward_with_decimals).unwrap();
+    let decimals = get_decimals(all_reward_with_decimals)?;
 
     let rewards = all_reward_with_decimals * Uint128::new(1);
 
@@ -155,8 +155,8 @@ pub fn execute_decrease_balance(
 
     holder.index = state.global_index;
     holder.pending_rewards = decimal_summation_in_256(rewards, holder.pending_rewards);
-    holder.balance = (holder.balance.checked_sub(amount)).unwrap();
-    state.total_balance = (state.total_balance.checked_sub(amount)).unwrap();
+    holder.balance = (holder.balance.checked_sub(amount))?;
+    state.total_balance = (state.total_balance.checked_sub(amount))?;
 
     store_holder(deps.storage, &address_raw, &holder)?;
     store_state(deps.storage, &state)?;
