@@ -31,17 +31,17 @@ mod test {
 
     #[test]
     fn from_subtraction() {
-        let min = Uint128(1000010);
-        let sub = Uint128(1000000);
+        let min = Uint128::new(1000010);
+        let sub = Uint128::new(1000000);
         let signed_integer = SignedInt::from_subtraction(min, sub);
-        assert_eq!(signed_integer.0, Uint128(10));
-        assert_eq!(signed_integer.1, false);
+        assert_eq!(signed_integer.0, Uint128::new(10));
+        assert!(!signed_integer.1);
 
         //check negative values
-        let min = Uint128(1000000);
-        let sub = Uint128(1100000);
+        let min = Uint128::new(1000000);
+        let sub = Uint128::new(1100000);
         let signed_integer = SignedInt::from_subtraction(min, sub);
-        assert_eq!(signed_integer.0, Uint128(100000));
-        assert_eq!(signed_integer.1, true);
+        assert_eq!(signed_integer.0, Uint128::new(100000));
+        assert!(signed_integer.1);
     }
 }

@@ -2,7 +2,7 @@ use cosmwasm_std::{Coin, Decimal, QuerierWrapper, StdResult, Uint128};
 
 use terra_cosmwasm::TerraQuerier;
 
-static DECIMAL_FRACTION: Uint128 = Uint128(1_000_000_000_000_000_000u128);
+static DECIMAL_FRACTION: Uint128 = Uint128::new(1_000_000_000_000_000_000u128);
 
 pub fn compute_tax(querier: &QuerierWrapper, coin: &Coin) -> StdResult<Uint128> {
     let terra_querier = TerraQuerier::new(querier);

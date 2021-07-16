@@ -16,7 +16,7 @@ fn test_deduct_tax() {
         deduct_tax(&deps.as_mut().querier, Coin::new(10000000000u128, "uusd")).unwrap(),
         Coin {
             denom: "uusd".to_string(),
-            amount: Uint128(9999000000u128)
+            amount: Uint128::new(9999000000u128)
         }
     );
 
@@ -25,7 +25,7 @@ fn test_deduct_tax() {
         deduct_tax(&deps.as_mut().querier, Coin::new(50000000u128, "uusd")).unwrap(),
         Coin {
             denom: "uusd".to_string(),
-            amount: Uint128(49504950u128)
+            amount: Uint128::new(49504950u128)
         }
     );
 }
