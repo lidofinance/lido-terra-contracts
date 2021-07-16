@@ -2,7 +2,7 @@
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
     attr, to_binary, Binary, CosmosMsg, Deps, DepsMut, Env, MessageInfo, Response, StdError,
-    StdResult, Uint128, WasmMsg,
+    StdResult, SubMsg, Uint128, WasmMsg,
 };
 
 use crate::state::{
@@ -78,10 +78,10 @@ fn execute_fabricate_mir_claim(
 ) -> StdResult<Response> {
     let config = read_config(deps.storage)?;
 
-    let mut messages: Vec<CosmosMsg> = vec![];
+    let mut messages: Vec<SubMsg> = vec![];
 
     let airdrop_info = read_airdrop_info(deps.storage, "MIR".to_string()).unwrap();
-    messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
+    messages.push(SubMsg::new(CosmosMsg::Wasm(WasmMsg::Execute {
         contract_addr: config.hub_contract,
         msg: to_binary(&HubHandleMsg::ClaimAirdrop {
             airdrop_token_contract: airdrop_info.airdrop_token_contract,
@@ -98,14 +98,13 @@ fn execute_fabricate_mir_claim(
                 to: Some(config.reward_contract),
             })?,
         })?,
-        send: vec![],
-    }));
+        funds: vec![],
+    })));
 
     Ok(Response {
         messages,
-        submessages: vec![],
         attributes: vec![attr("action", "fabricate_mir_claim")],
-        data: None,
+        ..Response::default()
     })
 }
 
@@ -119,10 +118,10 @@ fn execute_fabricate_anchor_claim(
 ) -> StdResult<Response> {
     let config = read_config(deps.storage)?;
 
-    let mut messages: Vec<CosmosMsg> = vec![];
+    let mut messages: Vec<SubMsg> = vec![];
 
     let airdrop_info = read_airdrop_info(deps.storage, "ANC".to_string())?;
-    messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
+    messages.push(SubMsg::new(CosmosMsg::Wasm(WasmMsg::Execute {
         contract_addr: config.hub_contract,
         msg: to_binary(&HubHandleMsg::ClaimAirdrop {
             airdrop_token_contract: airdrop_info.airdrop_token_contract,
@@ -139,14 +138,13 @@ fn execute_fabricate_anchor_claim(
                 to: Some(config.reward_contract),
             })?,
         })?,
-        send: vec![],
-    }));
+        funds: vec![],
+    })));
 
     Ok(Response {
         messages,
-        submessages: vec![],
         attributes: vec![attr("action", "fabricate_anc_claim")],
-        data: None,
+        ..Response::default()
     })
 }
 pub fn execute_update_config(
@@ -178,10 +176,8 @@ pub fn execute_update_config(
     store_config(deps.storage, &config)?;
 
     Ok(Response {
-        messages: vec![],
-        submessages: vec![],
         attributes: vec![attr("action", "update_config")],
-        data: None,
+        ..Response::default()
     })
 }
 
@@ -214,13 +210,11 @@ pub fn execute_add_airdrop(
 
     store_airdrop_info(deps.storage, airdrop_token.clone(), airdrop_info)?;
     Ok(Response {
-        messages: vec![],
-        submessages: vec![],
         attributes: vec![
             attr("action", "add_airdrop_info"),
             attr("airdrop_token", airdrop_token),
         ],
-        data: None,
+        ..Response::default()
     })
 }
 
@@ -248,13 +242,11 @@ pub fn execute_update_airdrop(
 
     update_airdrop_info(deps.storage, airdrop_token.clone(), airdrop_info)?;
     Ok(Response {
-        messages: vec![],
-        submessages: vec![],
         attributes: vec![
             attr("action", "update_airdrop_info"),
             attr("airdrop_token", airdrop_token),
         ],
-        data: None,
+        ..Response::default()
     })
 }
 
@@ -286,13 +278,11 @@ pub fn execute_remove_airdrop(
 
     remove_airdrop_info(deps.storage, airdrop_token.clone())?;
     Ok(Response {
-        messages: vec![],
-        submessages: vec![],
         attributes: vec![
             attr("action", "remove_airdrop_info"),
             attr("airdrop_token", airdrop_token),
         ],
-        data: None,
+        ..Response::default()
     })
 }
 

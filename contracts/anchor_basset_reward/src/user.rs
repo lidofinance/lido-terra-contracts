@@ -6,8 +6,8 @@ use crate::state::{
 use basset::reward::{AccruedRewardsResponse, HolderResponse, HoldersResponse};
 
 use cosmwasm_std::{
-    attr, BankMsg, Coin, Decimal, Deps, DepsMut, Env, MessageInfo, Response, StdError, StdResult,
-    Uint128,
+    attr, BankMsg, Coin, CosmosMsg, Decimal, Deps, DepsMut, Env, MessageInfo, Response, StdError,
+    StdResult, SubMsg, Uint128,
 };
 
 use crate::math::{
@@ -41,7 +41,7 @@ pub fn execute_claim_rewards(
         decimal_summation_in_256(reward_with_decimals, holder.pending_rewards);
     let decimals = get_decimals(all_reward_with_decimals).unwrap();
 
-    let rewards = all_reward_with_decimals * Uint128(1);
+    let rewards = all_reward_with_decimals * Uint128::new(1);
 
     if rewards.is_zero() {
         return Err(StdError::generic_err("No rewards have accrued yet"));
@@ -55,25 +55,26 @@ pub fn execute_claim_rewards(
     holder.index = state.global_index;
     store_holder(deps.storage, &holder_addr_raw, &holder)?;
 
+    let bank_msg: CosmosMsg<TerraMsgWrapper> = BankMsg::Send {
+        to_address: recipient.to_string(),
+        amount: vec![deduct_tax(
+            &deps.querier,
+            Coin {
+                denom: config.reward_denom,
+                amount: rewards,
+            },
+        )?],
+    }
+    .into();
+
     Ok(Response {
-        submessages: vec![],
-        messages: vec![BankMsg::Send {
-            to_address: recipient.to_string(),
-            amount: vec![deduct_tax(
-                &deps.querier,
-                Coin {
-                    denom: config.reward_denom,
-                    amount: rewards,
-                },
-            )?],
-        }
-        .into()],
+        messages: vec![SubMsg::new(bank_msg)],
         attributes: vec![
             attr("action", "claim_reward"),
             attr("holder_address", holder_addr),
             attr("rewards", rewards),
         ],
-        data: None,
+        ..Response::default()
     })
 }
 
@@ -112,14 +113,12 @@ pub fn execute_increase_balance(
     store_holder(deps.storage, &address_raw, &holder)?;
     store_state(deps.storage, &state)?;
     let res = Response {
-        messages: vec![],
-        submessages: vec![],
         attributes: vec![
             attr("action", "increase_balance"),
             attr("holder_address", address),
             attr("amount", amount),
         ],
-        data: None,
+        ..Response::default()
     };
 
     Ok(res)
@@ -162,14 +161,12 @@ pub fn execute_decrease_balance(
     store_holder(deps.storage, &address_raw, &holder)?;
     store_state(deps.storage, &state)?;
     let res = Response {
-        messages: vec![],
-        submessages: vec![],
         attributes: vec![
             attr("action", "decrease_balance"),
             attr("holder_address", address),
             attr("amount", amount),
         ],
-        data: None,
+        ..Response::default()
     };
 
     Ok(res)
@@ -184,7 +181,7 @@ pub fn query_accrued_rewards(deps: Deps, address: String) -> StdResult<AccruedRe
     let all_reward_with_decimals =
         decimal_summation_in_256(reward_with_decimals, holder.pending_rewards);
 
-    let rewards = all_reward_with_decimals * Uint128(1);
+    let rewards = all_reward_with_decimals * Uint128::new(1);
 
     Ok(AccruedRewardsResponse { rewards })
 }
@@ -221,7 +218,7 @@ fn calculate_decimal_rewards(
     user_index: Decimal,
     user_balance: Uint128,
 ) -> StdResult<Decimal> {
-    let decimal_balance = Decimal::from_ratio(user_balance, Uint128(1));
+    let decimal_balance = Decimal::from_ratio(user_balance, Uint128::new(1));
     Ok(decimal_multiplication_in_256(
         decimal_subtraction_in_256(global_index, user_index),
         decimal_balance,
@@ -248,18 +245,18 @@ mod tests {
 
     #[test]
     pub fn proper_calculate_rewards() {
-        let global_index = Decimal::from_ratio(Uint128(9), Uint128(100));
+        let global_index = Decimal::from_ratio(Uint128::new(9), Uint128::new(100));
         let user_index = Decimal::zero();
-        let user_balance = Uint128(1000);
+        let user_balance = Uint128::new(1000);
         let reward = calculate_decimal_rewards(global_index, user_index, user_balance).unwrap();
         assert_eq!(reward.to_string(), "90");
     }
 
     #[test]
     pub fn proper_get_decimals() {
-        let global_index = Decimal::from_ratio(Uint128(9999999), Uint128(100000000));
+        let global_index = Decimal::from_ratio(Uint128::new(9999999), Uint128::new(100000000));
         let user_index = Decimal::zero();
-        let user_balance = Uint128(10);
+        let user_balance = Uint128::new(10);
         let reward = get_decimals(
             calculate_decimal_rewards(global_index, user_index, user_balance).unwrap(),
         )

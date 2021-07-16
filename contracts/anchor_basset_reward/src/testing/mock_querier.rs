@@ -62,7 +62,7 @@ impl WasmMockQuerier {
                             SystemResult::Ok(ContractResult::from(to_binary(&res)))
                         }
                         TerraQuery::TaxCap { denom: _ } => {
-                            let cap = Uint128(1000000u128);
+                            let cap = Uint128::new(1000000u128);
                             let res = TaxCapResponse { cap };
                             SystemResult::Ok(ContractResult::from(to_binary(&res)))
                         }

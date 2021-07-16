@@ -2,8 +2,8 @@
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
     attr, from_binary, to_binary, Addr, Binary, CosmosMsg, Decimal, Deps, DepsMut, DistributionMsg,
-    Env, MessageInfo, QueryRequest, Response, StakingMsg, StdError, StdResult, Uint128, WasmMsg,
-    WasmQuery,
+    Env, MessageInfo, QueryRequest, Response, StakingMsg, StdError, StdResult, SubMsg, Uint128,
+    WasmMsg, WasmQuery,
 };
 
 use crate::config::{
@@ -15,7 +15,7 @@ use crate::state::{
     all_unbond_history, get_unbond_requests, query_get_finished_amount, read_valid_validators,
     CurrentBatch, Parameters, CONFIG, CURRENT_BATCH, PARAMETERS, STATE,
 };
-use crate::unbond::{execute_unbond, execute_withdraw_unbonded, timestamp_to_second};
+use crate::unbond::{execute_unbond, execute_withdraw_unbonded};
 
 use crate::bond::execute_bond;
 use basset::hub::ExecuteMsg::SwapHook;
@@ -92,17 +92,17 @@ pub fn instantiate(
     let register_validator = ExecuteMsg::RegisterValidator {
         validator: msg.validator.clone(),
     };
-    messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
+    messages.push(SubMsg::new(CosmosMsg::Wasm(WasmMsg::Execute {
         contract_addr: env.contract.address.to_string(),
         msg: to_binary(&register_validator).unwrap(),
-        send: vec![],
-    }));
+        funds: vec![],
+    })));
 
     // send the delegate message
-    messages.push(CosmosMsg::Staking(StakingMsg::Delegate {
+    messages.push(SubMsg::new(CosmosMsg::Staking(StakingMsg::Delegate {
         validator: msg.validator.to_string(),
         amount: payment.clone(),
-    }));
+    })));
 
     let res = Response {
         messages,
@@ -110,8 +110,7 @@ pub fn instantiate(
             attr("register-validator", msg.validator),
             attr("bond", payment.amount),
         ],
-        submessages: vec![],
-        data: None,
+        ..Response::default()
     };
     Ok(res)
 }
@@ -224,7 +223,7 @@ pub fn execute_update_global(
     env: Env,
     airdrop_hooks: Option<Vec<Binary>>,
 ) -> StdResult<Response> {
-    let mut messages: Vec<CosmosMsg> = vec![];
+    let mut messages: Vec<SubMsg> = vec![];
 
     let config = CONFIG.load(deps.storage)?;
     let reward_addr = deps
@@ -241,11 +240,11 @@ pub fn execute_update_global(
             .api
             .addr_humanize(&config.airdrop_registry_contract.unwrap())?;
         for msg in airdrop_hooks.unwrap() {
-            messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
+            messages.push(SubMsg::new(CosmosMsg::Wasm(WasmMsg::Execute {
                 contract_addr: registry_addr.to_string(),
                 msg,
-                send: vec![],
-            }))
+                funds: vec![],
+            })))
         }
     }
 
@@ -255,17 +254,17 @@ pub fn execute_update_global(
 
     // Send Swap message to reward contract
     let swap_msg = SwapToRewardDenom {};
-    messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
+    messages.push(SubMsg::new(CosmosMsg::Wasm(WasmMsg::Execute {
         contract_addr: reward_addr.clone(),
         msg: to_binary(&swap_msg).unwrap(),
-        send: vec![],
-    }));
+        funds: vec![],
+    })));
 
-    messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
+    messages.push(SubMsg::new(CosmosMsg::Wasm(WasmMsg::Execute {
         contract_addr: reward_addr,
         msg: to_binary(&UpdateGlobalIndex {}).unwrap(),
-        send: vec![],
-    }));
+        funds: vec![],
+    })));
 
     //update state last modified
     STATE.update(deps.storage, |mut last_state| -> StdResult<State> {
@@ -276,34 +275,27 @@ pub fn execute_update_global(
     let res = Response {
         messages,
         attributes: vec![attr("action", "update_global_index")],
-        submessages: vec![],
-        data: None,
+        ..Response::default()
     };
     Ok(res)
 }
 
 /// Create withdraw requests for all validators
-fn withdraw_all_rewards(deps: &DepsMut, delegator: Addr) -> StdResult<Vec<CosmosMsg>> {
-    let mut messages: Vec<CosmosMsg> = vec![];
+fn withdraw_all_rewards(deps: &DepsMut, delegator: Addr) -> StdResult<Vec<SubMsg>> {
+    let mut messages: Vec<SubMsg> = vec![];
     let delegations = deps.querier.query_all_delegations(delegator);
 
-    match delegations {
-        Ok(delegations) => {
-            if delegations.is_empty() {
-                Ok(messages)
-            } else {
-                for delegation in delegations {
-                    let msg: CosmosMsg =
-                        CosmosMsg::Distribution(DistributionMsg::WithdrawDelegatorReward {
-                            validator: delegation.validator,
-                        });
-                    messages.push(msg);
-                }
-                Ok(messages)
-            }
+    if let Ok(delegations) = delegations {
+        for delegation in delegations {
+            let msg: CosmosMsg =
+                CosmosMsg::Distribution(DistributionMsg::WithdrawDelegatorReward {
+                    validator: delegation.validator,
+                });
+            messages.push(SubMsg::new(msg));
         }
-        Err(_) => Ok(messages),
     }
+
+    Ok(messages)
 }
 
 /// Check whether slashing has happened
@@ -370,27 +362,25 @@ pub fn claim_airdrop(
         )));
     }
 
-    let mut messages: Vec<CosmosMsg> = vec![CosmosMsg::Wasm(WasmMsg::Execute {
+    let mut messages: Vec<SubMsg> = vec![SubMsg::new(CosmosMsg::Wasm(WasmMsg::Execute {
         contract_addr: airdrop_contract,
         msg: claim_msg,
-        send: vec![],
-    })];
+        funds: vec![],
+    }))];
 
-    messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
+    messages.push(SubMsg::new(CosmosMsg::Wasm(WasmMsg::Execute {
         contract_addr: env.contract.address.to_string(),
         msg: to_binary(&SwapHook {
             airdrop_token_contract,
             airdrop_swap_contract,
             swap_msg,
         })?,
-        send: vec![],
-    }));
+        funds: vec![],
+    })));
 
     Ok(Response {
         messages,
-        attributes: vec![],
-        submessages: vec![],
-        data: None,
+        ..Response::default()
     })
 }
 
@@ -417,21 +407,21 @@ pub fn swap_hook(
         }))
         .unwrap_or_else(|_| Uint128::zero());
 
-    if airdrop_token_balance == Uint128(0) {
+    if airdrop_token_balance == Uint128::new(0) {
         return Err(StdError::generic_err(format!(
             "There is no balance for {} in airdrop token contract {}",
             &env.contract.address, &airdrop_token_contract
         )));
     }
-    let messages: Vec<CosmosMsg> = vec![CosmosMsg::Wasm(WasmMsg::Execute {
+    let messages: Vec<SubMsg> = vec![SubMsg::new(CosmosMsg::Wasm(WasmMsg::Execute {
         contract_addr: airdrop_token_contract.to_string(),
         msg: to_binary(&Cw20ExecuteMsg::Send {
             contract: airdrop_swap_contract,
             amount: airdrop_token_balance,
-            msg: Some(swap_msg),
+            msg: swap_msg,
         })?,
-        send: vec![],
-    })];
+        funds: vec![],
+    }))];
 
     Ok(Response {
         messages,
@@ -440,8 +430,7 @@ pub fn swap_hook(
             attr("token_contract", airdrop_token_contract),
             attr("swap_amount", airdrop_token_balance),
         ],
-        submessages: vec![],
-        data: None,
+        ..Response::default()
     })
 }
 
@@ -452,13 +441,11 @@ pub fn execute_slashing(mut deps: DepsMut, env: Env) -> StdResult<Response> {
     // read state for log
     let state = STATE.load(deps.storage)?;
     Ok(Response {
-        messages: vec![],
         attributes: vec![
             attr("action", "check_slashing"),
             attr("new_exchange_rate", state.exchange_rate),
         ],
-        submessages: vec![],
-        data: None,
+        ..Response::default()
     })
 }
 
@@ -552,7 +539,7 @@ fn query_withdrawable_unbonded(
     env: Env,
 ) -> StdResult<WithdrawableUnbondedResponse> {
     let params = PARAMETERS.load(deps.storage)?;
-    let historical_time = timestamp_to_second(env.block.time) - params.unbonding_period;
+    let historical_time = env.block.time.seconds() - params.unbonding_period;
     let all_requests = query_get_finished_amount(deps.storage, address, historical_time)?;
 
     let withdrawable = WithdrawableUnbondedResponse {

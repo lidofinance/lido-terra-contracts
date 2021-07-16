@@ -6,7 +6,7 @@ use crate::state::{
 use basset::hub::{State, UnbondHistory};
 use cosmwasm_std::{
     attr, coin, coins, to_binary, BankMsg, CosmosMsg, Decimal, Deps, DepsMut, Env, MessageInfo,
-    Response, StakingMsg, StdError, StdResult, Storage, Timestamp, Uint128, WasmMsg,
+    Response, StakingMsg, StdError, StdResult, Storage, SubMsg, Uint128, WasmMsg,
 };
 use cw20::Cw20ExecuteMsg;
 use rand::{Rng, SeedableRng, XorShiftRng};
@@ -66,7 +66,7 @@ pub(crate) fn execute_unbond(
     let current_time = env.block.time.nanos();
     let passed_time = nano_to_second(current_time - state.last_unbonded_time);
 
-    let mut messages: Vec<CosmosMsg> = vec![];
+    let mut messages: Vec<SubMsg> = vec![];
 
     // If the epoch period is passed, the undelegate message would be sent.
     if passed_time > epoch_period {
@@ -74,7 +74,7 @@ pub(crate) fn execute_unbond(
         let undelegation_amount = current_batch.requested_with_fee * state.exchange_rate;
 
         // the contract must stop if
-        if undelegation_amount == Uint128(1) {
+        if undelegation_amount == Uint128::new(1) {
             return Err(StdError::generic_err(
                 "Burn amount must be greater than 1 ubluna",
             ));
@@ -100,7 +100,7 @@ pub(crate) fn execute_unbond(
         // Store history for withdraw unbonded
         let history = UnbondHistory {
             batch_id: current_batch.id,
-            time: timestamp_to_second(env.block.time),
+            time: env.block.time.seconds(),
             amount: current_batch.requested_with_fee,
             applied_exchange_rate: state.exchange_rate,
             withdraw_rate: state.exchange_rate,
@@ -130,22 +130,21 @@ pub(crate) fn execute_unbond(
     )?;
 
     let burn_msg = Cw20ExecuteMsg::Burn { amount };
-    messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
+    messages.push(SubMsg::new(CosmosMsg::Wasm(WasmMsg::Execute {
         contract_addr: token_address.to_string(),
         msg: to_binary(&burn_msg)?,
-        send: vec![],
-    }));
+        funds: vec![],
+    })));
 
     let res = Response {
         messages,
-        submessages: vec![],
         attributes: vec![
             attr("action", "burn"),
             attr("from", sender),
             attr("burnt_amount", amount),
             attr("unbonded_amount", amount_with_fee),
         ],
-        data: None,
+        ..Response::default()
     };
     Ok(res)
 }
@@ -163,7 +162,7 @@ pub fn execute_withdraw_unbonded(
     let unbonding_period = params.unbonding_period;
     let coin_denom = params.underlying_coin_denom;
 
-    let historical_time = timestamp_to_second(env.block.time) - unbonding_period;
+    let historical_time = env.block.time.seconds() - unbonding_period;
 
     // query hub balance for process withdraw rate.
     let hub_balance = deps
@@ -195,21 +194,20 @@ pub fn execute_withdraw_unbonded(
     })?;
 
     // Send the money to the user
-    let msgs = vec![BankMsg::Send {
+    let bank_msg: CosmosMsg = BankMsg::Send {
         to_address: sender_human.to_string(),
         amount: coins(withdraw_amount.u128(), &*coin_denom),
     }
-    .into()];
+    .into();
 
     let res = Response {
-        messages: msgs,
-        submessages: vec![],
+        messages: vec![SubMsg::new(bank_msg)],
         attributes: vec![
             attr("action", "finish_burn"),
             attr("from", contract_address),
             attr("amount", withdraw_amount),
         ],
-        data: None,
+        ..Response::default()
     };
     Ok(res)
 }
@@ -295,12 +293,12 @@ fn process_withdraw_rate(
 
             // If slashed amount is negative, there should be summation instead of subtraction.
             if slashed_amount.1 {
-                slashed_amount_of_batch = (slashed_amount_of_batch.checked_sub(Uint128(1)))?;
+                slashed_amount_of_batch = (slashed_amount_of_batch.checked_sub(Uint128::new(1)))?;
                 actual_unbonded_amount_of_batch =
                     unbonded_amount_of_batch + slashed_amount_of_batch;
             } else {
                 if slashed_amount.0.u128() != 0u128 {
-                    slashed_amount_of_batch += Uint128(1);
+                    slashed_amount_of_batch += Uint128::new(1);
                 }
                 actual_unbonded_amount_of_batch =
                     SignedInt::from_subtraction(unbonded_amount_of_batch, slashed_amount_of_batch)
@@ -331,12 +329,12 @@ fn pick_validator(
     claim: Uint128,
     delegator: String,
     block_height: u64,
-) -> StdResult<Vec<CosmosMsg>> {
+) -> StdResult<Vec<SubMsg>> {
     //read params
     let params = PARAMETERS.load(deps.storage)?;
     let coin_denom = params.underlying_coin_denom;
 
-    let mut messages: Vec<CosmosMsg> = vec![];
+    let mut messages: Vec<SubMsg> = vec![];
     let mut claimed = claim;
 
     let all_delegations = deps
@@ -350,34 +348,31 @@ fn pick_validator(
     let mut iteration_index = 0;
     let mut deletable_delegations = all_delegations;
 
-    while claimed.0 > 0 {
+    while claimed.u128() > 0 {
         let mut rng = XorShiftRng::seed_from_u64(block_height + iteration_index);
         let random_index = rng.gen_range(0, deletable_delegations.len());
         let delegation = deletable_delegations.remove(random_index);
         let val = delegation.amount.amount;
         let undelegated_amount: Uint128;
-        if val.0 > claimed.0 {
+        if val.u128() > claimed.u128() {
             undelegated_amount = claimed;
             claimed = Uint128::zero();
         } else {
             undelegated_amount = val;
             claimed = (claimed.checked_sub(val))?;
         }
-        if undelegated_amount.0 > 0 {
+        if undelegated_amount.u128() > 0 {
             let msgs: CosmosMsg = CosmosMsg::Staking(StakingMsg::Undelegate {
                 validator: delegation.validator,
-                amount: coin(undelegated_amount.0, &*coin_denom),
+                amount: coin(undelegated_amount.u128(), &*coin_denom),
             });
-            messages.push(msgs);
+            messages.push(SubMsg::new(msgs));
         }
         iteration_index += 1;
     }
     Ok(messages)
 }
 
-pub(crate) fn timestamp_to_second(time: Timestamp) -> u64 {
-    time.nanos() / 1_000_000_000
-}
 pub(crate) fn nano_to_second(time: u64) -> u64 {
     time / 1_000_000_000
 }

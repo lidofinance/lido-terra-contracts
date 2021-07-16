@@ -18,7 +18,9 @@
 //! 4. Anywhere you see query(deps.as_ref(), mock_env(),...) you must replace it with query(&mut deps, ...)
 
 use cosmwasm_std::testing::{mock_env, mock_info};
-use cosmwasm_std::{from_binary, Api, BankMsg, Coin, CosmosMsg, Decimal, StdError, Uint128};
+use cosmwasm_std::{
+    from_binary, Api, BankMsg, Coin, CosmosMsg, Decimal, StdError, SubMsg, Uint128,
+};
 use terra_cosmwasm::create_swap_msg;
 
 use crate::contract::{execute, instantiate, query};
@@ -68,7 +70,7 @@ fn proper_init() {
         state_response,
         StateResponse {
             global_index: Decimal::zero(),
-            total_balance: Uint128(0u128),
+            total_balance: Uint128::new(0u128),
             prev_reward_balance: Uint128::zero()
         }
     );
@@ -79,23 +81,23 @@ pub fn swap_to_reward_denom() {
     let mut deps = mock_dependencies(&[
         Coin {
             denom: "uusd".to_string(),
-            amount: Uint128(100u128),
+            amount: Uint128::new(100u128),
         },
         Coin {
             denom: "ukrw".to_string(),
-            amount: Uint128(1000u128),
+            amount: Uint128::new(1000u128),
         },
         Coin {
             denom: "usdr".to_string(),
-            amount: Uint128(50u128),
+            amount: Uint128::new(50u128),
         },
         Coin {
             denom: "mnt".to_string(),
-            amount: Uint128(50u128),
+            amount: Uint128::new(50u128),
         },
         Coin {
             denom: "uinr".to_string(),
-            amount: Uint128(50u128),
+            amount: Uint128::new(50u128),
         },
     ]);
 
@@ -111,27 +113,27 @@ pub fn swap_to_reward_denom() {
     assert_eq!(
         res.messages,
         vec![
-            create_swap_msg(
+            SubMsg::new(create_swap_msg(
                 Coin {
                     denom: "ukrw".to_string(),
-                    amount: Uint128(1000u128),
+                    amount: Uint128::new(1000u128),
                 },
                 DEFAULT_REWARD_DENOM.to_string()
-            ),
-            create_swap_msg(
+            )),
+            SubMsg::new(create_swap_msg(
                 Coin {
                     denom: "usdr".to_string(),
-                    amount: Uint128(50u128)
+                    amount: Uint128::new(50u128)
                 },
                 DEFAULT_REWARD_DENOM.to_string()
-            ),
-            create_swap_msg(
+            )),
+            SubMsg::new(create_swap_msg(
                 Coin {
                     denom: "uinr".to_string(),
-                    amount: Uint128(50u128)
+                    amount: Uint128::new(50u128)
                 },
                 DEFAULT_REWARD_DENOM.to_string()
-            ),
+            )),
         ]
     );
 }
@@ -140,7 +142,7 @@ pub fn swap_to_reward_denom() {
 fn update_global_index() {
     let mut deps = mock_dependencies(&[Coin {
         denom: "uusd".to_string(),
-        amount: Uint128(100u128),
+        amount: Uint128::new(100u128),
     }]);
 
     let init_msg = default_init();
@@ -196,7 +198,7 @@ fn update_global_index() {
 fn increase_balance() {
     let mut deps = mock_dependencies(&[Coin {
         denom: "uusd".to_string(),
-        amount: Uint128(100u128),
+        amount: Uint128::new(100u128),
     }]);
 
     let init_msg = default_init();
@@ -275,7 +277,7 @@ fn increase_balance() {
 fn increase_balance_with_decimals() {
     let mut deps = mock_dependencies(&[Coin {
         denom: "uusd".to_string(),
-        amount: Uint128(100000u128),
+        amount: Uint128::new(100000u128),
     }]);
 
     let init_msg = default_init();
@@ -340,7 +342,7 @@ fn increase_balance_with_decimals() {
     .unwrap();
     let holder_response: HolderResponse = from_binary(&res).unwrap();
     let index = decimal_multiplication_in_256(
-        Decimal::from_ratio(Uint128(100000), Uint128(11)),
+        Decimal::from_ratio(Uint128::new(100000), Uint128::new(11)),
         Decimal::one(),
     );
     let user_pend_reward = decimal_multiplication_in_256(
@@ -362,7 +364,7 @@ fn increase_balance_with_decimals() {
 fn decrease_balance() {
     let mut deps = mock_dependencies(&[Coin {
         denom: "uusd".to_string(),
-        amount: Uint128(100u128),
+        amount: Uint128::new(100u128),
     }]);
 
     let init_msg = default_init();
@@ -439,7 +441,7 @@ fn decrease_balance() {
 fn claim_rewards() {
     let mut deps = mock_dependencies(&[Coin {
         denom: "uusd".to_string(),
-        amount: Uint128(100u128),
+        amount: Uint128::new(100u128),
     }]);
 
     let init_msg = default_init();
@@ -485,13 +487,13 @@ fn claim_rewards() {
     let res = execute(deps.as_mut(), mock_env(), info, msg).unwrap();
     assert_eq!(
         res.messages,
-        vec![CosmosMsg::Bank(BankMsg::Send {
+        vec![SubMsg::new(CosmosMsg::Bank(BankMsg::Send {
             to_address: String::from("addr0000"),
             amount: vec![Coin {
                 denom: "uusd".to_string(),
                 amount: Uint128::from(99u128), // 1% tax
             },]
-        })]
+        }))]
     );
 
     // Set recipient
@@ -508,13 +510,13 @@ fn claim_rewards() {
     let res = execute(deps.as_mut(), mock_env(), info, msg).unwrap();
     assert_eq!(
         res.messages,
-        vec![CosmosMsg::Bank(BankMsg::Send {
+        vec![SubMsg::new(CosmosMsg::Bank(BankMsg::Send {
             to_address: String::from("addr0001"),
             amount: vec![Coin {
                 denom: "uusd".to_string(),
                 amount: Uint128::from(99u128), // 1% tax
             },]
-        })]
+        }))]
     );
 }
 
@@ -522,7 +524,7 @@ fn claim_rewards() {
 fn claim_rewards_with_decimals() {
     let mut deps = mock_dependencies(&[Coin {
         denom: "uusd".to_string(),
-        amount: Uint128(99999u128),
+        amount: Uint128::new(99999u128),
     }]);
 
     let init_msg = default_init();
@@ -569,13 +571,13 @@ fn claim_rewards_with_decimals() {
     let res = execute(deps.as_mut(), mock_env(), info, msg).unwrap();
     assert_eq!(
         res.messages,
-        vec![CosmosMsg::Bank(BankMsg::Send {
+        vec![SubMsg::new(CosmosMsg::Bank(BankMsg::Send {
             to_address: String::from("addr0000"),
             amount: vec![Coin {
                 denom: "uusd".to_string(),
                 amount: Uint128::from(99007u128), // 1% tax
             },]
-        })]
+        }))]
     );
 
     let res = query(
@@ -588,7 +590,7 @@ fn claim_rewards_with_decimals() {
     .unwrap();
     let holder_response: HolderResponse = from_binary(&res).unwrap();
     let index = decimal_multiplication_in_256(
-        Decimal::from_ratio(Uint128(99999), Uint128(11)),
+        Decimal::from_ratio(Uint128::new(99999), Uint128::new(11)),
         Decimal::one(),
     );
     assert_eq!(
@@ -607,8 +609,8 @@ fn claim_rewards_with_decimals() {
         state_response,
         StateResponse {
             global_index: index,
-            total_balance: Uint128(11u128),
-            prev_reward_balance: Uint128(1)
+            total_balance: Uint128::new(11u128),
+            prev_reward_balance: Uint128::new(1)
         }
     );
 }
@@ -617,7 +619,7 @@ fn claim_rewards_with_decimals() {
 fn query_holders() {
     let mut deps = mock_dependencies(&[Coin {
         denom: "uusd".to_string(),
-        amount: Uint128(100u128),
+        amount: Uint128::new(100u128),
     }]);
 
     let init_msg = default_init();
@@ -764,7 +766,7 @@ fn query_holders() {
 fn proper_prev_balance() {
     let mut deps = mock_dependencies(&[Coin {
         denom: "uusd".to_string(),
-        amount: Uint128(100u128),
+        amount: Uint128::new(100u128),
     }]);
 
     let init_msg = default_init();
@@ -776,7 +778,7 @@ fn proper_prev_balance() {
     let amount2 = Uint128::from(14487875351811111u128);
     let amount3 = Uint128::from(1100000000000000u128);
 
-    let rewards = Uint128(677101666827000000u128);
+    let rewards = Uint128::new(677101666827000000u128);
 
     let all_balance = amount1 + amount2 + amount3;
 
@@ -855,7 +857,7 @@ fn proper_prev_balance() {
         StateResponse {
             global_index,
             total_balance: all_balance,
-            prev_reward_balance: Uint128(1)
+            prev_reward_balance: Uint128::new(1)
         }
     );
 

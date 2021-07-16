@@ -9,7 +9,7 @@ use basset::airdrop::ExecuteMsg::UpdateConfig;
 use basset::hub::ExecuteMsg::ClaimAirdrop;
 use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
 use cosmwasm_std::{
-    attr, from_binary, to_binary, CosmosMsg, DepsMut, Env, MessageInfo, Response, StdError,
+    attr, from_binary, to_binary, CosmosMsg, DepsMut, Env, MessageInfo, Response, StdError, SubMsg,
     Uint128, WasmMsg,
 };
 
@@ -81,14 +81,14 @@ fn proper_mir_claim() {
 
     let msg = ExecuteMsg::FabricateMIRClaim {
         stage: 0,
-        amount: Uint128(1000),
+        amount: Uint128::new(1000),
         proof: vec![],
     };
 
     let res = execute(deps.as_mut(), mock_env(), info, msg).unwrap();
     assert_eq!(res.messages.len(), 1);
 
-    let expected = CosmosMsg::Wasm(WasmMsg::Execute {
+    let expected = SubMsg::new(CosmosMsg::Wasm(WasmMsg::Execute {
         contract_addr: "hub_contract".to_string(),
         msg: to_binary(&ClaimAirdrop {
             airdrop_token_contract: "airdrop_token_contract".to_string(),
@@ -96,7 +96,7 @@ fn proper_mir_claim() {
             airdrop_swap_contract: "swap_contract".to_string(),
             claim_msg: to_binary(&MIRAirdropHandleMsg::Claim {
                 stage: 0,
-                amount: Uint128(1000),
+                amount: Uint128::new(1000),
                 proof: vec![],
             })
             .unwrap(),
@@ -108,8 +108,8 @@ fn proper_mir_claim() {
             .unwrap(),
         })
         .unwrap(),
-        send: vec![],
-    });
+        funds: vec![],
+    }));
     assert_eq!(res.messages[0], expected);
 }
 
@@ -125,14 +125,14 @@ fn proper_anc_claim() {
 
     let msg = ExecuteMsg::FabricateANCClaim {
         stage: 0,
-        amount: Uint128(1000),
+        amount: Uint128::new(1000),
         proof: vec![],
     };
 
     let res = execute(deps.as_mut(), mock_env(), info, msg).unwrap();
     assert_eq!(res.messages.len(), 1);
 
-    let expected = CosmosMsg::Wasm(WasmMsg::Execute {
+    let expected = SubMsg::new(CosmosMsg::Wasm(WasmMsg::Execute {
         contract_addr: "hub_contract".to_string(),
         msg: to_binary(&ClaimAirdrop {
             airdrop_token_contract: "airdrop_token_contract".to_string(),
@@ -140,7 +140,7 @@ fn proper_anc_claim() {
             airdrop_swap_contract: "swap_contract".to_string(),
             claim_msg: to_binary(&ANCAirdropHandleMsg::Claim {
                 stage: 0,
-                amount: Uint128(1000),
+                amount: Uint128::new(1000),
                 proof: vec![],
             })
             .unwrap(),
@@ -152,8 +152,8 @@ fn proper_anc_claim() {
             .unwrap(),
         })
         .unwrap(),
-        send: vec![],
-    });
+        funds: vec![],
+    }));
     assert_eq!(res.messages[0], expected);
 }
 

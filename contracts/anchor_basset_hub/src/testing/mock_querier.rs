@@ -196,17 +196,17 @@ impl WasmMockQuerier {
                     let mut coins: Vec<Coin> = vec![];
                     let luna = Coin {
                         denom: "uluna".to_string(),
-                        amount: Uint128(1000u128),
+                        amount: Uint128::new(1000u128),
                     };
                     coins.push(luna);
                     let krt = Coin {
                         denom: "ukrt".to_string(),
-                        amount: Uint128(1000u128),
+                        amount: Uint128::new(1000u128),
                     };
                     coins.push(krt);
                     let usd = Coin {
                         denom: "uusd".to_string(),
-                        amount: Uint128(1000u128),
+                        amount: Uint128::new(1000u128),
                     };
                     coins.push(usd);
                     let all_balances = AllBalanceResponse { amount: coins };
@@ -234,7 +234,7 @@ impl WasmMockQuerier {
                 } else if address == &"reward".to_string() && denom == "uusd" {
                     let bank_res = BalanceResponse {
                         amount: Coin {
-                            amount: Uint128(2000u128),
+                            amount: Uint128::new(2000u128),
                             denom: denom.to_string(),
                         },
                     };
