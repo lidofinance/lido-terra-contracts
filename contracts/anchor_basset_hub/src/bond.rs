@@ -142,6 +142,9 @@ pub fn handle_bond_stluna<S: Storage, A: Api, Q: Querier>(
         ));
     }
 
+    let current_batch = read_current_batch(&deps.storage).load()?;
+    let requested = current_batch.requested_stluna;
+
     let payment = env
         .message
         .sent_funds
@@ -168,7 +171,7 @@ pub fn handle_bond_stluna<S: Storage, A: Api, Q: Querier>(
     // exchange rate should be updated for future
     store_state(&mut deps.storage).update(|mut prev_state| {
         prev_state.total_bond_stluna_amount += payment.amount;
-        prev_state.update_stluna_exchange_rate(total_supply);
+        prev_state.update_stluna_exchange_rate(total_supply, requested);
         Ok(prev_state)
     })?;
 
@@ -253,6 +256,9 @@ pub fn handle_bond_rewards<S: Storage, A: Api, Q: Querier>(
         ));
     }
 
+    let current_batch = read_current_batch(&deps.storage).load()?;
+    let requested = current_batch.requested_stluna;
+
     let payment = env
         .message
         .sent_funds
@@ -269,7 +275,7 @@ pub fn handle_bond_rewards<S: Storage, A: Api, Q: Querier>(
 
     store_state(&mut deps.storage).update(|mut prev_state| {
         prev_state.total_bond_stluna_amount += payment.amount;
-        prev_state.update_stluna_exchange_rate(total_supply);
+        prev_state.update_stluna_exchange_rate(total_supply, requested);
         Ok(prev_state)
     })?;
 

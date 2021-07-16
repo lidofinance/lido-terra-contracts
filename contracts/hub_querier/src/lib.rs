@@ -41,12 +41,13 @@ impl State {
         }
     }
 
-    pub fn update_stluna_exchange_rate(&mut self, total_issued: Uint128) {
-        if self.total_bond_stluna_amount.is_zero() || total_issued.is_zero() {
+    pub fn update_stluna_exchange_rate(&mut self, total_issued: Uint128, requested: Uint128) {
+        let actual_supply = total_issued + requested;
+        if self.total_bond_stluna_amount.is_zero() || actual_supply.is_zero() {
             self.stluna_exchange_rate = Decimal::one()
         } else {
             self.stluna_exchange_rate =
-                Decimal::from_ratio(self.total_bond_stluna_amount, total_issued);
+                Decimal::from_ratio(self.total_bond_stluna_amount, actual_supply);
         }
     }
 }
