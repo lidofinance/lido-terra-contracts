@@ -1,4 +1,4 @@
-use crate::contract::{query_total_bluna_issued, slashing};
+use crate::contract::{query_total_bluna_issued, query_total_stluna_issued, slashing};
 use crate::state::{
     get_finished_amount, get_unbond_batches, read_config, read_current_batch, read_parameters,
     read_state, read_unbond_history, remove_unbond_wait_list, store_current_batch, store_state,
@@ -383,6 +383,13 @@ pub(crate) fn handle_unbond_stluna<S: Storage, A: Api, Q: Querier>(
 
     store_unbond_wait_list(&mut deps.storage, current_batch.id, sender.clone(), amount)?;
 
+    let mut total_supply = query_total_stluna_issued(&deps)?;
+
+    total_supply =
+        (total_supply - amount).expect("the requested can not be more than the total supply");
+
+    state.update_stluna_exchange_rate(total_supply, current_batch.requested_stluna);
+
     let current_time = env.block.time;
     let passed_time = current_time - state.last_unbonded_time;
 
@@ -419,10 +426,13 @@ pub(crate) fn handle_unbond_stluna<S: Storage, A: Api, Q: Querier>(
             withdraw_rate: state.stluna_exchange_rate,
             released: false,
         };
+
         store_unbond_history(&mut deps.storage, current_batch.id, history)?;
         // batch info must be updated to new batch
         current_batch.id += 1;
         current_batch.requested_stluna = Uint128::zero();
+
+        state.update_stluna_exchange_rate(total_supply, current_batch.requested_stluna);
 
         // state.last_unbonded_time must be updated to the current block time
         state.last_unbonded_time = env.block.time;

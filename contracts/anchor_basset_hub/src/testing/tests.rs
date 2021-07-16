@@ -1961,6 +1961,7 @@ pub fn proper_slashing_stluna() {
         },
     )]);
 
+    let expected_er = Decimal::from_ratio(Uint128(1000), Uint128(1111));
     let ex_rate = State {};
     let query_exchange_rate: StateResponse = from_binary(&query(&deps, ex_rate).unwrap()).unwrap();
     assert_eq!(query_exchange_rate.stluna_exchange_rate, expected_er);
