@@ -76,3 +76,6 @@ pub enum HandleMsg {
 pub enum Cw20HookMsg {
     Convert {},
 }
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct MigrateMsg {}
