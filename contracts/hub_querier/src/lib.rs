@@ -16,6 +16,17 @@ pub struct State {
     pub last_processed_batch: u64,
 }
 
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema, Default)]
+pub struct OldState {
+    pub exchange_rate: Decimal,
+    pub total_bond_amount: Uint128,
+    pub last_index_modification: u64,
+    pub prev_hub_balance: Uint128,
+    pub actual_unbonded_amount: Uint128,
+    pub last_unbonded_time: u64,
+    pub last_processed_batch: u64,
+}
+
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct Config {
     pub creator: CanonicalAddr,
@@ -23,6 +34,14 @@ pub struct Config {
     pub validators_registry_contract: Option<CanonicalAddr>,
     pub bluna_token_contract: Option<CanonicalAddr>,
     pub stluna_token_contract: Option<CanonicalAddr>,
+    pub airdrop_registry_contract: Option<CanonicalAddr>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct OldConfig {
+    pub creator: CanonicalAddr,
+    pub reward_contract: Option<CanonicalAddr>,
+    pub token_contract: Option<CanonicalAddr>,
     pub airdrop_registry_contract: Option<CanonicalAddr>,
 }
 
