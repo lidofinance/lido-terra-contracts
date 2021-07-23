@@ -11,10 +11,10 @@ use crate::msg::{
     StateResponse, UnbondRequestsResponse, WithdrawableUnbondedResponse,
 };
 use crate::state::{
-    all_unbond_history, edit_old_config, edit_old_state, get_unbond_requests,
-    query_get_finished_amount, read_config, read_current_batch, read_old_config, read_old_state,
-    read_parameters, read_state, read_validators, remove_whitelisted_validators_store,
-    store_config, store_current_batch, store_parameters, store_state, CurrentBatch, Parameters,
+    all_unbond_history, get_unbond_requests, query_get_finished_amount, read_config,
+    read_current_batch, read_old_config, read_old_current_batch, read_old_state, read_parameters,
+    read_state, read_validators, remove_whitelisted_validators_store, store_config,
+    store_current_batch, store_parameters, store_state, CurrentBatch, Parameters,
 };
 use crate::unbond::{handle_unbond, handle_unbond_stluna, handle_withdraw_unbonded};
 
@@ -896,7 +896,6 @@ pub fn migrate<S: Storage, A: Api, Q: Querier>(
         last_unbonded_time: old_state.last_unbonded_time,
         last_processed_batch: old_state.last_processed_batch,
     };
-    edit_old_state(&mut deps.storage).remove();
     store_state(&mut deps.storage).save(&new_state)?;
 
     //migrate config
@@ -915,8 +914,16 @@ pub fn migrate<S: Storage, A: Api, Q: Querier>(
         stluna_token_contract: Some(deps.api.canonical_address(&msg.stluna_token_contract)?),
         airdrop_registry_contract: old_config.airdrop_registry_contract,
     };
-    edit_old_config(&mut deps.storage).remove();
     store_config(&mut deps.storage).save(&new_config)?;
+
+    //migrate CurrentBatch
+    let old_current_batch = read_old_current_batch(&deps.storage).load()?;
+    let new_current_batch = CurrentBatch {
+        id: old_current_batch.id,
+        requested_bluna_with_fee: old_current_batch.requested_with_fee,
+        requested_stluna: Uint128::zero(),
+    };
+    store_current_batch(&mut deps.storage).save(&new_current_batch)?;
 
     //migrate whitelisted validators
     //we must add them to validators_registry_contract
