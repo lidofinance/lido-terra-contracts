@@ -85,7 +85,8 @@ pub fn add_validator<S: Storage, A: Api, Q: Querier>(
 ) -> StdResult<HandleResponse> {
     let config = config_read(&deps.storage).load()?;
     let owner_address = deps.api.human_address(&config.owner)?;
-    if env.message.sender != owner_address {
+    let hub_address = deps.api.human_address(&config.hub_contract)?;
+    if env.message.sender != owner_address && env.message.sender != hub_address {
         return Err(StdError::unauthorized());
     }
 

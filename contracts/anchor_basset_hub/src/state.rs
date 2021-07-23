@@ -43,6 +43,12 @@ pub struct CurrentBatch {
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct OldCurrentBatch {
+    pub id: u64,
+    pub requested_with_fee: Uint128,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct UnbondHistory {
     pub batch_id: u64,
     pub time: u64,
@@ -64,10 +70,6 @@ pub fn read_old_config<S: ReadonlyStorage>(storage: &S) -> ReadonlySingleton<S, 
     singleton_read(storage, CONFIG)
 }
 
-pub fn edit_old_config<S: Storage>(storage: &mut S) -> Singleton<S, OldConfig> {
-    singleton(storage, STATE)
-}
-
 pub fn store_parameters<S: Storage>(storage: &mut S) -> Singleton<S, Parameters> {
     singleton(storage, PARAMETERS)
 }
@@ -84,6 +86,12 @@ pub fn read_current_batch<S: ReadonlyStorage>(storage: &S) -> ReadonlySingleton<
     singleton_read(storage, CURRENT_BATCH)
 }
 
+pub fn read_old_current_batch<S: ReadonlyStorage>(
+    storage: &S,
+) -> ReadonlySingleton<S, OldCurrentBatch> {
+    singleton_read(storage, CURRENT_BATCH)
+}
+
 pub fn store_state<S: Storage>(storage: &mut S) -> Singleton<S, State> {
     singleton(storage, STATE)
 }
@@ -94,10 +102,6 @@ pub fn read_state<S: ReadonlyStorage>(storage: &S) -> ReadonlySingleton<S, State
 
 pub fn read_old_state<S: ReadonlyStorage>(storage: &S) -> ReadonlySingleton<S, OldState> {
     singleton_read(storage, STATE)
-}
-
-pub fn edit_old_state<S: Storage>(storage: &mut S) -> Singleton<S, OldState> {
-    singleton(storage, STATE)
 }
 
 /// Store undelegation wait list per each batch
