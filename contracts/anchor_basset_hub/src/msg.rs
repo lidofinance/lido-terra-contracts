@@ -87,8 +87,6 @@ pub struct AllHistoryResponse {
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct MigrateMsg {
-    pub stluna_exchange_rate: Decimal,
-    pub total_bond_stluna_amount: Uint128,
     pub reward_dispatcher_contract: HumanAddr,
     pub validators_registry_contract: HumanAddr,
     pub stluna_token_contract: HumanAddr,
