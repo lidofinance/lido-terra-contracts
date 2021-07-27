@@ -45,9 +45,14 @@ pub struct CurrentBatch {
 pub struct UnbondHistory {
     pub batch_id: u64,
     pub time: u64,
-    pub amount: Uint128,
-    pub applied_exchange_rate: Decimal,
-    pub withdraw_rate: Decimal,
+    pub bluna_amount: Uint128,
+    pub bluna_applied_exchange_rate: Decimal,
+    pub bluna_withdraw_rate: Decimal,
+
+    pub stluna_amount: Uint128,
+    pub stluna_applied_exchange_rate: Decimal,
+    pub stluna_withdraw_rate: Decimal,
+
     pub released: bool,
 }
 
@@ -83,6 +88,17 @@ pub fn read_state<S: ReadonlyStorage>(storage: &S) -> ReadonlySingleton<S, State
     singleton_read(storage, STATE)
 }
 
+#[derive(JsonSchema, Serialize, Deserialize, Default)]
+struct UnbondWaitList {
+    bluna_amount: Uint128,
+    stluna_amount: Uint128,
+}
+
+pub enum UnbondType {
+    BLuna,
+    StLuna,
+}
+
 /// Store undelegation wait list per each batch
 /// HashMap<user's address, <batch_id, requested_amount>
 pub fn store_unbond_wait_list<'a, S: Storage>(
@@ -90,13 +106,19 @@ pub fn store_unbond_wait_list<'a, S: Storage>(
     batch_id: u64,
     sender_address: HumanAddr,
     amount: Uint128,
+    unbond_type: UnbondType,
 ) -> StdResult<()> {
     let batch = to_vec(&batch_id)?;
     let addr = to_vec(&sender_address)?;
-    let mut position_indexer: Bucket<'a, S, Uint128> =
+    let mut position_indexer: Bucket<'a, S, UnbondWaitList> =
         Bucket::multilevel(&[PREFIX_WAIT_MAP, &addr], storage);
     position_indexer.update(&batch, |asked_already| {
-        Ok(asked_already.unwrap_or_default() + amount)
+        let mut wl = asked_already.unwrap_or_default();
+        match unbond_type {
+            UnbondType::BLuna => wl.bluna_amount += amount,
+            UnbondType::StLuna => wl.stluna_amount += amount,
+        }
+        Ok(wl)
     })?;
 
     Ok(())
@@ -124,10 +146,11 @@ pub fn read_unbond_wait_list<'a, S: ReadonlyStorage>(
     sender_addr: HumanAddr,
 ) -> StdResult<Uint128> {
     let vec = to_vec(&sender_addr)?;
-    let res: ReadonlyBucket<'a, S, Uint128> =
+    let res: ReadonlyBucket<'a, S, UnbondWaitList> =
         ReadonlyBucket::multilevel(&[PREFIX_WAIT_MAP, &vec], storage);
     let batch = to_vec(&batch_id)?;
-    res.load(&batch)
+    let wl = res.load(&batch)?;
+    Ok(wl.stluna_amount + wl.bluna_amount)
 }
 
 pub fn get_unbond_requests<'a, S: ReadonlyStorage>(
@@ -136,14 +159,14 @@ pub fn get_unbond_requests<'a, S: ReadonlyStorage>(
 ) -> StdResult<UnbondRequest> {
     let vec = to_vec(&sender_addr)?;
     let mut requests: UnbondRequest = vec![];
-    let res: ReadonlyBucket<'a, S, Uint128> =
+    let res: ReadonlyBucket<'a, S, UnbondWaitList> =
         ReadonlyBucket::multilevel(&[PREFIX_WAIT_MAP, &vec], storage);
     let _un: Vec<_> = res
         .range(None, None, Order::Ascending)
         .map(|item| {
             let (k, value) = item.unwrap();
             let user_batch: u64 = from_slice(&k).unwrap();
-            requests.push((user_batch, value))
+            requests.push((user_batch, value.bluna_amount + value.stluna_amount))
         })
         .collect();
     Ok(requests)
@@ -155,7 +178,7 @@ pub fn get_unbond_batches<'a, S: ReadonlyStorage>(
 ) -> StdResult<Vec<u64>> {
     let vec = to_vec(&sender_addr)?;
     let mut deprecated_batches: Vec<u64> = vec![];
-    let res: ReadonlyBucket<'a, S, Uint128> =
+    let res: ReadonlyBucket<'a, S, UnbondWaitList> =
         ReadonlyBucket::multilevel(&[PREFIX_WAIT_MAP, &vec], storage);
     let _un: Vec<_> = res
         .range(None, None, Order::Ascending)
@@ -183,7 +206,7 @@ pub fn get_finished_amount<'a, S: ReadonlyStorage>(
 ) -> StdResult<Uint128> {
     let vec = to_vec(&sender_addr)?;
     let mut withdrawable_amount: Uint128 = Uint128::zero();
-    let res: ReadonlyBucket<'a, S, Uint128> =
+    let res: ReadonlyBucket<'a, S, UnbondWaitList> =
         ReadonlyBucket::multilevel(&[PREFIX_WAIT_MAP, &vec], storage);
     let _un: Vec<_> = res
         .range(None, None, Order::Ascending)
@@ -193,7 +216,8 @@ pub fn get_finished_amount<'a, S: ReadonlyStorage>(
             let history = read_unbond_history(storage, user_batch);
             if let Ok(h) = history {
                 if h.released {
-                    withdrawable_amount += v * h.withdraw_rate;
+                    withdrawable_amount += v.stluna_amount * h.stluna_withdraw_rate
+                        + v.bluna_amount * h.bluna_withdraw_rate;
                 }
             }
         })
@@ -209,7 +233,7 @@ pub fn query_get_finished_amount<'a, S: ReadonlyStorage>(
 ) -> StdResult<Uint128> {
     let vec = to_vec(&sender_addr)?;
     let mut withdrawable_amount: Uint128 = Uint128::zero();
-    let res: ReadonlyBucket<'a, S, Uint128> =
+    let res: ReadonlyBucket<'a, S, UnbondWaitList> =
         ReadonlyBucket::multilevel(&[PREFIX_WAIT_MAP, &vec], storage);
     let _un: Vec<_> = res
         .range(None, None, Order::Ascending)
@@ -219,7 +243,8 @@ pub fn query_get_finished_amount<'a, S: ReadonlyStorage>(
             let history = read_unbond_history(storage, user_batch);
             if let Ok(h) = history {
                 if h.time < block_time {
-                    withdrawable_amount += v * h.withdraw_rate;
+                    withdrawable_amount += v.stluna_amount * h.stluna_withdraw_rate
+                        + v.bluna_amount * h.bluna_withdraw_rate;
                 }
             }
         })

@@ -1207,8 +1207,8 @@ pub fn proper_unbond() {
         limit: None,
     };
     let res: AllHistoryResponse = from_binary(&query(&deps, all_batches).unwrap()).unwrap();
-    assert_eq!(res.history[0].amount, Uint128(8));
-    assert_eq!(res.history[0].applied_exchange_rate, Decimal::one());
+    assert_eq!(res.history[0].bluna_amount, Uint128(8));
+    assert_eq!(res.history[0].bluna_applied_exchange_rate, Decimal::one());
     assert_eq!(res.history[0].released, false);
     assert_eq!(res.history[0].batch_id, 1);
 }
@@ -1493,8 +1493,8 @@ pub fn proper_unbond_stluna() {
         limit: None,
     };
     let res: AllHistoryResponse = from_binary(&query(&deps, all_batches).unwrap()).unwrap();
-    assert_eq!(res.history[0].amount, Uint128(8));
-    assert_eq!(res.history[0].applied_exchange_rate, Decimal::one());
+    assert_eq!(res.history[0].stluna_amount, Uint128(8));
+    assert_eq!(res.history[0].stluna_applied_exchange_rate, Decimal::one());
     assert_eq!(res.history[0].released, false);
     assert_eq!(res.history[0].batch_id, 1);
 }
@@ -2116,7 +2116,7 @@ pub fn proper_withdraw_unbonded() {
         limit: None,
     };
     let res: AllHistoryResponse = from_binary(&query(&deps, all_batches).unwrap()).unwrap();
-    assert_eq!(res.history[0].amount, Uint128(20));
+    assert_eq!(res.history[0].bluna_amount, Uint128(20));
     assert_eq!(res.history[0].batch_id, 1);
 
     //check with query
@@ -2323,7 +2323,7 @@ pub fn proper_withdraw_unbonded_stluna() {
         limit: None,
     };
     let res: AllHistoryResponse = from_binary(&query(&deps, all_batches).unwrap()).unwrap();
-    assert_eq!(res.history[0].amount, Uint128(20));
+    assert_eq!(res.history[0].stluna_amount, Uint128(20));
     assert_eq!(res.history[0].batch_id, 1);
 
     //check with query
@@ -2798,8 +2798,8 @@ pub fn proper_withdraw_unbonded_respect_inactivity_slashing() {
         limit: None,
     };
     let res: AllHistoryResponse = from_binary(&query(&deps, all_batches).unwrap()).unwrap();
-    assert_eq!(res.history[0].amount, Uint128(1000));
-    assert_eq!(res.history[0].withdraw_rate.to_string(), "1");
+    assert_eq!(res.history[0].bluna_amount, Uint128(1000));
+    assert_eq!(res.history[0].bluna_withdraw_rate.to_string(), "1");
     assert_eq!(res.history[0].released, false);
     assert_eq!(res.history[0].batch_id, 1);
 
@@ -2877,9 +2877,9 @@ pub fn proper_withdraw_unbonded_respect_inactivity_slashing() {
         limit: None,
     };
     let res: AllHistoryResponse = from_binary(&query(&deps, all_batches).unwrap()).unwrap();
-    assert_eq!(res.history[0].amount, Uint128(1000));
-    assert_eq!(res.history[0].applied_exchange_rate.to_string(), "1");
-    assert_eq!(res.history[0].withdraw_rate.to_string(), "0.899");
+    assert_eq!(res.history[0].bluna_amount, Uint128(1000));
+    assert_eq!(res.history[0].bluna_applied_exchange_rate.to_string(), "1");
+    assert_eq!(res.history[0].bluna_withdraw_rate.to_string(), "0.899");
     assert_eq!(res.history[0].released, true);
     assert_eq!(res.history[0].batch_id, 1);
 }
@@ -2987,8 +2987,8 @@ pub fn proper_withdraw_unbonded_respect_inactivity_slashing_stluna() {
         limit: None,
     };
     let res: AllHistoryResponse = from_binary(&query(&deps, all_batches).unwrap()).unwrap();
-    assert_eq!(res.history[0].amount, Uint128(1000));
-    assert_eq!(res.history[0].withdraw_rate.to_string(), "1");
+    assert_eq!(res.history[0].stluna_amount, Uint128(1000));
+    assert_eq!(res.history[0].stluna_withdraw_rate.to_string(), "1");
     assert_eq!(res.history[0].released, false);
     assert_eq!(res.history[0].batch_id, 1);
 
@@ -3066,9 +3066,9 @@ pub fn proper_withdraw_unbonded_respect_inactivity_slashing_stluna() {
         limit: None,
     };
     let res: AllHistoryResponse = from_binary(&query(&deps, all_batches).unwrap()).unwrap();
-    assert_eq!(res.history[0].amount, Uint128(1000));
-    assert_eq!(res.history[0].applied_exchange_rate.to_string(), "1");
-    assert_eq!(res.history[0].withdraw_rate.to_string(), "0.899");
+    assert_eq!(res.history[0].stluna_amount, Uint128(1000));
+    assert_eq!(res.history[0].stluna_applied_exchange_rate.to_string(), "1");
+    assert_eq!(res.history[0].stluna_withdraw_rate.to_string(), "0.899");
     assert_eq!(res.history[0].released, true);
     assert_eq!(res.history[0].batch_id, 1);
 }
@@ -3183,17 +3183,17 @@ pub fn proper_withdraw_unbond_with_dummies() {
         limit: None,
     };
     let res: AllHistoryResponse = from_binary(&query(&deps, all_batches).unwrap()).unwrap();
-    assert_eq!(res.history[0].amount, Uint128(1000));
-    assert_eq!(res.history[0].withdraw_rate.to_string(), "1.164");
+    assert_eq!(res.history[0].bluna_amount, Uint128(1000));
+    assert_eq!(res.history[0].bluna_withdraw_rate.to_string(), "1.164");
     assert_eq!(res.history[0].released, true);
     assert_eq!(res.history[0].batch_id, 1);
-    assert_eq!(res.history[1].amount, Uint128(1000));
-    assert_eq!(res.history[1].withdraw_rate.to_string(), "1.033");
+    assert_eq!(res.history[1].bluna_amount, Uint128(1000));
+    assert_eq!(res.history[1].bluna_withdraw_rate.to_string(), "1.033");
     assert_eq!(res.history[1].released, true);
     assert_eq!(res.history[1].batch_id, 2);
 
-    let expected = (res.history[0].withdraw_rate * res.history[0].amount)
-        + res.history[1].withdraw_rate * res.history[1].amount;
+    let expected = (res.history[0].bluna_withdraw_rate * res.history[0].bluna_amount)
+        + res.history[1].bluna_withdraw_rate * res.history[1].bluna_amount;
     let sent_message = &success_res.messages[0];
     match sent_message {
         CosmosMsg::Bank(BankMsg::Send {
@@ -3329,17 +3329,17 @@ pub fn proper_withdraw_unbond_with_dummies_stluna() {
         limit: None,
     };
     let res: AllHistoryResponse = from_binary(&query(&deps, all_batches).unwrap()).unwrap();
-    assert_eq!(res.history[0].amount, Uint128(1000));
-    assert_eq!(res.history[0].withdraw_rate.to_string(), "1.164");
+    assert_eq!(res.history[0].stluna_amount, Uint128(1000));
+    assert_eq!(res.history[0].stluna_withdraw_rate.to_string(), "1.164");
     assert_eq!(res.history[0].released, true);
     assert_eq!(res.history[0].batch_id, 1);
-    assert_eq!(res.history[1].amount, Uint128(1000));
-    assert_eq!(res.history[1].withdraw_rate.to_string(), "1.033");
+    assert_eq!(res.history[1].stluna_amount, Uint128(1000));
+    assert_eq!(res.history[1].stluna_withdraw_rate.to_string(), "1.033");
     assert_eq!(res.history[1].released, true);
     assert_eq!(res.history[1].batch_id, 2);
 
-    let expected = (res.history[0].withdraw_rate * res.history[0].amount)
-        + res.history[1].withdraw_rate * res.history[1].amount;
+    let expected = (res.history[0].stluna_withdraw_rate * res.history[0].stluna_amount)
+        + res.history[1].stluna_withdraw_rate * res.history[1].stluna_amount;
     let sent_message = &success_res.messages[0];
     match sent_message {
         CosmosMsg::Bank(BankMsg::Send {
@@ -3631,10 +3631,13 @@ pub fn proper_recovery_fee() {
     };
     let res: AllHistoryResponse = from_binary(&query(&deps, all_batches).unwrap()).unwrap();
     // amount should be 99 + 99 since we store the requested amount with peg fee applied.
-    assert_eq!(res.history[0].amount, bonded_with_fee + bonded_with_fee);
-    assert_eq!(res.history[0].applied_exchange_rate, new_exchange);
     assert_eq!(
-        res.history[0].withdraw_rate,
+        res.history[0].bluna_amount,
+        bonded_with_fee + bonded_with_fee
+    );
+    assert_eq!(res.history[0].bluna_applied_exchange_rate, new_exchange);
+    assert_eq!(
+        res.history[0].bluna_withdraw_rate,
         Decimal::from_ratio(Uint128(161869), bonded_with_fee + bonded_with_fee)
     );
     assert_eq!(res.history[0].released, true);
