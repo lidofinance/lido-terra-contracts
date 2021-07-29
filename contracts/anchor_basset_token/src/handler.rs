@@ -4,15 +4,15 @@ use cosmwasm_std::{
 
 use crate::querier::query_reward_contract;
 use basset::reward::ExecuteMsg::{DecreaseBalance, IncreaseBalance};
-use cw20_base::allowances::{
+use cw20_legacy::allowances::{
     execute_burn_from as cw20_burn_from, execute_send_from as cw20_send_from,
     execute_transfer_from as cw20_transfer_from,
 };
-use cw20_base::contract::{
+use cw20_legacy::contract::{
     execute_burn as cw20_burn, execute_mint as cw20_mint, execute_send as cw20_send,
     execute_transfer as cw20_transfer,
 };
-use cw20_base::ContractError;
+use cw20_legacy::ContractError;
 
 pub fn execute_transfer(
     deps: DepsMut,

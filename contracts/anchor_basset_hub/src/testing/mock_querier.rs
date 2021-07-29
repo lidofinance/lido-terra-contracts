@@ -6,7 +6,7 @@ use cosmwasm_std::{
     SystemError, SystemResult, Uint128, Validator, WasmQuery,
 };
 use cosmwasm_storage::to_length_prefixed;
-use cw20_base::state::{MinterData, TokenInfo};
+use cw20_legacy::state::{MinterData, TokenInfo};
 use std::collections::HashMap;
 
 use terra_cosmwasm::{TaxCapResponse, TaxRateResponse, TerraQuery, TerraQueryWrapper, TerraRoute};
@@ -103,7 +103,7 @@ impl WasmMockQuerier {
             }
             QueryRequest::Wasm(WasmQuery::Raw { contract_addr, key }) => {
                 let prefix_config = to_length_prefixed(b"config").to_vec();
-                let prefix_token_inf = to_length_prefixed(b"token_info").to_vec();
+                let prefix_token_inf = "\u{0}\ntoken_info".as_bytes();
                 let prefix_balance = to_length_prefixed(b"balance").to_vec();
                 let api: MockApi = MockApi::default();
 
@@ -143,13 +143,11 @@ impl WasmMockQuerier {
                         decimals: 6,
                         total_supply,
                         mint: Some(MinterData {
-                            minter: api.addr_validate(&"hub").unwrap(),
+                            minter: api.addr_canonicalize(&"hub").unwrap(),
                             cap: None,
                         }),
                     };
-                    SystemResult::Ok(ContractResult::from(to_binary(
-                        &to_binary(&token_inf).unwrap(),
-                    )))
+                    SystemResult::Ok(ContractResult::from(to_binary(&token_inf)))
                 } else if key.as_slice()[..prefix_balance.len()].to_vec() == prefix_balance {
                     let key_address: &[u8] = &key.as_slice()[prefix_balance.len()..];
                     let address_raw: CanonicalAddr = CanonicalAddr::from(key_address);

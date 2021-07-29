@@ -62,7 +62,7 @@ pub fn execute_update_config(
 ) -> StdResult<Response> {
     // only owner must be able to send this message.
     let conf = CONFIG.load(deps.storage)?;
-    let sender_raw = deps.api.addr_canonicalize(&info.sender.as_str())?;
+    let sender_raw = deps.api.addr_canonicalize(info.sender.as_str())?;
     if sender_raw != conf.creator {
         return Err(StdError::generic_err("unauthorized"));
     }
@@ -129,7 +129,7 @@ pub fn execute_register_validator(
     let validator_addr = deps.api.addr_validate(validator.as_str())?;
 
     let sender_raw = deps.api.addr_canonicalize(info.sender.as_str())?;
-    let contract_raw = deps.api.addr_canonicalize(&env.contract.address.as_str())?;
+    let contract_raw = deps.api.addr_canonicalize(env.contract.address.as_str())?;
     if hub_conf.creator != sender_raw && contract_raw != sender_raw {
         return Err(StdError::generic_err("unauthorized"));
     }
