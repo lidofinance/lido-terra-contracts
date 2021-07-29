@@ -6,8 +6,8 @@ use cosmwasm_std::{
 
 use basset::reward::ExecuteMsg::{DecreaseBalance, IncreaseBalance};
 use cw20::{Cw20ReceiveMsg, MinterResponse, TokenInfoResponse};
-use cw20_base::contract::{query_minter, query_token_info};
-use cw20_base::msg::ExecuteMsg;
+use cw20_legacy::contract::{query_minter, query_token_info};
+use cw20_legacy::msg::ExecuteMsg;
 
 use crate::contract::{execute, instantiate};
 use crate::msg::TokenInitMsg;

@@ -38,7 +38,7 @@ use basset::hub::{
 use basset::hub::Cw20HookMsg::Unbond;
 use basset::hub::ExecuteMsg::{CheckSlashing, Receive, UpdateConfig, UpdateParams};
 use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg};
-use cw20_base::msg::ExecuteMsg::{Burn, Mint};
+use cw20_legacy::msg::ExecuteMsg::{Burn, Mint};
 
 use super::mock_querier::{mock_dependencies as dependencies, WasmMockQuerier};
 use crate::math::decimal_division;

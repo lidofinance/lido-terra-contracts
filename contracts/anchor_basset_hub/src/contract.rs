@@ -27,7 +27,7 @@ use basset::hub::{
 use basset::reward::ExecuteMsg::{SwapToRewardDenom, UpdateGlobalIndex};
 use cosmwasm_storage::to_length_prefixed;
 use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg};
-use cw20_base::state::TokenInfo;
+use cw20_legacy::state::TokenInfo;
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
@@ -37,7 +37,7 @@ pub fn instantiate(
     msg: InstantiateMsg,
 ) -> StdResult<Response> {
     let sender = info.sender.clone();
-    let _sndr_raw = deps.api.addr_canonicalize(&sender.as_str())?;
+    let _sndr_raw = deps.api.addr_canonicalize(sender.as_str())?;
 
     let payment = info
         .funds
@@ -562,11 +562,10 @@ pub(crate) fn query_total_issued(deps: Deps) -> StdResult<Uint128> {
                 .expect("token contract must have been registered"),
         )?
         .to_string();
-    let res = deps.querier.query(&QueryRequest::Wasm(WasmQuery::Raw {
+    let token_info: TokenInfo = deps.querier.query(&QueryRequest::Wasm(WasmQuery::Raw {
         contract_addr: token_address,
-        key: Binary::from(to_length_prefixed(b"token_info")),
+        key: Binary::from("\u{0}\ntoken_info".as_bytes()),
     }))?;
-    let token_info: TokenInfo = from_binary(&res)?;
     Ok(token_info.total_supply)
 }
 

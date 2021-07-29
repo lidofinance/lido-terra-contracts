@@ -1,15 +1,15 @@
 use cosmwasm_std::{Binary, Deps, DepsMut, Env, MessageInfo, Response, StdResult};
 
-use cw20_base::allowances::{execute_decrease_allowance, execute_increase_allowance};
-use cw20_base::contract::instantiate as cw20_init;
-use cw20_base::contract::query as cw20_query;
-use cw20_base::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
+use cw20_legacy::allowances::{execute_decrease_allowance, execute_increase_allowance};
+use cw20_legacy::contract::instantiate as cw20_init;
+use cw20_legacy::contract::query as cw20_query;
+use cw20_legacy::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
 
 use crate::handler::*;
 use crate::msg::TokenInitMsg;
 use crate::state::store_hub_contract;
 use cw20::MinterResponse;
-use cw20_base::ContractError;
+use cw20_legacy::ContractError;
 
 pub fn instantiate(
     deps: DepsMut,
