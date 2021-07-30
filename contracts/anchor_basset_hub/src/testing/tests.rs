@@ -2232,7 +2232,7 @@ pub fn proper_withdraw_unbonded_stluna() {
     let res = handle(&mut deps, env.clone(), bond_msg).unwrap();
     assert_eq!(1, res.messages.len());
 
-    set_delegation(&mut deps.querier, validator.clone(), 200, "uluna");
+    set_delegation(&mut deps.querier, validator, 200, "uluna");
 
     let res = handle_unbond_stluna(&mut deps, env, Uint128(10), bob.clone()).unwrap();
     assert_eq!(1, res.messages.len());
@@ -2424,7 +2424,7 @@ pub fn proper_withdraw_unbonded_both_tokens() {
 
     set_delegation(&mut deps.querier, validator.clone(), 100, "uluna");
 
-    let res = handle(&mut deps, env.clone(), bond_for_stluna_msg).unwrap();
+    let res = handle(&mut deps, env, bond_for_stluna_msg).unwrap();
     assert_eq!(2, res.messages.len());
 
     let delegate = &res.messages[0];
@@ -2445,9 +2445,9 @@ pub fn proper_withdraw_unbonded_both_tokens() {
     let res = handle(&mut deps, env.clone(), bond_msg).unwrap();
     assert_eq!(1, res.messages.len());
 
-    set_delegation(&mut deps.querier, validator.clone(), 300, "uluna");
+    set_delegation(&mut deps.querier, validator, 300, "uluna");
 
-    let res = handle_unbond(&mut deps, env.clone(), Uint128(100), bob.clone()).unwrap();
+    let res = handle_unbond(&mut deps, env, Uint128(100), bob.clone()).unwrap();
     assert_eq!(1, res.messages.len());
 
     let mut env = mock_env(&bob, &[]);
