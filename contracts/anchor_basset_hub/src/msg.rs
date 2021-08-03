@@ -3,7 +3,7 @@ use cosmwasm_std::{Decimal, HumanAddr, Uint128};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-pub type UnbondRequest = Vec<(u64, Uint128)>;
+pub type UnbondRequest = Vec<(u64, Uint128, Uint128)>;
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct InitMsg {

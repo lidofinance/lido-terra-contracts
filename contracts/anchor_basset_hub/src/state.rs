@@ -110,9 +110,9 @@ pub fn read_old_state<S: ReadonlyStorage>(storage: &S) -> ReadonlySingleton<S, O
 }
 
 #[derive(JsonSchema, Serialize, Deserialize, Default)]
-struct UnbondWaitEntity {
-    bluna_amount: Uint128,
-    stluna_amount: Uint128,
+pub struct UnbondWaitEntity {
+    pub bluna_amount: Uint128,
+    pub stluna_amount: Uint128,
 }
 
 pub enum UnbondType {
@@ -165,13 +165,13 @@ pub fn read_unbond_wait_list<'a, S: ReadonlyStorage>(
     storage: &'a S,
     batch_id: u64,
     sender_addr: HumanAddr,
-) -> StdResult<Uint128> {
+) -> StdResult<UnbondWaitEntity> {
     let vec = to_vec(&sender_addr)?;
     let res: ReadonlyBucket<'a, S, UnbondWaitEntity> =
         ReadonlyBucket::multilevel(&[PREFIX_WAIT_MAP, &vec], storage);
     let batch = to_vec(&batch_id)?;
     let wl = res.load(&batch)?;
-    Ok(wl.stluna_amount + wl.bluna_amount)
+    Ok(wl)
 }
 
 pub fn get_unbond_requests<'a, S: ReadonlyStorage>(
@@ -187,7 +187,7 @@ pub fn get_unbond_requests<'a, S: ReadonlyStorage>(
         .map(|item| {
             let (k, value) = item.unwrap();
             let user_batch: u64 = from_slice(&k).unwrap();
-            requests.push((user_batch, value.bluna_amount + value.stluna_amount))
+            requests.push((user_batch, value.bluna_amount, value.stluna_amount))
         })
         .collect();
     Ok(requests)
@@ -358,14 +358,16 @@ pub fn remove_whitelisted_validators_store<S: Storage>(storage: &mut S) -> StdRe
     Ok(())
 }
 
+type OldUnbondWaitList = (Vec<u8>, Uint128);
+
 pub fn read_old_unbond_wait_lists<'a, S: Storage>(
     storage: &'a mut S,
-) -> StdResult<Vec<StdResult<(Vec<u8>, Uint128)>>> {
+) -> StdResult<Vec<StdResult<OldUnbondWaitList>>> {
     let reader: ReadonlyBucket<'a, S, Uint128> =
         ReadonlyBucket::multilevel(&[PREFIX_WAIT_MAP], storage);
     Ok(reader
         .range(None, None, Order::Ascending)
-        .collect::<Vec<StdResult<(Vec<u8>, Uint128)>>>())
+        .collect::<Vec<StdResult<OldUnbondWaitList>>>())
 }
 
 pub fn migrate_unbond_wait_lists<'a, S: Storage>(storage: &'a mut S) -> StdResult<()> {

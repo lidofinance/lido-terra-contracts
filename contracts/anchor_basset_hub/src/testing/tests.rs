@@ -1111,7 +1111,7 @@ pub fn proper_unbond() {
 
     //read the undelegated waitlist of the current epoch for the user bob
     let wait_list = read_unbond_wait_list(&deps.storage, 1, bob.clone()).unwrap();
-    assert_eq!(Uint128(1), wait_list);
+    assert_eq!(Uint128(1), wait_list.bluna_amount);
 
     //successful call
     let successful_bond = Unbond {};
@@ -1142,7 +1142,7 @@ pub fn proper_unbond() {
     }
 
     let waitlist2 = read_unbond_wait_list(&deps.storage, 1, bob.clone()).unwrap();
-    assert_eq!(Uint128(6), waitlist2);
+    assert_eq!(Uint128(6), waitlist2.bluna_amount);
 
     let current_batch = CurrentBatch {};
     let query_batch: CurrentBatchResponse =
@@ -1394,7 +1394,7 @@ pub fn proper_unbond_stluna() {
 
     //read the undelegated waitlist of the current epoch for the user bob
     let wait_list = read_unbond_wait_list(&deps.storage, 1, bob.clone()).unwrap();
-    assert_eq!(Uint128(1), wait_list);
+    assert_eq!(Uint128(1), wait_list.stluna_amount);
 
     //successful call
     let successful_bond = Unbond {};
@@ -1425,7 +1425,7 @@ pub fn proper_unbond_stluna() {
     }
 
     let waitlist2 = read_unbond_wait_list(&deps.storage, 1, bob.clone()).unwrap();
-    assert_eq!(Uint128(6), waitlist2);
+    assert_eq!(Uint128(6), waitlist2.stluna_amount);
 
     let current_batch = CurrentBatch {};
     let query_batch: CurrentBatchResponse =
@@ -1486,7 +1486,7 @@ pub fn proper_unbond_stluna() {
     let query_unbond: UnbondRequestsResponse =
         from_binary(&query(&deps, waitlist).unwrap()).unwrap();
     assert_eq!(query_unbond.requests[0].0, 1);
-    assert_eq!(query_unbond.requests[0].1, Uint128(8));
+    assert_eq!(query_unbond.requests[0].2, Uint128(8));
 
     let all_batches = AllHistory {
         start_from: None,
@@ -2307,7 +2307,7 @@ pub fn proper_withdraw_unbonded_stluna() {
     assert_eq!(res.requests.len(), 1);
     //the amount should be 10
     assert_eq!(&res.address, &bob);
-    assert_eq!(res.requests[0].1, Uint128(20));
+    assert_eq!(res.requests[0].2, Uint128(20));
     assert_eq!(res.requests[0].0, 1);
 
     let all_batches = AllHistory {
@@ -2496,7 +2496,8 @@ pub fn proper_withdraw_unbonded_both_tokens() {
     assert_eq!(res.requests.len(), 1);
     //the amount should be 10
     assert_eq!(&res.address, &bob);
-    assert_eq!(res.requests[0].1, Uint128(200));
+    assert_eq!(res.requests[0].1, Uint128(100));
+    assert_eq!(res.requests[0].2, Uint128(100));
     assert_eq!(res.requests[0].0, 1);
 
     let all_batches = AllHistory {
@@ -2837,7 +2838,7 @@ pub fn proper_withdraw_unbonded_respect_slashing_stluna() {
     assert_eq!(res.requests.len(), 1);
     //the amount should be 10
     assert_eq!(&res.address, &bob);
-    assert_eq!(res.requests[0].1, Uint128(1000));
+    assert_eq!(res.requests[0].2, Uint128(1000));
     assert_eq!(res.requests[0].0, 1);
 
     //check with query
@@ -3204,7 +3205,7 @@ pub fn proper_withdraw_unbonded_respect_inactivity_slashing_stluna() {
     assert_eq!(res.requests.len(), 1);
     //the amount should be 10
     assert_eq!(&res.address, &bob);
-    assert_eq!(res.requests[0].1, Uint128(1000));
+    assert_eq!(res.requests[0].2, Uint128(1000));
     assert_eq!(res.requests[0].0, 1);
 
     //check with query
