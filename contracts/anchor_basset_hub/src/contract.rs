@@ -550,7 +550,7 @@ fn convert_stluna_bluna<S: Storage, A: Api, Q: Querier>(
     let bluna_to_mint = decimal_division(denom_equiv, state.bluna_exchange_rate);
     let current_batch = read_current_batch(&deps.storage).load()?;
     let requested_bluna_with_fee = current_batch.requested_bluna_with_fee;
-    let requested_stluna_with_fee = current_batch.requested_stluna;
+    let requested_stluna = current_batch.requested_stluna;
 
     let total_bluna_supply = query_total_bluna_issued(&deps).unwrap_or_default();
     let total_stluna_supply = query_total_stluna_issued(&deps).unwrap_or_default();
@@ -583,7 +583,7 @@ fn convert_stluna_bluna<S: Storage, A: Api, Q: Querier>(
                     total_stluna_supply, stluna_amount,
                 ))
             })?,
-            requested_stluna_with_fee,
+            requested_stluna,
         );
         Ok(prev_state)
     })?;

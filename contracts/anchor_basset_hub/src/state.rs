@@ -89,7 +89,7 @@ pub fn read_state<S: ReadonlyStorage>(storage: &S) -> ReadonlySingleton<S, State
 }
 
 #[derive(JsonSchema, Serialize, Deserialize, Default)]
-struct UnbondWaitList {
+struct UnbondWaitEntity {
     bluna_amount: Uint128,
     stluna_amount: Uint128,
 }
@@ -110,7 +110,7 @@ pub fn store_unbond_wait_list<'a, S: Storage>(
 ) -> StdResult<()> {
     let batch = to_vec(&batch_id)?;
     let addr = to_vec(&sender_address)?;
-    let mut position_indexer: Bucket<'a, S, UnbondWaitList> =
+    let mut position_indexer: Bucket<'a, S, UnbondWaitEntity> =
         Bucket::multilevel(&[PREFIX_WAIT_MAP, &addr], storage);
     position_indexer.update(&batch, |asked_already| {
         let mut wl = asked_already.unwrap_or_default();
@@ -131,7 +131,7 @@ pub fn remove_unbond_wait_list<'a, S: Storage>(
     sender_address: HumanAddr,
 ) -> StdResult<()> {
     let addr = to_vec(&sender_address)?;
-    let mut position_indexer: Bucket<'a, S, Uint128> =
+    let mut position_indexer: Bucket<'a, S, UnbondWaitEntity> =
         Bucket::multilevel(&[PREFIX_WAIT_MAP, &addr], storage);
     for b in batch_id {
         let batch = to_vec(&b)?;
@@ -146,7 +146,7 @@ pub fn read_unbond_wait_list<'a, S: ReadonlyStorage>(
     sender_addr: HumanAddr,
 ) -> StdResult<Uint128> {
     let vec = to_vec(&sender_addr)?;
-    let res: ReadonlyBucket<'a, S, UnbondWaitList> =
+    let res: ReadonlyBucket<'a, S, UnbondWaitEntity> =
         ReadonlyBucket::multilevel(&[PREFIX_WAIT_MAP, &vec], storage);
     let batch = to_vec(&batch_id)?;
     let wl = res.load(&batch)?;
@@ -159,7 +159,7 @@ pub fn get_unbond_requests<'a, S: ReadonlyStorage>(
 ) -> StdResult<UnbondRequest> {
     let vec = to_vec(&sender_addr)?;
     let mut requests: UnbondRequest = vec![];
-    let res: ReadonlyBucket<'a, S, UnbondWaitList> =
+    let res: ReadonlyBucket<'a, S, UnbondWaitEntity> =
         ReadonlyBucket::multilevel(&[PREFIX_WAIT_MAP, &vec], storage);
     let _un: Vec<_> = res
         .range(None, None, Order::Ascending)
@@ -178,7 +178,7 @@ pub fn get_unbond_batches<'a, S: ReadonlyStorage>(
 ) -> StdResult<Vec<u64>> {
     let vec = to_vec(&sender_addr)?;
     let mut deprecated_batches: Vec<u64> = vec![];
-    let res: ReadonlyBucket<'a, S, UnbondWaitList> =
+    let res: ReadonlyBucket<'a, S, UnbondWaitEntity> =
         ReadonlyBucket::multilevel(&[PREFIX_WAIT_MAP, &vec], storage);
     let _un: Vec<_> = res
         .range(None, None, Order::Ascending)
@@ -206,7 +206,7 @@ pub fn get_finished_amount<'a, S: ReadonlyStorage>(
 ) -> StdResult<Uint128> {
     let vec = to_vec(&sender_addr)?;
     let mut withdrawable_amount: Uint128 = Uint128::zero();
-    let res: ReadonlyBucket<'a, S, UnbondWaitList> =
+    let res: ReadonlyBucket<'a, S, UnbondWaitEntity> =
         ReadonlyBucket::multilevel(&[PREFIX_WAIT_MAP, &vec], storage);
     let _un: Vec<_> = res
         .range(None, None, Order::Ascending)
@@ -233,7 +233,7 @@ pub fn query_get_finished_amount<'a, S: ReadonlyStorage>(
 ) -> StdResult<Uint128> {
     let vec = to_vec(&sender_addr)?;
     let mut withdrawable_amount: Uint128 = Uint128::zero();
-    let res: ReadonlyBucket<'a, S, UnbondWaitList> =
+    let res: ReadonlyBucket<'a, S, UnbondWaitEntity> =
         ReadonlyBucket::multilevel(&[PREFIX_WAIT_MAP, &vec], storage);
     let _un: Vec<_> = res
         .range(None, None, Order::Ascending)
