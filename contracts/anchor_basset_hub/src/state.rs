@@ -11,7 +11,7 @@ use cosmwasm_storage::{
 };
 
 use crate::msg::UnbondRequest;
-use hub_querier::{Config, State};
+use hub_querier::{Config, OldConfig, OldState, State};
 
 pub type LastBatch = u64;
 
@@ -23,6 +23,7 @@ pub static PREFIX_WAIT_MAP: &[u8] = b"wait";
 pub static CURRENT_BATCH: &[u8] = b"current_batch";
 pub static UNBOND_HISTORY_MAP: &[u8] = b"history_map";
 pub static PREFIX_AIRDROP_INFO: &[u8] = b"airedrop_info";
+pub static VALIDATORS: &[u8] = b"validators";
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct Parameters {
@@ -39,6 +40,12 @@ pub struct CurrentBatch {
     pub id: u64,
     pub requested_bluna_with_fee: Uint128,
     pub requested_stluna: Uint128,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct OldCurrentBatch {
+    pub id: u64,
+    pub requested_with_fee: Uint128,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -59,6 +66,10 @@ pub fn read_config<S: ReadonlyStorage>(storage: &S) -> ReadonlySingleton<S, Conf
     singleton_read(storage, CONFIG)
 }
 
+pub fn read_old_config<S: ReadonlyStorage>(storage: &S) -> ReadonlySingleton<S, OldConfig> {
+    singleton_read(storage, CONFIG)
+}
+
 pub fn store_parameters<S: Storage>(storage: &mut S) -> Singleton<S, Parameters> {
     singleton(storage, PARAMETERS)
 }
@@ -75,11 +86,21 @@ pub fn read_current_batch<S: ReadonlyStorage>(storage: &S) -> ReadonlySingleton<
     singleton_read(storage, CURRENT_BATCH)
 }
 
+pub fn read_old_current_batch<S: ReadonlyStorage>(
+    storage: &S,
+) -> ReadonlySingleton<S, OldCurrentBatch> {
+    singleton_read(storage, CURRENT_BATCH)
+}
+
 pub fn store_state<S: Storage>(storage: &mut S) -> Singleton<S, State> {
     singleton(storage, STATE)
 }
 
 pub fn read_state<S: ReadonlyStorage>(storage: &S) -> ReadonlySingleton<S, State> {
+    singleton_read(storage, STATE)
+}
+
+pub fn read_old_state<S: ReadonlyStorage>(storage: &S) -> ReadonlySingleton<S, OldState> {
     singleton_read(storage, STATE)
 }
 
@@ -286,4 +307,28 @@ fn convert(start_after: Option<u64>) -> Option<Vec<u8>> {
         v.push(1);
         v
     })
+}
+
+pub fn read_validators<S: Storage>(storage: &S) -> StdResult<Vec<HumanAddr>> {
+    let res = ReadonlyPrefixedStorage::new(VALIDATORS, storage);
+    let validators: Vec<HumanAddr> = res
+        .range(None, None, Order::Ascending)
+        .map(|item| {
+            let (key, _) = item;
+            let sender: HumanAddr = from_slice(&key).unwrap();
+            sender
+        })
+        .collect();
+    Ok(validators)
+}
+
+pub fn remove_whitelisted_validators_store<S: Storage>(storage: &mut S) -> StdResult<()> {
+    let mut res = PrefixedStorage::new(VALIDATORS, storage);
+    let items = res
+        .range(None, None, Order::Ascending)
+        .collect::<Vec<(Vec<u8>, Vec<u8>)>>();
+    for (key, _) in items {
+        res.remove(&key)
+    }
+    Ok(())
 }

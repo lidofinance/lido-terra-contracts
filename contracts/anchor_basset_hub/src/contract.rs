@@ -1,25 +1,28 @@
 use cosmwasm_std::{
     from_binary, log, to_binary, Api, Binary, Coin, CosmosMsg, Decimal, Env, Extern,
-    HandleResponse, HumanAddr, InitResponse, Querier, QueryRequest, StakingMsg, StdError,
-    StdResult, Storage, Uint128, WasmMsg, WasmQuery,
+    HandleResponse, HumanAddr, InitResponse, MigrateResponse, Querier, QueryRequest, StakingMsg,
+    StdError, StdResult, Storage, Uint128, WasmMsg, WasmQuery,
 };
 
 use crate::config::{handle_update_config, handle_update_params};
 use crate::math::decimal_division;
 use crate::msg::{
-    AllHistoryResponse, ConfigResponse, CurrentBatchResponse, InitMsg, QueryMsg, StateResponse,
-    UnbondRequestsResponse, WithdrawableUnbondedResponse,
+    AllHistoryResponse, ConfigResponse, CurrentBatchResponse, InitMsg, MigrateMsg, QueryMsg,
+    StateResponse, UnbondRequestsResponse, WithdrawableUnbondedResponse,
 };
 use crate::state::{
     all_unbond_history, get_unbond_requests, query_get_finished_amount, read_config,
-    read_current_batch, read_parameters, read_state, store_config, store_current_batch,
-    store_parameters, store_state, CurrentBatch, Parameters,
+    read_current_batch, read_old_config, read_old_current_batch, read_old_state, read_parameters,
+    read_state, read_validators, remove_whitelisted_validators_store, store_config,
+    store_current_batch, store_parameters, store_state, CurrentBatch, Parameters,
 };
 use crate::unbond::{handle_unbond, handle_unbond_stluna, handle_withdraw_unbonded};
 
 use crate::bond::handle_bond_stluna;
 use crate::bond::{handle_bond, handle_bond_rewards};
 use anchor_basset_rewards_dispatcher::msg::HandleMsg::{DispatchRewards, SwapToRewardDenom};
+use anchor_basset_validators_registry::msg::HandleMsg::AddValidator;
+use anchor_basset_validators_registry::registry::Validator;
 use cosmwasm_storage::to_length_prefixed;
 use cw20::{Cw20HandleMsg, Cw20ReceiveMsg};
 use cw20_base::state::TokenInfo;
@@ -873,4 +876,79 @@ fn concat(namespace: &[u8], key: &[u8]) -> Vec<u8> {
     let mut k = namespace.to_vec();
     k.extend_from_slice(key);
     k
+}
+
+pub fn migrate<S: Storage, A: Api, Q: Querier>(
+    deps: &mut Extern<S, A, Q>,
+    _env: Env,
+    msg: MigrateMsg,
+) -> StdResult<MigrateResponse> {
+    // migrate state
+    let old_state = read_old_state(&deps.storage).load()?;
+    let new_state = State {
+        bluna_exchange_rate: old_state.exchange_rate,
+        stluna_exchange_rate: Decimal::one(),
+        total_bond_bluna_amount: old_state.total_bond_amount,
+        total_bond_stluna_amount: Uint128::zero(),
+        last_index_modification: old_state.last_index_modification,
+        prev_hub_balance: old_state.prev_hub_balance,
+        actual_unbonded_amount: old_state.actual_unbonded_amount,
+        last_unbonded_time: old_state.last_unbonded_time,
+        last_processed_batch: old_state.last_processed_batch,
+    };
+    store_state(&mut deps.storage).save(&new_state)?;
+
+    //migrate config
+    let old_config = read_old_config(&deps.storage).load()?;
+    let new_config = Config {
+        creator: old_config.creator,
+        reward_dispatcher_contract: Some(
+            deps.api
+                .canonical_address(&msg.reward_dispatcher_contract)?,
+        ),
+        validators_registry_contract: Some(
+            deps.api
+                .canonical_address(&msg.validators_registry_contract)?,
+        ),
+        bluna_token_contract: old_config.token_contract,
+        stluna_token_contract: Some(deps.api.canonical_address(&msg.stluna_token_contract)?),
+        airdrop_registry_contract: old_config.airdrop_registry_contract,
+    };
+    store_config(&mut deps.storage).save(&new_config)?;
+
+    //migrate CurrentBatch
+    let old_current_batch = read_old_current_batch(&deps.storage).load()?;
+    let new_current_batch = CurrentBatch {
+        id: old_current_batch.id,
+        requested_bluna_with_fee: old_current_batch.requested_with_fee,
+        requested_stluna: Uint128::zero(),
+    };
+    store_current_batch(&mut deps.storage).save(&new_current_batch)?;
+
+    //migrate whitelisted validators
+    //we must add them to validators_registry_contract
+    let whitelisted_validators = read_validators(&deps.storage)?;
+    let messages: Vec<CosmosMsg> = whitelisted_validators
+        .iter()
+        .map(|validator_address| {
+            CosmosMsg::Wasm(WasmMsg::Execute {
+                contract_addr: msg.validators_registry_contract.clone(),
+                msg: to_binary(&AddValidator {
+                    validator: Validator {
+                        total_delegated: Default::default(),
+                        address: validator_address.clone(),
+                    },
+                })
+                .unwrap(),
+                send: vec![],
+            })
+        })
+        .collect();
+    remove_whitelisted_validators_store(&mut deps.storage)?;
+
+    Ok(MigrateResponse {
+        messages,
+        log: vec![],
+        data: None,
+    })
 }

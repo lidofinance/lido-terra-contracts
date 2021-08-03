@@ -90,3 +90,6 @@ pub struct HolderResponse {
 pub struct HoldersResponse {
     pub holders: Vec<HolderResponse>,
 }
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct MigrateMsg {}
