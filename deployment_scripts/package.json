@@ -1,0 +1,5 @@
+{
+  "dependencies": {
+    "@terra-money/terra.js": "^1.8.8"
+  }
+}

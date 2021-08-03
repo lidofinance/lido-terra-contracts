@@ -84,3 +84,10 @@ pub struct UnbondRequestsResponse {
 pub struct AllHistoryResponse {
     pub history: Vec<UnbondHistory>,
 }
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct MigrateMsg {
+    pub reward_dispatcher_contract: HumanAddr,
+    pub validators_registry_contract: HumanAddr,
+    pub stluna_token_contract: HumanAddr,
+}

@@ -1,5 +1,6 @@
 use cosmwasm_std::{
-    Api, Binary, Env, Extern, HandleResponse, InitResponse, Querier, StdResult, Storage,
+    Api, Binary, Env, Extern, HandleResponse, InitResponse, MigrateResponse, Querier, StdResult,
+    Storage,
 };
 
 use cw20_base::allowances::{handle_decrease_allowance, handle_increase_allowance};
@@ -8,8 +9,8 @@ use cw20_base::contract::query as cw20_query;
 use cw20_base::msg::{InitMsg, QueryMsg};
 
 use crate::handler::*;
-use crate::msg::HandleMsg;
 use crate::msg::TokenInitMsg;
+use crate::msg::{HandleMsg, MigrateMsg};
 use crate::state::store_hub_contract;
 use cw20::MinterResponse;
 
@@ -85,4 +86,12 @@ pub fn query<S: Storage, A: Api, Q: Querier>(
     msg: QueryMsg,
 ) -> StdResult<Binary> {
     cw20_query(deps, msg)
+}
+
+pub fn migrate<S: Storage, A: Api, Q: Querier>(
+    _deps: &mut Extern<S, A, Q>,
+    _env: Env,
+    _msg: MigrateMsg,
+) -> StdResult<MigrateResponse> {
+    Ok(MigrateResponse::default())
 }
