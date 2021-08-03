@@ -39,7 +39,7 @@ snafu = { version = "0.6.3" }
 terra-cosmwasm = { version = "1.2.2" }
 basset = { path = "../../packages/basset", default-features = false, version = "0.1.0"}
 hub_querier = { path = "../hub_querier" }
-anchor_basset_reward = {path = "../anchor_basset_reward" }
+anchor_basset_reward = {path = "../anchor_basset_reward", features = ["library"] }
 
 [dev-dependencies]
 cosmwasm-schema = { version = "0.10.1" }
