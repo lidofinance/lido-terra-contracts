@@ -357,3 +357,28 @@ pub fn remove_whitelisted_validators_store<S: Storage>(storage: &mut S) -> StdRe
     }
     Ok(())
 }
+
+pub fn read_old_unbond_wait_lists<'a, S: Storage>(
+    storage: &'a mut S,
+) -> StdResult<Vec<StdResult<(Vec<u8>, Uint128)>>> {
+    let reader: ReadonlyBucket<'a, S, Uint128> =
+        ReadonlyBucket::multilevel(&[PREFIX_WAIT_MAP], storage);
+    Ok(reader
+        .range(None, None, Order::Ascending)
+        .collect::<Vec<StdResult<(Vec<u8>, Uint128)>>>())
+}
+
+pub fn migrate_unbond_wait_lists<'a, S: Storage>(storage: &'a mut S) -> StdResult<()> {
+    let old_unbond_wait_list = read_old_unbond_wait_lists(storage)?;
+    let mut bucket: Bucket<'a, S, UnbondWaitEntity> =
+        Bucket::multilevel(&[PREFIX_WAIT_MAP], storage);
+    for res in old_unbond_wait_list {
+        let (key, amount) = res?;
+        let unbond_wait_entity = UnbondWaitEntity {
+            bluna_amount: amount,
+            stluna_amount: Uint128::zero(),
+        };
+        bucket.save(&key, &unbond_wait_entity)?;
+    }
+    Ok(())
+}
