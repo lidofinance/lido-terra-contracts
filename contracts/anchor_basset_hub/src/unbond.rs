@@ -312,12 +312,16 @@ fn process_withdraw_rate<S: Storage, A: Api, Q: Querier>(
 
             // If slashed amount is negative, there should be summation instead of subtraction.
             if bluna_slashed_amount.1 {
-                bluna_slashed_amount_of_batch = bluna_slashed_amount_of_batch - Uint256::from(1u64);
+                bluna_slashed_amount_of_batch = if bluna_slashed_amount_of_batch > Uint256::one() {
+                    bluna_slashed_amount_of_batch - Uint256::one()
+                } else {
+                    Uint256::zero()
+                };
                 bluna_actual_unbonded_amount_of_batch =
                     bluna_unbonded_amount_of_batch + bluna_slashed_amount_of_batch;
             } else {
                 if bluna_slashed_amount.0.u128() != 0u128 {
-                    bluna_slashed_amount_of_batch += Uint256::from(1u64);
+                    bluna_slashed_amount_of_batch += Uint256::one();
                 }
                 bluna_actual_unbonded_amount_of_batch = Uint256::from(
                     SignedInt::from_subtraction(
@@ -328,13 +332,17 @@ fn process_withdraw_rate<S: Storage, A: Api, Q: Querier>(
                 );
             }
             if stluna_slashed_amount.1 {
-                stluna_slashed_amount_of_batch =
-                    stluna_slashed_amount_of_batch - Uint256::from(1u64);
+                stluna_slashed_amount_of_batch = if stluna_slashed_amount_of_batch > Uint256::one()
+                {
+                    stluna_slashed_amount_of_batch - Uint256::one()
+                } else {
+                    Uint256::zero()
+                };
                 stluna_actual_unbonded_amount_of_batch =
                     stluna_unbonded_amount_of_batch + stluna_slashed_amount_of_batch;
             } else {
                 if stluna_slashed_amount.0.u128() != 0u128 {
-                    stluna_slashed_amount_of_batch += Uint256::from(1u64);
+                    stluna_slashed_amount_of_batch += Uint256::one();
                 }
                 stluna_actual_unbonded_amount_of_batch = Uint256::from(
                     SignedInt::from_subtraction(
