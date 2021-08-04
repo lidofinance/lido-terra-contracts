@@ -384,3 +384,41 @@ pub fn migrate_unbond_wait_lists<'a, S: Storage>(storage: &'a mut S) -> StdResul
     }
     Ok(())
 }
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct OldUnbondHistory {
+    pub batch_id: u64,
+    pub time: u64,
+    pub amount: Uint128,
+    pub applied_exchange_rate: Decimal,
+    pub withdraw_rate: Decimal,
+    pub released: bool,
+}
+
+pub fn migrate_unbond_history<S: Storage>(storage: &mut S) -> StdResult<()> {
+    let unbond_history: Vec<StdResult<UnbondHistory>> =
+        ReadonlyPrefixedStorage::new(UNBOND_HISTORY_MAP, storage)
+            .range(None, None, Order::Ascending)
+            .map(|item| {
+                let old_history: OldUnbondHistory = from_slice(&item.1).unwrap();
+                let new_history = UnbondHistory {
+                    batch_id: old_history.batch_id,
+                    time: old_history.time,
+                    bluna_amount: old_history.amount,
+                    bluna_applied_exchange_rate: old_history.applied_exchange_rate,
+                    bluna_withdraw_rate: old_history.withdraw_rate,
+                    stluna_amount: Uint128::zero(),
+                    stluna_applied_exchange_rate: Decimal::one(),
+                    stluna_withdraw_rate: Decimal::one(),
+                    released: old_history.released,
+                };
+                Ok(new_history)
+            })
+            .collect();
+
+    for item in unbond_history {
+        let history = item?;
+        store_unbond_history(storage, history.batch_id, history)?;
+    }
+    Ok(())
+}
