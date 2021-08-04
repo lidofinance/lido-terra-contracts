@@ -11,10 +11,11 @@ use crate::msg::{
     StateResponse, UnbondRequestsResponse, WithdrawableUnbondedResponse,
 };
 use crate::state::{
-    all_unbond_history, get_unbond_requests, migrate_unbond_wait_lists, query_get_finished_amount,
-    read_config, read_current_batch, read_old_config, read_old_current_batch, read_old_state,
-    read_parameters, read_state, read_validators, remove_whitelisted_validators_store,
-    store_config, store_current_batch, store_parameters, store_state, CurrentBatch, Parameters,
+    all_unbond_history, get_unbond_requests, migrate_unbond_history, migrate_unbond_wait_lists,
+    query_get_finished_amount, read_config, read_current_batch, read_old_config,
+    read_old_current_batch, read_old_state, read_parameters, read_state, read_validators,
+    remove_whitelisted_validators_store, store_config, store_current_batch, store_parameters,
+    store_state, CurrentBatch, Parameters,
 };
 use crate::unbond::{handle_unbond, handle_unbond_stluna, handle_withdraw_unbonded};
 
@@ -956,6 +957,9 @@ pub fn migrate<S: Storage, A: Api, Q: Querier>(
     // migrate unbond waitlist
     // update old values (Uint128) in PREFIX_WAIT_MAP storage to UnbondWaitEntity
     migrate_unbond_wait_lists(&mut deps.storage)?;
+
+    // migrate unbond history
+    migrate_unbond_history(&mut deps.storage)?;
 
     Ok(MigrateResponse {
         messages,
