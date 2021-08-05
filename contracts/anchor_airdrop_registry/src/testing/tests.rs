@@ -178,7 +178,7 @@ fn proper_add_airdrop_info() {
 
     // only owner can send this
     let owner = "invalid";
-    let invalid_info = mock_info(&owner, &[]);
+    let invalid_info = mock_info(owner, &[]);
     let res = execute(deps.as_mut(), mock_env(), invalid_info, msg.clone());
     assert_eq!(res.unwrap_err(), StdError::generic_err("unauthorized"));
 
