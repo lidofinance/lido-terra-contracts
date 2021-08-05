@@ -789,7 +789,6 @@ fn query_state<S: Storage, A: Api, Q: Querier>(deps: &Extern<S, A, Q>) -> StdRes
         total_bond_stluna_amount: state.total_bond_stluna_amount,
         last_index_modification: state.last_index_modification,
         prev_hub_balance: state.prev_hub_balance,
-        actual_unbonded_amount: state.actual_unbonded_amount,
         last_unbonded_time: state.last_unbonded_time,
         last_processed_batch: state.last_processed_batch,
     };
@@ -900,7 +899,6 @@ pub fn migrate<S: Storage, A: Api, Q: Querier>(
         total_bond_stluna_amount: Uint128::zero(),
         last_index_modification: old_state.last_index_modification,
         prev_hub_balance: old_state.prev_hub_balance,
-        actual_unbonded_amount: old_state.actual_unbonded_amount,
         last_unbonded_time: old_state.last_unbonded_time,
         last_processed_batch: old_state.last_processed_batch,
     };
