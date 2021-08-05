@@ -228,7 +228,6 @@ fn proper_initialization() {
         total_bond_stluna_amount: Uint128::zero(),
         last_index_modification: owner_env.block.time,
         prev_hub_balance: Default::default(),
-        actual_unbonded_amount: Default::default(),
         last_unbonded_time: owner_env.block.time,
         last_processed_batch: 0u64,
     };
@@ -1961,7 +1960,6 @@ pub fn proper_slashing_stluna() {
         },
     )]);
 
-    let expected_er = Decimal::from_ratio(Uint128(1000), Uint128(1111));
     let ex_rate = State {};
     let query_exchange_rate: StateResponse = from_binary(&query(&deps, ex_rate).unwrap()).unwrap();
     assert_eq!(query_exchange_rate.stluna_exchange_rate, expected_er);
@@ -2565,7 +2563,7 @@ pub fn proper_withdraw_unbonded_both_tokens() {
     let state_query: StateResponse = from_binary(&query(&deps, state).unwrap()).unwrap();
     assert_eq!(state_query.prev_hub_balance, Uint128(2));
     assert_eq!(state_query.bluna_exchange_rate, Decimal::one());
-    assert_eq!(state_query.stluna_exchange_rate, Decimal::one());
+    assert_eq!(state_query.stluna_exchange_rate.to_string(), "2");
 }
 
 /// Covers slashing during the unbonded period and its effect on the finished amount.

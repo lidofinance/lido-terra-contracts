@@ -396,24 +396,31 @@ pub struct OldUnbondHistory {
 }
 
 pub fn migrate_unbond_history<S: Storage>(storage: &mut S) -> StdResult<()> {
-    let items: Vec<(Vec<u8>, Vec<u8>)> = ReadonlyPrefixedStorage::new(UNBOND_HISTORY_MAP, storage)
-        .range(None, None, Order::Ascending)
-        .collect();
+    let unbond_history: StdResult<Vec<UnbondHistory>> =
+        ReadonlyPrefixedStorage::new(UNBOND_HISTORY_MAP, storage)
+            .range(None, None, Order::Ascending)
+            .map(|item| {
+                let old_history: OldUnbondHistory = match from_slice(&item.1) {
+                    Ok(h) => h,
+                    Err(e) => return Err(e),
+                };
+                let new_history = UnbondHistory {
+                    batch_id: old_history.batch_id,
+                    time: old_history.time,
+                    bluna_amount: old_history.amount,
+                    bluna_applied_exchange_rate: old_history.applied_exchange_rate,
+                    bluna_withdraw_rate: old_history.withdraw_rate,
+                    stluna_amount: Uint128::zero(),
+                    stluna_applied_exchange_rate: Decimal::one(),
+                    stluna_withdraw_rate: Decimal::one(),
+                    released: old_history.released,
+                };
+                Ok(new_history)
+            })
+            .collect();
 
-    for (_, value) in items {
-        let old_history: OldUnbondHistory = from_slice(&value)?;
-        let new_history = UnbondHistory {
-            batch_id: old_history.batch_id,
-            time: old_history.time,
-            bluna_amount: old_history.amount,
-            bluna_applied_exchange_rate: old_history.applied_exchange_rate,
-            bluna_withdraw_rate: old_history.withdraw_rate,
-            stluna_amount: Uint128::zero(),
-            stluna_applied_exchange_rate: Decimal::one(),
-            stluna_withdraw_rate: Decimal::one(),
-            released: old_history.released,
-        };
-        store_unbond_history(storage, new_history.batch_id, new_history)?;
+    for history in unbond_history? {
+        store_unbond_history(storage, history.batch_id, history)?;
     }
     Ok(())
 }

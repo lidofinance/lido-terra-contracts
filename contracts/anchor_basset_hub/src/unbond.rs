@@ -1,4 +1,4 @@
-use crate::contract::{query_total_bluna_issued, query_total_stluna_issued, slashing};
+use crate::contract::{query_total_bluna_issued, slashing};
 use crate::state::{
     get_finished_amount, get_unbond_batches, read_config, read_current_batch, read_parameters,
     read_state, read_unbond_history, remove_unbond_wait_list, store_current_batch, store_state,
@@ -36,7 +36,7 @@ pub(crate) fn handle_unbond<S: Storage, A: Api, Q: Querier>(
 
     let mut state = read_state(&deps.storage).load()?;
 
-    let mut total_supply = query_total_bluna_issued(&deps).unwrap_or_default();
+    let mut total_supply = query_total_bluna_issued(&deps)?;
 
     // Collect all the requests within a epoch period
     // Apply peg recovery fee
@@ -73,14 +73,7 @@ pub(crate) fn handle_unbond<S: Storage, A: Api, Q: Querier>(
 
     // If the epoch period is passed, the undelegate message would be sent.
     if passed_time > epoch_period {
-        let stluna_total_supply = query_total_stluna_issued(&deps)?;
-        let mut undelegate_msgs = process_undelegations(
-            deps,
-            env,
-            &mut current_batch,
-            &mut state,
-            stluna_total_supply,
-        )?;
+        let mut undelegate_msgs = process_undelegations(deps, env, &mut current_batch, &mut state)?;
         messages.append(&mut undelegate_msgs);
     }
 
@@ -141,7 +134,7 @@ pub fn handle_withdraw_unbonded<S: Storage, A: Api, Q: Querier>(
     // calculate withdraw rate for user requests
     process_withdraw_rate(deps, historical_time, hub_balance)?;
 
-    let withdraw_amount = get_finished_amount(&deps.storage, sender_human.clone()).unwrap();
+    let withdraw_amount = get_finished_amount(&deps.storage, sender_human.clone())?;
 
     if withdraw_amount.is_zero() {
         return Err(StdError::generic_err(format!(
@@ -181,23 +174,13 @@ pub fn handle_withdraw_unbonded<S: Storage, A: Api, Q: Querier>(
     Ok(res)
 }
 
-/// This is designed for an accurate unbonded amount calculation.
-/// Execute while processing withdraw_unbonded
-fn process_withdraw_rate<S: Storage, A: Api, Q: Querier>(
-    deps: &mut Extern<S, A, Q>,
+fn calculate_newly_added_unbonded_amount<S: Storage>(
+    storage: &mut S,
+    last_processed_batch: u64,
     historical_time: u64,
-    hub_balance: Uint128,
-) -> StdResult<()> {
-    // balance change of the hub contract must be checked.
-    let mut bluna_total_unbonded_amount = Uint256::zero();
+) -> (Uint256, Uint256, u64) {
     let mut stluna_total_unbonded_amount = Uint256::zero();
-
-    let mut state = read_state(&deps.storage).load()?;
-
-    let balance_change = SignedInt::from_subtraction(hub_balance, state.prev_hub_balance);
-    state.actual_unbonded_amount += balance_change.0;
-
-    let last_processed_batch = state.last_processed_batch;
+    let mut bluna_total_unbonded_amount = Uint256::zero();
     let mut batch_count: u64 = 0;
 
     // Iterate over unbonded histories that have been processed
@@ -205,7 +188,7 @@ fn process_withdraw_rate<S: Storage, A: Api, Q: Querier>(
     let mut i = last_processed_batch + 1;
     loop {
         let history: UnbondHistory;
-        match read_unbond_history(&deps.storage, i) {
+        match read_unbond_history(storage, i) {
             Ok(h) => {
                 if h.time > historical_time {
                     break;
@@ -232,6 +215,80 @@ fn process_withdraw_rate<S: Storage, A: Api, Q: Querier>(
         i += 1;
     }
 
+    (
+        stluna_total_unbonded_amount,
+        bluna_total_unbonded_amount,
+        batch_count,
+    )
+}
+
+fn calculate_new_withdraw_rate(
+    amount: Uint128,
+    withdraw_rate: Decimal,
+    total_unbonded_amount: Uint256,
+    slashed_amount: SignedInt,
+) -> Decimal {
+    let burnt_amount_of_batch = Uint256::from(amount);
+    let historical_rate_of_batch = Decimal256::from(withdraw_rate);
+    let unbonded_amount_of_batch = burnt_amount_of_batch * historical_rate_of_batch;
+
+    // the slashed amount for each batch must be proportional to the unbonded amount of batch
+    let batch_slashing_weight = if total_unbonded_amount != Uint256::zero() {
+        Decimal256::from_ratio(unbonded_amount_of_batch.0, total_unbonded_amount.0)
+    } else {
+        Decimal256::zero()
+    };
+
+    let mut slashed_amount_of_batch = batch_slashing_weight * Uint256::from(slashed_amount.0);
+
+    let actual_unbonded_amount_of_batch: Uint256;
+
+    // If slashed amount is negative, there should be summation instead of subtraction.
+    if slashed_amount.1 {
+        slashed_amount_of_batch = if slashed_amount_of_batch > Uint256::one() {
+            slashed_amount_of_batch - Uint256::one()
+        } else {
+            Uint256::zero()
+        };
+        actual_unbonded_amount_of_batch = unbonded_amount_of_batch + slashed_amount_of_batch;
+    } else {
+        if slashed_amount.0.u128() != 0u128 {
+            slashed_amount_of_batch += Uint256::one();
+        }
+        actual_unbonded_amount_of_batch = Uint256::from(
+            SignedInt::from_subtraction(unbonded_amount_of_batch, slashed_amount_of_batch).0,
+        );
+    }
+
+    // Calculate the new withdraw rate
+    if burnt_amount_of_batch != Uint256::zero() {
+        Decimal::from_ratio(actual_unbonded_amount_of_batch, burnt_amount_of_batch)
+    } else {
+        withdraw_rate
+    }
+}
+
+/// This is designed for an accurate unbonded amount calculation.
+/// Execute while processing withdraw_unbonded
+fn process_withdraw_rate<S: Storage, A: Api, Q: Querier>(
+    deps: &mut Extern<S, A, Q>,
+    historical_time: u64,
+    hub_balance: Uint128,
+) -> StdResult<()> {
+    let mut state = read_state(&deps.storage).load()?;
+
+    let balance_change = SignedInt::from_subtraction(hub_balance, state.prev_hub_balance);
+    let actual_unbonded_amount = balance_change.0;
+
+    let last_processed_batch = state.last_processed_batch;
+
+    let (stluna_total_unbonded_amount, bluna_total_unbonded_amount, batch_count) =
+        calculate_newly_added_unbonded_amount(
+            &mut deps.storage,
+            last_processed_batch,
+            historical_time,
+        );
+
     let mut bluna_unbond_ratio = Decimal256::zero();
     let mut stluna_unbond_ratio = Decimal256::zero();
     if stluna_total_unbonded_amount + bluna_total_unbonded_amount > Uint256::zero() {
@@ -246,11 +303,11 @@ fn process_withdraw_rate<S: Storage, A: Api, Q: Querier>(
         // Use signed integer in case of some rogue transfers.
         let bluna_slashed_amount = SignedInt::from_subtraction(
             bluna_total_unbonded_amount,
-            Uint256::from(state.actual_unbonded_amount) * bluna_unbond_ratio,
+            Uint256::from(actual_unbonded_amount) * bluna_unbond_ratio,
         );
         let stluna_slashed_amount = SignedInt::from_subtraction(
             stluna_total_unbonded_amount,
-            Uint256::from(state.actual_unbonded_amount) * stluna_unbond_ratio,
+            Uint256::from(actual_unbonded_amount) * stluna_unbond_ratio,
         );
 
         // Iterate again to calculate the withdraw rate for each unprocessed history
@@ -272,104 +329,20 @@ fn process_withdraw_rate<S: Storage, A: Api, Q: Querier>(
                     break;
                 }
             }
-            let stluna_burnt_amount_of_batch = Uint256::from(history.stluna_amount);
-            let stluna_historical_rate_of_batch = Decimal256::from(history.stluna_withdraw_rate);
-            let stluna_unbonded_amount_of_batch =
-                stluna_burnt_amount_of_batch * stluna_historical_rate_of_batch;
-
-            let bluna_burnt_amount_of_batch = Uint256::from(history.bluna_amount);
-            let bluna_historical_rate_of_batch = Decimal256::from(history.bluna_withdraw_rate);
-            let bluna_unbonded_amount_of_batch =
-                bluna_burnt_amount_of_batch * bluna_historical_rate_of_batch;
-
-            // the slashed amount for each batch must be proportional to the unbonded amount of batch
-            let bluna_batch_slashing_weight = if bluna_total_unbonded_amount != Uint256::zero() {
-                Decimal256::from_ratio(
-                    bluna_unbonded_amount_of_batch.0,
-                    bluna_total_unbonded_amount.0,
-                )
-            } else {
-                Decimal256::zero()
-            };
-
-            let mut bluna_slashed_amount_of_batch =
-                bluna_batch_slashing_weight * Uint256::from(bluna_slashed_amount.0);
-
-            let stluna_batch_slashing_weight = if stluna_total_unbonded_amount != Uint256::zero() {
-                Decimal256::from_ratio(
-                    stluna_unbonded_amount_of_batch.0,
-                    stluna_total_unbonded_amount.0,
-                )
-            } else {
-                Decimal256::zero()
-            };
-
-            let mut stluna_slashed_amount_of_batch =
-                stluna_batch_slashing_weight * Uint256::from(stluna_slashed_amount.0);
-
-            let stluna_actual_unbonded_amount_of_batch: Uint256;
-            let bluna_actual_unbonded_amount_of_batch: Uint256;
-
-            // If slashed amount is negative, there should be summation instead of subtraction.
-            if bluna_slashed_amount.1 {
-                bluna_slashed_amount_of_batch = if bluna_slashed_amount_of_batch > Uint256::one() {
-                    bluna_slashed_amount_of_batch - Uint256::one()
-                } else {
-                    Uint256::zero()
-                };
-                bluna_actual_unbonded_amount_of_batch =
-                    bluna_unbonded_amount_of_batch + bluna_slashed_amount_of_batch;
-            } else {
-                if bluna_slashed_amount.0.u128() != 0u128 {
-                    bluna_slashed_amount_of_batch += Uint256::one();
-                }
-                bluna_actual_unbonded_amount_of_batch = Uint256::from(
-                    SignedInt::from_subtraction(
-                        bluna_unbonded_amount_of_batch,
-                        bluna_slashed_amount_of_batch,
-                    )
-                    .0,
-                );
-            }
-            if stluna_slashed_amount.1 {
-                stluna_slashed_amount_of_batch = if stluna_slashed_amount_of_batch > Uint256::one()
-                {
-                    stluna_slashed_amount_of_batch - Uint256::one()
-                } else {
-                    Uint256::zero()
-                };
-                stluna_actual_unbonded_amount_of_batch =
-                    stluna_unbonded_amount_of_batch + stluna_slashed_amount_of_batch;
-            } else {
-                if stluna_slashed_amount.0.u128() != 0u128 {
-                    stluna_slashed_amount_of_batch += Uint256::one();
-                }
-                stluna_actual_unbonded_amount_of_batch = Uint256::from(
-                    SignedInt::from_subtraction(
-                        stluna_unbonded_amount_of_batch,
-                        stluna_slashed_amount_of_batch,
-                    )
-                    .0,
-                );
-            }
 
             // Calculate the new withdraw rate
-            let stluna_new_withdraw_rate = if stluna_burnt_amount_of_batch != Uint256::zero() {
-                Decimal::from_ratio(
-                    stluna_actual_unbonded_amount_of_batch,
-                    stluna_burnt_amount_of_batch,
-                )
-            } else {
-                history.stluna_withdraw_rate
-            };
-            let bluna_new_withdraw_rate = if bluna_burnt_amount_of_batch != Uint256::zero() {
-                Decimal::from_ratio(
-                    bluna_actual_unbonded_amount_of_batch,
-                    bluna_burnt_amount_of_batch,
-                )
-            } else {
-                history.bluna_withdraw_rate
-            };
+            let stluna_new_withdraw_rate = calculate_new_withdraw_rate(
+                history.stluna_amount,
+                history.stluna_withdraw_rate,
+                stluna_total_unbonded_amount,
+                stluna_slashed_amount,
+            );
+            let bluna_new_withdraw_rate = calculate_new_withdraw_rate(
+                history.bluna_amount,
+                history.bluna_withdraw_rate,
+                bluna_total_unbonded_amount,
+                bluna_slashed_amount,
+            );
 
             let mut history_for_i = history;
             // store the history and mark it as released
@@ -382,7 +355,6 @@ fn process_withdraw_rate<S: Storage, A: Api, Q: Querier>(
         }
     }
     // Store state.actual_unbonded_amount for future new batches release
-    state.actual_unbonded_amount = Uint128::zero();
     store_state(&mut deps.storage).save(&state)?;
 
     Ok(())
@@ -399,10 +371,7 @@ fn pick_validator<S: Storage, A: Api, Q: Querier>(
 
     let mut messages: Vec<CosmosMsg> = vec![];
 
-    let all_delegations = deps
-        .querier
-        .query_all_delegations(delegator)
-        .expect("There must be at least one delegation");
+    let all_delegations = deps.querier.query_all_delegations(delegator)?;
 
     let mut validators = all_delegations
         .iter()
@@ -459,13 +428,6 @@ pub(crate) fn handle_unbond_stluna<S: Storage, A: Api, Q: Querier>(
         UnbondType::StLuna,
     )?;
 
-    let mut total_supply = query_total_stluna_issued(&deps)?;
-
-    total_supply =
-        (total_supply - amount).expect("the requested can not be more than the total supply");
-
-    state.update_stluna_exchange_rate(total_supply, current_batch.requested_stluna);
-
     let current_time = env.block.time;
     let passed_time = current_time - state.last_unbonded_time;
 
@@ -473,8 +435,7 @@ pub(crate) fn handle_unbond_stluna<S: Storage, A: Api, Q: Querier>(
 
     // If the epoch period is passed, the undelegate message would be sent.
     if passed_time > epoch_period {
-        let mut undelegate_msgs =
-            process_undelegations(deps, env, &mut current_batch, &mut state, total_supply)?;
+        let mut undelegate_msgs = process_undelegations(deps, env, &mut current_batch, &mut state)?;
         messages.append(&mut undelegate_msgs);
     }
 
@@ -517,7 +478,6 @@ fn process_undelegations<S: Storage, A: Api, Q: Querier>(
     env: Env,
     current_batch: &mut CurrentBatch,
     state: &mut State,
-    stluna_total_supply: Uint128,
 ) -> StdResult<Vec<CosmosMsg>> {
     // Apply the current exchange rate.
     let stluna_undelegation_amount = current_batch.requested_stluna * state.stluna_exchange_rate;
@@ -540,10 +500,8 @@ fn process_undelegations<S: Storage, A: Api, Q: Querier>(
         delegator,
     )?;
 
-    state.total_bond_stluna_amount = (state.total_bond_stluna_amount - stluna_undelegation_amount)
-        .expect("undelegation amount can not be more than stored total bonded amount");
-    state.total_bond_bluna_amount = (state.total_bond_bluna_amount - bluna_undelegation_amount)
-        .expect("undelegation amount can not be more than stored total bonded amount");
+    state.total_bond_stluna_amount = (state.total_bond_stluna_amount - stluna_undelegation_amount)?;
+    state.total_bond_bluna_amount = (state.total_bond_bluna_amount - bluna_undelegation_amount)?;
 
     // Store history for withdraw unbonded
     let history = UnbondHistory {
@@ -566,7 +524,11 @@ fn process_undelegations<S: Storage, A: Api, Q: Querier>(
     current_batch.requested_stluna = Uint128::zero();
     current_batch.requested_bluna_with_fee = Uint128::zero();
 
-    state.update_stluna_exchange_rate(stluna_total_supply, current_batch.requested_stluna);
+    // Store the new requested_with_fee or id in the current batch
+    store_current_batch(&mut deps.storage).save(&current_batch)?;
+
+    // Store state's new exchange rate
+    store_state(&mut deps.storage).save(&state)?;
 
     // state.last_unbonded_time must be updated to the current block time
     state.last_unbonded_time = env.block.time;
