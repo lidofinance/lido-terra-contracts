@@ -18,7 +18,7 @@ pub fn mock_dependencies(
 ) -> OwnedDeps<MockStorage, MockApi, WasmMockQuerier> {
     let contract_addr = MOCK_CONTRACT_ADDR;
     let custom_querier: WasmMockQuerier =
-        WasmMockQuerier::new(MockQuerier::new(&[(&contract_addr, contract_balance)]));
+        WasmMockQuerier::new(MockQuerier::new(&[(contract_addr, contract_balance)]));
 
     OwnedDeps {
         storage: MockStorage::default(),
@@ -109,10 +109,10 @@ impl WasmMockQuerier {
 
                 if key.as_slice().to_vec() == prefix_config {
                     let config = Config {
-                        creator: api.addr_canonicalize(&"owner1").unwrap(),
-                        reward_contract: Some(api.addr_canonicalize(&"reward").unwrap()),
-                        token_contract: Some(api.addr_canonicalize(&"token").unwrap()),
-                        airdrop_registry_contract: Some(api.addr_canonicalize(&"airdrop").unwrap()),
+                        creator: api.addr_canonicalize("owner1").unwrap(),
+                        reward_contract: Some(api.addr_canonicalize("reward").unwrap()),
+                        token_contract: Some(api.addr_canonicalize("token").unwrap()),
+                        airdrop_registry_contract: Some(api.addr_canonicalize("airdrop").unwrap()),
                     };
                     SystemResult::Ok(ContractResult::from(to_binary(
                         &to_binary(&config).unwrap(),
@@ -143,7 +143,7 @@ impl WasmMockQuerier {
                         decimals: 6,
                         total_supply,
                         mint: Some(MinterData {
-                            minter: api.addr_canonicalize(&"hub").unwrap(),
+                            minter: api.addr_canonicalize("hub").unwrap(),
                             cap: None,
                         }),
                     };
