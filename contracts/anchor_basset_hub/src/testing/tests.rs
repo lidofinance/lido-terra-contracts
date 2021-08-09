@@ -283,7 +283,7 @@ fn proper_register_validator() {
 
     let owner_info = mock_info("owner1", &[]);
     let msg = ExecuteMsg::RegisterValidator {
-        validator: "The specified address is not a validator".to_string(),
+        validator: "The specified address is not a validator. The specified address is not a validator".to_string(),
     };
 
     let res = execute(deps.as_mut(), mock_env(), owner_info, msg);

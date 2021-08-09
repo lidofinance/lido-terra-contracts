@@ -92,27 +92,22 @@ pub fn instantiate(
     let register_validator = ExecuteMsg::RegisterValidator {
         validator: msg.validator.clone(),
     };
-    messages.push(SubMsg::new(CosmosMsg::Wasm(WasmMsg::Execute {
+    messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
         contract_addr: env.contract.address.to_string(),
         msg: to_binary(&register_validator).unwrap(),
         funds: vec![],
-    })));
+    }));
 
     // send the delegate message
-    messages.push(SubMsg::new(CosmosMsg::Staking(StakingMsg::Delegate {
+    messages.push(CosmosMsg::Staking(StakingMsg::Delegate {
         validator: msg.validator.to_string(),
         amount: payment.clone(),
-    })));
+    }));
 
-    let res = Response {
-        messages,
-        attributes: vec![
-            attr("register-validator", msg.validator),
-            attr("bond", payment.amount),
-        ],
-        ..Response::default()
-    };
-    Ok(res)
+    Ok(Response::new().add_messages(messages).add_attributes(vec![
+        attr("register-validator", msg.validator),
+        attr("bond", payment.amount),
+    ]))
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -272,12 +267,9 @@ pub fn execute_update_global(
         Ok(last_state)
     })?;
 
-    let res = Response {
-        messages,
-        attributes: vec![attr("action", "update_global_index")],
-        ..Response::default()
-    };
-    Ok(res)
+    Ok(Response::new()
+        .add_submessages(messages)
+        .add_attribute("action", "update_global_index"))
 }
 
 /// Create withdraw requests for all validators
@@ -362,13 +354,13 @@ pub fn claim_airdrop(
         )));
     }
 
-    let mut messages: Vec<SubMsg> = vec![SubMsg::new(CosmosMsg::Wasm(WasmMsg::Execute {
+    let mut messages: Vec<CosmosMsg> = vec![CosmosMsg::Wasm(WasmMsg::Execute {
         contract_addr: airdrop_contract,
         msg: claim_msg,
         funds: vec![],
-    }))];
+    })];
 
-    messages.push(SubMsg::new(CosmosMsg::Wasm(WasmMsg::Execute {
+    messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
         contract_addr: env.contract.address.to_string(),
         msg: to_binary(&SwapHook {
             airdrop_token_contract,
@@ -376,12 +368,9 @@ pub fn claim_airdrop(
             swap_msg,
         })?,
         funds: vec![],
-    })));
+    }));
 
-    Ok(Response {
-        messages,
-        ..Response::default()
-    })
+    Ok(Response::new().add_messages(messages))
 }
 
 pub fn swap_hook(
@@ -413,7 +402,7 @@ pub fn swap_hook(
             &env.contract.address, &airdrop_token_contract
         )));
     }
-    let messages: Vec<SubMsg> = vec![SubMsg::new(CosmosMsg::Wasm(WasmMsg::Execute {
+    let messages: Vec<CosmosMsg> = vec![CosmosMsg::Wasm(WasmMsg::Execute {
         contract_addr: airdrop_token_contract.to_string(),
         msg: to_binary(&Cw20ExecuteMsg::Send {
             contract: airdrop_swap_contract,
@@ -421,17 +410,13 @@ pub fn swap_hook(
             msg: swap_msg,
         })?,
         funds: vec![],
-    }))];
+    })];
 
-    Ok(Response {
-        messages,
-        attributes: vec![
-            attr("action", "swap_airdrop_token"),
-            attr("token_contract", airdrop_token_contract),
-            attr("swap_amount", airdrop_token_balance),
-        ],
-        ..Response::default()
-    })
+    Ok(Response::new().add_messages(messages).add_attributes(vec![
+        attr("action", "swap_airdrop_token"),
+        attr("token_contract", airdrop_token_contract),
+        attr("swap_amount", airdrop_token_balance),
+    ]))
 }
 
 /// Handler for tracking slashing
@@ -440,13 +425,11 @@ pub fn execute_slashing(mut deps: DepsMut, env: Env) -> StdResult<Response> {
     slashing(&mut deps, env)?;
     // read state for log
     let state = STATE.load(deps.storage)?;
-    Ok(Response {
-        attributes: vec![
-            attr("action", "check_slashing"),
-            attr("new_exchange_rate", state.exchange_rate),
-        ],
-        ..Response::default()
-    })
+
+    Ok(Response::new().add_attributes(vec![
+        attr("action", "check_slashing"),
+        attr("new_exchange_rate", format!("{}", state.exchange_rate)),
+    ]))
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]

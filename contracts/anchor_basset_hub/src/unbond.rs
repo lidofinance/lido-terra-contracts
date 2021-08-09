@@ -136,17 +136,14 @@ pub(crate) fn execute_unbond(
         funds: vec![],
     })));
 
-    let res = Response {
-        messages,
-        attributes: vec![
+    Ok(Response::new()
+        .add_submessages(messages)
+        .add_attributes(vec![
             attr("action", "burn"),
             attr("from", sender),
             attr("burnt_amount", amount),
             attr("unbonded_amount", amount_with_fee),
-        ],
-        ..Response::default()
-    };
-    Ok(res)
+        ]))
 }
 
 pub fn execute_withdraw_unbonded(
@@ -200,16 +197,11 @@ pub fn execute_withdraw_unbonded(
     }
     .into();
 
-    let res = Response {
-        messages: vec![SubMsg::new(bank_msg)],
-        attributes: vec![
-            attr("action", "finish_burn"),
-            attr("from", contract_address),
-            attr("amount", withdraw_amount),
-        ],
-        ..Response::default()
-    };
-    Ok(res)
+    Ok(Response::new().add_message(bank_msg).add_attributes(vec![
+        attr("action", "finish_burn"),
+        attr("from", contract_address),
+        attr("amount", withdraw_amount),
+    ]))
 }
 
 /// This is designed for an accurate unbonded amount calculation.
