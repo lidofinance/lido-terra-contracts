@@ -4,7 +4,7 @@ use crate::state::{is_valid_validator, CONFIG, CURRENT_BATCH, PARAMETERS, STATE}
 use basset::hub::State;
 use cosmwasm_std::{
     attr, to_binary, CosmosMsg, DepsMut, Env, MessageInfo, Response, StakingMsg, StdError,
-    StdResult, SubMsg, Uint128, WasmMsg,
+    StdResult, Uint128, WasmMsg,
 };
 use cw20::Cw20ExecuteMsg;
 
@@ -106,12 +106,10 @@ pub fn execute_bond(
         funds: vec![],
     }));
 
-    Ok(Response::new()
-        .add_messages(messages)
-        .add_attributes(vec![
-            attr("action", "mint"),
-            attr("from", sender),
-            attr("bonded", payment.amount),
-            attr("minted", mint_amount_with_fee),
-        ]))
+    Ok(Response::new().add_messages(messages).add_attributes(vec![
+        attr("action", "mint"),
+        attr("from", sender),
+        attr("bonded", payment.amount),
+        attr("minted", mint_amount_with_fee),
+    ]))
 }

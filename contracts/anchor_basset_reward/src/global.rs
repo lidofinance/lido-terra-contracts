@@ -2,9 +2,7 @@ use crate::state::{read_config, read_state, store_state, Config, State};
 
 use crate::math::decimal_summation_in_256;
 
-use cosmwasm_std::{
-    attr, CosmosMsg, Decimal, DepsMut, Env, MessageInfo, Response, StdError, StdResult, SubMsg,
-};
+use cosmwasm_std::{CosmosMsg, Decimal, DepsMut, Env, MessageInfo, Response, StdError, StdResult};
 use terra_cosmwasm::{create_swap_msg, ExchangeRatesResponse, TerraMsgWrapper, TerraQuerier};
 /// Swap all native tokens to reward_denom
 /// Only hub_contract is allowed to execute

@@ -1,5 +1,5 @@
 use cosmwasm_std::{
-    to_binary, Binary, CosmosMsg, DepsMut, Env, MessageInfo, Response, SubMsg, Uint128, WasmMsg,
+    to_binary, Binary, CosmosMsg, DepsMut, Env, MessageInfo, Response, Uint128, WasmMsg,
 };
 
 use crate::querier::query_reward_contract;

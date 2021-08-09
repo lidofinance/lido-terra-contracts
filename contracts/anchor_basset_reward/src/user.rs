@@ -6,8 +6,8 @@ use crate::state::{
 use basset::reward::{AccruedRewardsResponse, HolderResponse, HoldersResponse};
 
 use cosmwasm_std::{
-    attr, BankMsg, Coin, CosmosMsg, Decimal, Deps, DepsMut, Env, MessageInfo, Response, StdError,
-    StdResult, SubMsg, Uint128,
+    BankMsg, Coin, CosmosMsg, Decimal, Deps, DepsMut, Env, MessageInfo, Response, StdError,
+    StdResult, Uint128,
 };
 
 use crate::math::{
