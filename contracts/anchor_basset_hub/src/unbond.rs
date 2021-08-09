@@ -354,7 +354,6 @@ fn process_withdraw_rate<S: Storage, A: Api, Q: Querier>(
             iterator += 1;
         }
     }
-    // Store state.actual_unbonded_amount for future new batches release
     store_state(&mut deps.storage).save(&state)?;
 
     Ok(())
@@ -523,12 +522,6 @@ fn process_undelegations<S: Storage, A: Api, Q: Querier>(
     current_batch.id += 1;
     current_batch.requested_stluna = Uint128::zero();
     current_batch.requested_bluna_with_fee = Uint128::zero();
-
-    // Store the new requested_with_fee or id in the current batch
-    store_current_batch(&mut deps.storage).save(&current_batch)?;
-
-    // Store state's new exchange rate
-    store_state(&mut deps.storage).save(&state)?;
 
     // state.last_unbonded_time must be updated to the current block time
     state.last_unbonded_time = env.block.time;
