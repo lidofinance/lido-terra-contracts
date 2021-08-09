@@ -3,7 +3,7 @@ use crate::state::{read_config, read_state, store_state, Config, State};
 use crate::math::decimal_summation_in_256;
 
 use cosmwasm_std::{
-    attr, Decimal, DepsMut, Env, MessageInfo, Response, StdError, StdResult, SubMsg,
+    attr, CosmosMsg, Decimal, DepsMut, Env, MessageInfo, Response, StdError, StdResult, SubMsg,
 };
 use terra_cosmwasm::{create_swap_msg, ExchangeRatesResponse, TerraMsgWrapper, TerraQuerier};
 /// Swap all native tokens to reward_denom
@@ -23,7 +23,7 @@ pub fn execute_swap(
 
     let contr_addr = env.contract.address;
     let balance = deps.querier.query_all_balances(contr_addr)?;
-    let mut messages: Vec<SubMsg<TerraMsgWrapper>> = Vec::new();
+    let mut messages: Vec<CosmosMsg<TerraMsgWrapper>> = Vec::new();
 
     let reward_denom = config.reward_denom;
 
@@ -40,20 +40,17 @@ pub fn execute_swap(
             continue;
         }
         if is_listed {
-            messages.push(SubMsg::new(create_swap_msg(coin, reward_denom.to_string())));
+            messages.push(create_swap_msg(coin, reward_denom.to_string()));
         } else if query_exchange_rates(&deps, reward_denom.clone(), vec![coin.denom.clone()])
             .is_ok()
         {
-            messages.push(SubMsg::new(create_swap_msg(coin, reward_denom.to_string())));
+            messages.push(create_swap_msg(coin, reward_denom.to_string()));
         }
     }
 
-    let res = Response {
-        messages,
-        attributes: vec![attr("action", "swap")],
-        ..Response::default()
-    };
-    Ok(res)
+    Ok(Response::new()
+        .add_messages(messages)
+        .add_attribute("action", "swap"))
 }
 
 /// Increase global_index according to claimed rewards amount
@@ -97,15 +94,9 @@ pub fn execute_update_global_index(
     );
     store_state(deps.storage, &state)?;
 
-    let res = Response {
-        attributes: vec![
-            attr("action", "update_global_index"),
-            attr("claimed_rewards", claimed_rewards),
-        ],
-        ..Response::default()
-    };
-
-    Ok(res)
+    Ok(Response::new()
+        .add_attribute("action", "update_global_index")
+        .add_attribute("claimed_rewards", claimed_rewards))
 }
 
 pub fn query_exchange_rates(

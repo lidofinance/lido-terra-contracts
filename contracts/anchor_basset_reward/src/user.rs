@@ -67,15 +67,11 @@ pub fn execute_claim_rewards(
     }
     .into();
 
-    Ok(Response {
-        messages: vec![SubMsg::new(bank_msg)],
-        attributes: vec![
-            attr("action", "claim_reward"),
-            attr("holder_address", holder_addr),
-            attr("rewards", rewards),
-        ],
-        ..Response::default()
-    })
+    Ok(Response::new()
+        .add_message(bank_msg)
+        .add_attribute("action", "claim_reward")
+        .add_attribute("holder_address", holder_addr)
+        .add_attribute("rewards", rewards))
 }
 
 pub fn execute_increase_balance(
@@ -112,16 +108,11 @@ pub fn execute_increase_balance(
 
     store_holder(deps.storage, &address_raw, &holder)?;
     store_state(deps.storage, &state)?;
-    let res = Response {
-        attributes: vec![
-            attr("action", "increase_balance"),
-            attr("holder_address", address),
-            attr("amount", amount),
-        ],
-        ..Response::default()
-    };
 
-    Ok(res)
+    Ok(Response::new()
+        .add_attribute("action", "increase_balance")
+        .add_attribute("holder_address", address)
+        .add_attribute("amount", amount))
 }
 
 pub fn execute_decrease_balance(
@@ -160,16 +151,11 @@ pub fn execute_decrease_balance(
 
     store_holder(deps.storage, &address_raw, &holder)?;
     store_state(deps.storage, &state)?;
-    let res = Response {
-        attributes: vec![
-            attr("action", "decrease_balance"),
-            attr("holder_address", address),
-            attr("amount", amount),
-        ],
-        ..Response::default()
-    };
 
-    Ok(res)
+    Ok(Response::new()
+        .add_attribute("action", "decrease_balance")
+        .add_attribute("holder_address", address)
+        .add_attribute("amount", amount))
 }
 
 pub fn query_accrued_rewards(deps: Deps, address: String) -> StdResult<AccruedRewardsResponse> {
