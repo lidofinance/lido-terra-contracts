@@ -78,10 +78,10 @@ fn execute_fabricate_mir_claim(
 ) -> StdResult<Response> {
     let config = read_config(deps.storage)?;
 
-    let mut messages: Vec<SubMsg> = vec![];
+    let mut messages: Vec<CosmosMsg> = vec![];
 
     let airdrop_info = read_airdrop_info(deps.storage, "MIR".to_string()).unwrap();
-    messages.push(SubMsg::new(CosmosMsg::Wasm(WasmMsg::Execute {
+    messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
         contract_addr: config.hub_contract,
         msg: to_binary(&HubHandleMsg::ClaimAirdrop {
             airdrop_token_contract: airdrop_info.airdrop_token_contract,
@@ -99,13 +99,11 @@ fn execute_fabricate_mir_claim(
             })?,
         })?,
         funds: vec![],
-    })));
+    }));
 
-    Ok(Response {
-        messages,
-        attributes: vec![attr("action", "fabricate_mir_claim")],
-        ..Response::default()
-    })
+    Ok(Response::new()
+        .add_messages(messages)
+        .add_attribute("action", "fabricate_mir_claim"))
 }
 
 fn execute_fabricate_anchor_claim(
@@ -118,10 +116,10 @@ fn execute_fabricate_anchor_claim(
 ) -> StdResult<Response> {
     let config = read_config(deps.storage)?;
 
-    let mut messages: Vec<SubMsg> = vec![];
+    let mut messages: Vec<CosmosMsg> = vec![];
 
     let airdrop_info = read_airdrop_info(deps.storage, "ANC".to_string())?;
-    messages.push(SubMsg::new(CosmosMsg::Wasm(WasmMsg::Execute {
+    messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
         contract_addr: config.hub_contract,
         msg: to_binary(&HubHandleMsg::ClaimAirdrop {
             airdrop_token_contract: airdrop_info.airdrop_token_contract,
@@ -139,14 +137,13 @@ fn execute_fabricate_anchor_claim(
             })?,
         })?,
         funds: vec![],
-    })));
+    }));
 
-    Ok(Response {
-        messages,
-        attributes: vec![attr("action", "fabricate_anc_claim")],
-        ..Response::default()
-    })
+    Ok(Response::new()
+        .add_messages(messages)
+        .add_attribute("action", "fabricate_anc_claim"))
 }
+
 pub fn execute_update_config(
     deps: DepsMut,
     _env: Env,
@@ -175,10 +172,7 @@ pub fn execute_update_config(
 
     store_config(deps.storage, &config)?;
 
-    Ok(Response {
-        attributes: vec![attr("action", "update_config")],
-        ..Response::default()
-    })
+    Ok(Response::new().add_attribute("action", "update_config"))
 }
 
 pub fn execute_add_airdrop(
@@ -209,13 +203,10 @@ pub fn execute_add_airdrop(
     })?;
 
     store_airdrop_info(deps.storage, airdrop_token.clone(), airdrop_info)?;
-    Ok(Response {
-        attributes: vec![
-            attr("action", "add_airdrop_info"),
-            attr("airdrop_token", airdrop_token),
-        ],
-        ..Response::default()
-    })
+
+    Ok(Response::new()
+        .add_attribute("action", "add_airdrop_info")
+        .add_attribute("airdrop_token", airdrop_token))
 }
 
 pub fn execute_update_airdrop(
@@ -241,13 +232,10 @@ pub fn execute_update_airdrop(
     }
 
     update_airdrop_info(deps.storage, airdrop_token.clone(), airdrop_info)?;
-    Ok(Response {
-        attributes: vec![
-            attr("action", "update_airdrop_info"),
-            attr("airdrop_token", airdrop_token),
-        ],
-        ..Response::default()
-    })
+
+    Ok(Response::new()
+        .add_attribute("action", "update_airdrop_info")
+        .add_attribute("airdrop_token", airdrop_token))
 }
 
 pub fn execute_remove_airdrop(
@@ -277,13 +265,10 @@ pub fn execute_remove_airdrop(
     })?;
 
     remove_airdrop_info(deps.storage, airdrop_token.clone())?;
-    Ok(Response {
-        attributes: vec![
-            attr("action", "remove_airdrop_info"),
-            attr("airdrop_token", airdrop_token),
-        ],
-        ..Response::default()
-    })
+
+    Ok(Response::new()
+        .add_attribute("action", "remove_airdrop_info")
+        .add_attribute("airdrop_token", airdrop_token))
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
