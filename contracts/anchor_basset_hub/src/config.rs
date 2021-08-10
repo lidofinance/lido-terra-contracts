@@ -42,11 +42,7 @@ pub fn execute_update_params(
 
     PARAMETERS.save(deps.storage, &new_params)?;
 
-    let res = Response {
-        attributes: vec![attr("action", "update_params")],
-        ..Response::default()
-    };
-    Ok(res)
+    Ok(Response::new().add_attributes(vec![attr("action", "update_params")]))
 }
 
 /// Update the config. Update the owner, reward and token contracts.
@@ -108,12 +104,9 @@ pub fn execute_update_config(
         })?;
     }
 
-    let res = Response {
-        messages,
-        attributes: vec![attr("action", "update_config")],
-        ..Response::default()
-    };
-    Ok(res)
+    Ok(Response::new()
+        .add_submessages(messages)
+        .add_attributes(vec![attr("action", "update_config")]))
 }
 
 /// Register a white listed validator.
@@ -147,14 +140,11 @@ pub fn execute_register_validator(
     }
 
     store_white_validators(deps.storage, validator_addr.to_string())?;
-    let res = Response {
-        attributes: vec![
-            attr("action", "register_validator"),
-            attr("validator", validator),
-        ],
-        ..Response::default()
-    };
-    Ok(res)
+
+    Ok(Response::new().add_attributes(vec![
+        attr("action", "register_validator"),
+        attr("validator", validator),
+    ]))
 }
 
 /// Deregister a previously-whitelisted validator.
@@ -218,14 +208,11 @@ pub fn execute_deregister_validator(
         }
     }
 
-    let res = Response {
-        messages,
-        attributes: vec![
+    Ok(Response::new()
+        .add_submessages(messages)
+        .add_attributes(vec![
             attr("action", "de_register_validator"),
             attr("validator", validator),
             attr("new-validator", replaced_val),
-        ],
-        ..Response::default()
-    };
-    Ok(res)
+        ]))
 }

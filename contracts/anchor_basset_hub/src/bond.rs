@@ -106,15 +106,12 @@ pub fn execute_bond(
         funds: vec![],
     })));
 
-    let res = Response {
-        messages,
-        attributes: vec![
+    Ok(Response::new()
+        .add_submessages(messages)
+        .add_attributes(vec![
             attr("action", "mint"),
             attr("from", sender),
             attr("bonded", payment.amount),
             attr("minted", mint_amount_with_fee),
-        ],
-        ..Response::default()
-    };
-    Ok(res)
+        ]))
 }

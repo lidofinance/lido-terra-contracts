@@ -104,15 +104,12 @@ pub fn instantiate(
         amount: payment.clone(),
     })));
 
-    let res = Response {
-        messages,
-        attributes: vec![
+    Ok(Response::new()
+        .add_submessages(messages)
+        .add_attributes(vec![
             attr("register-validator", msg.validator),
             attr("bond", payment.amount),
-        ],
-        ..Response::default()
-    };
-    Ok(res)
+        ]))
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -272,12 +269,9 @@ pub fn execute_update_global(
         Ok(last_state)
     })?;
 
-    let res = Response {
-        messages,
-        attributes: vec![attr("action", "update_global_index")],
-        ..Response::default()
-    };
-    Ok(res)
+    Ok(Response::new()
+        .add_submessages(messages)
+        .add_attributes(vec![attr("action", "update_global_index")]))
 }
 
 /// Create withdraw requests for all validators
@@ -378,10 +372,7 @@ pub fn claim_airdrop(
         funds: vec![],
     })));
 
-    Ok(Response {
-        messages,
-        ..Response::default()
-    })
+    Ok(Response::new().add_submessages(messages))
 }
 
 pub fn swap_hook(
@@ -423,15 +414,13 @@ pub fn swap_hook(
         funds: vec![],
     }))];
 
-    Ok(Response {
-        messages,
-        attributes: vec![
+    Ok(Response::new()
+        .add_submessages(messages)
+        .add_attributes(vec![
             attr("action", "swap_airdrop_token"),
             attr("token_contract", airdrop_token_contract),
             attr("swap_amount", airdrop_token_balance),
-        ],
-        ..Response::default()
-    })
+        ]))
 }
 
 /// Handler for tracking slashing
@@ -440,13 +429,10 @@ pub fn execute_slashing(mut deps: DepsMut, env: Env) -> StdResult<Response> {
     slashing(&mut deps, env)?;
     // read state for log
     let state = STATE.load(deps.storage)?;
-    Ok(Response {
-        attributes: vec![
-            attr("action", "check_slashing"),
-            attr("new_exchange_rate", state.exchange_rate),
-        ],
-        ..Response::default()
-    })
+    Ok(Response::new().add_attributes(vec![
+        attr("action", "check_slashing"),
+        attr("new_exchange_rate", state.exchange_rate.to_string()),
+    ]))
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]

@@ -101,11 +101,9 @@ fn execute_fabricate_mir_claim(
         funds: vec![],
     })));
 
-    Ok(Response {
-        messages,
-        attributes: vec![attr("action", "fabricate_mir_claim")],
-        ..Response::default()
-    })
+    Ok(Response::new()
+        .add_submessages(messages)
+        .add_attributes(vec![attr("action", "fabricate_mir_claim")]))
 }
 
 fn execute_fabricate_anchor_claim(
@@ -141,11 +139,9 @@ fn execute_fabricate_anchor_claim(
         funds: vec![],
     })));
 
-    Ok(Response {
-        messages,
-        attributes: vec![attr("action", "fabricate_anc_claim")],
-        ..Response::default()
-    })
+    Ok(Response::new()
+        .add_submessages(messages)
+        .add_attributes(vec![attr("action", "fabricate_anc_claim")]))
 }
 pub fn execute_update_config(
     deps: DepsMut,
@@ -175,10 +171,7 @@ pub fn execute_update_config(
 
     store_config(deps.storage, &config)?;
 
-    Ok(Response {
-        attributes: vec![attr("action", "update_config")],
-        ..Response::default()
-    })
+    Ok(Response::new().add_attributes(vec![attr("action", "update_config")]))
 }
 
 pub fn execute_add_airdrop(
@@ -209,13 +202,11 @@ pub fn execute_add_airdrop(
     })?;
 
     store_airdrop_info(deps.storage, airdrop_token.clone(), airdrop_info)?;
-    Ok(Response {
-        attributes: vec![
-            attr("action", "add_airdrop_info"),
-            attr("airdrop_token", airdrop_token),
-        ],
-        ..Response::default()
-    })
+
+    Ok(Response::new().add_attributes(vec![
+        attr("action", "add_airdrop_info"),
+        attr("airdrop_token", airdrop_token),
+    ]))
 }
 
 pub fn execute_update_airdrop(
@@ -241,13 +232,10 @@ pub fn execute_update_airdrop(
     }
 
     update_airdrop_info(deps.storage, airdrop_token.clone(), airdrop_info)?;
-    Ok(Response {
-        attributes: vec![
-            attr("action", "update_airdrop_info"),
-            attr("airdrop_token", airdrop_token),
-        ],
-        ..Response::default()
-    })
+    Ok(Response::new().add_attributes(vec![
+        attr("action", "update_airdrop_info"),
+        attr("airdrop_token", airdrop_token),
+    ]))
 }
 
 pub fn execute_remove_airdrop(
@@ -277,13 +265,10 @@ pub fn execute_remove_airdrop(
     })?;
 
     remove_airdrop_info(deps.storage, airdrop_token.clone())?;
-    Ok(Response {
-        attributes: vec![
-            attr("action", "remove_airdrop_info"),
-            attr("airdrop_token", airdrop_token),
-        ],
-        ..Response::default()
-    })
+    Ok(Response::new().add_attributes(vec![
+        attr("action", "remove_airdrop_info"),
+        attr("airdrop_token", airdrop_token),
+    ]))
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]

@@ -48,11 +48,10 @@ pub fn execute_swap(
         }
     }
 
-    let res = Response {
-        messages,
-        attributes: vec![attr("action", "swap")],
-        ..Response::default()
-    };
+    let res = Response::new()
+        .add_submessages(messages)
+        .add_attributes(vec![attr("action", "swap")]);
+
     Ok(res)
 }
 
@@ -97,13 +96,11 @@ pub fn execute_update_global_index(
     );
     store_state(deps.storage, &state)?;
 
-    let res = Response {
-        attributes: vec![
-            attr("action", "update_global_index"),
-            attr("claimed_rewards", claimed_rewards),
-        ],
-        ..Response::default()
-    };
+    let attributes = vec![
+        attr("action", "update_global_index"),
+        attr("claimed_rewards", claimed_rewards),
+    ];
+    let res = Response::new().add_attributes(attributes);
 
     Ok(res)
 }

@@ -283,13 +283,13 @@ fn proper_register_validator() {
 
     let owner_info = mock_info("owner1", &[]);
     let msg = ExecuteMsg::RegisterValidator {
-        validator: "The specified address is not a validator".to_string(),
+        validator: "fake validator".to_string(),
     };
 
     let res = execute(deps.as_mut(), mock_env(), owner_info, msg);
     assert_eq!(
         res.unwrap_err(),
-        StdError::generic_err("Invalid input: human address too long")
+        StdError::generic_err("The specified address is not a validator")
     );
 
     // successful call

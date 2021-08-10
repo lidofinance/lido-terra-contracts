@@ -7,7 +7,7 @@ use basset::reward::{AccruedRewardsResponse, HolderResponse, HoldersResponse};
 
 use cosmwasm_std::{
     attr, BankMsg, Coin, CosmosMsg, Decimal, Deps, DepsMut, Env, MessageInfo, Response, StdError,
-    StdResult, SubMsg, Uint128,
+    StdResult, Uint128,
 };
 
 use crate::math::{
@@ -55,7 +55,7 @@ pub fn execute_claim_rewards(
     holder.index = state.global_index;
     store_holder(deps.storage, &holder_addr_raw, &holder)?;
 
-    let bank_msg: CosmosMsg<TerraMsgWrapper> = BankMsg::Send {
+    let bank_msg: CosmosMsg<TerraMsgWrapper> = CosmosMsg::Bank(BankMsg::Send {
         to_address: recipient.to_string(),
         amount: vec![deduct_tax(
             &deps.querier,
@@ -64,18 +64,17 @@ pub fn execute_claim_rewards(
                 amount: rewards,
             },
         )?],
-    }
-    .into();
+    });
 
-    Ok(Response {
-        messages: vec![SubMsg::new(bank_msg)],
-        attributes: vec![
+    let res = Response::new()
+        .add_attributes(vec![
             attr("action", "claim_reward"),
             attr("holder_address", holder_addr),
             attr("rewards", rewards),
-        ],
-        ..Response::default()
-    })
+        ])
+        .add_message(bank_msg);
+
+    Ok(res)
 }
 
 pub fn execute_increase_balance(
@@ -112,15 +111,14 @@ pub fn execute_increase_balance(
 
     store_holder(deps.storage, &address_raw, &holder)?;
     store_state(deps.storage, &state)?;
-    let res = Response {
-        attributes: vec![
-            attr("action", "increase_balance"),
-            attr("holder_address", address),
-            attr("amount", amount),
-        ],
-        ..Response::default()
-    };
 
+    let attributes = vec![
+        attr("action", "increase_balance"),
+        attr("holder_address", address),
+        attr("amount", amount),
+    ];
+
+    let res = Response::new().add_attributes(attributes);
     Ok(res)
 }
 
@@ -160,14 +158,14 @@ pub fn execute_decrease_balance(
 
     store_holder(deps.storage, &address_raw, &holder)?;
     store_state(deps.storage, &state)?;
-    let res = Response {
-        attributes: vec![
-            attr("action", "decrease_balance"),
-            attr("holder_address", address),
-            attr("amount", amount),
-        ],
-        ..Response::default()
-    };
+
+    let attributes = vec![
+        attr("action", "decrease_balance"),
+        attr("holder_address", address),
+        attr("amount", amount),
+    ];
+
+    let res = Response::new().add_attributes(attributes);
 
     Ok(res)
 }

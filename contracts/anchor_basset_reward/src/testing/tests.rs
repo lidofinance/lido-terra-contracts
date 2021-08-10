@@ -663,12 +663,6 @@ fn query_holders() {
         HoldersResponse {
             holders: vec![
                 HolderResponse {
-                    address: String::from("addr0002"),
-                    balance: Uint128::from(300u128),
-                    index: Decimal::zero(),
-                    pending_rewards: Decimal::zero(),
-                },
-                HolderResponse {
                     address: String::from("addr0000"),
                     balance: Uint128::from(100u128),
                     index: Decimal::zero(),
@@ -679,7 +673,13 @@ fn query_holders() {
                     balance: Uint128::from(200u128),
                     index: Decimal::zero(),
                     pending_rewards: Decimal::zero(),
-                }
+                },
+                HolderResponse {
+                    address: String::from("addr0002"),
+                    balance: Uint128::from(300u128),
+                    index: Decimal::zero(),
+                    pending_rewards: Decimal::zero(),
+                },
             ],
         }
     );
@@ -699,8 +699,8 @@ fn query_holders() {
         holders_response,
         HoldersResponse {
             holders: vec![HolderResponse {
-                address: String::from("addr0002"),
-                balance: Uint128::from(300u128),
+                address: String::from("addr0000"),
+                balance: Uint128::from(100u128),
                 index: Decimal::zero(),
                 pending_rewards: Decimal::zero(),
             }],
@@ -712,7 +712,7 @@ fn query_holders() {
         deps.as_ref(),
         mock_env(),
         QueryMsg::Holders {
-            start_after: Some(String::from("addr0002")),
+            start_after: Some(String::from("addr0000")),
             limit: None,
         },
     )
@@ -723,14 +723,14 @@ fn query_holders() {
         HoldersResponse {
             holders: vec![
                 HolderResponse {
-                    address: String::from("addr0000"),
-                    balance: Uint128::from(100u128),
+                    address: String::from("addr0001"),
+                    balance: Uint128::from(200u128),
                     index: Decimal::zero(),
                     pending_rewards: Decimal::zero(),
                 },
                 HolderResponse {
-                    address: String::from("addr0001"),
-                    balance: Uint128::from(200u128),
+                    address: String::from("addr0002"),
+                    balance: Uint128::from(300u128),
                     index: Decimal::zero(),
                     pending_rewards: Decimal::zero(),
                 }
