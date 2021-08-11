@@ -103,7 +103,6 @@ impl WasmMockQuerier {
                             total_bond_stluna_amount: Uint128(100),
                             last_index_modification: 1,
                             prev_hub_balance: Uint128(100),
-                            actual_unbonded_amount: Uint128(100),
                             last_unbonded_time: 1,
                             last_processed_batch: 1,
                         };
