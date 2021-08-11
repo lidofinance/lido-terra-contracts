@@ -11,7 +11,6 @@ pub struct State {
     pub total_bond_stluna_amount: Uint128,
     pub last_index_modification: u64,
     pub prev_hub_balance: Uint128,
-    pub actual_unbonded_amount: Uint128,
     pub last_unbonded_time: u64,
     pub last_processed_batch: u64,
 }
@@ -60,12 +59,13 @@ impl State {
         }
     }
 
-    pub fn update_stluna_exchange_rate(&mut self, total_issued: Uint128) {
-        if self.total_bond_stluna_amount.is_zero() || total_issued.is_zero() {
+    pub fn update_stluna_exchange_rate(&mut self, total_issued: Uint128, requested: Uint128) {
+        let actual_supply = total_issued + requested;
+        if self.total_bond_stluna_amount.is_zero() || actual_supply.is_zero() {
             self.stluna_exchange_rate = Decimal::one()
         } else {
             self.stluna_exchange_rate =
-                Decimal::from_ratio(self.total_bond_stluna_amount, total_issued);
+                Decimal::from_ratio(self.total_bond_stluna_amount, actual_supply);
         }
     }
 }

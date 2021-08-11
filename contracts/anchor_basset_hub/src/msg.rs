@@ -3,7 +3,7 @@ use cosmwasm_std::{Decimal, HumanAddr, Uint128};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-pub type UnbondRequest = Vec<(u64, Uint128)>;
+pub type UnbondRequest = Vec<(u64, Uint128, Uint128)>;
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct InitMsg {
@@ -43,7 +43,6 @@ pub struct StateResponse {
     pub total_bond_stluna_amount: Uint128,
     pub last_index_modification: u64,
     pub prev_hub_balance: Uint128,
-    pub actual_unbonded_amount: Uint128,
     pub last_unbonded_time: u64,
     pub last_processed_batch: u64,
 }

@@ -11,10 +11,11 @@ use crate::msg::{
     StateResponse, UnbondRequestsResponse, WithdrawableUnbondedResponse,
 };
 use crate::state::{
-    all_unbond_history, get_unbond_requests, query_get_finished_amount, read_config,
-    read_current_batch, read_old_config, read_old_current_batch, read_old_state, read_parameters,
-    read_state, read_validators, remove_whitelisted_validators_store, store_config,
-    store_current_batch, store_parameters, store_state, CurrentBatch, Parameters,
+    all_unbond_history, get_unbond_requests, migrate_unbond_history, migrate_unbond_wait_lists,
+    query_get_finished_amount, read_config, read_current_batch, read_old_config,
+    read_old_current_batch, read_old_state, read_parameters, read_state, read_validators,
+    remove_whitelisted_validators_store, store_config, store_current_batch, store_parameters,
+    store_state, CurrentBatch, Parameters,
 };
 use crate::unbond::{handle_unbond, handle_unbond_stluna, handle_withdraw_unbonded};
 
@@ -384,9 +385,9 @@ pub fn slashing<S: Storage, A: Api, Q: Querier>(
         // Need total issued for updating the exchange rate
         let bluna_total_issued = query_total_bluna_issued(&deps)?;
         let stluna_total_issued = query_total_stluna_issued(&deps)?;
-        let current_requested_fee = read_current_batch(&deps.storage)
-            .load()?
-            .requested_bluna_with_fee;
+        let current_batch = read_current_batch(&deps.storage).load()?;
+        let current_requested_bluna_with_fee = current_batch.requested_bluna_with_fee;
+        let current_requested_stluna = current_batch.requested_stluna;
 
         // Slashing happens if the expected amount is less than stored amount
         if state_total_bonded.u128() > actual_total_bonded.u128() {
@@ -394,8 +395,11 @@ pub fn slashing<S: Storage, A: Api, Q: Querier>(
                 state.total_bond_bluna_amount = actual_total_bonded * bluna_bond_ratio;
                 state.total_bond_stluna_amount = actual_total_bonded * stluna_bond_ratio;
 
-                state.update_bluna_exchange_rate(bluna_total_issued, current_requested_fee);
-                state.update_stluna_exchange_rate(stluna_total_issued);
+                state.update_bluna_exchange_rate(
+                    bluna_total_issued,
+                    current_requested_bluna_with_fee,
+                );
+                state.update_stluna_exchange_rate(stluna_total_issued, current_requested_stluna);
                 Ok(state)
             })?;
         }
@@ -549,16 +553,16 @@ fn convert_stluna_bluna<S: Storage, A: Api, Q: Querier>(
 
     let bluna_to_mint = decimal_division(denom_equiv, state.bluna_exchange_rate);
     let current_batch = read_current_batch(&deps.storage).load()?;
-    let requested_with_fee = current_batch.requested_bluna_with_fee;
+    let requested_bluna_with_fee = current_batch.requested_bluna_with_fee;
+    let requested_stluna = current_batch.requested_stluna;
 
     let total_bluna_supply = query_total_bluna_issued(&deps).unwrap_or_default();
     let total_stluna_supply = query_total_stluna_issued(&deps).unwrap_or_default();
     let mut bluna_mint_amount_with_fee = bluna_to_mint;
     if state.bluna_exchange_rate < threshold {
         let max_peg_fee = bluna_to_mint * recovery_fee;
-        let required_peg_fee =
-            ((total_bluna_supply + bluna_to_mint + current_batch.requested_bluna_with_fee)
-                - (state.total_bond_bluna_amount + denom_equiv))?;
+        let required_peg_fee = ((total_bluna_supply + bluna_to_mint + requested_bluna_with_fee)
+            - (state.total_bond_bluna_amount + denom_equiv))?;
         let peg_fee = Uint128::min(max_peg_fee, required_peg_fee);
         bluna_mint_amount_with_fee = (bluna_to_mint - peg_fee)?;
     }
@@ -572,16 +576,19 @@ fn convert_stluna_bluna<S: Storage, A: Api, Q: Querier>(
                 prev_state.total_bond_stluna_amount, denom_equiv,
             ))
         })?;
-        prev_state
-            .update_bluna_exchange_rate(total_bluna_supply + bluna_to_mint, requested_with_fee);
-        prev_state.update_stluna_exchange_rate((total_stluna_supply - stluna_amount).map_err(
-            |_| {
+        prev_state.update_bluna_exchange_rate(
+            total_bluna_supply + bluna_to_mint,
+            requested_bluna_with_fee,
+        );
+        prev_state.update_stluna_exchange_rate(
+            (total_stluna_supply - stluna_amount).map_err(|_| {
                 StdError::generic_err(format!(
                     "Decrease amount cannot exceed total stluna supply: {}. Trying to reduce: {}",
                     total_stluna_supply, stluna_amount,
                 ))
-            },
-        )?);
+            })?,
+            requested_stluna,
+        );
         Ok(prev_state)
     })?;
 
@@ -629,7 +636,8 @@ fn convert_bluna_stluna<S: Storage, A: Api, Q: Querier>(
 
     let stluna_to_mint = decimal_division(denom_equiv, state.stluna_exchange_rate);
     let current_batch = read_current_batch(&deps.storage).load()?;
-    let requested_with_fee = current_batch.requested_bluna_with_fee;
+    let requested_bluna_with_fee = current_batch.requested_bluna_with_fee;
+    let requested_stluna_with_fee = current_batch.requested_stluna;
 
     let total_bluna_supply = query_total_bluna_issued(&deps).unwrap_or_default();
     let total_stluna_supply = query_total_stluna_issued(&deps).unwrap_or_default();
@@ -649,9 +657,9 @@ fn convert_bluna_stluna<S: Storage, A: Api, Q: Querier>(
                     total_bluna_supply, bluna_amount,
                 ))
             })?,
-            requested_with_fee,
+            requested_bluna_with_fee,
         );
-        prev_state.update_stluna_exchange_rate(total_stluna_supply + stluna_to_mint);
+        prev_state.update_stluna_exchange_rate(total_stluna_supply + stluna_to_mint, requested_stluna_with_fee);
         Ok(prev_state)
     })?;
 
@@ -781,7 +789,6 @@ fn query_state<S: Storage, A: Api, Q: Querier>(deps: &Extern<S, A, Q>) -> StdRes
         total_bond_stluna_amount: state.total_bond_stluna_amount,
         last_index_modification: state.last_index_modification,
         prev_hub_balance: state.prev_hub_balance,
-        actual_unbonded_amount: state.actual_unbonded_amount,
         last_unbonded_time: state.last_unbonded_time,
         last_processed_batch: state.last_processed_batch,
     };
@@ -892,7 +899,6 @@ pub fn migrate<S: Storage, A: Api, Q: Querier>(
         total_bond_stluna_amount: Uint128::zero(),
         last_index_modification: old_state.last_index_modification,
         prev_hub_balance: old_state.prev_hub_balance,
-        actual_unbonded_amount: old_state.actual_unbonded_amount,
         last_unbonded_time: old_state.last_unbonded_time,
         last_processed_batch: old_state.last_processed_batch,
     };
@@ -945,6 +951,13 @@ pub fn migrate<S: Storage, A: Api, Q: Querier>(
         })
         .collect();
     remove_whitelisted_validators_store(&mut deps.storage)?;
+
+    // migrate unbond waitlist
+    // update old values (Uint128) in PREFIX_WAIT_MAP storage to UnbondWaitEntity
+    migrate_unbond_wait_lists(&mut deps.storage)?;
+
+    // migrate unbond history
+    migrate_unbond_history(&mut deps.storage)?;
 
     Ok(MigrateResponse {
         messages,
