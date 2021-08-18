@@ -64,6 +64,7 @@ pub fn handle<S: Storage, A: Api, Q: Querier>(
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn handle_update_config<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
     env: Env,
