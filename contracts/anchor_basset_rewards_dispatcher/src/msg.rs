@@ -25,6 +25,8 @@ pub enum HandleMsg {
         bluna_reward_contract: Option<HumanAddr>,
         stluna_reward_denom: Option<String>,
         bluna_reward_denom: Option<String>,
+        lido_fee_address: Option<HumanAddr>,
+        lido_fee_rate: Option<Decimal>,
     },
     DispatchRewards {},
 }

@@ -934,7 +934,7 @@ pub fn migrate<S: Storage, A: Api, Q: Querier>(
     //migrate whitelisted validators
     //we must add them to validators_registry_contract
     let whitelisted_validators = read_validators(&deps.storage)?;
-    let messages: Vec<CosmosMsg> = whitelisted_validators
+    let mut messages: Vec<CosmosMsg> = whitelisted_validators
         .iter()
         .map(|validator_address| {
             CosmosMsg::Wasm(WasmMsg::Execute {
@@ -951,6 +951,13 @@ pub fn migrate<S: Storage, A: Api, Q: Querier>(
         })
         .collect();
     remove_whitelisted_validators_store(&mut deps.storage)?;
+
+    // register the reward dispatcher contract for automate reward withdrawal
+    let msg: CosmosMsg = CosmosMsg::Staking(StakingMsg::Withdraw {
+        validator: HumanAddr::default(),
+        recipient: Some(msg.reward_dispatcher_contract),
+    });
+    messages.push(msg);
 
     // migrate unbond waitlist
     // update old values (Uint128) in PREFIX_WAIT_MAP storage to UnbondWaitEntity
