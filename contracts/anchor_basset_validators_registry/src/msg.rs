@@ -30,4 +30,5 @@ pub enum HandleMsg {
 pub enum QueryMsg {
     // GetValidatorsForDelegation returns validators sorted by available amount for delegation (delegation_limit - total_delegated)
     GetValidatorsForDelegation {},
+    Config {},
 }
