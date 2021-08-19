@@ -21,7 +21,7 @@ use crate::unbond::{handle_unbond, handle_unbond_stluna, handle_withdraw_unbonde
 
 use crate::bond::handle_bond_stluna;
 use crate::bond::{handle_bond, handle_bond_rewards};
-use anchor_basset_rewards_dispatcher::msg::HandleMsg::{DispatchRewards, SwapToRewardDenom};
+use anchor_basset_rewards_dispatcher::msg::ExecuteMsg::{DispatchRewards, SwapToRewardDenom};
 use anchor_basset_validators_registry::msg::ExecuteMsg::AddValidator;
 use anchor_basset_validators_registry::registry::Validator;
 use cosmwasm_storage::to_length_prefixed;

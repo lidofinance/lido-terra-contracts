@@ -1,56 +1,66 @@
 use cosmwasm_std::{
-    log, to_binary, Api, BankMsg, Binary, Coin, CosmosMsg, Decimal, Env, Extern, HandleResponse,
-    HumanAddr, InitResponse, Querier, StdError, StdResult, Storage, Uint128, WasmMsg,
+    attr, entry_point, to_binary, BankMsg, Binary, Coin, CosmosMsg, Decimal, Deps, DepsMut, Env,
+    MessageInfo, Response, StdError, StdResult, Uint128, WasmMsg,
 };
 
-use crate::msg::{HandleMsg, InitMsg, QueryMsg};
+use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
 use crate::state::{read_config, store_config, update_config, Config};
-use anchor_basset_reward::msg::HandleMsg::UpdateGlobalIndex;
+use basset::hub::HandleMsg::{BondRewards, UpdateGlobalIndex};
 use basset::{compute_lido_fee, deduct_tax};
-use hub_querier::HandleMsg::BondRewards;
 use std::ops::Mul;
 use terra_cosmwasm::{create_swap_msg, SwapResponse, TerraMsgWrapper, TerraQuerier};
 
-pub fn init<S: Storage, A: Api, Q: Querier>(
-    deps: &mut Extern<S, A, Q>,
-    env: Env,
-    msg: InitMsg,
-) -> StdResult<InitResponse> {
+#[entry_point]
+pub fn instantiate(
+    deps: DepsMut,
+    _env: Env,
+    info: MessageInfo,
+    msg: InstantiateMsg,
+) -> StdResult<Response> {
     let conf = Config {
-        owner: deps.api.canonical_address(&env.message.sender)?,
-        hub_contract: deps.api.canonical_address(&msg.hub_contract)?,
-        bluna_reward_contract: deps.api.canonical_address(&msg.bluna_reward_contract)?,
+        owner: deps.api.addr_canonicalize(&info.sender.as_str())?,
+        hub_contract: deps.api.addr_canonicalize(&msg.hub_contract)?,
+        bluna_reward_contract: deps.api.addr_canonicalize(&msg.bluna_reward_contract)?,
         bluna_reward_denom: msg.bluna_reward_denom,
         stluna_reward_denom: msg.stluna_reward_denom,
-        lido_fee_address: deps.api.canonical_address(&msg.lido_fee_address)?,
+        lido_fee_address: deps.api.addr_canonicalize(&msg.lido_fee_address)?,
         lido_fee_rate: msg.lido_fee_rate,
     };
 
-    store_config(&mut deps.storage, &conf)?;
+    store_config(deps.storage, &conf)?;
 
-    Ok(InitResponse::default())
+    Ok(Response::default())
 }
 
-pub fn handle<S: Storage, A: Api, Q: Querier>(
-    deps: &mut Extern<S, A, Q>,
+#[entry_point]
+pub fn execute(
+    deps: DepsMut,
     env: Env,
-    msg: HandleMsg,
-) -> StdResult<HandleResponse<TerraMsgWrapper>> {
+    info: MessageInfo,
+    msg: ExecuteMsg,
+) -> StdResult<Response<TerraMsgWrapper>> {
     match msg {
-        HandleMsg::SwapToRewardDenom {
+        ExecuteMsg::SwapToRewardDenom {
             bluna_total_mint_amount,
             stluna_total_mint_amount,
-        } => handle_swap(deps, env, bluna_total_mint_amount, stluna_total_mint_amount),
-        HandleMsg::DispatchRewards {} => handle_dispatch_rewards(deps, env),
-        HandleMsg::UpdateConfig {
+        } => execute_swap(
+            deps,
+            env,
+            info,
+            bluna_total_mint_amount,
+            stluna_total_mint_amount,
+        ),
+        ExecuteMsg::DispatchRewards {} => execute_dispatch_rewards(deps, env, info),
+        ExecuteMsg::UpdateConfig {
             owner,
             hub_contract,
             bluna_reward_contract,
             stluna_reward_denom,
             bluna_reward_denom,
-        } => handle_update_config(
+        } => execute_update_config(
             deps,
             env,
+            info,
             owner,
             hub_contract,
             bluna_reward_contract,
@@ -60,91 +70,93 @@ pub fn handle<S: Storage, A: Api, Q: Querier>(
     }
 }
 
-pub fn handle_update_config<S: Storage, A: Api, Q: Querier>(
-    deps: &mut Extern<S, A, Q>,
-    env: Env,
-    owner: Option<HumanAddr>,
-    hub_contract: Option<HumanAddr>,
-    bluna_reward_contract: Option<HumanAddr>,
+pub fn execute_update_config(
+    deps: DepsMut,
+    _env: Env,
+    info: MessageInfo,
+    owner: Option<String>,
+    hub_contract: Option<String>,
+    bluna_reward_contract: Option<String>,
     stluna_reward_denom: Option<String>,
     bluna_reward_denom: Option<String>,
-) -> StdResult<HandleResponse<TerraMsgWrapper>> {
-    let conf = read_config(&deps.storage)?;
-    let sender_raw = deps.api.canonical_address(&env.message.sender)?;
+) -> StdResult<Response<TerraMsgWrapper>> {
+    let conf = read_config(deps.storage)?;
+    let sender_raw = deps.api.addr_canonicalize(&info.sender.as_str())?;
     if sender_raw != conf.owner {
-        return Err(StdError::unauthorized());
+        return Err(StdError::generic_err("unauthorized"));
     }
 
     if let Some(o) = owner {
-        let owner_raw = deps.api.canonical_address(&o)?;
+        let owner_raw = deps.api.addr_canonicalize(&o)?;
 
-        update_config(&mut deps.storage).update(|mut last_config| {
+        update_config(deps.storage).update(|mut last_config| -> StdResult<_> {
             last_config.owner = owner_raw;
             Ok(last_config)
         })?;
     }
 
     if let Some(h) = hub_contract {
-        let hub_raw = deps.api.canonical_address(&h)?;
+        let hub_raw = deps.api.addr_canonicalize(&h)?;
 
-        update_config(&mut deps.storage).update(|mut last_config| {
+        update_config(deps.storage).update(|mut last_config| -> StdResult<_> {
             last_config.hub_contract = hub_raw;
             Ok(last_config)
         })?;
     }
 
     if let Some(b) = bluna_reward_contract {
-        let bluna_raw = deps.api.canonical_address(&b)?;
+        let bluna_raw = deps.api.addr_canonicalize(&b)?;
 
-        update_config(&mut deps.storage).update(|mut last_config| {
+        update_config(deps.storage).update(|mut last_config| -> StdResult<_> {
             last_config.bluna_reward_contract = bluna_raw;
             Ok(last_config)
         })?;
     }
 
     if let Some(s) = stluna_reward_denom {
-        update_config(&mut deps.storage).update(|mut last_config| {
+        update_config(deps.storage).update(|mut last_config| -> StdResult<_> {
             last_config.stluna_reward_denom = s;
             Ok(last_config)
         })?;
     }
 
     if let Some(b) = bluna_reward_denom {
-        update_config(&mut deps.storage).update(|mut last_config| {
+        update_config(deps.storage).update(|mut last_config| -> StdResult<_> {
             last_config.bluna_reward_denom = b;
             Ok(last_config)
         })?;
     }
 
-    Ok(HandleResponse::default())
+    Ok(Response::default())
 }
 
-pub fn handle_swap<S: Storage, A: Api, Q: Querier>(
-    deps: &mut Extern<S, A, Q>,
+pub fn execute_swap(
+    deps: DepsMut,
     env: Env,
+    info: MessageInfo,
     bluna_total_mint_amount: Uint128,
     stluna_total_mint_amount: Uint128,
-) -> StdResult<HandleResponse<TerraMsgWrapper>> {
-    let config = read_config(&deps.storage)?;
-    let hub_addr = deps.api.human_address(&config.hub_contract)?;
+) -> StdResult<Response<TerraMsgWrapper>> {
+    let config = read_config(deps.storage)?;
+    let hub_addr = deps.api.addr_humanize(&config.hub_contract)?;
 
-    if env.message.sender != hub_addr {
-        return Err(StdError::unauthorized());
+    if info.sender != hub_addr {
+        return Err(StdError::generic_err("unauthorized"));
     }
 
     let contr_addr = env.contract.address;
     let balance = deps.querier.query_all_balances(contr_addr.clone())?;
     let (total_stluna_rewards_available, total_bluna_rewards_available, mut msgs) =
         convert_to_target_denoms(
-            deps,
-            contr_addr.clone(),
+            &deps,
+            contr_addr.to_string(),
             balance.clone(),
             config.stluna_reward_denom.clone(),
             config.bluna_reward_denom.clone(),
         )?;
 
     let (stluna_2_bluna_rewards_xchg_rate, bluna_2_stluna_rewards_xchg_rate) = get_exchange_rates(
-        deps,
+        &deps,
         config.stluna_reward_denom.as_str(),
         config.bluna_reward_denom.as_str(),
     )?;
@@ -161,47 +173,39 @@ pub fn handle_swap<S: Storage, A: Api, Q: Querier>(
     .unwrap();
 
     if !offer_coin.amount.is_zero() {
-        msgs.push(create_swap_msg(
-            contr_addr,
-            offer_coin.clone(),
-            ask_denom.clone(),
-        ));
+        msgs.push(create_swap_msg(offer_coin.clone(), ask_denom.clone()));
     }
 
-    let res = HandleResponse {
-        messages: msgs,
-        log: vec![
-            log("action", "swap"),
-            log("initial_balance", format!("{:?}", balance)),
-            log(
-                "stluna_2_bluna_rewards_xchg_rate",
-                stluna_2_bluna_rewards_xchg_rate,
-            ),
-            log(
-                "bluna_2_stluna_rewards_xchg_rate",
-                bluna_2_stluna_rewards_xchg_rate,
-            ),
-            log(
-                "total_stluna_rewards_available",
-                total_stluna_rewards_available,
-            ),
-            log(
-                "total_bluna_rewards_available",
-                total_bluna_rewards_available,
-            ),
-            log("offer_coin_denom", offer_coin.denom),
-            log("offer_coin_amount", offer_coin.amount),
-            log("ask_denom", ask_denom),
-        ],
-        data: None,
-    };
+    let res = Response::new().add_messages(msgs).add_attributes(vec![
+        attr("action", "swap"),
+        attr("initial_balance", format!("{:?}", balance)),
+        attr(
+            "stluna_2_bluna_rewards_xchg_rate",
+            stluna_2_bluna_rewards_xchg_rate.to_string(),
+        ),
+        attr(
+            "bluna_2_stluna_rewards_xchg_rate",
+            bluna_2_stluna_rewards_xchg_rate.to_string(),
+        ),
+        attr(
+            "total_stluna_rewards_available",
+            total_stluna_rewards_available,
+        ),
+        attr(
+            "total_bluna_rewards_available",
+            total_bluna_rewards_available,
+        ),
+        attr("offer_coin_denom", offer_coin.denom),
+        attr("offer_coin_amount", offer_coin.amount),
+        attr("ask_denom", ask_denom),
+    ]);
 
     Ok(res)
 }
 
-pub(crate) fn convert_to_target_denoms<S: Storage, A: Api, Q: Querier>(
-    deps: &mut Extern<S, A, Q>,
-    contr_addr: HumanAddr,
+pub(crate) fn convert_to_target_denoms(
+    deps: &DepsMut,
+    _contr_addr: String,
     balance: Vec<Coin>,
     denom_to_keep: String,
     denom_to_xchg: String,
@@ -226,18 +230,14 @@ pub(crate) fn convert_to_target_denoms<S: Storage, A: Api, Q: Querier>(
             terra_querier.query_swap(coin.clone(), denom_to_xchg.as_str())?;
         total_usd_available += swap_response.receive.amount;
 
-        msgs.push(create_swap_msg(
-            contr_addr.clone(),
-            coin,
-            denom_to_xchg.to_string(),
-        ));
+        msgs.push(create_swap_msg(coin, denom_to_xchg.to_string()));
     }
 
     Ok((total_luna_available, total_usd_available, msgs))
 }
 
-pub(crate) fn get_exchange_rates<S: Storage, A: Api, Q: Querier>(
-    deps: &mut Extern<S, A, Q>,
+pub(crate) fn get_exchange_rates(
+    deps: &DepsMut,
     denom_a: &str,
     denom_b: &str,
 ) -> StdResult<(Decimal, Decimal)> {
@@ -275,8 +275,7 @@ pub(crate) fn get_swap_info(
     );
 
     if total_stluna_rewards_available.gt(&stluna_share_of_total_rewards) {
-        let stluna_rewards_to_sell =
-            (total_stluna_rewards_available - stluna_share_of_total_rewards)?;
+        let stluna_rewards_to_sell = total_stluna_rewards_available - stluna_share_of_total_rewards;
 
         Ok((
             Coin::new(
@@ -286,8 +285,7 @@ pub(crate) fn get_swap_info(
             config.bluna_reward_denom,
         ))
     } else {
-        let stluna_rewards_to_buy =
-            (stluna_share_of_total_rewards - total_stluna_rewards_available)?;
+        let stluna_rewards_to_buy = stluna_share_of_total_rewards - total_stluna_rewards_available;
         let bluna_rewards_to_sell = stluna_rewards_to_buy.mul(stluna_2_bluna_rewards_xchg_rate);
 
         Ok((
@@ -300,31 +298,32 @@ pub(crate) fn get_swap_info(
     }
 }
 
-pub fn handle_dispatch_rewards<S: Storage, A: Api, Q: Querier>(
-    deps: &mut Extern<S, A, Q>,
+pub fn execute_dispatch_rewards(
+    deps: DepsMut,
     env: Env,
-) -> StdResult<HandleResponse<TerraMsgWrapper>> {
-    let config = read_config(&deps.storage)?;
+    info: MessageInfo,
+) -> StdResult<Response<TerraMsgWrapper>> {
+    let config = read_config(deps.storage)?;
 
-    let hub_addr = deps.api.human_address(&config.hub_contract)?;
-    if env.message.sender != hub_addr {
-        return Err(StdError::unauthorized());
+    let hub_addr = deps.api.addr_humanize(&config.hub_contract)?;
+    if info.sender != hub_addr {
+        return Err(StdError::generic_err("unauthorized"));
     }
 
-    let bluna_reward_addr = deps.api.human_address(&config.bluna_reward_contract)?;
+    let bluna_reward_addr = deps.api.addr_humanize(&config.bluna_reward_contract)?;
 
     let contr_addr = env.contract.address;
     let mut stluna_rewards = deps
         .querier
         .query_balance(contr_addr.clone(), config.stluna_reward_denom.as_str())?;
     let lido_stluna_fee = compute_lido_fee(stluna_rewards.amount, config.lido_fee_rate)?;
-    stluna_rewards.amount = (stluna_rewards.amount - lido_stluna_fee)?;
+    stluna_rewards.amount = stluna_rewards.amount - lido_stluna_fee;
 
     let mut bluna_rewards = deps
         .querier
         .query_balance(contr_addr.clone(), config.bluna_reward_denom.as_str())?;
     let lido_bluna_fee = compute_lido_fee(bluna_rewards.amount, config.lido_fee_rate)?;
-    bluna_rewards.amount = (bluna_rewards.amount - lido_bluna_fee)?;
+    bluna_rewards.amount = bluna_rewards.amount - lido_bluna_fee;
 
     let mut lido_fees: Vec<Coin> = vec![];
     if !lido_stluna_fee.is_zero() {
@@ -343,16 +342,18 @@ pub fn handle_dispatch_rewards<S: Storage, A: Api, Q: Querier>(
     let mut messages: Vec<CosmosMsg<TerraMsgWrapper>> = vec![];
     if !stluna_rewards.amount.is_zero() {
         messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
-            contract_addr: hub_addr,
+            contract_addr: hub_addr.to_string(),
             msg: to_binary(&BondRewards {}).unwrap(),
-            send: vec![deduct_tax(&deps, stluna_rewards.clone())?],
+            funds: vec![deduct_tax(&deps.querier, stluna_rewards.clone())?],
         }));
     }
     if !lido_fees.is_empty() {
         messages.push(
             BankMsg::Send {
-                from_address: contr_addr.clone(),
-                to_address: deps.api.human_address(&config.lido_fee_address)?,
+                to_address: deps
+                    .api
+                    .addr_humanize(&config.lido_fee_address)?
+                    .to_string(),
                 amount: lido_fees,
             }
             .into(),
@@ -361,46 +362,42 @@ pub fn handle_dispatch_rewards<S: Storage, A: Api, Q: Querier>(
     if !bluna_rewards.amount.is_zero() {
         messages.push(
             BankMsg::Send {
-                from_address: contr_addr,
-                to_address: bluna_reward_addr.clone(),
-                amount: vec![deduct_tax(&deps, bluna_rewards.clone())?],
+                to_address: bluna_reward_addr.to_string(),
+                amount: vec![deduct_tax(&deps.querier, bluna_rewards.clone())?],
             }
             .into(),
         )
     }
     messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
-        contract_addr: bluna_reward_addr.clone(),
-        msg: to_binary(&UpdateGlobalIndex {}).unwrap(),
-        send: vec![],
+        contract_addr: bluna_reward_addr.to_string(),
+        msg: to_binary(&UpdateGlobalIndex {
+            airdrop_hooks: None,
+        })
+        .unwrap(),
+        funds: vec![],
     }));
 
-    Ok(HandleResponse {
-        messages,
-        log: vec![
-            log("action", "claim_reward"),
-            log("bluna_reward_addr", bluna_reward_addr),
-            log("stluna_rewards_denom", stluna_rewards.denom),
-            log("stluna_rewards_amount", stluna_rewards.amount),
-            log("bluna_rewards_denom", bluna_rewards.denom),
-            log("bluna_rewards_amount", bluna_rewards.amount),
-            log("lido_stluna_fee", lido_stluna_fee),
-            log("lido_bluna_fee", lido_bluna_fee),
-        ],
-        data: None,
-    })
+    Ok(Response::new().add_messages(messages).add_attributes(vec![
+        attr("action", "claim_reward"),
+        attr("bluna_reward_addr", bluna_reward_addr),
+        attr("stluna_rewards_denom", stluna_rewards.denom),
+        attr("stluna_rewards_amount", stluna_rewards.amount),
+        attr("bluna_rewards_denom", bluna_rewards.denom),
+        attr("bluna_rewards_amount", bluna_rewards.amount),
+        attr("lido_stluna_fee", lido_stluna_fee),
+        attr("lido_bluna_fee", lido_bluna_fee),
+    ]))
 }
 
-fn query_config<S: Storage, A: Api, Q: Querier>(deps: &Extern<S, A, Q>) -> StdResult<Config> {
-    let config = read_config(&deps.storage)?;
+fn query_config(deps: Deps) -> StdResult<Config> {
+    let config = read_config(deps.storage)?;
     Ok(config)
 }
 
-pub fn query<S: Storage, A: Api, Q: Querier>(
-    deps: &Extern<S, A, Q>,
-    msg: QueryMsg,
-) -> StdResult<Binary> {
+#[entry_point]
+pub fn query(deps: Deps, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
-        QueryMsg::Config {} => to_binary(&query_config(&deps)?),
+        QueryMsg::Config {} => to_binary(&query_config(deps)?),
         QueryMsg::GetBufferedRewards {} => unimplemented!(),
     }
 }

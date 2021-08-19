@@ -1,7 +1,7 @@
 use cosmwasm_std::testing::{MockApi, MockQuerier, MockStorage, MOCK_CONTRACT_ADDR};
 use cosmwasm_std::{
-    from_slice, to_binary, Coin, Decimal, Extern, HumanAddr, Querier, QuerierResult, QueryRequest,
-    SystemError, Uint128, WasmQuery,
+    from_slice, to_binary, Coin, ContractResult, Decimal, OwnedDeps, Querier, QuerierResult,
+    QueryRequest, SystemError, Uint128, WasmQuery,
 };
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -15,25 +15,21 @@ pub const MOCK_LIDO_FEE_ADDRESS: &str = "lido_fee";
 // pub const MOCK_TOKEN_CONTRACT_ADDR: &str = "token";
 
 pub fn mock_dependencies(
-    canonical_length: usize,
     contract_balance: &[Coin],
-) -> Extern<MockStorage, MockApi, WasmMockQuerier> {
-    let contract_addr = HumanAddr::from(MOCK_CONTRACT_ADDR);
-    let custom_querier: WasmMockQuerier = WasmMockQuerier::new(
-        MockQuerier::new(&[(&contract_addr, contract_balance)]),
-        canonical_length,
-    );
+) -> OwnedDeps<MockStorage, MockApi, WasmMockQuerier> {
+    let contract_addr = String::from(MOCK_CONTRACT_ADDR);
+    let custom_querier: WasmMockQuerier =
+        WasmMockQuerier::new(MockQuerier::new(&[(&contract_addr, contract_balance)]));
 
-    Extern {
+    OwnedDeps {
         storage: MockStorage::default(),
-        api: MockApi::new(canonical_length),
+        api: MockApi::default(),
         querier: custom_querier,
     }
 }
 
 pub struct WasmMockQuerier {
     base: MockQuerier<TerraQueryWrapper>,
-    _canonical_length: usize,
 }
 
 impl Querier for WasmMockQuerier {
@@ -42,7 +38,7 @@ impl Querier for WasmMockQuerier {
         let request: QueryRequest<TerraQueryWrapper> = match from_slice(bin_request) {
             Ok(v) => v,
             Err(e) => {
-                return Err(SystemError::InvalidRequest {
+                return QuerierResult::Err(SystemError::InvalidRequest {
                     error: format!("Parsing query request: {}", e),
                     request: bin_request.into(),
                 });
@@ -66,12 +62,12 @@ impl WasmMockQuerier {
                             let res = TaxRateResponse {
                                 rate: Decimal::percent(1),
                             };
-                            Ok(to_binary(&res))
+                            QuerierResult::Ok(ContractResult::from(to_binary(&res)))
                         }
                         TerraQuery::TaxCap { denom: _ } => {
-                            let cap = Uint128(1000000u128);
+                            let cap = Uint128::from(1000000u128);
                             let res = TaxCapResponse { cap };
-                            Ok(to_binary(&res))
+                            QuerierResult::Ok(ContractResult::from(to_binary(&res)))
                         }
                         TerraQuery::ExchangeRates {
                             base_denom,
@@ -82,14 +78,17 @@ impl WasmMockQuerier {
                                 for quote_denom in quote_denoms {
                                     exchange_rates.push(ExchangeRateItem {
                                         quote_denom: quote_denom.clone(),
-                                        exchange_rate: Decimal::from_ratio(Uint128(1), Uint128(1)),
+                                        exchange_rate: Decimal::from_ratio(
+                                            Uint128::from(1u64),
+                                            Uint128::from(1u64),
+                                        ),
                                     })
                                 }
                                 let res = ExchangeRatesResponse {
                                     base_denom: base_denom.to_string(),
                                     exchange_rates,
                                 };
-                                Ok(to_binary(&res))
+                                QuerierResult::Ok(ContractResult::from(to_binary(&res)))
                             } else {
                                 panic!("UNSUPPORTED DENOM: {}", base_denom);
                             }
@@ -97,9 +96,10 @@ impl WasmMockQuerier {
                         TerraQuery::Swap {
                             offer_coin,
                             ask_denom,
-                        } => Ok(to_binary(&SwapResponse {
+                        } => QuerierResult::Ok(ContractResult::from(to_binary(&SwapResponse {
                             receive: Coin::new(offer_coin.amount.u128(), ask_denom),
-                        })),
+                        }))),
+                        _ => panic!("DO NOT ENTER HERE"),
                     }
                 } else {
                     panic!(
@@ -118,11 +118,8 @@ impl WasmMockQuerier {
 }
 
 impl WasmMockQuerier {
-    pub fn new(base: MockQuerier<TerraQueryWrapper>, canonical_length: usize) -> Self {
-        WasmMockQuerier {
-            base,
-            _canonical_length: canonical_length,
-        }
+    pub fn new(base: MockQuerier<TerraQueryWrapper>) -> Self {
+        WasmMockQuerier { base }
     }
 }
 
