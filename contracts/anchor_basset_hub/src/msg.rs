@@ -1,5 +1,5 @@
 use crate::state::UnbondHistory;
-use cosmwasm_std::{Decimal, HumanAddr, Uint128};
+use cosmwasm_std::{Decimal, String, Uint128};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -22,12 +22,12 @@ pub enum QueryMsg {
     State {},
     CurrentBatch {},
     WithdrawableUnbonded {
-        address: HumanAddr,
+        address: String,
         block_time: u64,
     },
     Parameters {},
     UnbondRequests {
-        address: HumanAddr,
+        address: String,
     },
     AllHistory {
         start_from: Option<u64>,
@@ -49,17 +49,17 @@ pub struct StateResponse {
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct ConfigResponse {
-    pub owner: HumanAddr,
-    pub reward_dispatcher_contract: Option<HumanAddr>,
-    pub validators_registry_contract: Option<HumanAddr>,
-    pub bluna_token_contract: Option<HumanAddr>,
-    pub stluna_token_contract: Option<HumanAddr>,
-    pub airdrop_registry_contract: Option<HumanAddr>,
+    pub owner: String,
+    pub reward_dispatcher_contract: Option<String>,
+    pub validators_registry_contract: Option<String>,
+    pub bluna_token_contract: Option<String>,
+    pub stluna_token_contract: Option<String>,
+    pub airdrop_registry_contract: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct WhitelistedValidatorsResponse {
-    pub validators: Vec<HumanAddr>,
+    pub validators: Vec<String>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -75,7 +75,7 @@ pub struct WithdrawableUnbondedResponse {
 }
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct UnbondRequestsResponse {
-    pub address: HumanAddr,
+    pub address: String,
     pub requests: UnbondRequest,
 }
 
@@ -86,7 +86,7 @@ pub struct AllHistoryResponse {
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct MigrateMsg {
-    pub reward_dispatcher_contract: HumanAddr,
-    pub validators_registry_contract: HumanAddr,
-    pub stluna_token_contract: HumanAddr,
+    pub reward_dispatcher_contract: String,
+    pub validators_registry_contract: String,
+    pub stluna_token_contract: String,
 }

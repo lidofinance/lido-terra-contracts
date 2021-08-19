@@ -2,7 +2,7 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use cosmwasm_std::{
-    from_slice, to_vec, Decimal, HumanAddr, Order, ReadonlyStorage, StdError, StdResult, Storage,
+    from_slice, to_vec, Decimal, Order, ReadonlyStorage, StdError, StdResult, Storage, String,
     Uint128,
 };
 use cosmwasm_storage::{
@@ -10,17 +10,24 @@ use cosmwasm_storage::{
     ReadonlySingleton, Singleton,
 };
 
+use cw_storage_plus::Item;
+
 use crate::msg::UnbondRequest;
+use basset::hub::{Config, OldConfig, OldState, State};
 use hub_querier::{Config, OldConfig, OldState, State};
 
 pub type LastBatch = u64;
 
-pub static CONFIG: &[u8] = b"config";
-pub static STATE: &[u8] = b"state";
-pub static PARAMETERS: &[u8] = b"parameteres";
+pub const CONFIG: Item<Config> = Item::new("\u{0}\u{6}config");
+pub const PARAMETERS: Item<Parameters> = Item::new("\u{0}\u{b}parameteres");
+pub const CURRENT_BATCH: Item<CurrentBatch> = Item::new("\u{0}\u{d}current_batch");
+pub const STATE: Item<State> = Item::new("\u{0}\u{5}state");
+
+pub const OLD_CONFIG: Item<OldConfig> = Item::new("\u{0}\u{6}config");
+pub const OLD_CURRENT_BATCH: Item<OldCurrentBatch> = Item::new("\u{0}\u{d}current_batch");
+pub const OLD_STATE: Item<OldState> = Item::new("\u{0}\u{5}state");
 
 pub static PREFIX_WAIT_MAP: &[u8] = b"wait";
-pub static CURRENT_BATCH: &[u8] = b"current_batch";
 pub static UNBOND_HISTORY_MAP: &[u8] = b"history_map";
 pub static PREFIX_AIRDROP_INFO: &[u8] = b"airedrop_info";
 pub static VALIDATORS: &[u8] = b"validators";
@@ -63,52 +70,6 @@ pub struct UnbondHistory {
     pub released: bool,
 }
 
-pub fn store_config<S: Storage>(storage: &mut S) -> Singleton<S, Config> {
-    singleton(storage, CONFIG)
-}
-
-pub fn read_config<S: ReadonlyStorage>(storage: &S) -> ReadonlySingleton<S, Config> {
-    singleton_read(storage, CONFIG)
-}
-
-pub fn read_old_config<S: ReadonlyStorage>(storage: &S) -> ReadonlySingleton<S, OldConfig> {
-    singleton_read(storage, CONFIG)
-}
-
-pub fn store_parameters<S: Storage>(storage: &mut S) -> Singleton<S, Parameters> {
-    singleton(storage, PARAMETERS)
-}
-
-pub fn read_parameters<S: ReadonlyStorage>(storage: &S) -> ReadonlySingleton<S, Parameters> {
-    singleton_read(storage, PARAMETERS)
-}
-
-pub fn store_current_batch<S: Storage>(storage: &mut S) -> Singleton<S, CurrentBatch> {
-    singleton(storage, CURRENT_BATCH)
-}
-
-pub fn read_current_batch<S: ReadonlyStorage>(storage: &S) -> ReadonlySingleton<S, CurrentBatch> {
-    singleton_read(storage, CURRENT_BATCH)
-}
-
-pub fn read_old_current_batch<S: ReadonlyStorage>(
-    storage: &S,
-) -> ReadonlySingleton<S, OldCurrentBatch> {
-    singleton_read(storage, CURRENT_BATCH)
-}
-
-pub fn store_state<S: Storage>(storage: &mut S) -> Singleton<S, State> {
-    singleton(storage, STATE)
-}
-
-pub fn read_state<S: ReadonlyStorage>(storage: &S) -> ReadonlySingleton<S, State> {
-    singleton_read(storage, STATE)
-}
-
-pub fn read_old_state<S: ReadonlyStorage>(storage: &S) -> ReadonlySingleton<S, OldState> {
-    singleton_read(storage, STATE)
-}
-
 #[derive(JsonSchema, Serialize, Deserialize, Default)]
 pub struct UnbondWaitEntity {
     pub bluna_amount: Uint128,
@@ -122,18 +83,18 @@ pub enum UnbondType {
 
 /// Store undelegation wait list per each batch
 /// HashMap<user's address, <batch_id, requested_amount>
-pub fn store_unbond_wait_list<'a, S: Storage>(
-    storage: &'a mut S,
+pub fn store_unbond_wait_list(
+    storage: &mut dyn Storage,
     batch_id: u64,
-    sender_address: HumanAddr,
+    sender_address: String,
     amount: Uint128,
     unbond_type: UnbondType,
 ) -> StdResult<()> {
     let batch = to_vec(&batch_id)?;
     let addr = to_vec(&sender_address)?;
-    let mut position_indexer: Bucket<'a, S, UnbondWaitEntity> =
-        Bucket::multilevel(&[PREFIX_WAIT_MAP, &addr], storage);
-    position_indexer.update(&batch, |asked_already| {
+    let mut position_indexer: Bucket<UnbondWaitEntity> =
+        Bucket::multilevel(storage, &[PREFIX_WAIT_MAP, &addr]);
+    position_indexer.update(&batch, |asked_already| -> StdResult<UnbondWaitEntity> {
         let mut wl = asked_already.unwrap_or_default();
         match unbond_type {
             UnbondType::BLuna => wl.bluna_amount += amount,
@@ -146,14 +107,14 @@ pub fn store_unbond_wait_list<'a, S: Storage>(
 }
 
 /// Remove unbond batch id from user's wait list
-pub fn remove_unbond_wait_list<'a, S: Storage>(
-    storage: &'a mut S,
+pub fn remove_unbond_wait_list(
+    storage: &mut dyn Storage,
     batch_id: Vec<u64>,
-    sender_address: HumanAddr,
+    sender_address: String,
 ) -> StdResult<()> {
     let addr = to_vec(&sender_address)?;
-    let mut position_indexer: Bucket<'a, S, UnbondWaitEntity> =
-        Bucket::multilevel(&[PREFIX_WAIT_MAP, &addr], storage);
+    let mut position_indexer: Bucket<UnbondWaitEntity> =
+        Bucket::multilevel(storage, &[PREFIX_WAIT_MAP, &addr]);
     for b in batch_id {
         let batch = to_vec(&b)?;
         position_indexer.remove(&batch);
@@ -161,27 +122,24 @@ pub fn remove_unbond_wait_list<'a, S: Storage>(
     Ok(())
 }
 
-pub fn read_unbond_wait_list<'a, S: ReadonlyStorage>(
-    storage: &'a S,
+pub fn read_unbond_wait_list(
+    storage: &dyn Storage,
     batch_id: u64,
-    sender_addr: HumanAddr,
+    sender_addr: String,
 ) -> StdResult<UnbondWaitEntity> {
     let vec = to_vec(&sender_addr)?;
-    let res: ReadonlyBucket<'a, S, UnbondWaitEntity> =
-        ReadonlyBucket::multilevel(&[PREFIX_WAIT_MAP, &vec], storage);
+    let res: ReadonlyBucket<UnbondWaitEntity> =
+        ReadonlyBucket::multilevel(storage, &[PREFIX_WAIT_MAP, &vec]);
     let batch = to_vec(&batch_id)?;
     let wl = res.load(&batch)?;
     Ok(wl)
 }
 
-pub fn get_unbond_requests<'a, S: ReadonlyStorage>(
-    storage: &'a S,
-    sender_addr: HumanAddr,
-) -> StdResult<UnbondRequest> {
+pub fn get_unbond_requests(storage: &dyn Storage, sender_addr: String) -> StdResult<UnbondRequest> {
     let vec = to_vec(&sender_addr)?;
     let mut requests: UnbondRequest = vec![];
-    let res: ReadonlyBucket<'a, S, UnbondWaitEntity> =
-        ReadonlyBucket::multilevel(&[PREFIX_WAIT_MAP, &vec], storage);
+    let res: ReadonlyBucket<UnbondWaitEntity> =
+        ReadonlyBucket::multilevel(storage, &[PREFIX_WAIT_MAP, &vec]);
     let _un: Vec<_> = res
         .range(None, None, Order::Ascending)
         .map(|item| {
@@ -193,14 +151,11 @@ pub fn get_unbond_requests<'a, S: ReadonlyStorage>(
     Ok(requests)
 }
 
-pub fn get_unbond_batches<'a, S: ReadonlyStorage>(
-    storage: &'a S,
-    sender_addr: HumanAddr,
-) -> StdResult<Vec<u64>> {
+pub fn get_unbond_batches(storage: &dyn Storage, sender_addr: String) -> StdResult<Vec<u64>> {
     let vec = to_vec(&sender_addr)?;
     let mut deprecated_batches: Vec<u64> = vec![];
-    let res: ReadonlyBucket<'a, S, UnbondWaitEntity> =
-        ReadonlyBucket::multilevel(&[PREFIX_WAIT_MAP, &vec], storage);
+    let res: ReadonlyBucket<UnbondWaitEntity> =
+        ReadonlyBucket::multilevel(storage, &[PREFIX_WAIT_MAP, &vec]);
     let _un: Vec<_> = res
         .range(None, None, Order::Ascending)
         .map(|item| {
@@ -221,14 +176,11 @@ pub fn get_unbond_batches<'a, S: ReadonlyStorage>(
 /// This needs to be called after process withdraw rate function.
 /// If the batch is released, this will return user's requested
 /// amount proportional to withdraw rate.
-pub fn get_finished_amount<'a, S: ReadonlyStorage>(
-    storage: &'a S,
-    sender_addr: HumanAddr,
-) -> StdResult<Uint128> {
+pub fn get_finished_amount(storage: &dyn Storage, sender_addr: String) -> StdResult<Uint128> {
     let vec = to_vec(&sender_addr)?;
     let mut withdrawable_amount: Uint128 = Uint128::zero();
-    let res: ReadonlyBucket<'a, S, UnbondWaitEntity> =
-        ReadonlyBucket::multilevel(&[PREFIX_WAIT_MAP, &vec], storage);
+    let res: ReadonlyBucket<UnbondWaitEntity> =
+        ReadonlyBucket::multilevel(storage, &[PREFIX_WAIT_MAP, &vec]);
     let _un: Vec<_> = res
         .range(None, None, Order::Ascending)
         .map(|item| {
@@ -248,14 +200,14 @@ pub fn get_finished_amount<'a, S: ReadonlyStorage>(
 
 /// Return the finished amount for all batches that has been before the given block time.
 pub fn query_get_finished_amount<'a, S: ReadonlyStorage>(
-    storage: &'a S,
-    sender_addr: HumanAddr,
+    storage: &dyn Storage,
+    sender_addr: String,
     block_time: u64,
 ) -> StdResult<Uint128> {
     let vec = to_vec(&sender_addr)?;
     let mut withdrawable_amount: Uint128 = Uint128::zero();
-    let res: ReadonlyBucket<'a, S, UnbondWaitEntity> =
-        ReadonlyBucket::multilevel(&[PREFIX_WAIT_MAP, &vec], storage);
+    let res: ReadonlyBucket<UnbondWaitEntity> =
+        ReadonlyBucket::multilevel(storage, &[PREFIX_WAIT_MAP, &vec]);
     let _un: Vec<_> = res
         .range(None, None, Order::Ascending)
         .map(|item| {
@@ -275,24 +227,21 @@ pub fn query_get_finished_amount<'a, S: ReadonlyStorage>(
 
 /// Store unbond history map
 /// Hashmap<batch_id, <UnbondHistory>>
-pub fn store_unbond_history<S: Storage>(
-    storage: &mut S,
+pub fn store_unbond_history(
+    storage: &mut dyn Storage,
     batch_id: u64,
     history: UnbondHistory,
 ) -> StdResult<()> {
     let vec = batch_id.to_be_bytes().to_vec();
     let value: Vec<u8> = to_vec(&history)?;
-    PrefixedStorage::new(UNBOND_HISTORY_MAP, storage).set(&vec, &value);
+    PrefixedStorage::new(storage, UNBOND_HISTORY_MAP).set(&vec, &value);
     Ok(())
 }
 
 #[allow(clippy::needless_lifetimes)]
-pub fn read_unbond_history<'a, S: ReadonlyStorage>(
-    storage: &'a S,
-    epoc_id: u64,
-) -> StdResult<UnbondHistory> {
+pub fn read_unbond_history(storage: &dyn Storage, epoc_id: u64) -> StdResult<UnbondHistory> {
     let vec = epoc_id.to_be_bytes().to_vec();
-    let res = ReadonlyPrefixedStorage::new(UNBOND_HISTORY_MAP, storage).get(&vec);
+    let res = ReadonlyPrefixedStorage::new(storage, UNBOND_HISTORY_MAP).get(&vec);
     match res {
         Some(data) => from_slice(&data),
         None => Err(StdError::generic_err(
@@ -307,15 +256,15 @@ const DEFAULT_LIMIT: u32 = 10;
 
 /// Return all unbond_history from UnbondHistory map
 #[allow(clippy::needless_lifetimes)]
-pub fn all_unbond_history<'a, S: ReadonlyStorage>(
-    storage: &'a S,
+pub fn all_unbond_history(
+    storage: &dyn Storage,
     start: Option<u64>,
     limit: Option<u32>,
 ) -> StdResult<Vec<UnbondHistory>> {
     let vec = convert(start);
 
     let lim = limit.unwrap_or(DEFAULT_LIMIT).min(MAX_LIMIT) as usize;
-    let res = ReadonlyPrefixedStorage::new(UNBOND_HISTORY_MAP, storage)
+    let res = ReadonlyPrefixedStorage::new(storage, UNBOND_HISTORY_MAP)
         .range(vec.as_deref(), None, Order::Ascending)
         .take(lim)
         .map(|item| {
@@ -334,21 +283,21 @@ fn convert(start_after: Option<u64>) -> Option<Vec<u8>> {
     })
 }
 
-pub fn read_validators<S: Storage>(storage: &S) -> StdResult<Vec<HumanAddr>> {
-    let res = ReadonlyPrefixedStorage::new(VALIDATORS, storage);
-    let validators: Vec<HumanAddr> = res
+pub fn read_validators(storage: &dyn Storage) -> StdResult<Vec<String>> {
+    let res = ReadonlyPrefixedStorage::new(storage, VALIDATORS);
+    let validators: Vec<String> = res
         .range(None, None, Order::Ascending)
         .map(|item| {
             let (key, _) = item;
-            let sender: HumanAddr = from_slice(&key).unwrap();
+            let sender: String = from_slice(&key).unwrap();
             sender
         })
         .collect();
     Ok(validators)
 }
 
-pub fn remove_whitelisted_validators_store<S: Storage>(storage: &mut S) -> StdResult<()> {
-    let mut res = PrefixedStorage::new(VALIDATORS, storage);
+pub fn remove_whitelisted_validators_store(storage: &mut dyn Storage) -> StdResult<()> {
+    let mut res = PrefixedStorage::new(storage, VALIDATORS);
     let items = res
         .range(None, None, Order::Ascending)
         .collect::<Vec<(Vec<u8>, Vec<u8>)>>();
@@ -360,20 +309,18 @@ pub fn remove_whitelisted_validators_store<S: Storage>(storage: &mut S) -> StdRe
 
 type OldUnbondWaitList = (Vec<u8>, Uint128);
 
-pub fn read_old_unbond_wait_lists<'a, S: Storage>(
-    storage: &'a mut S,
+pub fn read_old_unbond_wait_lists(
+    storage: &mut dyn Storage,
 ) -> StdResult<Vec<StdResult<OldUnbondWaitList>>> {
-    let reader: ReadonlyBucket<'a, S, Uint128> =
-        ReadonlyBucket::multilevel(&[PREFIX_WAIT_MAP], storage);
+    let reader: ReadonlyBucket<Uint128> = ReadonlyBucket::multilevel(storage, &[PREFIX_WAIT_MAP]);
     Ok(reader
         .range(None, None, Order::Ascending)
         .collect::<Vec<StdResult<OldUnbondWaitList>>>())
 }
 
-pub fn migrate_unbond_wait_lists<'a, S: Storage>(storage: &'a mut S) -> StdResult<()> {
+pub fn migrate_unbond_wait_lists(storage: &mut dyn Storage) -> StdResult<()> {
     let old_unbond_wait_list = read_old_unbond_wait_lists(storage)?;
-    let mut bucket: Bucket<'a, S, UnbondWaitEntity> =
-        Bucket::multilevel(&[PREFIX_WAIT_MAP], storage);
+    let mut bucket: Bucket<UnbondWaitEntity> = Bucket::multilevel(storage, &[PREFIX_WAIT_MAP]);
     for res in old_unbond_wait_list {
         let (key, amount) = res?;
         let unbond_wait_entity = UnbondWaitEntity {
@@ -395,9 +342,9 @@ pub struct OldUnbondHistory {
     pub released: bool,
 }
 
-pub fn migrate_unbond_history<S: Storage>(storage: &mut S) -> StdResult<()> {
+pub fn migrate_unbond_history(storage: &mut dyn Storage) -> StdResult<()> {
     let unbond_history: StdResult<Vec<UnbondHistory>> =
-        ReadonlyPrefixedStorage::new(UNBOND_HISTORY_MAP, storage)
+        ReadonlyPrefixedStorage::new(storage, UNBOND_HISTORY_MAP)
             .range(None, None, Order::Ascending)
             .map(|item| {
                 let old_history: OldUnbondHistory = match from_slice(&item.1) {

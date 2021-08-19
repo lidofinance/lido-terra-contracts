@@ -15,7 +15,7 @@
             "airdrop_registry_contract": {
               "anyOf": [
                 {
-                  "$ref": "#/definitions/HumanAddr"
+                  "$ref": "#/definitions/String"
                 },
                 {
                   "type": "null"
@@ -25,7 +25,7 @@
             "bluna_token_contract": {
               "anyOf": [
                 {
-                  "$ref": "#/definitions/HumanAddr"
+                  "$ref": "#/definitions/String"
                 },
                 {
                   "type": "null"
@@ -35,7 +35,7 @@
             "owner": {
               "anyOf": [
                 {
-                  "$ref": "#/definitions/HumanAddr"
+                  "$ref": "#/definitions/String"
                 },
                 {
                   "type": "null"
@@ -45,7 +45,7 @@
             "rewards_dispatcher_contract": {
               "anyOf": [
                 {
-                  "$ref": "#/definitions/HumanAddr"
+                  "$ref": "#/definitions/String"
                 },
                 {
                   "type": "null"
@@ -55,7 +55,7 @@
             "stluna_token_contract": {
               "anyOf": [
                 {
-                  "$ref": "#/definitions/HumanAddr"
+                  "$ref": "#/definitions/String"
                 },
                 {
                   "type": "null"
@@ -65,7 +65,7 @@
             "validators_registry_contract": {
               "anyOf": [
                 {
-                  "$ref": "#/definitions/HumanAddr"
+                  "$ref": "#/definitions/String"
                 },
                 {
                   "type": "null"
@@ -237,13 +237,13 @@
           ],
           "properties": {
             "airdrop_contract": {
-              "$ref": "#/definitions/HumanAddr"
+              "$ref": "#/definitions/String"
             },
             "airdrop_swap_contract": {
-              "$ref": "#/definitions/HumanAddr"
+              "$ref": "#/definitions/String"
             },
             "airdrop_token_contract": {
-              "$ref": "#/definitions/HumanAddr"
+              "$ref": "#/definitions/String"
             },
             "claim_msg": {
               "$ref": "#/definitions/Binary"
@@ -271,10 +271,10 @@
           ],
           "properties": {
             "airdrop_swap_contract": {
-              "$ref": "#/definitions/HumanAddr"
+              "$ref": "#/definitions/String"
             },
             "airdrop_token_contract": {
-              "$ref": "#/definitions/HumanAddr"
+              "$ref": "#/definitions/String"
             },
             "swap_msg": {
               "$ref": "#/definitions/Binary"
@@ -301,10 +301,10 @@
               "$ref": "#/definitions/Coin"
             },
             "dst_validator": {
-              "$ref": "#/definitions/HumanAddr"
+              "$ref": "#/definitions/String"
             },
             "src_validator": {
-              "$ref": "#/definitions/HumanAddr"
+              "$ref": "#/definitions/String"
             }
           }
         }
@@ -353,7 +353,7 @@
           ]
         },
         "sender": {
-          "$ref": "#/definitions/HumanAddr"
+          "$ref": "#/definitions/String"
         }
       }
     },
@@ -361,7 +361,7 @@
       "description": "A fixed-point decimal value with 18 fractional digits, i.e. Decimal(1_000_000_000_000_000_000) == 1.0\n\nThe greatest possible value that can be represented is 340282366920938463463.374607431768211455 (which is (2^128 - 1) / 10^18)",
       "type": "string"
     },
-    "HumanAddr": {
+    "String": {
       "type": "string"
     },
     "Uint128": {

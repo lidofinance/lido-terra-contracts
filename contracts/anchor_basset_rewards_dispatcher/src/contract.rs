@@ -5,7 +5,7 @@ use cosmwasm_std::{
 
 use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
 use crate::state::{read_config, store_config, update_config, Config};
-use basset::hub::HandleMsg::{BondRewards, UpdateGlobalIndex};
+use basset::hub::ExecuteMsg::{BondRewards, UpdateGlobalIndex};
 use basset::{compute_lido_fee, deduct_tax};
 use std::ops::Mul;
 use terra_cosmwasm::{create_swap_msg, SwapResponse, TerraMsgWrapper, TerraQuerier};
