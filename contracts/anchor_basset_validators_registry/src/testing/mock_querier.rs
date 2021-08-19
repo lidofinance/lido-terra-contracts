@@ -1,7 +1,7 @@
 use crate::registry::Validator as RegistryValidator;
 use cosmwasm_std::testing::{MockApi, MockQuerier, MockStorage};
 use cosmwasm_std::{
-    from_slice, to_binary, Api, Coin, Extern, FullDelegation, HumanAddr, Querier, QuerierResult,
+    from_slice, to_binary, Coin, ContractResult, FullDelegation, OwnedDeps, Querier, QuerierResult,
     QueryRequest, SystemError, Uint128, Validator, WasmQuery,
 };
 use std::collections::HashMap;
@@ -11,18 +11,15 @@ use terra_cosmwasm::TerraQueryWrapper;
 pub const MOCK_CONTRACT_ADDR: &str = "cosmos2contract";
 
 pub fn mock_dependencies(
-    canonical_length: usize,
     contract_balance: &[Coin],
-) -> Extern<MockStorage, MockApi, WasmMockQuerier> {
-    let contract_addr = HumanAddr::from(MOCK_CONTRACT_ADDR);
-    let custom_querier: WasmMockQuerier = WasmMockQuerier::new(
-        MockQuerier::new(&[(&contract_addr, contract_balance)]),
-        MockApi::new(canonical_length),
-    );
+) -> OwnedDeps<MockStorage, MockApi, WasmMockQuerier> {
+    let contract_addr = MOCK_CONTRACT_ADDR;
+    let custom_querier: WasmMockQuerier =
+        WasmMockQuerier::new(MockQuerier::new(&[(contract_addr, contract_balance)]));
 
-    Extern {
+    OwnedDeps {
         storage: MockStorage::default(),
-        api: MockApi::new(canonical_length),
+        api: MockApi::default(),
         querier: custom_querier,
     }
 }
@@ -38,7 +35,7 @@ impl Querier for WasmMockQuerier {
         let request: QueryRequest<TerraQueryWrapper> = match from_slice(bin_request) {
             Ok(v) => v,
             Err(e) => {
-                return Err(SystemError::InvalidRequest {
+                return QuerierResult::Err(SystemError::InvalidRequest {
                     error: format!("Parsing query request: {}", e),
                     request: bin_request.into(),
                 })
@@ -57,7 +54,7 @@ impl WasmMockQuerier {
             }) => {
                 let mut validators = self.validators.clone();
                 validators.sort_by(|v1, v2| v1.total_delegated.cmp(&v2.total_delegated));
-                Ok(to_binary(&validators))
+                QuerierResult::Ok(ContractResult::from(to_binary(&validators)))
             }
             _ => self.base.handle_query(request),
         }
@@ -74,16 +71,16 @@ impl WasmMockQuerier {
 
 #[derive(Clone, Default)]
 pub struct BalanceQuerier {
-    balances: HashMap<HumanAddr, Coin>,
+    balances: HashMap<String, Coin>,
 }
 
 #[derive(Clone, Default)]
 pub struct TokenQuerier {
-    balances: HashMap<HumanAddr, HashMap<HumanAddr, Uint128>>,
+    balances: HashMap<String, HashMap<String, Uint128>>,
 }
 
 impl WasmMockQuerier {
-    pub fn new<A: Api>(base: MockQuerier<TerraQueryWrapper>, _api: A) -> Self {
+    pub fn new(base: MockQuerier<TerraQueryWrapper>) -> Self {
         WasmMockQuerier {
             base,
             validators: vec![],

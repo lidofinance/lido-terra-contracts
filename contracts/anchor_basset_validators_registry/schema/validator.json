@@ -3,19 +3,11 @@
   "title": "Validator",
   "type": "object",
   "required": [
-    "active",
-    "address",
-    "delegation_limit"
+    "address"
   ],
   "properties": {
-    "active": {
-      "type": "boolean"
-    },
     "address": {
-      "$ref": "#/definitions/HumanAddr"
-    },
-    "delegation_limit": {
-      "$ref": "#/definitions/Uint128"
+      "$ref": "#/definitions/String"
     },
     "total_delegated": {
       "default": "0",
@@ -27,7 +19,7 @@
     }
   },
   "definitions": {
-    "HumanAddr": {
+    "String": {
       "type": "string"
     },
     "Uint128": {
