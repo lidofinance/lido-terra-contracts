@@ -119,8 +119,6 @@ pub fn execute_register_validator(
 ) -> StdResult<Response> {
     let hub_conf = CONFIG.load(deps.storage)?;
 
-    let validator_addr = deps.api.addr_validate(validator.as_str())?;
-
     let sender_raw = deps.api.addr_canonicalize(info.sender.as_str())?;
     let contract_raw = deps.api.addr_canonicalize(env.contract.address.as_str())?;
     if hub_conf.creator != sender_raw && contract_raw != sender_raw {
@@ -139,7 +137,7 @@ pub fn execute_register_validator(
         ));
     }
 
-    store_white_validators(deps.storage, validator_addr.to_string())?;
+    store_white_validators(deps.storage, validator.clone())?;
 
     Ok(Response::new().add_attributes(vec![
         attr("action", "register_validator"),
