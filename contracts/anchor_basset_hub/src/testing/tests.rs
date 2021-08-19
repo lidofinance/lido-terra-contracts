@@ -51,7 +51,7 @@ use crate::msg::QueryMsg::{
 use crate::state::{read_config, read_unbond_wait_list, store_state, Parameters};
 use anchor_airdrop_registry::msg::HandleMsg::{FabricateANCClaim, FabricateMIRClaim};
 use anchor_airdrop_registry::msg::PairHandleMsg;
-use anchor_basset_rewards_dispatcher::msg::HandleMsg::{DispatchRewards, SwapToRewardDenom};
+use anchor_basset_rewards_dispatcher::msg::ExecuteMsg::{DispatchRewards, SwapToRewardDenom};
 
 use cosmwasm_std::testing::{MockApi, MockStorage};
 

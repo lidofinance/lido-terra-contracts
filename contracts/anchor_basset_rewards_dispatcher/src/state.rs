@@ -1,7 +1,7 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use cosmwasm_std::{CanonicalAddr, Decimal, ReadonlyStorage, StdResult, Storage};
+use cosmwasm_std::{CanonicalAddr, Decimal, StdResult, Storage};
 use cosmwasm_storage::{singleton, singleton_read, Singleton};
 
 pub static KEY_CONFIG: &[u8] = b"config";
@@ -17,14 +17,14 @@ pub struct Config {
     pub lido_fee_rate: Decimal,
 }
 
-pub fn update_config<S: Storage>(storage: &mut S) -> Singleton<S, Config> {
+pub fn update_config(storage: &mut dyn Storage) -> Singleton<Config> {
     singleton(storage, KEY_CONFIG)
 }
 
-pub fn store_config<S: Storage>(storage: &mut S, config: &Config) -> StdResult<()> {
+pub fn store_config(storage: &mut dyn Storage, config: &Config) -> StdResult<()> {
     singleton(storage, KEY_CONFIG).save(config)
 }
 
-pub fn read_config<S: ReadonlyStorage>(storage: &S) -> StdResult<Config> {
+pub fn read_config(storage: &dyn Storage) -> StdResult<Config> {
     singleton_read(storage, KEY_CONFIG).load()
 }
