@@ -8,7 +8,7 @@ use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
 use crate::registry::{
     config, config_read, registry, registry_read, store_config, Config, Validator,
 };
-use hub_querier::HandleMsg::{RedelegateProxy, UpdateGlobalIndex};
+use basset::hub::HandleMsg::{RedelegateProxy, UpdateGlobalIndex};
 
 #[entry_point]
 pub fn instantiate(
