@@ -3,12 +3,12 @@ use crate::contract::{execute, instantiate};
 use crate::msg::{ExecuteMsg, InstantiateMsg};
 use crate::registry::{config_read, registry_read, Validator};
 use crate::testing::mock_querier::{mock_dependencies, WasmMockQuerier};
+use basset::hub::HandleMsg::{RedelegateProxy, UpdateGlobalIndex};
 use cosmwasm_std::testing::{mock_env, mock_info};
 use cosmwasm_std::{
     coin, coins, to_binary, Addr, Api, Coin, CosmosMsg, FullDelegation, StdError, Uint128,
     Validator as CosmosValidator, WasmMsg,
 };
-use hub_querier::HandleMsg::{RedelegateProxy, UpdateGlobalIndex};
 
 #[test]
 fn proper_instantiate() {
