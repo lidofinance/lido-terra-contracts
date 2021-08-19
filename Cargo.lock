@@ -110,14 +110,14 @@ dependencies = [
 name = "anchor_basset_token_stluna"
 version = "1.0.0"
 dependencies = [
- "cosmwasm-schema 0.11.2",
- "cosmwasm-std 0.10.1",
- "cosmwasm-storage 0.10.1",
- "cw2 0.2.3",
- "cw20 0.2.3",
- "cw20-base 0.2.3",
+ "cosmwasm-schema 0.16.0",
+ "cosmwasm-std 0.16.0",
+ "cosmwasm-storage 0.16.0",
+ "cw2 0.8.0",
+ "cw20 0.8.0",
+ "cw20-base 0.8.0",
  "hub_querier",
- "schemars 0.7.6",
+ "schemars 0.8.3",
  "serde",
  "snafu",
 ]
