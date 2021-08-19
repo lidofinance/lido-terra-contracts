@@ -1,7 +1,6 @@
 use crate::contract::{query_total_bluna_issued, slashing};
 use crate::state::{
-    get_finished_amount, get_unbond_batches, read_config, read_current_batch, read_parameters,
-    read_state, read_unbond_history, remove_unbond_wait_list, store_current_batch, store_state,
+    get_finished_amount, get_unbond_batches, read_unbond_history, remove_unbond_wait_list,
     store_unbond_history, store_unbond_wait_list, CurrentBatch, UnbondHistory, UnbondType, CONFIG,
     CURRENT_BATCH, PARAMETERS, STATE,
 };
@@ -11,31 +10,31 @@ use basset::hub::State;
 use cosmwasm_bignumber::{Decimal256, Uint256};
 use cosmwasm_std::{
     attr, coin, coins, to_binary, Api, BankMsg, CosmosMsg, Decimal, DepsMut, Env, MessageInfo,
-    Response, StakingMsg, StdError, StdResult, Storage, String, Uint128, WasmMsg,
+    Response, StakingMsg, StdError, StdResult, Storage, Uint128, WasmMsg,
 };
-use cw20::Cw20HandleMsg;
-use hub_querier::State;
+use cw20::Cw20ExecuteMsg;
 use signed_integer::SignedInt;
 use std::convert::TryInto;
 
 /// This message must be call by receive_cw20
 /// This message will undelegate coin and burn basset token
 pub(crate) fn execute_unbond(
-    deps: DepsMut,
+    mut deps: DepsMut,
     env: Env,
+    info: MessageInfo,
     amount: Uint128,
     sender: String,
 ) -> StdResult<Response> {
     // Read params
-    let params = read_parameters(deps.storage).load()?;
+    let params = PARAMETERS.load(deps.storage)?;
     let epoch_period = params.epoch_period;
     let threshold = params.er_threshold;
     let recovery_fee = params.peg_recovery_fee;
 
-    let mut current_batch = read_current_batch(deps.storage).load()?;
+    let mut current_batch = CURRENT_BATCH.load(deps.storage)?;
 
     // Check slashing, update state, and calculate the new exchange rate.
-    slashing(&deps, env.clone(), info)?;
+    slashing(&mut deps, env.clone(), info)?;
 
     let mut state = STATE.load(deps.storage)?;
 
@@ -46,10 +45,10 @@ pub(crate) fn execute_unbond(
     let amount_with_fee: Uint128;
     if state.bluna_exchange_rate < threshold {
         let max_peg_fee = amount * recovery_fee;
-        let required_peg_fee = ((total_supply + current_batch.requested_bluna_with_fee)
-            - state.total_bond_bluna_amount)?;
+        let required_peg_fee =
+            (total_supply + current_batch.requested_bluna_with_fee) - state.total_bond_bluna_amount;
         let peg_fee = Uint128::min(max_peg_fee, required_peg_fee);
-        amount_with_fee = (amount - peg_fee)?;
+        amount_with_fee = amount - peg_fee;
     } else {
         amount_with_fee = amount;
     }
@@ -63,13 +62,12 @@ pub(crate) fn execute_unbond(
         UnbondType::BLuna,
     )?;
 
-    total_supply =
-        (total_supply - amount).expect("the requested can not be more than the total supply");
+    total_supply = total_supply - amount;
 
     // Update exchange rate
     state.update_bluna_exchange_rate(total_supply, current_batch.requested_bluna_with_fee);
 
-    let current_time = env.block.time;
+    let current_time = env.block.time.nanos();
     let passed_time = current_time - state.last_unbonded_time;
 
     let mut messages: Vec<CosmosMsg> = vec![];
@@ -82,10 +80,10 @@ pub(crate) fn execute_unbond(
     }
 
     // Store the new requested_with_fee or id in the current batch
-    store_current_batch(deps.storage).save(&current_batch)?;
+    CURRENT_BATCH.save(deps.storage, &current_batch);
 
     // Store state's new exchange rate
-    store_state(deps.storage).save(&state)?;
+    STATE.save(deps.storage, &state);
 
     // Send Burn message to token contract
     let config = CONFIG.load(deps.storage)?;
@@ -95,7 +93,7 @@ pub(crate) fn execute_unbond(
             .expect("the token contract must have been registered"),
     )?;
 
-    let burn_msg = Cw20HandleMsg::Burn { amount };
+    let burn_msg = Cw20ExecuteMsg::Burn { amount };
     messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
         contract_addr: token_address.to_string(),
         msg: to_binary(&burn_msg)?,
@@ -120,11 +118,11 @@ pub fn execute_withdraw_unbonded(
     let contract_address = env.contract.address.clone();
 
     // read params
-    let params = read_parameters(deps.storage).load()?;
+    let params = PARAMETERS.load(deps.storage)?;
     let unbonding_period = params.unbonding_period;
     let coin_denom = params.underlying_coin_denom;
 
-    let historical_time = env.block.time - unbonding_period;
+    let historical_time = env.block.time.nanos() - unbonding_period;
 
     // query hub balance for process withdraw rate.
     let hub_balance = deps
@@ -135,7 +133,7 @@ pub fn execute_withdraw_unbonded(
     // calculate withdraw rate for user requests
     process_withdraw_rate(&deps, historical_time, hub_balance)?;
 
-    let withdraw_amount = get_finished_amount(&deps.storage, sender_human.to_string())?;
+    let withdraw_amount = get_finished_amount(deps.storage, sender_human.to_string())?;
 
     if withdraw_amount.is_zero() {
         return Err(StdError::generic_err(format!(
@@ -145,18 +143,18 @@ pub fn execute_withdraw_unbonded(
     }
 
     // remove the previous batches for the user
-    let deprecated_batches = get_unbond_batches(&deps.storage, sender_human.to_string())?;
+    let deprecated_batches = get_unbond_batches(deps.storage, sender_human.to_string())?;
     remove_unbond_wait_list(deps.storage, deprecated_batches, sender_human.to_string())?;
 
     // Update previous balance used for calculation in next Luna batch release
-    let prev_balance = (hub_balance - withdraw_amount)?;
+    let prev_balance = hub_balance - withdraw_amount;
     STATE.update(deps.storage, |mut last_state| -> StdResult<_> {
         last_state.prev_hub_balance = prev_balance;
         Ok(last_state)
     })?;
 
     // Send the money to the user
-    let msgs = vec![BankMsg::Send {
+    let msgs: Vec<CosmosMsg> = vec![BankMsg::Send {
         to_address: sender_human.to_string(),
         amount: coins(withdraw_amount.u128(), &*coin_denom),
     }
@@ -170,8 +168,8 @@ pub fn execute_withdraw_unbonded(
     Ok(res)
 }
 
-fn calculate_newly_added_unbonded_amount<S: Storage>(
-    storage: &mut S,
+fn calculate_newly_added_unbonded_amount(
+    storage: &mut dyn Storage,
     last_processed_batch: u64,
     historical_time: u64,
 ) -> (Uint256, Uint256, u64) {
@@ -388,8 +386,9 @@ fn pick_validator(deps: &DepsMut, claim: Uint128, delegator: String) -> StdResul
 /// This message must be call by receive_cw20
 /// This message will undelegate coin and burn stLuna tokens
 pub(crate) fn execute_unbond_stluna(
-    deps: DepsMut,
+    mut deps: DepsMut,
     env: Env,
+    info: MessageInfo,
     amount: Uint128,
     sender: String,
 ) -> StdResult<Response> {
@@ -400,7 +399,7 @@ pub(crate) fn execute_unbond_stluna(
     let mut current_batch = CURRENT_BATCH.load(deps.storage)?;
 
     // Check slashing, update state, and calculate the new exchange rate.
-    slashing(&deps, env.clone(), info)?;
+    slashing(&mut deps, env.clone(), info)?;
 
     let mut state = STATE.load(deps.storage)?;
 
@@ -415,7 +414,7 @@ pub(crate) fn execute_unbond_stluna(
         UnbondType::StLuna,
     )?;
 
-    let current_time = env.block.time;
+    let current_time = env.block.time.nanos();
     let passed_time = current_time - state.last_unbonded_time;
 
     let mut messages: Vec<CosmosMsg> = vec![];
@@ -441,7 +440,7 @@ pub(crate) fn execute_unbond_stluna(
             .expect("the token contract must have been registered"),
     )?;
 
-    let burn_msg = Cw20HandleMsg::Burn { amount };
+    let burn_msg = Cw20ExecuteMsg::Burn { amount };
     messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
         contract_addr: token_address.to_string(),
         msg: to_binary(&burn_msg)?,
@@ -486,8 +485,8 @@ fn process_undelegations(
         delegator.to_string(),
     )?;
 
-    state.total_bond_stluna_amount = (state.total_bond_stluna_amount - stluna_undelegation_amount)?;
-    state.total_bond_bluna_amount = (state.total_bond_bluna_amount - bluna_undelegation_amount)?;
+    state.total_bond_stluna_amount = state.total_bond_stluna_amount - stluna_undelegation_amount;
+    state.total_bond_bluna_amount = state.total_bond_bluna_amount - bluna_undelegation_amount;
 
     // Store history for withdraw unbonded
     let history = UnbondHistory {

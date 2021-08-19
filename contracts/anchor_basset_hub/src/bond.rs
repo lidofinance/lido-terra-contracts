@@ -8,9 +8,9 @@ use cosmwasm_std::{
     to_binary, Coin, CosmosMsg, DepsMut, Env, MessageInfo, QueryRequest, Response, StakingMsg,
     StdError, StdResult, Storage, Uint128, WasmMsg, WasmQuery,
 };
-use cw20::Cw20HandleMsg;
+use cw20::Cw20ExecuteMsg;
 
-pub fn execute_bond(deps: DepsMut, env: Env, info: MessageInfo) -> Result<Response, StdError> {
+pub fn execute_bond(mut deps: DepsMut, env: Env, info: MessageInfo) -> Result<Response, StdError> {
     let params = PARAMETERS.load(deps.storage)?;
     let coin_denom = params.underlying_coin_denom;
     let threshold = params.er_threshold;
@@ -36,7 +36,7 @@ pub fn execute_bond(deps: DepsMut, env: Env, info: MessageInfo) -> Result<Respon
             StdError::generic_err(format!("No {} assets are provided to bond", coin_denom))
         })?;
     // check slashing
-    slashing(&deps, env.clone(), info.clone())?;
+    slashing(&mut deps, env.clone(), info.clone())?;
 
     let state = STATE.load(deps.storage)?;
     let sender = info.sender.clone();
@@ -51,10 +51,10 @@ pub fn execute_bond(deps: DepsMut, env: Env, info: MessageInfo) -> Result<Respon
     if state.bluna_exchange_rate < threshold {
         let max_peg_fee = mint_amount * recovery_fee;
         let required_peg_fee =
-            ((total_supply + mint_amount + current_batch.requested_bluna_with_fee)
-                - (state.total_bond_bluna_amount + payment.amount))?;
+            (total_supply + mint_amount + current_batch.requested_bluna_with_fee)
+                - (state.total_bond_bluna_amount + payment.amount);
         let peg_fee = Uint128::min(max_peg_fee, required_peg_fee);
-        mint_amount_with_fee = (mint_amount - peg_fee)?;
+        mint_amount_with_fee = mint_amount - peg_fee;
     }
 
     // total supply should be updated for exchange rate calculation.
@@ -101,8 +101,8 @@ pub fn execute_bond(deps: DepsMut, env: Env, info: MessageInfo) -> Result<Respon
         }));
     }
 
-    let mint_msg = Cw20HandleMsg::Mint {
-        recipient: sender,
+    let mint_msg = Cw20ExecuteMsg::Mint {
+        recipient: sender.to_string(),
         amount: mint_amount_with_fee,
     };
 
@@ -123,7 +123,7 @@ pub fn execute_bond(deps: DepsMut, env: Env, info: MessageInfo) -> Result<Respon
     Ok(res)
 }
 
-pub fn execute_bond_stluna(deps: DepsMut, env: Env, info: MessageInfo) -> StdResult<Response> {
+pub fn execute_bond_stluna(mut deps: DepsMut, env: Env, info: MessageInfo) -> StdResult<Response> {
     let params = PARAMETERS.load(deps.storage)?;
     let coin_denom = params.underlying_coin_denom;
 
@@ -146,7 +146,7 @@ pub fn execute_bond_stluna(deps: DepsMut, env: Env, info: MessageInfo) -> StdRes
         })?;
 
     // check slashing
-    slashing(&deps, env.clone(), info.clone())?;
+    slashing(&mut deps, env.clone(), info.clone())?;
 
     let state = STATE.load(deps.storage)?;
     let sender = info.sender.clone();
@@ -200,8 +200,8 @@ pub fn execute_bond_stluna(deps: DepsMut, env: Env, info: MessageInfo) -> StdRes
         }));
     }
 
-    let mint_msg = Cw20HandleMsg::Mint {
-        recipient: sender,
+    let mint_msg = Cw20ExecuteMsg::Mint {
+        recipient: sender.to_string(),
         amount: mint_amount,
     };
 
@@ -222,7 +222,7 @@ pub fn execute_bond_stluna(deps: DepsMut, env: Env, info: MessageInfo) -> StdRes
     Ok(res)
 }
 
-pub fn execute_bond_rewards(deps: DepsMut, env: Env, info: MessageInfo) -> StdResult<Response> {
+pub fn execute_bond_rewards(mut deps: DepsMut, env: Env, info: MessageInfo) -> StdResult<Response> {
     let config = CONFIG.load(deps.storage)?;
     let reward_dispatcher_addr = deps.api.addr_humanize(
         &config
@@ -230,7 +230,7 @@ pub fn execute_bond_rewards(deps: DepsMut, env: Env, info: MessageInfo) -> StdRe
             .expect("the reward dispatcher contract must have been registered"),
     )?;
     if info.sender != reward_dispatcher_addr {
-        return Err(StdError::unauthorized());
+        return Err(StdError::generic_err("unauthorized"));
     }
 
     let params = PARAMETERS.load(deps.storage)?;
@@ -255,7 +255,7 @@ pub fn execute_bond_rewards(deps: DepsMut, env: Env, info: MessageInfo) -> StdRe
         })?;
 
     // check slashing
-    slashing(&deps, env.clone(), info)?;
+    slashing(&mut deps, env.clone(), info.clone())?;
 
     let total_supply = query_total_stluna_issued(deps.as_ref()).unwrap_or_default();
 

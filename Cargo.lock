@@ -22,7 +22,7 @@ dependencies = [
  "basset",
  "cosmwasm-schema",
  "cosmwasm-std 0.16.0",
- "cosmwasm-storage 0.16.0",
+ "cosmwasm-storage",
  "cosmwasm-vm",
  "cw-storage-plus",
  "cw2",
@@ -44,7 +44,7 @@ dependencies = [
  "cosmwasm-bignumber",
  "cosmwasm-schema",
  "cosmwasm-std 0.16.0",
- "cosmwasm-storage 0.16.0",
+ "cosmwasm-storage",
  "cosmwasm-vm",
  "cw-storage-plus",
  "cw20 0.8.0",
@@ -65,7 +65,7 @@ dependencies = [
  "cosmwasm-bignumber",
  "cosmwasm-schema",
  "cosmwasm-std 0.16.0",
- "cosmwasm-storage 0.16.0",
+ "cosmwasm-storage",
  "cw-storage-plus",
  "cw20 0.2.3",
  "schemars 0.8.3",
@@ -82,7 +82,7 @@ dependencies = [
  "basset",
  "cosmwasm-schema",
  "cosmwasm-std 0.16.0",
- "cosmwasm-storage 0.16.0",
+ "cosmwasm-storage",
  "schemars 0.8.3",
  "serde",
  "snafu",
@@ -97,7 +97,7 @@ dependencies = [
  "basset",
  "cosmwasm-schema",
  "cosmwasm-std 0.16.0",
- "cosmwasm-storage 0.16.0",
+ "cosmwasm-storage",
  "cw-storage-plus",
  "cw2",
  "cw20 0.8.0",
@@ -113,7 +113,7 @@ version = "1.0.0"
 dependencies = [
  "cosmwasm-schema",
  "cosmwasm-std 0.16.0",
- "cosmwasm-storage 0.16.0",
+ "cosmwasm-storage",
  "cw2",
  "cw20 0.8.0",
  "cw20-base",
@@ -130,7 +130,7 @@ dependencies = [
  "basset",
  "cosmwasm-schema",
  "cosmwasm-std 0.16.0",
- "cosmwasm-storage 0.16.0",
+ "cosmwasm-storage",
  "schemars 0.8.3",
  "serde",
  "snafu",
@@ -175,7 +175,7 @@ name = "basset"
 version = "0.1.0"
 dependencies = [
  "cosmwasm-std 0.16.0",
- "cosmwasm-storage 0.16.0",
+ "cosmwasm-storage",
  "cosmwasm-vm",
  "cw20 0.8.0",
  "schemars 0.8.3",
@@ -319,16 +319,6 @@ dependencies = [
  "serde-json-wasm 0.3.1",
  "thiserror",
  "uint",
-]
-
-[[package]]
-name = "cosmwasm-storage"
-version = "0.10.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e103531a2ce636e86b7639cec25d348c4d360832ab8e0e7f9a6e00f08aac1379"
-dependencies = [
- "cosmwasm-std 0.10.1",
- "serde",
 ]
 
 [[package]]
@@ -624,7 +614,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6d27b11827323369993519abb494f3ae9b6aac4d716d058bea5e181b9b0074b7"
 dependencies = [
  "cosmwasm-std 0.16.0",
- "cosmwasm-storage 0.16.0",
+ "cosmwasm-storage",
  "cw-storage-plus",
  "cw0 0.8.0",
  "cw2",
@@ -920,7 +910,7 @@ version = "0.1.0"
 dependencies = [
  "cosmwasm-schema",
  "cosmwasm-std 0.16.0",
- "cosmwasm-storage 0.16.0",
+ "cosmwasm-storage",
  "cw20 0.8.0",
  "schemars 0.8.3",
  "serde",
@@ -1541,12 +1531,12 @@ dependencies = [
 name = "signed_integer"
 version = "0.1.0"
 dependencies = [
- "cosmwasm-std 0.10.1",
- "cosmwasm-storage 0.10.1",
- "cw20 0.2.3",
- "schemars 0.7.6",
+ "cosmwasm-std 0.16.0",
+ "cosmwasm-storage",
+ "cw20 0.8.0",
+ "schemars 0.8.3",
  "serde",
- "terra-cosmwasm 1.2.4",
+ "terra-cosmwasm 2.2.0",
 ]
 
 [[package]]

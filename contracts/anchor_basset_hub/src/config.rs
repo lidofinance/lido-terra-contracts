@@ -1,8 +1,8 @@
 use crate::msg::QueryMsg::Config;
 use crate::state::{Parameters, CONFIG, PARAMETERS};
 use cosmwasm_std::{
-    attr, Api, CosmosMsg, Decimal, DepsMut, Env, Extern, MessageInfo, Querier, Response,
-    StakingMsg, StdError, StdResult, Storage, String,
+    attr, Api, CosmosMsg, Decimal, DepsMut, DistributionMsg, Env, MessageInfo, Response,
+    StakingMsg, StdError, StdResult, Storage,
 };
 
 /// Update general parameters
@@ -21,7 +21,7 @@ pub fn execute_update_params(
     let config = CONFIG.load(deps.storage)?;
     let sender_raw = deps.api.addr_canonicalize(&info.sender.to_string())?;
     if sender_raw != config.creator {
-        return Err(StdError::unauthorized());
+        return Err(StdError::generic_err("unauthorized"));
     }
 
     let params: Parameters = PARAMETERS.load(deps.storage)?;
@@ -59,7 +59,7 @@ pub fn execute_update_config(
     let conf = CONFIG.load(deps.storage)?;
     let sender_raw = deps.api.addr_canonicalize(&info.sender.to_string())?;
     if sender_raw != conf.creator {
-        return Err(StdError::unauthorized());
+        return Err(StdError::generic_err("unauthorized"));
     }
 
     let mut messages: Vec<CosmosMsg> = vec![];
@@ -81,10 +81,8 @@ pub fn execute_update_config(
         })?;
 
         // register the reward contract for automate reward withdrawal.
-        let msg: CosmosMsg = CosmosMsg::Staking(StakingMsg::Withdraw {
-            validator: String::default(),
-            recipient: Some(reward),
-        });
+        let msg: CosmosMsg =
+            CosmosMsg::Distribution(DistributionMsg::SetWithdrawAddress { address: reward });
         messages.push(msg);
     }
 
