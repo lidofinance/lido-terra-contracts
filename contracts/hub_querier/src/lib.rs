@@ -1,4 +1,4 @@
-use cosmwasm_std::{Binary, CanonicalAddr, Coin, Decimal, HumanAddr, Uint128};
+use cosmwasm_std::{Binary, CanonicalAddr, Coin, Decimal, Uint128};
 use cw20::Cw20ReceiveMsg;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -79,12 +79,12 @@ pub enum HandleMsg {
 
     /// Set the owener
     UpdateConfig {
-        owner: Option<HumanAddr>,
-        rewards_dispatcher_contract: Option<HumanAddr>,
-        validators_registry_contract: Option<HumanAddr>,
-        bluna_token_contract: Option<HumanAddr>,
-        stluna_token_contract: Option<HumanAddr>,
-        airdrop_registry_contract: Option<HumanAddr>,
+        owner: Option<String>,
+        rewards_dispatcher_contract: Option<String>,
+        validators_registry_contract: Option<String>,
+        bluna_token_contract: Option<String>,
+        stluna_token_contract: Option<String>,
+        airdrop_registry_contract: Option<String>,
     },
 
     /// update the parameters that is needed for the contract
@@ -132,24 +132,24 @@ pub enum HandleMsg {
     /// internal operations
     ///////////////////
     ClaimAirdrop {
-        airdrop_token_contract: HumanAddr, // Contract address of MIR Cw20 Token
-        airdrop_contract: HumanAddr,       // Contract address of MIR Airdrop
-        airdrop_swap_contract: HumanAddr,  // E.g. Contract address of MIR <> UST Terraswap Pair
-        claim_msg: Binary,                 // Base64-encoded JSON of MIRAirdropHandleMsg::Claim
-        swap_msg: Binary,                  // Base64-encoded string of JSON of PairHandleMsg::Swap
+        airdrop_token_contract: String, // Contract address of MIR Cw20 Token
+        airdrop_contract: String,       // Contract address of MIR Airdrop
+        airdrop_swap_contract: String,  // E.g. Contract address of MIR <> UST Terraswap Pair
+        claim_msg: Binary,              // Base64-encoded JSON of MIRAirdropHandleMsg::Claim
+        swap_msg: Binary,               // Base64-encoded string of JSON of PairHandleMsg::Swap
     },
 
     /// Swaps claimed airdrop tokens to UST through Terraswap & sends resulting UST to bLuna Reward contract
     SwapHook {
-        airdrop_token_contract: HumanAddr, // E.g. contract address of MIR Token
-        airdrop_swap_contract: HumanAddr,  // E.g. Contract address of MIR <> UST Terraswap Pair
-        swap_msg: Binary,                  // E.g. Base64-encoded JSON of PairHandleMsg::Swap
+        airdrop_token_contract: String, // E.g. contract address of MIR Token
+        airdrop_swap_contract: String,  // E.g. Contract address of MIR <> UST Terraswap Pair
+        swap_msg: Binary,               // E.g. Base64-encoded JSON of PairHandleMsg::Swap
     },
 
     RedelegateProxy {
         // delegator is automatically set to address of the calling contract
-        src_validator: HumanAddr,
-        dst_validator: HumanAddr,
+        src_validator: String,
+        dst_validator: String,
         amount: Coin,
     },
 }
