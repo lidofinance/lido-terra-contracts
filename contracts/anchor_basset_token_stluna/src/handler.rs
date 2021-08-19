@@ -1,76 +1,106 @@
-use cosmwasm_std::{Api, Binary, Env, Extern, HandleResult, HumanAddr, Querier, Storage, Uint128};
+use cosmwasm_std::{Binary, DepsMut, Env, MessageInfo, Response, Uint128};
 
+use cw20::Logo;
 use cw20_base::allowances::{
-    handle_burn_from as cw20_burn_from, handle_send_from as cw20_send_from,
-    handle_transfer_from as cw20_transfer_from,
+    execute_burn_from as cw20_burn_from, execute_send_from as cw20_send_from,
+    execute_transfer_from as cw20_transfer_from,
 };
 use cw20_base::contract::{
-    handle_burn as cw20_burn, handle_mint as cw20_mint, handle_send as cw20_send,
-    handle_transfer as cw20_transfer,
+    execute_burn as cw20_burn, execute_mint as cw20_mint, execute_send as cw20_send,
+    execute_transfer as cw20_transfer, execute_update_marketing as cw20_update_marketing,
+    execute_upload_logo as cw20_upload_logo,
 };
+use cw20_base::ContractError;
 
-pub fn handle_transfer<S: Storage, A: Api, Q: Querier>(
-    deps: &mut Extern<S, A, Q>,
+pub fn execute_transfer(
+    deps: DepsMut,
     env: Env,
-    recipient: HumanAddr,
+    info: MessageInfo,
+    recipient: String,
     amount: Uint128,
-) -> HandleResult {
-    cw20_transfer(deps, env, recipient, amount)
+) -> Result<Response, ContractError> {
+    cw20_transfer(deps, env, info, recipient, amount)
 }
 
-pub fn handle_burn<S: Storage, A: Api, Q: Querier>(
-    deps: &mut Extern<S, A, Q>,
+pub fn execute_burn(
+    deps: DepsMut,
     env: Env,
+    info: MessageInfo,
     amount: Uint128,
-) -> HandleResult {
-    cw20_burn(deps, env, amount)
+) -> Result<Response, ContractError> {
+    cw20_burn(deps, env, info, amount)
 }
 
-pub fn handle_mint<S: Storage, A: Api, Q: Querier>(
-    deps: &mut Extern<S, A, Q>,
+pub fn execute_mint(
+    deps: DepsMut,
     env: Env,
-    recipient: HumanAddr,
+    info: MessageInfo,
+    recipient: String,
     amount: Uint128,
-) -> HandleResult {
-    cw20_mint(deps, env, recipient, amount)
+) -> Result<Response, ContractError> {
+    cw20_mint(deps, env, info, recipient, amount)
 }
 
-pub fn handle_send<S: Storage, A: Api, Q: Querier>(
-    deps: &mut Extern<S, A, Q>,
+pub fn execute_send(
+    deps: DepsMut,
     env: Env,
-    contract: HumanAddr,
+    info: MessageInfo,
+    contract: String,
     amount: Uint128,
-    msg: Option<Binary>,
-) -> HandleResult {
-    cw20_send(deps, env, contract, amount, msg)
+    msg: Binary,
+) -> Result<Response, ContractError> {
+    cw20_send(deps, env, info, contract, amount, msg)
 }
 
-pub fn handle_transfer_from<S: Storage, A: Api, Q: Querier>(
-    deps: &mut Extern<S, A, Q>,
+pub fn execute_transfer_from(
+    deps: DepsMut,
     env: Env,
-    owner: HumanAddr,
-    recipient: HumanAddr,
+    info: MessageInfo,
+    owner: String,
+    recipient: String,
     amount: Uint128,
-) -> HandleResult {
-    cw20_transfer_from(deps, env, owner, recipient, amount)
+) -> Result<Response, ContractError> {
+    cw20_transfer_from(deps, env, info, owner, recipient, amount)
 }
 
-pub fn handle_burn_from<S: Storage, A: Api, Q: Querier>(
-    deps: &mut Extern<S, A, Q>,
+pub fn execute_burn_from(
+    deps: DepsMut,
     env: Env,
-    owner: HumanAddr,
+    info: MessageInfo,
+    owner: String,
     amount: Uint128,
-) -> HandleResult {
-    cw20_burn_from(deps, env, owner, amount)
+) -> Result<Response, ContractError> {
+    cw20_burn_from(deps, env, info, owner, amount)
 }
 
-pub fn handle_send_from<S: Storage, A: Api, Q: Querier>(
-    deps: &mut Extern<S, A, Q>,
+pub fn execute_send_from(
+    deps: DepsMut,
     env: Env,
-    owner: HumanAddr,
-    contract: HumanAddr,
+    info: MessageInfo,
+    owner: String,
+    contract: String,
     amount: Uint128,
-    msg: Option<Binary>,
-) -> HandleResult {
-    cw20_send_from(deps, env, owner, contract, amount, msg)
+    msg: Binary,
+) -> Result<Response, ContractError> {
+    cw20_send_from(deps, env, info, owner, contract, amount, msg)
+}
+
+pub fn execute_update_marketing(
+    deps: DepsMut,
+    env: Env,
+    info: MessageInfo,
+    project: Option<String>,
+    description: Option<String>,
+    marketing: Option<String>,
+) -> Result<Response, ContractError> {
+    cw20_update_marketing(deps, env, info, project, description, marketing)
+}
+
+pub fn execute_upload_logo(
+    deps: DepsMut,
+    env: Env,
+    info: MessageInfo,
+    logo: Logo,
+) -> Result<Response, ContractError> {
+    cw20_upload_logo(deps, env, info, logo)
 }
