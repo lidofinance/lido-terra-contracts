@@ -49,7 +49,7 @@
           ],
           "properties": {
             "address": {
-              "$ref": "#/definitions/HumanAddr"
+              "$ref": "#/definitions/String"
             },
             "block_time": {
               "type": "integer",
@@ -84,7 +84,7 @@
           ],
           "properties": {
             "address": {
-              "$ref": "#/definitions/HumanAddr"
+              "$ref": "#/definitions/String"
             }
           }
         }
@@ -121,7 +121,7 @@
     }
   ],
   "definitions": {
-    "HumanAddr": {
+    "String": {
       "type": "string"
     }
   }

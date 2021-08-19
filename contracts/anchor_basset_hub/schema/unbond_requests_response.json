@@ -8,7 +8,7 @@
   ],
   "properties": {
     "address": {
-      "$ref": "#/definitions/HumanAddr"
+      "$ref": "#/definitions/String"
     },
     "requests": {
       "type": "array",
@@ -30,7 +30,7 @@
     }
   },
   "definitions": {
-    "HumanAddr": {
+    "String": {
       "type": "string"
     },
     "Uint128": {

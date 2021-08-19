@@ -9,12 +9,12 @@
     "validators": {
       "type": "array",
       "items": {
-        "$ref": "#/definitions/HumanAddr"
+        "$ref": "#/definitions/String"
       }
     }
   },
   "definitions": {
-    "HumanAddr": {
+    "String": {
       "type": "string"
     }
   }
