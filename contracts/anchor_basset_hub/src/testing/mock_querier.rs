@@ -2,12 +2,11 @@ use anchor_basset_validators_registry::registry::Validator as RegistryValidator;
 use cosmwasm_std::testing::{MockApi, MockQuerier, MockStorage};
 use cosmwasm_std::{
     from_slice, to_binary, AllBalanceResponse, Api, BalanceResponse, BankQuery, CanonicalAddr,
-    Coin, ContractResult, Decimal, Extern, FullDelegation, OwnedDeps, Querier, QuerierResult,
-    QueryRequest, String, SystemError, Uint128, Validator, WasmQuery,
+    Coin, ContractResult, Decimal, FullDelegation, OwnedDeps, Querier, QuerierResult, QueryRequest,
+    SystemError, Uint128, Validator, WasmQuery,
 };
 use cosmwasm_storage::to_length_prefixed;
 use cw20_base::state::{MinterData, TokenInfo};
-use hub_querier::Config;
 use std::collections::HashMap;
 
 use basset::hub::Config;
@@ -96,7 +95,7 @@ impl WasmMockQuerier {
                                 .copied()
                                 .unwrap_or_default();
                             let res = TaxCapResponse { cap };
-                            QuerierResult(ContractResult::from(to_binary(&res)))
+                            QuerierResult::Ok(ContractResult::from(to_binary(&res)))
                         }
                         _ => panic!("DO NOT ENTER HERE"),
                     }
@@ -116,7 +115,7 @@ impl WasmMockQuerier {
                 let prefix_config = to_length_prefixed(b"config").to_vec();
                 let prefix_token_inf = to_length_prefixed(b"token_info").to_vec();
                 let prefix_balance = to_length_prefixed(b"balance").to_vec();
-                let api: MockApi = MockApi::new(self.canonical_length);
+                let api: MockApi = MockApi::default();
 
                 if key.as_slice().to_vec() == prefix_config {
                     let config = Config {
@@ -160,7 +159,7 @@ impl WasmMockQuerier {
                     for balance in balances {
                         total_supply += *balance.1;
                     }
-                    let api: MockApi = MockApi::new(self.canonical_length);
+                    let api: MockApi = MockApi::default();
                     let token_inf: TokenInfo = TokenInfo {
                         name: "bluna".to_string(),
                         symbol: "BLUNA".to_string(),
@@ -188,7 +187,7 @@ impl WasmMockQuerier {
                                 })
                             }
                         };
-                    let api: MockApi = MockApi::new(self.canonical_length);
+                    let api: MockApi = MockApi::default();
                     let address: String = match api.addr_humanize(&address_raw) {
                         Ok(v) => v.to_string(),
                         Err(e) => {
@@ -217,17 +216,17 @@ impl WasmMockQuerier {
                     let mut coins: Vec<Coin> = vec![];
                     let luna = Coin {
                         denom: "uluna".to_string(),
-                        amount: Uint128(1000u128),
+                        amount: Uint128::from(1000u128),
                     };
                     coins.push(luna);
                     let krt = Coin {
                         denom: "ukrt".to_string(),
-                        amount: Uint128(1000u128),
+                        amount: Uint128::from(1000u128),
                     };
                     coins.push(krt);
                     let usd = Coin {
                         denom: "uusd".to_string(),
-                        amount: Uint128(1000u128),
+                        amount: Uint128::from(1000u128),
                     };
                     coins.push(usd);
                     let all_balances = AllBalanceResponse { amount: coins };
@@ -257,7 +256,7 @@ impl WasmMockQuerier {
                 } else if address == &String::from("reward") && denom == "uusd" {
                     let bank_res = BalanceResponse {
                         amount: Coin {
-                            amount: Uint128(2000u128),
+                            amount: Uint128::from(2000u128),
                             denom: denom.to_string(),
                         },
                     };
@@ -333,7 +332,7 @@ pub(crate) fn balances_to_map(
 }
 
 impl WasmMockQuerier {
-    pub fn new<A: Api>(base: MockQuerier<TerraQueryWrapper>) -> Self {
+    pub fn new(base: MockQuerier<TerraQueryWrapper>) -> Self {
         WasmMockQuerier {
             base,
             token_querier: TokenQuerier::default(),

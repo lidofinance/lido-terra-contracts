@@ -5,7 +5,7 @@
 //! You can easily convert unit tests to integration tests as follows:
 //! 1. Copy them over verbatim
 //! 2. Then change
-//!      let mut deps = mock_dependencies(20, &[]);
+//!      let mut deps = mock_dependencies &[]);
 //!    to
 //!      let mut deps = mock_instance(WASM, &[]);
 //! 3. If you access raw storage, where ever you see something like:
@@ -15,29 +15,29 @@
 //!          let data = store.get(CONFIG_KEY).expect("no data stored");
 //!          //...
 //!      });
-//! 4. Anywhere you see query(&deps, ...) you must replace it with query(&mut deps, ...)
+//! 4. Anywhere you see query(deps.as_ref(), ...) you must replace it with query(deps.as_mut(), ...)
 use anchor_basset_validators_registry::msg::QueryMsg as QueryValidators;
 use anchor_basset_validators_registry::registry::Validator as RegistryValidator;
 use cosmwasm_std::{
-    coin, coins, from_binary, to_binary, Api, BankMsg, Coin, CosmosMsg, Decimal, DepsMut, Env,
-    Extern, FullDelegation, InitResponse, Querier, QueryRequest, Response, StakingMsg, StdError,
-    Storage, String, Uint128, Validator, WasmMsg, WasmQuery,
+    coin, coins, from_binary, to_binary, Addr, Api, BankMsg, Coin, CosmosMsg, Decimal, DepsMut,
+    DistributionMsg, Env, FullDelegation, MessageInfo, OwnedDeps, Querier, QueryRequest, Response,
+    StakingMsg, StdError, StdResult, Storage, Uint128, Validator, WasmMsg, WasmQuery,
 };
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use cosmwasm_std::testing::mock_env;
+use cosmwasm_std::testing::{mock_env, mock_info};
 
 use crate::msg::{
     AllHistoryResponse, ConfigResponse, CurrentBatchResponse, InitMsg, StateResponse,
     UnbondRequestsResponse, WithdrawableUnbondedResponse,
 };
 
-use crate::contract::{execute, init, query};
+use crate::contract::{execute, instantiate, query};
 use crate::unbond::{execute_unbond, execute_unbond_stluna};
 
-use cw20::{Cw20HandleMsg, Cw20ReceiveMsg};
-use cw20_base::msg::HandleMsg::{Burn, Mint};
+use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg};
+use cw20_base::msg::ExecuteMsg::{Burn, Mint};
 
 use super::mock_querier::{mock_dependencies as dependencies, WasmMockQuerier};
 use crate::math::decimal_division;
@@ -45,12 +45,14 @@ use crate::msg::QueryMsg::{
     AllHistory, Config, CurrentBatch, Parameters as Params, State, UnbondRequests,
     WithdrawableUnbonded,
 };
-use crate::state::{read_config, read_unbond_wait_list, store_state, Parameters};
-use anchor_airdrop_registry::msg::HandleMsg::{FabricateANCClaim, FabricateMIRClaim};
-use anchor_airdrop_registry::msg::PairHandleMsg;
+use crate::state::{read_unbond_wait_list, Parameters, CONFIG, STATE};
 use anchor_basset_rewards_dispatcher::msg::ExecuteMsg::{DispatchRewards, SwapToRewardDenom};
+use basset::airdrop::PairHandleMsg;
 
+use basset::airdrop::ExecuteMsg::{FabricateANCClaim, FabricateMIRClaim};
 use basset::hub::Cw20HookMsg::Unbond;
+use basset::hub::ExecuteMsg::{CheckSlashing, Receive, UpdateConfig, UpdateParams};
+use basset::hub::{Cw20HookMsg, ExecuteMsg};
 use cosmwasm_std::testing::{MockApi, MockStorage};
 
 const DEFAULT_VALIDATOR: &str = "default-validator";
@@ -59,7 +61,7 @@ const DEFAULT_VALIDATOR3: &str = "default-validator3000";
 
 pub const MOCK_CONTRACT_ADDR: &str = "cosmos2contract";
 
-pub const _INITIAL_DEPOSIT_AMOUNT: Uint128 = Uint128(1000000u128);
+pub const _INITIAL_DEPOSIT_AMOUNT: Uint128 = Uint128::from(1000000u128);
 
 fn sample_validator<U: Into<String>>(addr: U) -> Validator {
     Validator {
@@ -98,10 +100,10 @@ pub fn initialize(
         reward_denom: "uusd".to_string(),
     };
 
-    let owner_env = mock_env(owner, &[]);
-    init(&mut deps, owner_env.clone(), msg).unwrap();
+    let owner_info = mock_info(owner.as_str(), &[]);
+    instantiate(deps.as_mut(), mock_env(), owner_info.clone(), msg).unwrap();
 
-    let register_msg = HandleMsg::UpdateConfig {
+    let register_msg = ExecuteMsg::UpdateConfig {
         owner: None,
         rewards_dispatcher_contract: Some(reward_contract),
         bluna_token_contract: Some(bluna_token_contract),
@@ -109,12 +111,12 @@ pub fn initialize(
         airdrop_registry_contract: Some(String::from("airdrop_registry")),
         validators_registry_contract: Some(String::from("validators_registry")),
     };
-    let res = execute(&mut deps, owner_env, register_msg).unwrap();
+    let res = execute(deps.as_mut(), mock_env(), owner_info, register_msg).unwrap();
     assert_eq!(1, res.messages.len());
 }
 
 pub fn do_register_validator(
-    deps: &mut Extern<MockStorage, MockApi, WasmMockQuerier>,
+    deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>,
     validator: Validator,
 ) {
     deps.querier.add_validator(RegistryValidator {
@@ -124,7 +126,7 @@ pub fn do_register_validator(
 }
 
 pub fn do_bond(
-    deps: &mut Extern<MockStorage, MockApi, WasmMockQuerier>,
+    deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>,
     addr: String,
     amount: Uint128,
 ) {
@@ -136,15 +138,15 @@ pub fn do_bond(
         }))
         .unwrap();
 
-    let bond = HandleMsg::Bond {};
+    let bond = ExecuteMsg::Bond {};
 
-    let env = mock_env(&addr, &[coin(amount.0, "uluna")]);
-    let res = execute(deps, env, bond).unwrap();
+    let info = mock_info(&addr, &[coin(amount.u128(), "uluna")]);
+    let res = execute(deps.as_mut(), mock_env(), info, bond).unwrap();
     assert_eq!(validators.len() + 1, res.messages.len());
 }
 
 pub fn do_bond_stluna(
-    deps: &mut Extern<MockStorage, MockApi, WasmMockQuerier>,
+    deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>,
     addr: String,
     amount: Uint128,
 ) {
@@ -156,22 +158,22 @@ pub fn do_bond_stluna(
         }))
         .unwrap();
 
-    let bond = HandleMsg::BondForStLuna {};
+    let bond = ExecuteMsg::BondForStLuna {};
 
-    let env = mock_env(&addr, &[coin(amount.0, "uluna")]);
-    let res = execute(deps, env, bond).unwrap();
+    let info = mock_info(&addr, &[coin(amount.u128(), "uluna")]);
+    let res = execute(deps.as_mut(), mock_env(), info, bond).unwrap();
     assert_eq!(validators.len() + 1, res.messages.len());
 }
 
-pub fn do_unbond(mut deps: DepsMut, addr: String, env: Env, amount: Uint128) -> Response {
+pub fn do_unbond(mut deps: DepsMut, addr: String, info: MessageInfo, amount: Uint128) -> Response {
     let successful_bond = Unbond {};
     let receive = Receive(Cw20ReceiveMsg {
         sender: addr,
         amount,
-        msg: Some(to_binary(&successful_bond).unwrap()),
+        msg: to_binary(&successful_bond).unwrap(),
     });
 
-    execute(&mut deps, env, receive).unwrap()
+    execute(deps.as_mut(), mock_env(), info, receive).unwrap()
 }
 
 /// Covers if all the fields of InitMsg are stored in
@@ -179,7 +181,7 @@ pub fn do_unbond(mut deps: DepsMut, addr: String, env: Env, amount: Uint128) -> 
 /// the current batch storage and state are initialized.
 #[test]
 fn proper_initialization() {
-    let mut deps = dependencies(20, &[]);
+    let mut deps = dependencies(&[]);
 
     let _validator = sample_validator(DEFAULT_VALIDATOR);
     set_validator_mock(&mut deps.querier);
@@ -195,15 +197,15 @@ fn proper_initialization() {
     };
 
     let owner = String::from("owner1");
-    let owner_env = mock_env(owner, &[]);
+    let owner_info = mock_info(owner.as_str(), &[]);
 
     // we can just call .unwrap() to assert this was a success
-    let res: InitResponse = init(&mut deps, owner_env.clone(), msg).unwrap();
+    let res: Response = instantiate(deps.as_mut(), mock_env(), owner_info.clone(), msg).unwrap();
     assert_eq!(0, res.messages.len());
 
     // check parameters storage
     let params = Params {};
-    let query_params: Parameters = from_binary(&query(&deps, params).unwrap()).unwrap();
+    let query_params: Parameters = from_binary(&query(deps.as_ref(), params).unwrap()).unwrap();
     assert_eq!(query_params.epoch_period, 30);
     assert_eq!(query_params.underlying_coin_denom, "uluna");
     assert_eq!(query_params.unbonding_period, 210);
@@ -213,22 +215,22 @@ fn proper_initialization() {
 
     // state storage must be initialized
     let state = State {};
-    let query_state: StateResponse = from_binary(&query(&deps, state).unwrap()).unwrap();
+    let query_state: StateResponse = from_binary(&query(deps.as_ref(), state).unwrap()).unwrap();
     let expected_result = StateResponse {
         bluna_exchange_rate: Decimal::one(),
         stluna_exchange_rate: Decimal::one(),
         total_bond_bluna_amount: Uint128::zero(),
         total_bond_stluna_amount: Uint128::zero(),
-        last_index_modification: owner_env.block.time,
+        last_index_modification: owner_info.block.time,
         prev_hub_balance: Default::default(),
-        last_unbonded_time: owner_env.block.time,
+        last_unbonded_time: owner_info.block.time,
         last_processed_batch: 0u64,
     };
     assert_eq!(query_state, expected_result);
 
     // config storage must be initialized
     let conf = Config {};
-    let query_conf: ConfigResponse = from_binary(&query(&deps, conf).unwrap()).unwrap();
+    let query_conf: ConfigResponse = from_binary(&query(deps.as_ref(), conf).unwrap()).unwrap();
     let expected_conf = ConfigResponse {
         owner: String::from("owner1"),
         reward_dispatcher_contract: None,
@@ -243,7 +245,7 @@ fn proper_initialization() {
     // current branch storage must be initialized
     let current_batch = CurrentBatch {};
     let query_batch: CurrentBatchResponse =
-        from_binary(&query(&deps, current_batch).unwrap()).unwrap();
+        from_binary(&query(deps.as_ref(), current_batch).unwrap()).unwrap();
     assert_eq!(
         query_batch,
         CurrentBatchResponse {
@@ -256,7 +258,7 @@ fn proper_initialization() {
 
 #[test]
 fn proper_bond() {
-    let mut deps = dependencies(20, &[]);
+    let mut deps = dependencies(&[]);
 
     let validator = sample_validator(DEFAULT_VALIDATOR);
     let validator2 = sample_validator(DEFAULT_VALIDATOR2);
@@ -264,7 +266,7 @@ fn proper_bond() {
     set_validator_mock(&mut deps.querier);
 
     let addr1 = String::from("addr1000");
-    let bond_amount = Uint128(10000);
+    let bond_amount = Uint128::from(10000u64);
 
     let owner = String::from("owner1");
     let token_contract = String::from("token");
@@ -272,7 +274,7 @@ fn proper_bond() {
     let reward_contract = String::from("reward");
 
     initialize(
-        &mut deps,
+        deps.as_mut(),
         owner,
         reward_contract,
         token_contract,
@@ -284,11 +286,11 @@ fn proper_bond() {
     do_register_validator(&mut deps, validator2);
     do_register_validator(&mut deps, validator3);
 
-    let bond_msg = HandleMsg::Bond {};
+    let bond_msg = ExecuteMsg::Bond {};
 
-    let env = mock_env(&addr1, &[coin(bond_amount.0, "uluna")]);
+    let info = mock_info(&addr1, &[coin(bond_amount.u128(), "uluna")]);
 
-    let res = execute(&mut deps, env, bond_msg).unwrap();
+    let res = execute(deps.as_mut(), mock_env(), info, bond_msg).unwrap();
     assert_eq!(4, res.messages.len());
 
     // set bob's balance in token contract
@@ -327,12 +329,12 @@ fn proper_bond() {
         CosmosMsg::Wasm(WasmMsg::Execute {
             contract_addr,
             msg,
-            send: _,
+            funds: _,
         }) => {
             assert_eq!(contract_addr, &String::from("token"));
             assert_eq!(
                 msg,
-                &to_binary(&Cw20HandleMsg::Mint {
+                &to_binary(&Cw20ExecuteMsg::Mint {
                     recipient: addr1.clone(),
                     amount: bond_amount,
                 })
@@ -344,16 +346,16 @@ fn proper_bond() {
 
     // get total bonded
     let state = State {};
-    let query_state: StateResponse = from_binary(&query(&deps, state).unwrap()).unwrap();
+    let query_state: StateResponse = from_binary(&query(deps.as_ref(), state).unwrap()).unwrap();
     assert_eq!(query_state.total_bond_bluna_amount, bond_amount);
     assert_eq!(query_state.bluna_exchange_rate, Decimal::one());
 
     // no-send funds
     let bob = String::from("bob");
-    let failed_bond = HandleMsg::Bond {};
+    let failed_bond = ExecuteMsg::Bond {};
 
-    let env = mock_env(&bob, &[]);
-    let res = execute(&mut deps, env, failed_bond);
+    let info = mock_info(&bob, &[]);
+    let res = execute(deps.as_mut(), mock_env(), info, failed_bond);
     assert_eq!(
         res.unwrap_err(),
         StdError::generic_err("No uluna assets are provided to bond")
@@ -361,22 +363,25 @@ fn proper_bond() {
 
     //send other tokens than luna funds
     let bob = String::from("bob");
-    let failed_bond = HandleMsg::Bond {};
+    let failed_bond = ExecuteMsg::Bond {};
 
-    let env = mock_env(&bob, &[coin(10, "ukrt")]);
-    let res = execute(&mut deps, env, failed_bond.clone());
+    let info = mock_info(&bob, &[coin(10, "ukrt")]);
+    let res = execute(deps.as_mut(), mock_env(), info, failed_bond.clone());
     assert_eq!(
         res.unwrap_err(),
         StdError::generic_err("No uluna assets are provided to bond")
     );
 
     //bond with more than one coin is not possible
-    let env = mock_env(
+    let info = mock_info(
         &addr1,
-        &[coin(bond_amount.0, "uluna"), coin(bond_amount.0, "uusd")],
+        &[
+            coin(bond_amount.u128(), "uluna"),
+            coin(bond_amount.u128(), "uusd"),
+        ],
     );
 
-    let res = execute(&mut deps, env, failed_bond).unwrap_err();
+    let res = execute(deps.as_mut(), mock_env(), info, failed_bond).unwrap_err();
     assert_eq!(
         res,
         StdError::generic_err("More than one coin is sent; only one asset is supported")
@@ -385,7 +390,7 @@ fn proper_bond() {
 
 #[test]
 fn proper_bond_for_st_luna() {
-    let mut deps = dependencies(20, &[]);
+    let mut deps = dependencies(&[]);
 
     let validator = sample_validator(DEFAULT_VALIDATOR);
     let validator2 = sample_validator(DEFAULT_VALIDATOR2);
@@ -393,7 +398,7 @@ fn proper_bond_for_st_luna() {
     set_validator_mock(&mut deps.querier);
 
     let addr1 = String::from("addr1000");
-    let bond_amount = Uint128(10000);
+    let bond_amount = Uint128::from(10000u64);
 
     let owner = String::from("owner1");
     let token_contract = String::from("token");
@@ -401,7 +406,7 @@ fn proper_bond_for_st_luna() {
     let reward_contract = String::from("reward");
 
     initialize(
-        &mut deps,
+        deps.as_mut(),
         owner,
         reward_contract,
         token_contract,
@@ -413,11 +418,11 @@ fn proper_bond_for_st_luna() {
     do_register_validator(&mut deps, validator2);
     do_register_validator(&mut deps, validator3);
 
-    let bond_msg = HandleMsg::BondForStLuna {};
+    let bond_msg = ExecuteMsg::BondForStLuna {};
 
-    let env = mock_env(&addr1, &[coin(bond_amount.0, "uluna")]);
+    let info = mock_info(&addr1, &[coin(bond_amount.u128(), "uluna")]);
 
-    let res = execute(&mut deps, env, bond_msg).unwrap();
+    let res = execute(deps.as_mut(), mock_env(), info, bond_msg).unwrap();
     assert_eq!(4, res.messages.len());
 
     // set bob's balance in token contract
@@ -456,12 +461,12 @@ fn proper_bond_for_st_luna() {
         CosmosMsg::Wasm(WasmMsg::Execute {
             contract_addr,
             msg,
-            send: _,
+            funds: _,
         }) => {
             assert_eq!(contract_addr, &stluna_token_contract);
             assert_eq!(
                 msg,
-                &to_binary(&Cw20HandleMsg::Mint {
+                &to_binary(&Cw20ExecuteMsg::Mint {
                     recipient: addr1.clone(),
                     amount: bond_amount,
                 })
@@ -473,16 +478,16 @@ fn proper_bond_for_st_luna() {
 
     // get total bonded
     let state = State {};
-    let query_state: StateResponse = from_binary(&query(&deps, state).unwrap()).unwrap();
+    let query_state: StateResponse = from_binary(&query(deps.as_ref(), state).unwrap()).unwrap();
     assert_eq!(query_state.total_bond_stluna_amount, bond_amount);
     assert_eq!(query_state.stluna_exchange_rate, Decimal::one());
 
     // no-send funds
     let bob = String::from("bob");
-    let failed_bond = HandleMsg::BondForStLuna {};
+    let failed_bond = ExecuteMsg::BondForStLuna {};
 
-    let env = mock_env(&bob, &[]);
-    let res = execute(&mut deps, env, failed_bond);
+    let info = mock_info(&bob, &[]);
+    let res = execute(deps.as_mut(), mock_env(), info, failed_bond);
     assert_eq!(
         res.unwrap_err(),
         StdError::generic_err("No uluna assets are provided to bond")
@@ -490,22 +495,25 @@ fn proper_bond_for_st_luna() {
 
     //send other tokens than luna funds
     let bob = String::from("bob");
-    let failed_bond = HandleMsg::BondForStLuna {};
+    let failed_bond = ExecuteMsg::BondForStLuna {};
 
-    let env = mock_env(&bob, &[coin(10, "ukrt")]);
-    let res = execute(&mut deps, env, failed_bond.clone());
+    let info = mock_info(&bob, &[coin(10, "ukrt")]);
+    let res = execute(deps.as_mut(), mock_env(), info, failed_bond.clone());
     assert_eq!(
         res.unwrap_err(),
         StdError::generic_err("No uluna assets are provided to bond")
     );
 
     //bond with more than one coin is not possible
-    let env = mock_env(
+    let info = mock_info(
         &addr1,
-        &[coin(bond_amount.0, "uluna"), coin(bond_amount.0, "uusd")],
+        &[
+            coin(bond_amount.u128(), "uluna"),
+            coin(bond_amount.u128(), "uusd"),
+        ],
     );
 
-    let res = execute(&mut deps, env, failed_bond).unwrap_err();
+    let res = execute(deps.as_mut(), mock_env(), info, failed_bond).unwrap_err();
     assert_eq!(
         res,
         StdError::generic_err("More than one coin is sent; only one asset is supported")
@@ -514,7 +522,7 @@ fn proper_bond_for_st_luna() {
 
 #[test]
 fn proper_bond_rewards() {
-    let mut deps = dependencies(20, &[]);
+    let mut deps = dependencies(&[]);
 
     let validator = sample_validator(DEFAULT_VALIDATOR);
     let validator2 = sample_validator(DEFAULT_VALIDATOR2);
@@ -522,7 +530,7 @@ fn proper_bond_rewards() {
     set_validator_mock(&mut deps.querier);
 
     let addr1 = String::from("addr1000");
-    let bond_amount = Uint128(10000);
+    let bond_amount = Uint128::from(10000u64);
 
     let owner = String::from("owner1");
     let token_contract = String::from("token");
@@ -530,7 +538,7 @@ fn proper_bond_rewards() {
     let reward_dispatcher_contract = String::from("reward_dispatcher");
 
     initialize(
-        &mut deps,
+        deps.as_mut(),
         owner,
         reward_dispatcher_contract.clone(),
         token_contract,
@@ -542,22 +550,25 @@ fn proper_bond_rewards() {
     do_register_validator(&mut deps, validator2);
     do_register_validator(&mut deps, validator3);
 
-    let bond_msg = HandleMsg::BondForStLuna {};
+    let bond_msg = ExecuteMsg::BondForStLuna {};
 
-    let env = mock_env(&addr1, &[coin(bond_amount.0, "uluna")]);
+    let info = mock_info(&addr1, &[coin(bond_amount.u128(), "uluna")]);
 
-    let res = execute(&mut deps, env, bond_msg).unwrap();
+    let res = execute(deps.as_mut(), mock_env(), info, bond_msg).unwrap();
     assert_eq!(4, res.messages.len());
 
     // set bob's balance in token contract
     deps.querier
         .with_token_balances(&[(&stluna_token_contract, &[(&addr1, &bond_amount)])]);
 
-    let bond_msg = HandleMsg::BondRewards {};
+    let bond_msg = ExecuteMsg::BondRewards {};
 
-    let env = mock_env(&reward_dispatcher_contract, &[coin(bond_amount.0, "uluna")]);
+    let info = mock_info(
+        &reward_dispatcher_contract,
+        &[coin(bond_amount.u128(), "uluna")],
+    );
 
-    let res = execute(&mut deps, env, bond_msg).unwrap();
+    let res = execute(deps.as_mut(), mock_env(), info, bond_msg).unwrap();
     assert_eq!(3, res.messages.len());
 
     let delegate = &res.messages[0];
@@ -589,7 +600,7 @@ fn proper_bond_rewards() {
 
     // get total bonded
     let state = State {};
-    let query_state: StateResponse = from_binary(&query(&deps, state).unwrap()).unwrap();
+    let query_state: StateResponse = from_binary(&query(deps.as_ref(), state).unwrap()).unwrap();
     assert_eq!(
         query_state.total_bond_stluna_amount,
         bond_amount + bond_amount // BondForStLuna + BondRewards
@@ -600,57 +611,60 @@ fn proper_bond_rewards() {
     );
 
     // no-send funds
-    let failed_bond = HandleMsg::BondRewards {};
+    let failed_bond = ExecuteMsg::BondRewards {};
 
-    let env = mock_env(&reward_dispatcher_contract, &[]);
-    let res = execute(&mut deps, env, failed_bond);
+    let info = mock_info(&reward_dispatcher_contract, &[]);
+    let res = execute(deps.as_mut(), mock_env(), info, failed_bond);
     assert_eq!(
         res.unwrap_err(),
         StdError::generic_err("No uluna assets are provided to bond")
     );
 
     //send other tokens than luna funds
-    let failed_bond = HandleMsg::BondRewards {};
+    let failed_bond = ExecuteMsg::BondRewards {};
 
-    let env = mock_env(&reward_dispatcher_contract, &[coin(10, "ukrt")]);
-    let res = execute(&mut deps, env, failed_bond.clone());
+    let info = mock_info(&reward_dispatcher_contract, &[coin(10, "ukrt")]);
+    let res = execute(deps.as_mut(), mock_env(), info, failed_bond.clone());
     assert_eq!(
         res.unwrap_err(),
         StdError::generic_err("No uluna assets are provided to bond")
     );
 
     //bond with more than one coin is not possible
-    let env = mock_env(
+    let info = mock_info(
         &reward_dispatcher_contract,
-        &[coin(bond_amount.0, "uluna"), coin(bond_amount.0, "uusd")],
+        &[
+            coin(bond_amount.u128(), "uluna"),
+            coin(bond_amount.u128(), "uusd"),
+        ],
     );
 
-    let res = execute(&mut deps, env, failed_bond).unwrap_err();
+    let res = execute(deps.as_mut(), mock_env(), info, failed_bond).unwrap_err();
     assert_eq!(
         res,
         StdError::generic_err("More than one coin is sent; only one asset is supported")
     );
 
     //bond from non-dispatcher address
-    let env = mock_env(
+    let info = mock_info(
         &String::from("random_address"),
-        &[coin(bond_amount.0, "uluna")],
+        &[coin(bond_amount.u128(), "uluna")],
     );
-    let failed_bond = HandleMsg::BondRewards {};
+    let failed_bond = ExecuteMsg::BondRewards {};
 
-    let res = execute(&mut deps, env, failed_bond).unwrap_err();
-    assert_eq!(res, StdError::unauthorized());
+    let res = execute(deps.as_mut(), mock_env(), info, failed_bond).unwrap_err();
+    assert_eq!(res, StdError::generic_err("unauthorized"));
 }
 
 /// Covers if Withdraw message, swap message, and update global index are sent.
 #[test]
 pub fn proper_update_global_index() {
-    let mut deps = dependencies(20, &[]);
+    let mut deps = dependencies(&[]);
     let validator = sample_validator(DEFAULT_VALIDATOR);
     set_validator_mock(&mut deps.querier);
 
     let addr1 = String::from("addr1000");
-    let bond_amount = Uint128(10);
+    let bond_amount = Uint128::from(10u64);
 
     let owner = String::from("owner1");
     let token_contract = String::from("token");
@@ -658,7 +672,7 @@ pub fn proper_update_global_index() {
     let reward_contract = String::from("reward");
 
     initialize(
-        &mut deps,
+        deps.as_mut(),
         owner,
         reward_contract.clone(),
         token_contract,
@@ -675,12 +689,12 @@ pub fn proper_update_global_index() {
     ]);
 
     // fails if there is no delegation
-    let reward_msg = HandleMsg::UpdateGlobalIndex {
+    let reward_msg = ExecuteMsg::UpdateGlobalIndex {
         airdrop_hooks: None,
     };
 
-    let env = mock_env(&addr1, &[]);
-    let res = execute(&mut deps, env, reward_msg).unwrap();
+    let info = mock_info(&addr1, &[]);
+    let res = execute(deps.as_mut(), mock_env(), info, reward_msg).unwrap();
     assert_eq!(res.messages.len(), 2);
 
     // bond
@@ -688,7 +702,7 @@ pub fn proper_update_global_index() {
 
     //set delegation for query-all-delegation
     let delegations: [FullDelegation; 1] =
-        [(sample_delegation(validator.address.clone(), coin(bond_amount.0, "uluna")))];
+        [(sample_delegation(validator.address.clone(), coin(bond_amount.u128(), "uluna")))];
 
     let validators: [Validator; 1] = [(validator.clone())];
 
@@ -700,27 +714,23 @@ pub fn proper_update_global_index() {
         (&stluna_token_contract, &[(&addr1, &bond_amount)]),
     ]);
 
-    let reward_msg = HandleMsg::UpdateGlobalIndex {
+    let reward_msg = ExecuteMsg::UpdateGlobalIndex {
         airdrop_hooks: None,
     };
 
-    let env = mock_env(&addr1, &[]);
-    let res = execute(&mut deps, env.clone(), reward_msg).unwrap();
+    let info = mock_info(&addr1, &[]);
+    let res = execute(deps.as_mut(), mock_env(), info.clone(), reward_msg).unwrap();
     assert_eq!(3, res.messages.len());
 
     let last_index_query = State {};
     let last_modification: StateResponse =
-        from_binary(&query(&deps, last_index_query).unwrap()).unwrap();
-    assert_eq!(&last_modification.last_index_modification, &env.block.time);
+        from_binary(&query(deps.as_ref(), last_index_query).unwrap()).unwrap();
+    assert_eq!(&last_modification.last_index_modification, &info.block.time);
 
     let withdraw = &res.messages[0];
     match withdraw {
-        CosmosMsg::Staking(StakingMsg::Withdraw {
-            validator: val,
-            recipient,
-        }) => {
+        CosmosMsg::Distribution(DistributionMsg::WithdrawDelegatorReward { validator: val }) => {
             assert_eq!(val, &validator.address);
-            assert_eq!(recipient.is_none(), true);
         }
         _ => panic!("Unexpected message: {:?}", withdraw),
     }
@@ -730,14 +740,14 @@ pub fn proper_update_global_index() {
         CosmosMsg::Wasm(WasmMsg::Execute {
             contract_addr,
             msg,
-            send: _,
+            funds: _,
         }) => {
             assert_eq!(contract_addr, &reward_contract);
             assert_eq!(
                 msg,
                 &to_binary(&SwapToRewardDenom {
-                    stluna_total_mint_amount: Uint128(10),
-                    bluna_total_mint_amount: Uint128(10),
+                    stluna_total_mint_amount: Uint128::from(10u64),
+                    bluna_total_mint_amount: Uint128::from(10u64),
                 })
                 .unwrap()
             )
@@ -750,7 +760,7 @@ pub fn proper_update_global_index() {
         CosmosMsg::Wasm(WasmMsg::Execute {
             contract_addr,
             msg,
-            send: _,
+            funds: _,
         }) => {
             assert_eq!(contract_addr, &reward_contract);
             assert_eq!(msg, &to_binary(&DispatchRewards {}).unwrap())
@@ -763,7 +773,7 @@ pub fn proper_update_global_index() {
 /// Checks if more than one Withdraw message is sent.
 #[test]
 pub fn proper_update_global_index_two_validators() {
-    let mut deps = dependencies(20, &[]);
+    let mut deps = dependencies(&[]);
     let validator = sample_validator(DEFAULT_VALIDATOR);
     let validator2 = sample_validator(DEFAULT_VALIDATOR2);
     set_validator_mock(&mut deps.querier);
@@ -776,7 +786,7 @@ pub fn proper_update_global_index_two_validators() {
     let reward_contract = String::from("reward");
 
     initialize(
-        &mut deps,
+        deps.as_mut(),
         owner,
         reward_contract,
         token_contract,
@@ -787,19 +797,19 @@ pub fn proper_update_global_index_two_validators() {
     do_register_validator(&mut deps, validator.clone());
 
     // bond
-    do_bond(&mut deps, addr1.clone(), Uint128(10));
+    do_bond(&mut deps, addr1.clone(), Uint128::from(10u64));
 
     //set bob's balance to 10 in token contract
     deps.querier.with_token_balances(&[
-        (&String::from("token"), &[(&addr1, &Uint128(10u128))]),
-        (&stluna_token_contract, &[(&addr1, &Uint128(10))]),
+        (&String::from("token"), &[(&addr1, &Uint128::from(10u128))]),
+        (&stluna_token_contract, &[(&addr1, &Uint128::from(10u64))]),
     ]);
 
     // register_validator
     do_register_validator(&mut deps, validator2.clone());
 
     // bond to the second validator
-    do_bond(&mut deps, addr1.clone(), Uint128(10));
+    do_bond(&mut deps, addr1.clone(), Uint128::from(10u64));
 
     //set delegation for query-all-delegation
     let delegations: [FullDelegation; 2] = [
@@ -812,38 +822,30 @@ pub fn proper_update_global_index_two_validators() {
 
     //set bob's balance to 10 in token contract
     deps.querier.with_token_balances(&[
-        (&String::from("token"), &[(&addr1, &Uint128(20u128))]),
-        (&stluna_token_contract, &[(&addr1, &Uint128(10))]),
+        (&String::from("token"), &[(&addr1, &Uint128::from(20u128))]),
+        (&stluna_token_contract, &[(&addr1, &Uint128::from(10u64))]),
     ]);
 
-    let reward_msg = HandleMsg::UpdateGlobalIndex {
+    let reward_msg = ExecuteMsg::UpdateGlobalIndex {
         airdrop_hooks: None,
     };
 
-    let env = mock_env(&addr1, &[]);
-    let res = execute(&mut deps, env, reward_msg).unwrap();
+    let info = mock_info(&addr1, &[]);
+    let res = execute(deps.as_mut(), mock_env(), info, reward_msg).unwrap();
     assert_eq!(4, res.messages.len());
 
     let withdraw = &res.messages[0];
     match withdraw {
-        CosmosMsg::Staking(StakingMsg::Withdraw {
-            validator: val,
-            recipient,
-        }) => {
+        CosmosMsg::Distribution(DistributionMsg::WithdrawDelegatorReward { validator: val }) => {
             assert_eq!(val, &validator.address);
-            assert_eq!(recipient.is_none(), true);
         }
         _ => panic!("Unexpected message: {:?}", withdraw),
     }
 
     let withdraw = &res.messages[1];
     match withdraw {
-        CosmosMsg::Staking(StakingMsg::Withdraw {
-            validator: val,
-            recipient,
-        }) => {
+        CosmosMsg::Distribution(DistributionMsg::WithdrawDelegatorReward { validator: val }) => {
             assert_eq!(val, &validator2.address);
-            assert_eq!(recipient.is_none(), true);
         }
         _ => panic!("Unexpected message: {:?}", withdraw),
     }
@@ -854,7 +856,7 @@ pub fn proper_update_global_index_two_validators() {
 /// Checks if one Withdraw message is sent.
 #[test]
 pub fn proper_update_global_index_respect_one_registered_validator() {
-    let mut deps = dependencies(20, &[]);
+    let mut deps = dependencies(&[]);
     let validator = sample_validator(DEFAULT_VALIDATOR);
     let validator2 = sample_validator(DEFAULT_VALIDATOR2);
     set_validator_mock(&mut deps.querier);
@@ -867,7 +869,7 @@ pub fn proper_update_global_index_respect_one_registered_validator() {
     let reward_contract = String::from("reward");
 
     initialize(
-        &mut deps,
+        deps.as_mut(),
         owner,
         reward_contract,
         token_contract,
@@ -878,12 +880,12 @@ pub fn proper_update_global_index_respect_one_registered_validator() {
     do_register_validator(&mut deps, validator.clone());
 
     // bond
-    do_bond(&mut deps, addr1.clone(), Uint128(10));
+    do_bond(&mut deps, addr1.clone(), Uint128::from(10u64));
 
     //set bob's balance to 10 in token contract
     deps.querier.with_token_balances(&[
-        (&String::from("token"), &[(&addr1, &Uint128(10u128))]),
-        (&stluna_token_contract, &[(&addr1, &Uint128(10))]),
+        (&String::from("token"), &[(&addr1, &Uint128::from(10u128))]),
+        (&stluna_token_contract, &[(&addr1, &Uint128::from(10u64))]),
     ]);
 
     // register_validator 2 but will not bond anything to it
@@ -898,26 +900,22 @@ pub fn proper_update_global_index_respect_one_registered_validator() {
 
     //set bob's balance to 10 in token contract
     deps.querier.with_token_balances(&[
-        (&String::from("token"), &[(&addr1, &Uint128(20u128))]),
-        (&stluna_token_contract, &[(&addr1, &Uint128(10))]),
+        (&String::from("token"), &[(&addr1, &Uint128::from(20u128))]),
+        (&stluna_token_contract, &[(&addr1, &Uint128::from(10u64))]),
     ]);
 
-    let reward_msg = HandleMsg::UpdateGlobalIndex {
+    let reward_msg = ExecuteMsg::UpdateGlobalIndex {
         airdrop_hooks: None,
     };
 
-    let env = mock_env(&addr1, &[]);
-    let res = execute(&mut deps, env, reward_msg).unwrap();
+    let info = mock_info(&addr1, &[]);
+    let res = execute(deps.as_mut(), mock_env(), info, reward_msg).unwrap();
     assert_eq!(3, res.messages.len());
 
     let withdraw = &res.messages[0];
     match withdraw {
-        CosmosMsg::Staking(StakingMsg::Withdraw {
-            validator: val,
-            recipient,
-        }) => {
+        CosmosMsg::Distribution(DistributionMsg::WithdrawDelegatorReward { validator: val }) => {
             assert_eq!(val, &validator.address);
-            assert_eq!(recipient.is_none(), true);
         }
         _ => panic!("Unexpected message: {:?}", withdraw),
     }
@@ -930,7 +928,7 @@ pub fn proper_update_global_index_respect_one_registered_validator() {
 */
 #[test]
 pub fn proper_receive() {
-    let mut deps = dependencies(20, &[]);
+    let mut deps = dependencies(&[]);
     let validator = sample_validator(DEFAULT_VALIDATOR);
     set_validator_mock(&mut deps.querier);
 
@@ -943,7 +941,7 @@ pub fn proper_receive() {
     let reward_contract = String::from("reward");
 
     initialize(
-        &mut deps,
+        deps.as_mut(),
         owner,
         reward_contract,
         token_contract.clone(),
@@ -954,24 +952,24 @@ pub fn proper_receive() {
     do_register_validator(&mut deps, validator.clone());
 
     // bond to the second validator
-    do_bond(&mut deps, addr1.clone(), Uint128(10));
+    do_bond(&mut deps, addr1.clone(), Uint128::from(10u64));
     set_delegation(&mut deps.querier, validator, 10, "uluna");
 
     //set bob's balance to 10 in token contract
     deps.querier.with_token_balances(&[
-        (&String::from("token"), &[(&addr1, &Uint128(10u128))]),
+        (&String::from("token"), &[(&addr1, &Uint128::from(10u128))]),
         (&stluna_token_contract, &[]),
     ]);
 
     // Null message
     let receive = Receive(Cw20ReceiveMsg {
         sender: addr1.clone(),
-        amount: Uint128(10),
-        msg: None,
+        amount: Uint128::from(10u64),
+        msg: to_binary(&{}).unwrap(),
     });
 
-    let token_env = mock_env(&token_contract, &[]);
-    let res = execute(&mut deps, token_env, receive);
+    let token_info = mock_info(&token_contract, &[]);
+    let res = execute(deps.as_mut(), mock_env(), token_info, receive);
     assert_eq!(
         res.unwrap_err(),
         StdError::generic_err("Invalid request: \"unbond\" message not included in request")
@@ -981,24 +979,24 @@ pub fn proper_receive() {
     let failed_unbond = Unbond {};
     let receive = Receive(Cw20ReceiveMsg {
         sender: addr1.clone(),
-        amount: Uint128(10),
-        msg: Some(to_binary(&failed_unbond).unwrap()),
+        amount: Uint128::from(10u64),
+        msg: to_binary(&failed_unbond).unwrap(),
     });
 
-    let invalid_env = mock_env(&invalid, &[]);
-    let res = execute(&mut deps, invalid_env, receive);
-    assert_eq!(res.unwrap_err(), StdError::unauthorized());
+    let invalid_info = mock_info(&invalid, &[]);
+    let res = execute(deps.as_mut(), mock_env(), invalid_info, receive);
+    assert_eq!(res.unwrap_err(), StdError::generic_err("unauthorized"));
 
     // successful call
     let successful_unbond = Unbond {};
     let receive = Receive(Cw20ReceiveMsg {
         sender: addr1,
-        amount: Uint128(10),
-        msg: Some(to_binary(&successful_unbond).unwrap()),
+        amount: Uint128::from(10u64),
+        msg: to_binary(&successful_unbond).unwrap(),
     });
 
-    let valid_env = mock_env(&token_contract, &[]);
-    let res = execute(&mut deps, valid_env, receive).unwrap();
+    let valid_info = mock_info(&token_contract, &[]);
+    let res = execute(deps.as_mut(), mock_env(), valid_info, receive).unwrap();
     assert_eq!(res.messages.len(), 1);
 
     let msg = &res.messages[0];
@@ -1006,13 +1004,13 @@ pub fn proper_receive() {
         CosmosMsg::Wasm(WasmMsg::Execute {
             contract_addr,
             msg,
-            send: _,
+            funds: _,
         }) => {
             assert_eq!(contract_addr, &token_contract);
             assert_eq!(
                 msg,
                 &to_binary(&Burn {
-                    amount: Uint128(10)
+                    amount: Uint128::from(10u64)
                 })
                 .unwrap()
             );
@@ -1027,7 +1025,7 @@ pub fn proper_receive() {
 /// the request is stored in unbond wait list, and unbond history map is updated
 #[test]
 pub fn proper_unbond() {
-    let mut deps = dependencies(20, &[]);
+    let mut deps = dependencies(&[]);
     let validator = sample_validator(DEFAULT_VALIDATOR);
     set_validator_mock(&mut deps.querier);
 
@@ -1037,7 +1035,7 @@ pub fn proper_unbond() {
     let reward_contract = String::from("reward");
 
     initialize(
-        &mut deps,
+        deps.as_mut(),
         owner,
         reward_contract,
         token_contract.clone(),
@@ -1048,17 +1046,17 @@ pub fn proper_unbond() {
     do_register_validator(&mut deps, validator.clone());
 
     let bob = String::from("bob");
-    let bond = HandleMsg::Bond {};
+    let bond = ExecuteMsg::Bond {};
 
-    let env = mock_env(&bob, &[coin(10, "uluna")]);
+    let info = mock_info(&bob, &[coin(10, "uluna")]);
 
     //set bob's balance to 10 in token contract
     deps.querier.with_token_balances(&[
-        (&String::from("token"), &[(&bob, &Uint128(10u128))]),
+        (&String::from("token"), &[(&bob, &Uint128::from(10u128))]),
         (&stluna_token_contract, &[]),
     ]);
 
-    let res = execute(&mut deps, env, bond).unwrap();
+    let res = execute(deps.as_mut(), mock_env(), info, bond).unwrap();
     assert_eq!(2, res.messages.len());
 
     let delegate = &res.messages[0];
@@ -1075,48 +1073,48 @@ pub fn proper_unbond() {
     //check the current batch before unbond
     let current_batch = CurrentBatch {};
     let query_batch: CurrentBatchResponse =
-        from_binary(&query(&deps, current_batch).unwrap()).unwrap();
+        from_binary(&query(deps.as_ref(), current_batch).unwrap()).unwrap();
     assert_eq!(query_batch.id, 1);
     assert_eq!(query_batch.requested_bluna_with_fee, Uint128::zero());
 
-    let token_env = mock_env(&token_contract, &[]);
+    let token_info = mock_info(&token_contract, &[]);
 
     // check the state before unbond
     let state = State {};
-    let query_state: StateResponse = from_binary(&query(&deps, state).unwrap()).unwrap();
-    assert_eq!(query_state.last_unbonded_time, token_env.block.time);
-    assert_eq!(query_state.total_bond_bluna_amount, Uint128(10));
+    let query_state: StateResponse = from_binary(&query(deps.as_ref(), state).unwrap()).unwrap();
+    assert_eq!(query_state.last_unbonded_time, token_info.block.time);
+    assert_eq!(query_state.total_bond_bluna_amount, Uint128::from(10u64));
 
     // successful call
     let successful_bond = Unbond {};
     let receive = Receive(Cw20ReceiveMsg {
         sender: bob.clone(),
-        amount: Uint128(1),
-        msg: Some(to_binary(&successful_bond).unwrap()),
+        amount: Uint128::from(1u64),
+        msg: to_binary(&successful_bond).unwrap(),
     });
-    let res = execute(&mut deps, token_env, receive).unwrap();
+    let res = execute(deps.as_mut(), mock_env(), token_info, receive).unwrap();
     assert_eq!(1, res.messages.len());
     deps.querier.with_token_balances(&[
-        (&String::from("token"), &[(&bob, &Uint128(9u128))]),
+        (&String::from("token"), &[(&bob, &Uint128::from(9u128))]),
         (&stluna_token_contract, &[]),
     ]);
 
     //read the undelegated waitlist of the current epoch for the user bob
-    let wait_list = read_unbond_wait_list(deps.storage, 1, bob.clone()).unwrap();
-    assert_eq!(Uint128(1), wait_list.bluna_amount);
+    let wait_list = read_unbond_wait_list(&deps.storage, 1, bob.clone()).unwrap();
+    assert_eq!(Uint128::from(1u64), wait_list.bluna_amount);
 
     //successful call
     let successful_bond = Unbond {};
     let receive = Receive(Cw20ReceiveMsg {
         sender: bob.clone(),
-        amount: Uint128(5),
-        msg: Some(to_binary(&successful_bond).unwrap()),
+        amount: Uint128::from(5u64),
+        msg: to_binary(&successful_bond).unwrap(),
     });
-    let mut token_env = mock_env(&token_contract, &[]);
-    let res = execute(&mut deps, token_env.clone(), receive).unwrap();
+    let mut token_info = mock_info(&token_contract, &[]);
+    let res = execute(deps.as_mut(), mock_env(), token_info.clone(), receive).unwrap();
     assert_eq!(1, res.messages.len());
     deps.querier.with_token_balances(&[
-        (&String::from("token"), &[(&bob, &Uint128(4u128))]),
+        (&String::from("token"), &[(&bob, &Uint128::from(4u128))]),
         (&stluna_token_contract, &[]),
     ]);
 
@@ -1125,33 +1123,39 @@ pub fn proper_unbond() {
         CosmosMsg::Wasm(WasmMsg::Execute {
             contract_addr,
             msg,
-            send: _,
+            funds: _,
         }) => {
             assert_eq!(contract_addr, &token_contract);
-            assert_eq!(msg, &to_binary(&Burn { amount: Uint128(5) }).unwrap());
+            assert_eq!(
+                msg,
+                &to_binary(&Burn {
+                    amount: Uint128::from(5u64)
+                })
+                .unwrap()
+            );
         }
         _ => panic!("Unexpected message: {:?}", msg),
     }
 
-    let waitlist2 = read_unbond_wait_list(deps.storage, 1, bob.clone()).unwrap();
-    assert_eq!(Uint128(6), waitlist2.bluna_amount);
+    let waitlist2 = read_unbond_wait_list(&deps.storage, 1, bob.clone()).unwrap();
+    assert_eq!(Uint128::from(6u64), waitlist2.bluna_amount);
 
     let current_batch = CurrentBatch {};
     let query_batch: CurrentBatchResponse =
-        from_binary(&query(&deps, current_batch).unwrap()).unwrap();
+        from_binary(&query(deps.as_ref(), current_batch).unwrap()).unwrap();
     assert_eq!(query_batch.id, 1);
-    assert_eq!(query_batch.requested_bluna_with_fee, Uint128(6));
+    assert_eq!(query_batch.requested_bluna_with_fee, Uint128::from(6u64));
 
     //pushing time forward to check the unbond message
-    token_env.block.time += 31;
+    token_info.block.time += 31;
 
     let successful_bond = Unbond {};
     let receive = Receive(Cw20ReceiveMsg {
         sender: bob.clone(),
-        amount: Uint128(2),
-        msg: Some(to_binary(&successful_bond).unwrap()),
+        amount: Uint128::from(2u64),
+        msg: to_binary(&successful_bond).unwrap(),
     });
-    let res = execute(&mut deps, token_env.clone(), receive).unwrap();
+    let res = execute(deps.as_mut(), mock_env(), token_info.clone(), receive).unwrap();
     assert_eq!(2, res.messages.len());
 
     let msg = &res.messages[1];
@@ -1159,10 +1163,16 @@ pub fn proper_unbond() {
         CosmosMsg::Wasm(WasmMsg::Execute {
             contract_addr,
             msg,
-            send: _,
+            funds: _,
         }) => {
             assert_eq!(contract_addr, &token_contract);
-            assert_eq!(msg, &to_binary(&Burn { amount: Uint128(2) }).unwrap());
+            assert_eq!(
+                msg,
+                &to_binary(&Burn {
+                    amount: Uint128::from(2u64)
+                })
+                .unwrap()
+            );
         }
         _ => panic!("Unexpected message: {:?}", msg),
     }
@@ -1177,29 +1187,29 @@ pub fn proper_unbond() {
     // check the current batch
     let current_batch = CurrentBatch {};
     let query_batch: CurrentBatchResponse =
-        from_binary(&query(&deps, current_batch).unwrap()).unwrap();
+        from_binary(&query(deps.as_ref(), current_batch).unwrap()).unwrap();
     assert_eq!(query_batch.id, 2);
     assert_eq!(query_batch.requested_bluna_with_fee, Uint128::zero());
 
     // check the state
     let state = State {};
-    let query_state: StateResponse = from_binary(&query(&deps, state).unwrap()).unwrap();
-    assert_eq!(query_state.last_unbonded_time, token_env.block.time);
-    assert_eq!(query_state.total_bond_bluna_amount, Uint128(2));
+    let query_state: StateResponse = from_binary(&query(deps.as_ref(), state).unwrap()).unwrap();
+    assert_eq!(query_state.last_unbonded_time, token_info.block.time);
+    assert_eq!(query_state.total_bond_bluna_amount, Uint128::from(2u64));
 
     // the last request (2) gets combined and processed with the previous requests (1, 5)
     let waitlist = UnbondRequests { address: bob };
     let query_unbond: UnbondRequestsResponse =
-        from_binary(&query(&deps, waitlist).unwrap()).unwrap();
+        from_binary(&query(deps.as_ref(), waitlist).unwrap()).unwrap();
     assert_eq!(query_unbond.requests[0].0, 1);
-    assert_eq!(query_unbond.requests[0].1, Uint128(8));
+    assert_eq!(query_unbond.requests[0].1, Uint128::from(8u64));
 
     let all_batches = AllHistory {
         start_from: None,
         limit: None,
     };
-    let res: AllHistoryResponse = from_binary(&query(&deps, all_batches).unwrap()).unwrap();
-    assert_eq!(res.history[0].bluna_amount, Uint128(8));
+    let res: AllHistoryResponse = from_binary(&query(deps.as_ref(), all_batches).unwrap()).unwrap();
+    assert_eq!(res.history[0].bluna_amount, Uint128::from(8u64));
     assert_eq!(res.history[0].bluna_applied_exchange_rate, Decimal::one());
     assert_eq!(res.history[0].released, false);
     assert_eq!(res.history[0].batch_id, 1);
@@ -1212,7 +1222,7 @@ pub fn proper_unbond() {
 */
 #[test]
 pub fn proper_receive_stluna() {
-    let mut deps = dependencies(20, &[]);
+    let mut deps = dependencies(&[]);
     let validator = sample_validator(DEFAULT_VALIDATOR);
     set_validator_mock(&mut deps.querier);
 
@@ -1225,7 +1235,7 @@ pub fn proper_receive_stluna() {
     let reward_contract = String::from("reward");
 
     initialize(
-        &mut deps,
+        deps.as_mut(),
         owner,
         reward_contract,
         token_contract,
@@ -1236,24 +1246,24 @@ pub fn proper_receive_stluna() {
     do_register_validator(&mut deps, validator.clone());
 
     // bond to the second validator
-    do_bond_stluna(&mut deps, addr1.clone(), Uint128(10));
+    do_bond_stluna(&mut deps, addr1.clone(), Uint128::from(10u64));
     set_delegation(&mut deps.querier, validator, 10, "uluna");
 
     //set bob's balance to 10 in token contract
     deps.querier.with_token_balances(&[
-        (&stluna_token_contract, &[(&addr1, &Uint128(10u128))]),
+        (&stluna_token_contract, &[(&addr1, &Uint128::from(10u128))]),
         (&String::from("token"), &[]),
     ]);
 
     // Null message
     let receive = Receive(Cw20ReceiveMsg {
         sender: addr1.clone(),
-        amount: Uint128(10),
-        msg: None,
+        amount: Uint128::from(10u64),
+        msg: to_binary(&{}).unwrap(),
     });
 
-    let token_env = mock_env(&stluna_token_contract, &[]);
-    let res = execute(&mut deps, token_env, receive);
+    let token_info = mock_info(&stluna_token_contract, &[]);
+    let res = execute(deps.as_mut(), mock_env(), token_info, receive);
     assert_eq!(
         res.unwrap_err(),
         StdError::generic_err("Invalid request: \"unbond\" message not included in request")
@@ -1263,24 +1273,24 @@ pub fn proper_receive_stluna() {
     let failed_unbond = Unbond {};
     let receive = Receive(Cw20ReceiveMsg {
         sender: addr1.clone(),
-        amount: Uint128(10),
-        msg: Some(to_binary(&failed_unbond).unwrap()),
+        amount: Uint128::from(10u64),
+        msg: to_binary(&failed_unbond).unwrap(),
     });
 
-    let invalid_env = mock_env(&invalid, &[]);
-    let res = execute(&mut deps, invalid_env, receive);
-    assert_eq!(res.unwrap_err(), StdError::unauthorized());
+    let invalid_info = mock_info(&invalid, &[]);
+    let res = execute(deps.as_mut(), mock_env(), invalid_info, receive);
+    assert_eq!(res.unwrap_err(), StdError::generic_err("unauthorized"));
 
     // successful call
     let successful_unbond = Unbond {};
     let receive = Receive(Cw20ReceiveMsg {
         sender: addr1,
-        amount: Uint128(10),
-        msg: Some(to_binary(&successful_unbond).unwrap()),
+        amount: Uint128::from(10u64),
+        msg: to_binary(&successful_unbond).unwrap(),
     });
 
-    let valid_env = mock_env(&stluna_token_contract, &[]);
-    let res = execute(&mut deps, valid_env, receive).unwrap();
+    let valid_info = mock_info(&stluna_token_contract, &[]);
+    let res = execute(deps.as_mut(), mock_env(), valid_info, receive).unwrap();
     assert_eq!(res.messages.len(), 1);
 
     let msg = &res.messages[0];
@@ -1288,13 +1298,13 @@ pub fn proper_receive_stluna() {
         CosmosMsg::Wasm(WasmMsg::Execute {
             contract_addr,
             msg,
-            send: _,
+            funds: _,
         }) => {
             assert_eq!(contract_addr, &stluna_token_contract);
             assert_eq!(
                 msg,
                 &to_binary(&Burn {
-                    amount: Uint128(10)
+                    amount: Uint128::from(10u64)
                 })
                 .unwrap()
             );
@@ -1309,7 +1319,7 @@ pub fn proper_receive_stluna() {
 /// the request is stored in unbond wait list, and unbond history map is updated
 #[test]
 pub fn proper_unbond_stluna() {
-    let mut deps = dependencies(20, &[]);
+    let mut deps = dependencies(&[]);
     let validator = sample_validator(DEFAULT_VALIDATOR);
     set_validator_mock(&mut deps.querier);
 
@@ -1319,7 +1329,7 @@ pub fn proper_unbond_stluna() {
     let reward_contract = String::from("reward");
 
     initialize(
-        &mut deps,
+        deps.as_mut(),
         owner,
         reward_contract,
         token_contract.clone(),
@@ -1330,11 +1340,11 @@ pub fn proper_unbond_stluna() {
     do_register_validator(&mut deps, validator.clone());
 
     let bob = String::from("bob");
-    let bond = HandleMsg::BondForStLuna {};
+    let bond = ExecuteMsg::BondForStLuna {};
 
-    let env = mock_env(&bob, &[coin(10, "uluna")]);
+    let info = mock_info(&bob, &[coin(10, "uluna")]);
 
-    let res = execute(&mut deps, env, bond).unwrap();
+    let res = execute(deps.as_mut(), mock_env(), info, bond).unwrap();
     assert_eq!(2, res.messages.len());
 
     let delegate = &res.messages[0];
@@ -1348,7 +1358,7 @@ pub fn proper_unbond_stluna() {
 
     //set bob's balance to 10 in token contract
     deps.querier.with_token_balances(&[
-        (&stluna_token_contract, &[(&bob, &Uint128(10u128))]),
+        (&stluna_token_contract, &[(&bob, &Uint128::from(10u128))]),
         (&token_contract, &[]),
     ]);
 
@@ -1357,49 +1367,49 @@ pub fn proper_unbond_stluna() {
     //check the current batch before unbond
     let current_batch = CurrentBatch {};
     let query_batch: CurrentBatchResponse =
-        from_binary(&query(&deps, current_batch).unwrap()).unwrap();
+        from_binary(&query(deps.as_ref(), current_batch).unwrap()).unwrap();
     assert_eq!(query_batch.id, 1);
     assert_eq!(query_batch.requested_bluna_with_fee, Uint128::zero());
     assert_eq!(query_batch.requested_stluna, Uint128::zero());
 
-    let token_env = mock_env(&stluna_token_contract, &[]);
+    let token_info = mock_info(&stluna_token_contract, &[]);
 
     // check the state before unbond
     let state = State {};
-    let query_state: StateResponse = from_binary(&query(&deps, state).unwrap()).unwrap();
-    assert_eq!(query_state.last_unbonded_time, token_env.block.time);
-    assert_eq!(query_state.total_bond_stluna_amount, Uint128(10));
+    let query_state: StateResponse = from_binary(&query(deps.as_ref(), state).unwrap()).unwrap();
+    assert_eq!(query_state.last_unbonded_time, token_info.block.time);
+    assert_eq!(query_state.total_bond_stluna_amount, Uint128::from(10u64));
 
     // successful call
     let successful_bond = Unbond {};
     let receive = Receive(Cw20ReceiveMsg {
         sender: bob.clone(),
-        amount: Uint128(1),
-        msg: Some(to_binary(&successful_bond).unwrap()),
+        amount: Uint128::from(1u64),
+        msg: to_binary(&successful_bond).unwrap(),
     });
-    let res = execute(&mut deps, token_env, receive).unwrap();
+    let res = execute(deps.as_mut(), mock_env(), token_info, receive).unwrap();
     assert_eq!(1, res.messages.len());
     deps.querier.with_token_balances(&[
-        (&stluna_token_contract, &[(&bob, &Uint128(9u128))]),
+        (&stluna_token_contract, &[(&bob, &Uint128::from(9u128))]),
         (&token_contract, &[]),
     ]);
 
     //read the undelegated waitlist of the current epoch for the user bob
-    let wait_list = read_unbond_wait_list(deps.storage, 1, bob.clone()).unwrap();
-    assert_eq!(Uint128(1), wait_list.stluna_amount);
+    let wait_list = read_unbond_wait_list(&deps.storage, 1, bob.clone()).unwrap();
+    assert_eq!(Uint128::from(1u64), wait_list.stluna_amount);
 
     //successful call
     let successful_bond = Unbond {};
     let receive = Receive(Cw20ReceiveMsg {
         sender: bob.clone(),
-        amount: Uint128(5),
-        msg: Some(to_binary(&successful_bond).unwrap()),
+        amount: Uint128::from(5u64),
+        msg: to_binary(&successful_bond).unwrap(),
     });
-    let mut token_env = mock_env(&stluna_token_contract, &[]);
-    let res = execute(&mut deps, token_env.clone(), receive).unwrap();
+    let mut token_info = mock_info(&stluna_token_contract, &[]);
+    let res = execute(deps.as_mut(), mock_env(), token_info.clone(), receive).unwrap();
     assert_eq!(1, res.messages.len());
     deps.querier.with_token_balances(&[
-        (&stluna_token_contract, &[(&bob, &Uint128(4u128))]),
+        (&stluna_token_contract, &[(&bob, &Uint128::from(4u128))]),
         (&token_contract, &[]),
     ]);
 
@@ -1408,34 +1418,40 @@ pub fn proper_unbond_stluna() {
         CosmosMsg::Wasm(WasmMsg::Execute {
             contract_addr,
             msg,
-            send: _,
+            funds: _,
         }) => {
             assert_eq!(contract_addr, &stluna_token_contract);
-            assert_eq!(msg, &to_binary(&Burn { amount: Uint128(5) }).unwrap());
+            assert_eq!(
+                msg,
+                &to_binary(&Burn {
+                    amount: Uint128::from(5u64)
+                })
+                .unwrap()
+            );
         }
         _ => panic!("Unexpected message: {:?}", msg),
     }
 
-    let waitlist2 = read_unbond_wait_list(deps.storage, 1, bob.clone()).unwrap();
-    assert_eq!(Uint128(6), waitlist2.stluna_amount);
+    let waitlist2 = read_unbond_wait_list(&deps.storage, 1, bob.clone()).unwrap();
+    assert_eq!(Uint128::from(6u64), waitlist2.stluna_amount);
 
     let current_batch = CurrentBatch {};
     let query_batch: CurrentBatchResponse =
-        from_binary(&query(&deps, current_batch).unwrap()).unwrap();
+        from_binary(&query(deps.as_ref(), current_batch).unwrap()).unwrap();
     assert_eq!(query_batch.id, 1);
-    assert_eq!(query_batch.requested_stluna, Uint128(6));
+    assert_eq!(query_batch.requested_stluna, Uint128::from(6u64));
     assert_eq!(query_batch.requested_bluna_with_fee, Uint128::zero());
 
     //pushing time forward to check the unbond message
-    token_env.block.time += 31;
+    token_info.block.time += 31;
 
     let successful_bond = Unbond {};
     let receive = Receive(Cw20ReceiveMsg {
         sender: bob.clone(),
-        amount: Uint128(2),
-        msg: Some(to_binary(&successful_bond).unwrap()),
+        amount: Uint128::from(2u64),
+        msg: to_binary(&successful_bond).unwrap(),
     });
-    let res = execute(&mut deps, token_env.clone(), receive).unwrap();
+    let res = execute(deps.as_mut(), mock_env(), token_info.clone(), receive).unwrap();
     assert_eq!(2, res.messages.len());
 
     let msg = &res.messages[1];
@@ -1443,10 +1459,16 @@ pub fn proper_unbond_stluna() {
         CosmosMsg::Wasm(WasmMsg::Execute {
             contract_addr,
             msg,
-            send: _,
+            funds: _,
         }) => {
             assert_eq!(contract_addr, &stluna_token_contract);
-            assert_eq!(msg, &to_binary(&Burn { amount: Uint128(2) }).unwrap());
+            assert_eq!(
+                msg,
+                &to_binary(&Burn {
+                    amount: Uint128::from(2u64)
+                })
+                .unwrap()
+            );
         }
         _ => panic!("Unexpected message: {:?}", msg),
     }
@@ -1461,31 +1483,31 @@ pub fn proper_unbond_stluna() {
     // check the current batch
     let current_batch = CurrentBatch {};
     let query_batch: CurrentBatchResponse =
-        from_binary(&query(&deps, current_batch).unwrap()).unwrap();
+        from_binary(&query(deps.as_ref(), current_batch).unwrap()).unwrap();
     assert_eq!(query_batch.id, 2);
     assert_eq!(query_batch.requested_stluna, Uint128::zero());
     assert_eq!(query_batch.requested_bluna_with_fee, Uint128::zero());
 
     // check the state
     let state = State {};
-    let query_state: StateResponse = from_binary(&query(&deps, state).unwrap()).unwrap();
-    assert_eq!(query_state.last_unbonded_time, token_env.block.time);
-    assert_eq!(query_state.total_bond_bluna_amount, Uint128(0));
-    assert_eq!(query_state.total_bond_stluna_amount, Uint128(2));
+    let query_state: StateResponse = from_binary(&query(deps.as_ref(), state).unwrap()).unwrap();
+    assert_eq!(query_state.last_unbonded_time, token_info.block.time);
+    assert_eq!(query_state.total_bond_bluna_amount, Uint128::from(0u64));
+    assert_eq!(query_state.total_bond_stluna_amount, Uint128::from(2u64));
 
     // the last request (2) gets combined and processed with the previous requests (1, 5)
     let waitlist = UnbondRequests { address: bob };
     let query_unbond: UnbondRequestsResponse =
-        from_binary(&query(&deps, waitlist).unwrap()).unwrap();
+        from_binary(&query(deps.as_ref(), waitlist).unwrap()).unwrap();
     assert_eq!(query_unbond.requests[0].0, 1);
-    assert_eq!(query_unbond.requests[0].2, Uint128(8));
+    assert_eq!(query_unbond.requests[0].2, Uint128::from(8u64));
 
     let all_batches = AllHistory {
         start_from: None,
         limit: None,
     };
-    let res: AllHistoryResponse = from_binary(&query(&deps, all_batches).unwrap()).unwrap();
-    assert_eq!(res.history[0].stluna_amount, Uint128(8));
+    let res: AllHistoryResponse = from_binary(&query(deps.as_ref(), all_batches).unwrap()).unwrap();
+    assert_eq!(res.history[0].stluna_amount, Uint128::from(8u64));
     assert_eq!(res.history[0].stluna_applied_exchange_rate, Decimal::one());
     assert_eq!(res.history[0].released, false);
     assert_eq!(res.history[0].batch_id, 1);
@@ -1495,7 +1517,7 @@ pub fn proper_unbond_stluna() {
 /// to different validators, when a validator does not have enough delegation.
 #[test]
 pub fn proper_pick_validator() {
-    let mut deps = dependencies(20, &[]);
+    let mut deps = dependencies(&[]);
 
     let addr1 = String::from("addr1000");
     let addr2 = String::from("addr2000");
@@ -1514,7 +1536,7 @@ pub fn proper_pick_validator() {
     let reward_contract = String::from("reward");
 
     initialize(
-        &mut deps,
+        deps.as_mut(),
         owner,
         reward_contract,
         token_contract.clone(),
@@ -1526,9 +1548,9 @@ pub fn proper_pick_validator() {
     do_register_validator(&mut deps, validator3.clone());
 
     // bond to a validator
-    do_bond(&mut deps, addr1.clone(), Uint128(10));
-    do_bond(&mut deps, addr2.clone(), Uint128(150));
-    do_bond(&mut deps, addr3.clone(), Uint128(200));
+    do_bond(&mut deps, addr1.clone(), Uint128::from(10u64));
+    do_bond(&mut deps, addr2.clone(), Uint128::from(150u64));
+    do_bond(&mut deps, addr3.clone(), Uint128::from(200u64));
 
     // give validators different delegation amount
     let delegations: [FullDelegation; 3] = [
@@ -1543,43 +1565,53 @@ pub fn proper_pick_validator() {
         (
             &String::from("token"),
             &[
-                (&addr3, &Uint128(200)),
-                (&addr2, &Uint128(150)),
-                (&addr1, &Uint128(10)),
+                (&addr3, &Uint128::from(200u64)),
+                (&addr2, &Uint128::from(150u64)),
+                (&addr1, &Uint128::from(10u64)),
             ],
         ),
         (&stluna_token_contract, &[]),
     ]);
 
     // send the first burn
-    let mut token_env = mock_env(&token_contract, &[]);
-    let res = do_unbond(&mut deps, addr2.clone(), token_env.clone(), Uint128(50));
+    let mut token_info = mock_info(&token_contract, &[]);
+    let res = do_unbond(
+        deps.as_mut(),
+        addr2.clone(),
+        token_info.clone(),
+        Uint128::from(50u64),
+    );
     assert_eq!(res.messages.len(), 1);
 
     deps.querier.with_token_balances(&[
         (
             &String::from("token"),
             &[
-                (&addr3, &Uint128(200)),
-                (&addr2, &Uint128(100)),
-                (&addr1, &Uint128(10)),
+                (&addr3, &Uint128::from(200u64)),
+                (&addr2, &Uint128::from(100u64)),
+                (&addr1, &Uint128::from(10u64)),
             ],
         ),
         (&stluna_token_contract, &[]),
     ]);
 
-    token_env.block.time += 40;
+    token_info.block.time += 40;
 
     // send the second burn
-    let res = do_unbond(&mut deps, addr2.clone(), token_env, Uint128(100));
+    let res = do_unbond(
+        deps.as_mut(),
+        addr2.clone(),
+        token_info,
+        Uint128::from(100u64),
+    );
     assert_eq!(res.messages.len(), 3);
 
     deps.querier.with_token_balances(&[(
         &String::from("token"),
         &[
-            (&addr3, &Uint128(200)),
-            (&addr2, &Uint128(0)),
-            (&addr1, &Uint128(10)),
+            (&addr3, &Uint128::from(200u64)),
+            (&addr2, &Uint128::from(0u64)),
+            (&addr1, &Uint128::from(10u64)),
         ],
     )]);
 
@@ -1590,7 +1622,7 @@ pub fn proper_pick_validator() {
             amount,
         }) => {
             assert_eq!(val, &validator3.address);
-            assert_eq!(amount.amount, Uint128(130));
+            assert_eq!(amount.amount, Uint128::from(130u64));
         }
         _ => panic!("Unexpected message: {:?}", &res.messages[0]),
     }
@@ -1600,7 +1632,7 @@ pub fn proper_pick_validator() {
             amount,
         }) => {
             assert_eq!(val, &validator2.address);
-            assert_eq!(amount.amount, Uint128(20));
+            assert_eq!(amount.amount, Uint128::from(20u64));
         }
         _ => panic!("Unexpected message: {:?}", &res.messages[0]),
     }
@@ -1611,7 +1643,7 @@ pub fn proper_pick_validator() {
 /// and if the user wants to unbond amount that none of validators has.
 #[test]
 pub fn proper_pick_validator_respect_distributed_delegation() {
-    let mut deps = dependencies(20, &[]);
+    let mut deps = dependencies(&[]);
 
     let addr1 = String::from("addr1000");
     let addr2 = String::from("addr2000");
@@ -1629,7 +1661,7 @@ pub fn proper_pick_validator_respect_distributed_delegation() {
     let reward_contract = String::from("reward");
 
     initialize(
-        &mut deps,
+        deps.as_mut(),
         owner,
         reward_contract,
         token_contract.clone(),
@@ -1641,8 +1673,8 @@ pub fn proper_pick_validator_respect_distributed_delegation() {
     do_register_validator(&mut deps, validator3);
 
     // bond to a validator
-    do_bond(&mut deps, addr1.clone(), Uint128(1000));
-    do_bond(&mut deps, addr1.clone(), Uint128(1500));
+    do_bond(&mut deps, addr1.clone(), Uint128::from(1000u64));
+    do_bond(&mut deps, addr1.clone(), Uint128::from(1500u64));
 
     // give validators different delegation amount
     let delegations: [FullDelegation; 2] = [
@@ -1654,23 +1686,23 @@ pub fn proper_pick_validator_respect_distributed_delegation() {
     set_delegation_query(&mut deps.querier, &delegations, &validators);
 
     deps.querier.with_token_balances(&[
-        (&String::from("token"), &[(&addr1, &Uint128(2500))]),
+        (&String::from("token"), &[(&addr1, &Uint128::from(2500u64))]),
         (&stluna_token_contract, &[]),
     ]);
 
     // send the first burn
-    let mut token_env = mock_env(&token_contract, &[]);
+    let mut token_info = mock_info(&token_contract, &[]);
 
-    token_env.block.time += 40;
+    token_info.block.time += 40;
 
-    let res = do_unbond(&mut deps, addr2, token_env, Uint128(2000));
+    let res = do_unbond(deps.as_mut(), addr2, token_info, Uint128::from(2000u64));
     assert_eq!(res.messages.len(), 3);
 
     match &res.messages[0] {
         CosmosMsg::Staking(StakingMsg::Undelegate {
             validator: _,
             amount,
-        }) => assert_eq!(amount.amount, Uint128(1250)),
+        }) => assert_eq!(amount.amount, Uint128::from(1250u64)),
         _ => panic!("Unexpected message: {:?}", &res.messages[1]),
     }
 }
@@ -1679,7 +1711,7 @@ pub fn proper_pick_validator_respect_distributed_delegation() {
 /// update the exchange rate after and before slashing.
 #[test]
 pub fn proper_slashing() {
-    let mut deps = dependencies(20, &[]);
+    let mut deps = dependencies(&[]);
     let validator = sample_validator(DEFAULT_VALIDATOR);
     set_validator_mock(&mut deps.querier);
 
@@ -1690,7 +1722,7 @@ pub fn proper_slashing() {
     let stluna_token_contract = String::from("stluna_token");
     let reward_contract = String::from("reward");
     initialize(
-        &mut deps,
+        deps.as_mut(),
         owner,
         reward_contract,
         token_contract.clone(),
@@ -1701,38 +1733,43 @@ pub fn proper_slashing() {
     do_register_validator(&mut deps, validator.clone());
 
     //bond
-    do_bond(&mut deps, addr1.clone(), Uint128(1000));
+    do_bond(&mut deps, addr1.clone(), Uint128::from(1000u64));
 
     //this will set the balance of the user in token contract
     deps.querier.with_token_balances(&[
-        (&String::from("token"), &[(&addr1, &Uint128(1000u128))]),
+        (
+            &String::from("token"),
+            &[(&addr1, &Uint128::from(1000u128))],
+        ),
         (&stluna_token_contract, &[]),
     ]);
 
     // slashing
     set_delegation(&mut deps.querier, validator.clone(), 900, "uluna");
 
-    let env = mock_env(&addr1, &[]);
+    let info = mock_info(&addr1, &[]);
     let report_slashing = CheckSlashing {};
-    let res = execute(&mut deps, env, report_slashing).unwrap();
+    let res = execute(deps.as_mut(), mock_env(), info, report_slashing).unwrap();
     assert_eq!(0, res.messages.len());
 
     let ex_rate = State {};
-    let query_exchange_rate: StateResponse = from_binary(&query(&deps, ex_rate).unwrap()).unwrap();
+    let query_exchange_rate: StateResponse =
+        from_binary(&query(deps.as_ref(), ex_rate).unwrap()).unwrap();
     assert_eq!(query_exchange_rate.bluna_exchange_rate.to_string(), "0.9");
 
     //bond again to see the update exchange rate
-    let second_bond = HandleMsg::Bond {};
+    let second_bond = ExecuteMsg::Bond {};
 
-    let env = mock_env(&addr1, &[coin(1000, "uluna")]);
+    let info = mock_info(&addr1, &[coin(1000, "uluna")]);
 
-    let res = execute(&mut deps, env.clone(), second_bond).unwrap();
+    let res = execute(deps.as_mut(), mock_env(), info.clone(), second_bond).unwrap();
     assert_eq!(2, res.messages.len());
 
     // expected exchange rate must be more than 0.9
-    let expected_er = Decimal::from_ratio(Uint128(1900), Uint128(2111));
+    let expected_er = Decimal::from_ratio(Uint128::from(1900u64), Uint128::from(2111u64));
     let ex_rate = State {};
-    let query_exchange_rate: StateResponse = from_binary(&query(&deps, ex_rate).unwrap()).unwrap();
+    let query_exchange_rate: StateResponse =
+        from_binary(&query(deps.as_ref(), ex_rate).unwrap()).unwrap();
     assert_eq!(query_exchange_rate.bluna_exchange_rate, expected_er);
 
     let delegate = &res.messages[0];
@@ -1749,14 +1786,14 @@ pub fn proper_slashing() {
         CosmosMsg::Wasm(WasmMsg::Execute {
             contract_addr,
             msg,
-            send: _,
+            funds: _,
         }) => {
             assert_eq!(contract_addr, &token_contract);
             assert_eq!(
                 msg,
                 &to_binary(&Mint {
-                    recipient: env.message.sender,
-                    amount: Uint128(1111)
+                    recipient: info.message.sender,
+                    amount: Uint128::from(1111u64)
                 })
                 .unwrap()
             );
@@ -1768,61 +1805,80 @@ pub fn proper_slashing() {
 
     //update user balance
     deps.querier.with_token_balances(&[
-        (&String::from("token"), &[(&addr1, &Uint128(2111u128))]),
+        (
+            &String::from("token"),
+            &[(&addr1, &Uint128::from(2111u128))],
+        ),
         (&stluna_token_contract, &[]),
     ]);
 
-    let mut env = mock_env(&addr1, &[]);
-    let _res = execute_unbond(&mut deps, env.clone(), Uint128(500), addr1.clone()).unwrap();
+    let mut info = mock_info(&addr1, &[]);
+    let _res = execute_unbond(
+        deps.as_mut(),
+        mock_env(),
+        info.clone(),
+        Uint128::from(500u64),
+        addr1.clone(),
+    )
+    .unwrap();
 
     deps.querier.with_token_balances(&[
-        (&String::from("token"), &[(&addr1, &Uint128(1611u128))]),
+        (
+            &String::from("token"),
+            &[(&addr1, &Uint128::from(1611u128))],
+        ),
         (&stluna_token_contract, &[]),
     ]);
 
-    env.block.time += 31;
-    let res = execute_unbond(&mut deps, env.clone(), Uint128(500), addr1.clone()).unwrap();
+    info.block.time += 31;
+    let res = execute_unbond(
+        deps.as_mut(),
+        mock_env(),
+        info.clone(),
+        Uint128::from(500u64),
+        addr1.clone(),
+    )
+    .unwrap();
     let msgs: CosmosMsg = CosmosMsg::Staking(StakingMsg::Undelegate {
         validator: validator.address,
         amount: coin(900, "uluna"),
     });
     assert_eq!(res.messages[0], msgs);
 
-    deps.querier
-        .with_token_balances(&[(&String::from("token"), &[(&addr1, &Uint128(1111u128))])]);
+    deps.querier.with_token_balances(&[(
+        &String::from("token"),
+        &[(&addr1, &Uint128::from(1111u128))],
+    )]);
 
     deps.querier.with_native_balances(&[(
         String::from(MOCK_CONTRACT_ADDR),
         Coin {
             denom: "uluna".to_string(),
-            amount: Uint128(900),
+            amount: Uint128::from(900u64),
         },
     )]);
 
     let ex_rate = State {};
-    let query_exchange_rate: StateResponse = from_binary(&query(&deps, ex_rate).unwrap()).unwrap();
+    let query_exchange_rate: StateResponse =
+        from_binary(&query(deps.as_ref(), ex_rate).unwrap()).unwrap();
     assert_eq!(query_exchange_rate.bluna_exchange_rate, expected_er);
 
-    env.block.time += 90;
+    info.block.time += 90;
     //check withdrawUnbonded message
-    let withdraw_unbond_msg = HandleMsg::WithdrawUnbonded {};
-    let wdraw_unbonded_res = execute(&mut deps, env, withdraw_unbond_msg).unwrap();
+    let withdraw_unbond_msg = ExecuteMsg::WithdrawUnbonded {};
+    let wdraw_unbonded_res = execute(deps.as_mut(), mock_env(), info, withdraw_unbond_msg).unwrap();
     assert_eq!(wdraw_unbonded_res.messages.len(), 1);
 
     let ex_rate = State {};
-    let query_exchange_rate: StateResponse = from_binary(&query(&deps, ex_rate).unwrap()).unwrap();
+    let query_exchange_rate: StateResponse =
+        from_binary(&query(deps.as_ref(), ex_rate).unwrap()).unwrap();
     assert_eq!(query_exchange_rate.bluna_exchange_rate, expected_er);
 
     let sent_message = &wdraw_unbonded_res.messages[0];
     match sent_message {
-        CosmosMsg::Bank(BankMsg::Send {
-            from_address,
-            to_address,
-            amount,
-        }) => {
-            assert_eq!(from_address.0, MOCK_CONTRACT_ADDR);
+        CosmosMsg::Bank(BankMsg::Send { to_address, amount }) => {
             assert_eq!(to_address, &addr1);
-            assert_eq!(amount[0].amount, Uint128(900))
+            assert_eq!(amount[0].amount, Uint128::from(900u64))
         }
 
         _ => panic!("Unexpected message: {:?}", sent_message),
@@ -1833,7 +1889,7 @@ pub fn proper_slashing() {
 /// update the exchange rate after and before slashing.
 #[test]
 pub fn proper_slashing_stluna() {
-    let mut deps = dependencies(20, &[]);
+    let mut deps = dependencies(&[]);
     let validator = sample_validator(DEFAULT_VALIDATOR);
     set_validator_mock(&mut deps.querier);
 
@@ -1844,7 +1900,7 @@ pub fn proper_slashing_stluna() {
     let stluna_token_contract = String::from("stluna_token");
     let reward_contract = String::from("reward");
     initialize(
-        &mut deps,
+        deps.as_mut(),
         owner,
         reward_contract,
         token_contract,
@@ -1855,38 +1911,43 @@ pub fn proper_slashing_stluna() {
     do_register_validator(&mut deps, validator.clone());
 
     //bond
-    do_bond_stluna(&mut deps, addr1.clone(), Uint128(1000));
+    do_bond_stluna(&mut deps, addr1.clone(), Uint128::from(1000u64));
 
     //this will set the balance of the user in token contract
     deps.querier.with_token_balances(&[
-        (&stluna_token_contract, &[(&addr1, &Uint128(1000u128))]),
+        (
+            &stluna_token_contract,
+            &[(&addr1, &Uint128::from(1000u128))],
+        ),
         (&String::from("token"), &[]),
     ]);
 
     // slashing
     set_delegation(&mut deps.querier, validator.clone(), 900, "uluna");
 
-    let env = mock_env(&addr1, &[]);
+    let info = mock_info(&addr1, &[]);
     let report_slashing = CheckSlashing {};
-    let res = execute(&mut deps, env, report_slashing).unwrap();
+    let res = execute(deps.as_mut(), mock_env(), info, report_slashing).unwrap();
     assert_eq!(0, res.messages.len());
 
     let ex_rate = State {};
-    let query_exchange_rate: StateResponse = from_binary(&query(&deps, ex_rate).unwrap()).unwrap();
+    let query_exchange_rate: StateResponse =
+        from_binary(&query(deps.as_ref(), ex_rate).unwrap()).unwrap();
     assert_eq!(query_exchange_rate.stluna_exchange_rate.to_string(), "0.9");
 
     //bond again to see the update exchange rate
-    let second_bond = HandleMsg::BondForStLuna {};
+    let second_bond = ExecuteMsg::BondForStLuna {};
 
-    let env = mock_env(&addr1, &[coin(1000, "uluna")]);
+    let info = mock_info(&addr1, &[coin(1000, "uluna")]);
 
-    let res = execute(&mut deps, env.clone(), second_bond).unwrap();
+    let res = execute(deps.as_mut(), mock_env(), info.clone(), second_bond).unwrap();
     assert_eq!(2, res.messages.len());
 
     // expected exchange rate must be more than 0.9
-    let expected_er = Decimal::from_ratio(Uint128(1900), Uint128(2111));
+    let expected_er = Decimal::from_ratio(Uint128::from(1900u64), Uint128::from(2111u64));
     let ex_rate = State {};
-    let query_exchange_rate: StateResponse = from_binary(&query(&deps, ex_rate).unwrap()).unwrap();
+    let query_exchange_rate: StateResponse =
+        from_binary(&query(deps.as_ref(), ex_rate).unwrap()).unwrap();
     assert_eq!(query_exchange_rate.stluna_exchange_rate, expected_er);
 
     let delegate = &res.messages[0];
@@ -1903,14 +1964,14 @@ pub fn proper_slashing_stluna() {
         CosmosMsg::Wasm(WasmMsg::Execute {
             contract_addr,
             msg,
-            send: _,
+            funds: _,
         }) => {
             assert_eq!(contract_addr, &stluna_token_contract);
             assert_eq!(
                 msg,
                 &to_binary(&Mint {
-                    recipient: env.message.sender,
-                    amount: Uint128(1111)
+                    recipient: info.message.sender,
+                    amount: Uint128::from(1111u64)
                 })
                 .unwrap()
             );
@@ -1922,61 +1983,80 @@ pub fn proper_slashing_stluna() {
 
     //update user balance
     deps.querier.with_token_balances(&[
-        (&stluna_token_contract, &[(&addr1, &Uint128(2111u128))]),
+        (
+            &stluna_token_contract,
+            &[(&addr1, &Uint128::from(2111u128))],
+        ),
         (&String::from("token"), &[]),
     ]);
 
-    let mut env = mock_env(&addr1, &[]);
-    let _res = execute_unbond_stluna(&mut deps, env.clone(), Uint128(500), addr1.clone()).unwrap();
+    let mut info = mock_info(&addr1, &[]);
+    let _res = execute_unbond_stluna(
+        deps.as_mut(),
+        mock_env(),
+        info.clone(),
+        Uint128::from(500u64),
+        addr1.clone(),
+    )
+    .unwrap();
 
     deps.querier.with_token_balances(&[
-        (&stluna_token_contract, &[(&addr1, &Uint128(1611u128))]),
+        (
+            &stluna_token_contract,
+            &[(&addr1, &Uint128::from(1611u128))],
+        ),
         (&String::from("token"), &[]),
     ]);
 
-    env.block.time += 31;
-    let res = execute_unbond_stluna(&mut deps, env.clone(), Uint128(500), addr1.clone()).unwrap();
+    info.block.time += 31;
+    let res = execute_unbond_stluna(
+        deps.as_mut(),
+        mock_env(),
+        info.clone(),
+        Uint128::from(500u64),
+        addr1.clone(),
+    )
+    .unwrap();
     let msgs: CosmosMsg = CosmosMsg::Staking(StakingMsg::Undelegate {
         validator: validator.address,
         amount: coin(900, "uluna"),
     });
     assert_eq!(res.messages[0], msgs);
 
-    deps.querier
-        .with_token_balances(&[(&stluna_token_contract, &[(&addr1, &Uint128(1111u128))])]);
+    deps.querier.with_token_balances(&[(
+        &stluna_token_contract,
+        &[(&addr1, &Uint128::from(1111u128))],
+    )]);
 
     deps.querier.with_native_balances(&[(
         String::from(MOCK_CONTRACT_ADDR),
         Coin {
             denom: "uluna".to_string(),
-            amount: Uint128(900),
+            amount: Uint128::from(900u64),
         },
     )]);
 
     let ex_rate = State {};
-    let query_exchange_rate: StateResponse = from_binary(&query(&deps, ex_rate).unwrap()).unwrap();
+    let query_exchange_rate: StateResponse =
+        from_binary(&query(deps.as_ref(), ex_rate).unwrap()).unwrap();
     assert_eq!(query_exchange_rate.stluna_exchange_rate, expected_er);
 
-    env.block.time += 90;
+    info.block.time += 90;
     //check withdrawUnbonded message
-    let withdraw_unbond_msg = HandleMsg::WithdrawUnbonded {};
-    let wdraw_unbonded_res = execute(&mut deps, env, withdraw_unbond_msg).unwrap();
+    let withdraw_unbond_msg = ExecuteMsg::WithdrawUnbonded {};
+    let wdraw_unbonded_res = execute(deps.as_mut(), mock_env(), info, withdraw_unbond_msg).unwrap();
     assert_eq!(wdraw_unbonded_res.messages.len(), 1);
 
     let ex_rate = State {};
-    let query_exchange_rate: StateResponse = from_binary(&query(&deps, ex_rate).unwrap()).unwrap();
+    let query_exchange_rate: StateResponse =
+        from_binary(&query(deps.as_ref(), ex_rate).unwrap()).unwrap();
     assert_eq!(query_exchange_rate.stluna_exchange_rate, expected_er);
 
     let sent_message = &wdraw_unbonded_res.messages[0];
     match sent_message {
-        CosmosMsg::Bank(BankMsg::Send {
-            from_address,
-            to_address,
-            amount,
-        }) => {
-            assert_eq!(from_address.0, MOCK_CONTRACT_ADDR);
+        CosmosMsg::Bank(BankMsg::Send { to_address, amount }) => {
             assert_eq!(to_address, &addr1);
-            assert_eq!(amount[0].amount, Uint128(900))
+            assert_eq!(amount[0].amount, Uint128::from(900u64))
         }
 
         _ => panic!("Unexpected message: {:?}", sent_message),
@@ -1988,7 +2068,7 @@ pub fn proper_slashing_stluna() {
 /// the BankMsg::Send is sent.
 #[test]
 pub fn proper_withdraw_unbonded() {
-    let mut deps = dependencies(20, &[]);
+    let mut deps = dependencies(&[]);
 
     let validator = sample_validator(DEFAULT_VALIDATOR);
     set_validator_mock(&mut deps.querier);
@@ -1999,7 +2079,7 @@ pub fn proper_withdraw_unbonded() {
     let reward_contract = String::from("reward");
 
     initialize(
-        &mut deps,
+        deps.as_mut(),
         owner,
         reward_contract,
         token_contract,
@@ -2010,17 +2090,17 @@ pub fn proper_withdraw_unbonded() {
     do_register_validator(&mut deps, validator.clone());
 
     let bob = String::from("bob");
-    let bond_msg = HandleMsg::Bond {};
+    let bond_msg = ExecuteMsg::Bond {};
 
-    let env = mock_env(&bob, &[coin(100, "uluna")]);
+    let info = mock_info(&bob, &[coin(100, "uluna")]);
 
     //set bob's balance to 10 in token contract
     deps.querier.with_token_balances(&[
-        (&String::from("token"), &[(&bob, &Uint128(100u128))]),
+        (&String::from("token"), &[(&bob, &Uint128::from(100u128))]),
         (&stluna_token_contract, &[]),
     ]);
 
-    let res = execute(&mut deps, env.clone(), bond_msg).unwrap();
+    let res = execute(deps.as_mut(), mock_env(), info.clone(), bond_msg).unwrap();
     assert_eq!(2, res.messages.len());
 
     let delegate = &res.messages[0];
@@ -2034,11 +2114,18 @@ pub fn proper_withdraw_unbonded() {
 
     set_delegation(&mut deps.querier, validator, 100, "uluna");
 
-    let res = execute_unbond(&mut deps, env, Uint128(10), bob.clone()).unwrap();
+    let res = execute_unbond(
+        deps.as_mut(),
+        mock_env(),
+        info,
+        Uint128::from(10u64),
+        bob.clone(),
+    )
+    .unwrap();
     assert_eq!(1, res.messages.len());
 
     deps.querier.with_token_balances(&[
-        (&String::from("token"), &[(&bob, &Uint128(90u128))]),
+        (&String::from("token"), &[(&bob, &Uint128::from(90u128))]),
         (&stluna_token_contract, &[]),
     ]);
 
@@ -2046,16 +2133,21 @@ pub fn proper_withdraw_unbonded() {
         String::from(MOCK_CONTRACT_ADDR),
         Coin {
             denom: "uluna".to_string(),
-            amount: Uint128(0),
+            amount: Uint128::from(0u64),
         },
     )]);
 
-    let mut env = mock_env(&bob, &[]);
+    let mut info = mock_info(&bob, &[]);
     //set the block time 30 seconds from now.
-    env.block.time += 31;
+    info.block.time += 31;
 
-    let wdraw_unbonded_msg = HandleMsg::WithdrawUnbonded {};
-    let wdraw_unbonded_res = execute(&mut deps, env.clone(), wdraw_unbonded_msg.clone());
+    let wdraw_unbonded_msg = ExecuteMsg::WithdrawUnbonded {};
+    let wdraw_unbonded_res = execute(
+        deps.as_mut(),
+        mock_env(),
+        info.clone(),
+        wdraw_unbonded_msg.clone(),
+    );
 
     // trigger undelegation message
     assert_eq!(true, wdraw_unbonded_res.is_err());
@@ -2064,75 +2156,77 @@ pub fn proper_withdraw_unbonded() {
         StdError::generic_err("No withdrawable uluna assets are available yet")
     );
 
-    let res = execute_unbond(&mut deps, env.clone(), Uint128(10), bob.clone()).unwrap();
+    let res = execute_unbond(
+        deps.as_mut(),
+        mock_env(),
+        info.clone(),
+        Uint128::from(10u64),
+        bob.clone(),
+    )
+    .unwrap();
     assert_eq!(res.messages.len(), 2);
     deps.querier.with_token_balances(&[
-        (&String::from("token"), &[(&bob, &Uint128(80u128))]),
+        (&String::from("token"), &[(&bob, &Uint128::from(80u128))]),
         (&stluna_token_contract, &[]),
     ]);
 
     //this query should be zero since the undelegated period is not passed
     let withdrawable = WithdrawableUnbonded {
         address: bob.clone(),
-        block_time: env.block.time,
+        block_time: info.block.time,
     };
-    let query_with = query(&deps, withdrawable).unwrap();
+    let query_with = query(deps.as_ref(), withdrawable).unwrap();
     let res: WithdrawableUnbondedResponse = from_binary(&query_with).unwrap();
-    assert_eq!(res.withdrawable, Uint128(0));
+    assert_eq!(res.withdrawable, Uint128::from(0u64));
 
-    env.block.time += 91;
+    info.block.time += 91;
 
     // fabricate balance of the hub contract
     deps.querier.with_native_balances(&[(
         String::from(MOCK_CONTRACT_ADDR),
         Coin {
             denom: "uluna".to_string(),
-            amount: Uint128(20),
+            amount: Uint128::from(20u64),
         },
     )]);
     //first query AllUnbondedRequests
     let all_unbonded = UnbondRequests {
         address: bob.clone(),
     };
-    let query_unbonded = query(&deps, all_unbonded).unwrap();
+    let query_unbonded = query(deps.as_ref(), all_unbonded).unwrap();
     let res: UnbondRequestsResponse = from_binary(&query_unbonded).unwrap();
     assert_eq!(res.requests.len(), 1);
     //the amount should be 10
     assert_eq!(&res.address, &bob);
-    assert_eq!(res.requests[0].1, Uint128(20));
+    assert_eq!(res.requests[0].1, Uint128::from(20u64));
     assert_eq!(res.requests[0].0, 1);
 
     let all_batches = AllHistory {
         start_from: None,
         limit: None,
     };
-    let res: AllHistoryResponse = from_binary(&query(&deps, all_batches).unwrap()).unwrap();
-    assert_eq!(res.history[0].bluna_amount, Uint128(20));
+    let res: AllHistoryResponse = from_binary(&query(deps.as_ref(), all_batches).unwrap()).unwrap();
+    assert_eq!(res.history[0].bluna_amount, Uint128::from(20u64));
     assert_eq!(res.history[0].batch_id, 1);
 
     //check with query
     let withdrawable = WithdrawableUnbonded {
         address: bob.clone(),
-        block_time: env.block.time,
+        block_time: info.block.time,
     };
-    let query_with = query(&deps, withdrawable).unwrap();
+    let query_with = query(deps.as_ref(), withdrawable).unwrap();
     let res: WithdrawableUnbondedResponse = from_binary(&query_with).unwrap();
-    assert_eq!(res.withdrawable, Uint128(20));
+    assert_eq!(res.withdrawable, Uint128::from(20u64));
 
-    let success_res = execute(&mut deps, env.clone(), wdraw_unbonded_msg).unwrap();
+    let success_res = execute(deps.as_mut(), mock_env(), info.clone(), wdraw_unbonded_msg).unwrap();
 
     assert_eq!(success_res.messages.len(), 1);
 
     let sent_message = &success_res.messages[0];
     match sent_message {
-        CosmosMsg::Bank(BankMsg::Send {
-            from_address,
-            to_address,
-            amount,
-        }) => {
-            assert_eq!(from_address.0, MOCK_CONTRACT_ADDR);
+        CosmosMsg::Bank(BankMsg::Send { to_address, amount }) => {
             assert_eq!(to_address, &bob);
-            assert_eq!(amount[0].amount, Uint128(20))
+            assert_eq!(amount[0].amount, Uint128::from(20u64))
         }
 
         _ => panic!("Unexpected message: {:?}", sent_message),
@@ -2141,17 +2235,17 @@ pub fn proper_withdraw_unbonded() {
     //it should be removed
     let withdrawable = WithdrawableUnbonded {
         address: bob.clone(),
-        block_time: env.block.time,
+        block_time: info.block.time,
     };
     let query_with: WithdrawableUnbondedResponse =
-        from_binary(&query(&deps, withdrawable).unwrap()).unwrap();
-    assert_eq!(query_with.withdrawable, Uint128(0));
+        from_binary(&query(deps.as_ref(), withdrawable).unwrap()).unwrap();
+    assert_eq!(query_with.withdrawable, Uint128::from(0u64));
 
     let waitlist = UnbondRequests {
         address: bob.clone(),
     };
     let query_unbond: UnbondRequestsResponse =
-        from_binary(&query(&deps, waitlist).unwrap()).unwrap();
+        from_binary(&query(deps.as_ref(), waitlist).unwrap()).unwrap();
     assert_eq!(
         query_unbond,
         UnbondRequestsResponse {
@@ -2162,8 +2256,8 @@ pub fn proper_withdraw_unbonded() {
 
     // because of one that we add for each batch
     let state = State {};
-    let state_query: StateResponse = from_binary(&query(&deps, state).unwrap()).unwrap();
-    assert_eq!(state_query.prev_hub_balance, Uint128(0));
+    let state_query: StateResponse = from_binary(&query(deps.as_ref(), state).unwrap()).unwrap();
+    assert_eq!(state_query.prev_hub_balance, Uint128::from(0u64));
     assert_eq!(state_query.bluna_exchange_rate, Decimal::one());
 }
 
@@ -2172,7 +2266,7 @@ pub fn proper_withdraw_unbonded() {
 /// the BankMsg::Send is sent.
 #[test]
 pub fn proper_withdraw_unbonded_stluna() {
-    let mut deps = dependencies(20, &[]);
+    let mut deps = dependencies(&[]);
 
     let validator = sample_validator(DEFAULT_VALIDATOR);
     set_validator_mock(&mut deps.querier);
@@ -2183,7 +2277,7 @@ pub fn proper_withdraw_unbonded_stluna() {
     let reward_contract = String::from("reward");
 
     initialize(
-        &mut deps,
+        deps.as_mut(),
         owner,
         reward_contract,
         token_contract,
@@ -2194,16 +2288,16 @@ pub fn proper_withdraw_unbonded_stluna() {
     do_register_validator(&mut deps, validator.clone());
 
     let bob = String::from("bob");
-    let bond_msg = HandleMsg::BondForStLuna {};
+    let bond_msg = ExecuteMsg::BondForStLuna {};
 
-    let env = mock_env(&bob, &[coin(100, "uluna")]);
+    let info = mock_info(&bob, &[coin(100, "uluna")]);
 
-    let res = execute(&mut deps, env, bond_msg).unwrap();
+    let res = execute(deps.as_mut(), mock_env(), info, bond_msg).unwrap();
     assert_eq!(2, res.messages.len());
 
     //set bob's balance to 10 in token contract
     deps.querier.with_token_balances(&[
-        (&stluna_token_contract, &[(&bob, &Uint128(100u128))]),
+        (&stluna_token_contract, &[(&bob, &Uint128::from(100u128))]),
         (&String::from("token"), &[]),
     ]);
 
@@ -2216,20 +2310,27 @@ pub fn proper_withdraw_unbonded_stluna() {
         _ => panic!("Unexpected message: {:?}", delegate),
     }
 
-    let bond_msg = HandleMsg::BondRewards {};
+    let bond_msg = ExecuteMsg::BondRewards {};
 
-    let env = mock_env(&String::from("reward"), &[coin(100, "uluna")]);
+    let info = mock_info(&String::from("reward"), &[coin(100, "uluna")]);
 
-    let res = execute(&mut deps, env.clone(), bond_msg).unwrap();
+    let res = execute(deps.as_mut(), mock_env(), info.clone(), bond_msg).unwrap();
     assert_eq!(1, res.messages.len());
 
     set_delegation(&mut deps.querier, validator, 200, "uluna");
 
-    let res = execute_unbond_stluna(&mut deps, env, Uint128(10), bob.clone()).unwrap();
+    let res = execute_unbond_stluna(
+        deps.as_mut(),
+        mock_env(),
+        info,
+        Uint128::from(10u64),
+        bob.clone(),
+    )
+    .unwrap();
     assert_eq!(1, res.messages.len());
 
     deps.querier.with_token_balances(&[
-        (&stluna_token_contract, &[(&bob, &Uint128(90u128))]),
+        (&stluna_token_contract, &[(&bob, &Uint128::from(90u128))]),
         (&String::from("token"), &[]),
     ]);
 
@@ -2237,16 +2338,21 @@ pub fn proper_withdraw_unbonded_stluna() {
         String::from(MOCK_CONTRACT_ADDR),
         Coin {
             denom: "uluna".to_string(),
-            amount: Uint128(0),
+            amount: Uint128::from(0u64),
         },
     )]);
 
-    let mut env = mock_env(&bob, &[]);
+    let mut info = mock_info(&bob, &[]);
     //set the block time 30 seconds from now.
-    env.block.time += 31;
+    info.block.time += 31;
 
-    let wdraw_unbonded_msg = HandleMsg::WithdrawUnbonded {};
-    let wdraw_unbonded_res = execute(&mut deps, env.clone(), wdraw_unbonded_msg.clone());
+    let wdraw_unbonded_msg = ExecuteMsg::WithdrawUnbonded {};
+    let wdraw_unbonded_res = execute(
+        deps.as_mut(),
+        mock_env(),
+        info.clone(),
+        wdraw_unbonded_msg.clone(),
+    );
 
     // trigger undelegation message
     assert_eq!(true, wdraw_unbonded_res.is_err());
@@ -2255,15 +2361,22 @@ pub fn proper_withdraw_unbonded_stluna() {
         StdError::generic_err("No withdrawable uluna assets are available yet")
     );
 
-    let res = execute_unbond_stluna(&mut deps, env.clone(), Uint128(10), bob.clone()).unwrap();
+    let res = execute_unbond_stluna(
+        deps.as_mut(),
+        mock_env(),
+        info.clone(),
+        Uint128::from(10u64),
+        bob.clone(),
+    )
+    .unwrap();
     assert_eq!(res.messages.len(), 2);
     deps.querier.with_token_balances(&[
-        (&stluna_token_contract, &[(&bob, &Uint128(80u128))]),
+        (&stluna_token_contract, &[(&bob, &Uint128::from(80u128))]),
         (&String::from("token"), &[]),
     ]);
 
     let state = State {};
-    let query_state: StateResponse = from_binary(&query(&deps, state).unwrap()).unwrap();
+    let query_state: StateResponse = from_binary(&query(deps.as_ref(), state).unwrap()).unwrap();
     assert_eq!(query_state.total_bond_stluna_amount, Uint128::from(160u64));
     assert_eq!(
         query_state.stluna_exchange_rate,
@@ -2273,65 +2386,60 @@ pub fn proper_withdraw_unbonded_stluna() {
     //this query should be zero since the undelegated period is not passed
     let withdrawable = WithdrawableUnbonded {
         address: bob.clone(),
-        block_time: env.block.time,
+        block_time: info.block.time,
     };
-    let query_with = query(&deps, withdrawable).unwrap();
+    let query_with = query(deps.as_ref(), withdrawable).unwrap();
     let res: WithdrawableUnbondedResponse = from_binary(&query_with).unwrap();
-    assert_eq!(res.withdrawable, Uint128(0));
+    assert_eq!(res.withdrawable, Uint128::from(0u64));
 
-    env.block.time += 91;
+    info.block.time += 91;
 
     // fabricate balance of the hub contract
     deps.querier.with_native_balances(&[(
         String::from(MOCK_CONTRACT_ADDR),
         Coin {
             denom: "uluna".to_string(),
-            amount: Uint128(40),
+            amount: Uint128::from(40u64),
         },
     )]);
     //first query AllUnbondedRequests
     let all_unbonded = UnbondRequests {
         address: bob.clone(),
     };
-    let query_unbonded = query(&deps, all_unbonded).unwrap();
+    let query_unbonded = query(deps.as_ref(), all_unbonded).unwrap();
     let res: UnbondRequestsResponse = from_binary(&query_unbonded).unwrap();
     assert_eq!(res.requests.len(), 1);
     //the amount should be 10
     assert_eq!(&res.address, &bob);
-    assert_eq!(res.requests[0].2, Uint128(20));
+    assert_eq!(res.requests[0].2, Uint128::from(20u64));
     assert_eq!(res.requests[0].0, 1);
 
     let all_batches = AllHistory {
         start_from: None,
         limit: None,
     };
-    let res: AllHistoryResponse = from_binary(&query(&deps, all_batches).unwrap()).unwrap();
-    assert_eq!(res.history[0].stluna_amount, Uint128(20));
+    let res: AllHistoryResponse = from_binary(&query(deps.as_ref(), all_batches).unwrap()).unwrap();
+    assert_eq!(res.history[0].stluna_amount, Uint128::from(20u64));
     assert_eq!(res.history[0].batch_id, 1);
 
     //check with query
     let withdrawable = WithdrawableUnbonded {
         address: bob.clone(),
-        block_time: env.block.time,
+        block_time: info.block.time,
     };
-    let query_with = query(&deps, withdrawable).unwrap();
+    let query_with = query(deps.as_ref(), withdrawable).unwrap();
     let res: WithdrawableUnbondedResponse = from_binary(&query_with).unwrap();
-    assert_eq!(res.withdrawable, Uint128(40));
+    assert_eq!(res.withdrawable, Uint128::from(40u64));
 
-    let success_res = execute(&mut deps, env.clone(), wdraw_unbonded_msg).unwrap();
+    let success_res = execute(deps.as_mut(), mock_env(), info.clone(), wdraw_unbonded_msg).unwrap();
 
     assert_eq!(success_res.messages.len(), 1);
 
     let sent_message = &success_res.messages[0];
     match sent_message {
-        CosmosMsg::Bank(BankMsg::Send {
-            from_address,
-            to_address,
-            amount,
-        }) => {
-            assert_eq!(from_address.0, MOCK_CONTRACT_ADDR);
+        CosmosMsg::Bank(BankMsg::Send { to_address, amount }) => {
             assert_eq!(to_address, &bob);
-            assert_eq!(amount[0].amount, Uint128(40))
+            assert_eq!(amount[0].amount, Uint128::from(40u64))
         }
 
         _ => panic!("Unexpected message: {:?}", sent_message),
@@ -2340,17 +2448,17 @@ pub fn proper_withdraw_unbonded_stluna() {
     //it should be removed
     let withdrawable = WithdrawableUnbonded {
         address: bob.clone(),
-        block_time: env.block.time,
+        block_time: info.block.time,
     };
     let query_with: WithdrawableUnbondedResponse =
-        from_binary(&query(&deps, withdrawable).unwrap()).unwrap();
-    assert_eq!(query_with.withdrawable, Uint128(0));
+        from_binary(&query(deps.as_ref(), withdrawable).unwrap()).unwrap();
+    assert_eq!(query_with.withdrawable, Uint128::from(0u64));
 
     let waitlist = UnbondRequests {
         address: bob.clone(),
     };
     let query_unbond: UnbondRequestsResponse =
-        from_binary(&query(&deps, waitlist).unwrap()).unwrap();
+        from_binary(&query(deps.as_ref(), waitlist).unwrap()).unwrap();
     assert_eq!(
         query_unbond,
         UnbondRequestsResponse {
@@ -2361,14 +2469,14 @@ pub fn proper_withdraw_unbonded_stluna() {
 
     // because of one that we add for each batch
     let state = State {};
-    let state_query: StateResponse = from_binary(&query(&deps, state).unwrap()).unwrap();
-    assert_eq!(state_query.prev_hub_balance, Uint128(0));
+    let state_query: StateResponse = from_binary(&query(deps.as_ref(), state).unwrap()).unwrap();
+    assert_eq!(state_query.prev_hub_balance, Uint128::from(0u64));
     assert_eq!(state_query.bluna_exchange_rate, Decimal::one());
 }
 
 #[test]
 pub fn proper_withdraw_unbonded_both_tokens() {
-    let mut deps = dependencies(20, &[]);
+    let mut deps = dependencies(&[]);
 
     let validator = sample_validator(DEFAULT_VALIDATOR);
     set_validator_mock(&mut deps.querier);
@@ -2379,7 +2487,7 @@ pub fn proper_withdraw_unbonded_both_tokens() {
     let reward_contract = String::from("reward");
 
     initialize(
-        &mut deps,
+        deps.as_mut(),
         owner,
         reward_contract,
         token_contract,
@@ -2390,18 +2498,18 @@ pub fn proper_withdraw_unbonded_both_tokens() {
     do_register_validator(&mut deps, validator.clone());
 
     let bob = String::from("bob");
-    let bond_msg = HandleMsg::Bond {};
-    let bond_for_stluna_msg = HandleMsg::BondForStLuna {};
+    let bond_msg = ExecuteMsg::Bond {};
+    let bond_for_stluna_msg = ExecuteMsg::BondForStLuna {};
 
-    let env = mock_env(&bob, &[coin(100, "uluna")]);
+    let info = mock_info(&bob, &[coin(100, "uluna")]);
 
     //set bob's balance to 10 in token contracts
     deps.querier.with_token_balances(&[
-        (&String::from("token"), &[(&bob, &Uint128(100u128))]),
-        (&stluna_token_contract, &[(&bob, &Uint128(100u128))]),
+        (&String::from("token"), &[(&bob, &Uint128::from(100u128))]),
+        (&stluna_token_contract, &[(&bob, &Uint128::from(100u128))]),
     ]);
 
-    let res = execute(&mut deps, env.clone(), bond_msg).unwrap();
+    let res = execute(deps.as_mut(), mock_env(), info.clone(), bond_msg).unwrap();
     assert_eq!(2, res.messages.len());
 
     let delegate = &res.messages[0];
@@ -2415,7 +2523,7 @@ pub fn proper_withdraw_unbonded_both_tokens() {
 
     set_delegation(&mut deps.querier, validator.clone(), 100, "uluna");
 
-    let res = execute(&mut deps, env, bond_for_stluna_msg).unwrap();
+    let res = execute(deps.as_mut(), mock_env(), info, bond_for_stluna_msg).unwrap();
     assert_eq!(2, res.messages.len());
 
     let delegate = &res.messages[0];
@@ -2429,101 +2537,110 @@ pub fn proper_withdraw_unbonded_both_tokens() {
 
     set_delegation(&mut deps.querier, validator.clone(), 200, "uluna");
 
-    let bond_msg = HandleMsg::BondRewards {};
+    let bond_msg = ExecuteMsg::BondRewards {};
 
-    let env = mock_env(&String::from("reward"), &[coin(100, "uluna")]);
+    let info = mock_info(&String::from("reward"), &[coin(100, "uluna")]);
 
-    let res = execute(&mut deps, env.clone(), bond_msg).unwrap();
+    let res = execute(deps.as_mut(), mock_env(), info.clone(), bond_msg).unwrap();
     assert_eq!(1, res.messages.len());
 
     set_delegation(&mut deps.querier, validator, 300, "uluna");
 
-    let res = execute_unbond(&mut deps, env, Uint128(100), bob.clone()).unwrap();
+    let res = execute_unbond(
+        deps.as_mut(),
+        mock_env(),
+        info,
+        Uint128::from(100u64),
+        bob.clone(),
+    )
+    .unwrap();
     assert_eq!(1, res.messages.len());
 
-    let mut env = mock_env(&bob, &[]);
-    env.block.time += 31;
-    let res = execute_unbond_stluna(&mut deps, env.clone(), Uint128(100), bob.clone()).unwrap();
+    let mut info = mock_info(&bob, &[]);
+    info.block.time += 31;
+    let res = execute_unbond_stluna(
+        deps.as_mut(),
+        mock_env(),
+        info.clone(),
+        Uint128::from(100u64),
+        bob.clone(),
+    )
+    .unwrap();
     assert_eq!(2, res.messages.len());
 
     deps.querier.with_token_balances(&[
-        (&String::from("token"), &[(&bob, &Uint128(0u128))]),
-        (&stluna_token_contract, &[(&bob, &Uint128(0u128))]),
+        (&String::from("token"), &[(&bob, &Uint128::from(0u128))]),
+        (&stluna_token_contract, &[(&bob, &Uint128::from(0u128))]),
     ]);
 
     deps.querier.with_native_balances(&[(
         String::from(MOCK_CONTRACT_ADDR),
         Coin {
             denom: "uluna".to_string(),
-            amount: Uint128(0),
+            amount: Uint128::from(0u64),
         },
     )]);
 
     //this query should be zero since the undelegated period is not passed
     let withdrawable = WithdrawableUnbonded {
         address: bob.clone(),
-        block_time: env.block.time,
+        block_time: info.block.time,
     };
-    let query_with = query(&deps, withdrawable).unwrap();
+    let query_with = query(deps.as_ref(), withdrawable).unwrap();
     let res: WithdrawableUnbondedResponse = from_binary(&query_with).unwrap();
-    assert_eq!(res.withdrawable, Uint128(0));
+    assert_eq!(res.withdrawable, Uint128::from(0u64));
 
-    env.block.time += 91;
+    info.block.time += 91;
 
     // fabricate balance of the hub contract
     deps.querier.with_native_balances(&[(
         String::from(MOCK_CONTRACT_ADDR),
         Coin {
             denom: "uluna".to_string(),
-            amount: Uint128(300),
+            amount: Uint128::from(300u64),
         },
     )]);
     //first query AllUnbondedRequests
     let all_unbonded = UnbondRequests {
         address: bob.clone(),
     };
-    let query_unbonded = query(&deps, all_unbonded).unwrap();
+    let query_unbonded = query(deps.as_ref(), all_unbonded).unwrap();
     let res: UnbondRequestsResponse = from_binary(&query_unbonded).unwrap();
     assert_eq!(res.requests.len(), 1);
     //the amount should be 10
     assert_eq!(&res.address, &bob);
-    assert_eq!(res.requests[0].1, Uint128(100));
-    assert_eq!(res.requests[0].2, Uint128(100));
+    assert_eq!(res.requests[0].1, Uint128::from(100u64));
+    assert_eq!(res.requests[0].2, Uint128::from(100u64));
     assert_eq!(res.requests[0].0, 1);
 
     let all_batches = AllHistory {
         start_from: None,
         limit: None,
     };
-    let res: AllHistoryResponse = from_binary(&query(&deps, all_batches).unwrap()).unwrap();
-    assert_eq!(res.history[0].bluna_amount, Uint128(100));
-    assert_eq!(res.history[0].stluna_amount, Uint128(100));
+    let res: AllHistoryResponse = from_binary(&query(deps.as_ref(), all_batches).unwrap()).unwrap();
+    assert_eq!(res.history[0].bluna_amount, Uint128::from(100u64));
+    assert_eq!(res.history[0].stluna_amount, Uint128::from(100u64));
     assert_eq!(res.history[0].batch_id, 1);
 
     //check with query
     let withdrawable = WithdrawableUnbonded {
         address: bob.clone(),
-        block_time: env.block.time,
+        block_time: info.block.time,
     };
-    let query_with = query(&deps, withdrawable).unwrap();
+    let query_with = query(deps.as_ref(), withdrawable).unwrap();
     let res: WithdrawableUnbondedResponse = from_binary(&query_with).unwrap();
-    assert_eq!(res.withdrawable, Uint128(300));
+    assert_eq!(res.withdrawable, Uint128::from(300u64));
 
-    let wdraw_unbonded_msg = HandleMsg::WithdrawUnbonded {};
-    let success_res = execute(&mut deps, env.clone(), wdraw_unbonded_msg).unwrap();
+    let wdraw_unbonded_msg = ExecuteMsg::WithdrawUnbonded {};
+    let success_res = execute(deps.as_mut(), mock_env(), info.clone(), wdraw_unbonded_msg).unwrap();
 
     assert_eq!(success_res.messages.len(), 1);
 
     let sent_message = &success_res.messages[0];
     match sent_message {
-        CosmosMsg::Bank(BankMsg::Send {
-            from_address,
-            to_address,
-            amount,
-        }) => {
-            assert_eq!(from_address.0, MOCK_CONTRACT_ADDR);
+        CosmosMsg::Bank(BankMsg::Send { to_address, amount }) => {
             assert_eq!(to_address, &bob);
-            assert_eq!(amount[0].amount, Uint128(298)) // not 300 because of decimal
+            assert_eq!(amount[0].amount, Uint128::from(298u64)) // not 300 because of decimal
         }
 
         _ => panic!("Unexpected message: {:?}", sent_message),
@@ -2532,17 +2649,17 @@ pub fn proper_withdraw_unbonded_both_tokens() {
     //it should be removed
     let withdrawable = WithdrawableUnbonded {
         address: bob.clone(),
-        block_time: env.block.time,
+        block_time: info.block.time,
     };
     let query_with: WithdrawableUnbondedResponse =
-        from_binary(&query(&deps, withdrawable).unwrap()).unwrap();
-    assert_eq!(query_with.withdrawable, Uint128(0));
+        from_binary(&query(deps.as_ref(), withdrawable).unwrap()).unwrap();
+    assert_eq!(query_with.withdrawable, Uint128::from(0u64));
 
     let waitlist = UnbondRequests {
         address: bob.clone(),
     };
     let query_unbond: UnbondRequestsResponse =
-        from_binary(&query(&deps, waitlist).unwrap()).unwrap();
+        from_binary(&query(deps.as_ref(), waitlist).unwrap()).unwrap();
     assert_eq!(
         query_unbond,
         UnbondRequestsResponse {
@@ -2553,8 +2670,8 @@ pub fn proper_withdraw_unbonded_both_tokens() {
 
     // because of one that we add for each batch
     let state = State {};
-    let state_query: StateResponse = from_binary(&query(&deps, state).unwrap()).unwrap();
-    assert_eq!(state_query.prev_hub_balance, Uint128(2));
+    let state_query: StateResponse = from_binary(&query(deps.as_ref(), state).unwrap()).unwrap();
+    assert_eq!(state_query.prev_hub_balance, Uint128::from(2u64));
     assert_eq!(state_query.bluna_exchange_rate, Decimal::one());
     assert_eq!(state_query.stluna_exchange_rate.to_string(), "2");
 }
@@ -2562,13 +2679,13 @@ pub fn proper_withdraw_unbonded_both_tokens() {
 /// Covers slashing during the unbonded period and its effect on the finished amount.
 #[test]
 pub fn proper_withdraw_unbonded_respect_slashing() {
-    let mut deps = dependencies(20, &[]);
+    let mut deps = dependencies(&[]);
 
     let validator = sample_validator(DEFAULT_VALIDATOR);
     set_validator_mock(&mut deps.querier);
 
-    let bond_amount = Uint128(10000);
-    let unbond_amount = Uint128(500);
+    let bond_amount = Uint128::from(10000u64);
+    let unbond_amount = Uint128::from(500u64);
 
     let owner = String::from("owner1");
     let token_contract = String::from("token");
@@ -2576,7 +2693,7 @@ pub fn proper_withdraw_unbonded_respect_slashing() {
     let reward_contract = String::from("reward");
 
     initialize(
-        &mut deps,
+        deps.as_mut(),
         owner,
         reward_contract,
         token_contract,
@@ -2587,9 +2704,9 @@ pub fn proper_withdraw_unbonded_respect_slashing() {
     do_register_validator(&mut deps, validator.clone());
 
     let bob = String::from("bob");
-    let bond_msg = HandleMsg::Bond {};
+    let bond_msg = ExecuteMsg::Bond {};
 
-    let env = mock_env(&bob, &[coin(bond_amount.0, "uluna")]);
+    let info = mock_info(&bob, &[coin(bond_amount.u128(), "uluna")]);
 
     //set bob's balance to 10 in token contract
     deps.querier.with_token_balances(&[
@@ -2597,24 +2714,24 @@ pub fn proper_withdraw_unbonded_respect_slashing() {
         (&stluna_token_contract, &[]),
     ]);
 
-    let res = execute(&mut deps, env.clone(), bond_msg).unwrap();
+    let res = execute(deps.as_mut(), mock_env(), info.clone(), bond_msg).unwrap();
     assert_eq!(2, res.messages.len());
 
     let delegate = &res.messages[0];
     match delegate {
         CosmosMsg::Staking(StakingMsg::Delegate { validator, amount }) => {
             assert_eq!(validator.as_str(), DEFAULT_VALIDATOR);
-            assert_eq!(amount, &coin(bond_amount.0, "uluna"));
+            assert_eq!(amount, &coin(bond_amount.u128(), "uluna"));
         }
         _ => panic!("Unexpected message: {:?}", delegate),
     }
 
-    set_delegation(&mut deps.querier, validator, bond_amount.0, "uluna");
+    set_delegation(&mut deps.querier, validator, bond_amount.u128(), "uluna");
 
-    let res = execute_unbond(&mut deps, env, unbond_amount, bob.clone()).unwrap();
+    let res = execute_unbond(deps.as_mut(), mock_env(), info, unbond_amount, bob.clone()).unwrap();
     assert_eq!(1, res.messages.len());
     deps.querier.with_token_balances(&[
-        (&String::from("token"), &[(&bob, &Uint128(9500))]),
+        (&String::from("token"), &[(&bob, &Uint128::from(9500u64))]),
         (&stluna_token_contract, &[]),
     ]);
 
@@ -2622,16 +2739,21 @@ pub fn proper_withdraw_unbonded_respect_slashing() {
         String::from(MOCK_CONTRACT_ADDR),
         Coin {
             denom: "uluna".to_string(),
-            amount: Uint128(0),
+            amount: Uint128::from(0u64),
         },
     )]);
 
-    let mut env = mock_env(&bob, &[]);
+    let mut info = mock_info(&bob, &[]);
     //set the block time 30 seconds from now.
 
-    env.block.time += 31;
-    let wdraw_unbonded_msg = HandleMsg::WithdrawUnbonded {};
-    let wdraw_unbonded_res = execute(&mut deps, env.clone(), wdraw_unbonded_msg.clone());
+    info.block.time += 31;
+    let wdraw_unbonded_msg = ExecuteMsg::WithdrawUnbonded {};
+    let wdraw_unbonded_res = execute(
+        deps.as_mut(),
+        mock_env(),
+        info.clone(),
+        wdraw_unbonded_msg.clone(),
+    );
     assert_eq!(true, wdraw_unbonded_res.is_err());
     assert_eq!(
         wdraw_unbonded_res.unwrap_err(),
@@ -2639,28 +2761,35 @@ pub fn proper_withdraw_unbonded_respect_slashing() {
     );
 
     // trigger undelegation message
-    let res = execute_unbond(&mut deps, env.clone(), unbond_amount, bob.clone()).unwrap();
+    let res = execute_unbond(
+        deps.as_mut(),
+        mock_env(),
+        info.clone(),
+        unbond_amount,
+        bob.clone(),
+    )
+    .unwrap();
     assert_eq!(2, res.messages.len());
     deps.querier
-        .with_token_balances(&[(&String::from("token"), &[(&bob, &Uint128(9000))])]);
+        .with_token_balances(&[(&String::from("token"), &[(&bob, &Uint128::from(9000u64))])]);
 
     //this query should be zero since the undelegated period is not passed
     let withdrawable = WithdrawableUnbonded {
         address: bob.clone(),
-        block_time: env.block.time,
+        block_time: info.block.time,
     };
-    let query_with = query(&deps, withdrawable).unwrap();
+    let query_with = query(deps.as_ref(), withdrawable).unwrap();
     let res: WithdrawableUnbondedResponse = from_binary(&query_with).unwrap();
-    assert_eq!(res.withdrawable, Uint128(0));
+    assert_eq!(res.withdrawable, Uint128::from(0u64));
 
-    env.block.time += 91;
+    info.block.time += 91;
 
     // fabricate balance of the hub contract
     deps.querier.with_native_balances(&[(
         String::from(MOCK_CONTRACT_ADDR),
         Coin {
             denom: "uluna".to_string(),
-            amount: Uint128(900),
+            amount: Uint128::from(900u64),
         },
     )]);
 
@@ -2668,38 +2797,33 @@ pub fn proper_withdraw_unbonded_respect_slashing() {
     let all_unbonded = UnbondRequests {
         address: bob.clone(),
     };
-    let query_unbonded = query(&deps, all_unbonded).unwrap();
+    let query_unbonded = query(deps.as_ref(), all_unbonded).unwrap();
     let res: UnbondRequestsResponse = from_binary(&query_unbonded).unwrap();
     assert_eq!(res.requests.len(), 1);
     //the amount should be 10
     assert_eq!(&res.address, &bob);
-    assert_eq!(res.requests[0].1, Uint128(1000));
+    assert_eq!(res.requests[0].1, Uint128::from(1000u64));
     assert_eq!(res.requests[0].0, 1);
 
     //check with query
     //this query does not reflect the actual withdrawable
     let withdrawable = WithdrawableUnbonded {
         address: bob.clone(),
-        block_time: env.block.time,
+        block_time: info.block.time,
     };
-    let query_with = query(&deps, withdrawable).unwrap();
+    let query_with = query(deps.as_ref(), withdrawable).unwrap();
     let res: WithdrawableUnbondedResponse = from_binary(&query_with).unwrap();
-    assert_eq!(res.withdrawable, Uint128(1000));
+    assert_eq!(res.withdrawable, Uint128::from(1000u64));
 
-    let success_res = execute(&mut deps, env.clone(), wdraw_unbonded_msg).unwrap();
+    let success_res = execute(deps.as_mut(), mock_env(), info.clone(), wdraw_unbonded_msg).unwrap();
 
     assert_eq!(success_res.messages.len(), 1);
 
     let sent_message = &success_res.messages[0];
     match sent_message {
-        CosmosMsg::Bank(BankMsg::Send {
-            from_address,
-            to_address,
-            amount,
-        }) => {
-            assert_eq!(from_address.0, MOCK_CONTRACT_ADDR);
+        CosmosMsg::Bank(BankMsg::Send { to_address, amount }) => {
             assert_eq!(to_address, &bob);
-            assert_eq!(amount[0].amount, Uint128(899))
+            assert_eq!(amount[0].amount, Uint128::from(899u64))
         }
 
         _ => panic!("Unexpected message: {:?}", sent_message),
@@ -2708,23 +2832,23 @@ pub fn proper_withdraw_unbonded_respect_slashing() {
     // there should not be any result
     let withdrawable = WithdrawableUnbonded {
         address: bob,
-        block_time: env.block.time,
+        block_time: info.block.time,
     };
     let query_with: WithdrawableUnbondedResponse =
-        from_binary(&query(&deps, withdrawable).unwrap()).unwrap();
-    assert_eq!(query_with.withdrawable, Uint128(0));
+        from_binary(&query(deps.as_ref(), withdrawable).unwrap()).unwrap();
+    assert_eq!(query_with.withdrawable, Uint128::from(0u64));
 }
 
 /// Covers slashing during the unbonded period and its effect on the finished amount.
 #[test]
 pub fn proper_withdraw_unbonded_respect_slashing_stluna() {
-    let mut deps = dependencies(20, &[]);
+    let mut deps = dependencies(&[]);
 
     let validator = sample_validator(DEFAULT_VALIDATOR);
     set_validator_mock(&mut deps.querier);
 
-    let bond_amount = Uint128(10000);
-    let unbond_amount = Uint128(500);
+    let bond_amount = Uint128::from(10000u64);
+    let unbond_amount = Uint128::from(500u64);
 
     let owner = String::from("owner1");
     let token_contract = String::from("token");
@@ -2732,7 +2856,7 @@ pub fn proper_withdraw_unbonded_respect_slashing_stluna() {
     let reward_contract = String::from("reward");
 
     initialize(
-        &mut deps,
+        deps.as_mut(),
         owner,
         reward_contract,
         token_contract,
@@ -2743,11 +2867,11 @@ pub fn proper_withdraw_unbonded_respect_slashing_stluna() {
     do_register_validator(&mut deps, validator.clone());
 
     let bob = String::from("bob");
-    let bond_msg = HandleMsg::BondForStLuna {};
+    let bond_msg = ExecuteMsg::BondForStLuna {};
 
-    let env = mock_env(&bob, &[coin(bond_amount.0, "uluna")]);
+    let info = mock_info(&bob, &[coin(bond_amount.u128(), "uluna")]);
 
-    let res = execute(&mut deps, env.clone(), bond_msg).unwrap();
+    let res = execute(deps.as_mut(), mock_env(), info.clone(), bond_msg).unwrap();
     assert_eq!(2, res.messages.len());
 
     //set bob's balance to 10 in token contract
@@ -2760,17 +2884,18 @@ pub fn proper_withdraw_unbonded_respect_slashing_stluna() {
     match delegate {
         CosmosMsg::Staking(StakingMsg::Delegate { validator, amount }) => {
             assert_eq!(validator.as_str(), DEFAULT_VALIDATOR);
-            assert_eq!(amount, &coin(bond_amount.0, "uluna"));
+            assert_eq!(amount, &coin(bond_amount.u128(), "uluna"));
         }
         _ => panic!("Unexpected message: {:?}", delegate),
     }
 
-    set_delegation(&mut deps.querier, validator, bond_amount.0, "uluna");
+    set_delegation(&mut deps.querier, validator, bond_amount.u128(), "uluna");
 
-    let res = execute_unbond_stluna(&mut deps, env, unbond_amount, bob.clone()).unwrap();
+    let res =
+        execute_unbond_stluna(deps.as_mut(), mock_env(), info, unbond_amount, bob.clone()).unwrap();
     assert_eq!(1, res.messages.len());
     deps.querier.with_token_balances(&[
-        (&stluna_token_contract, &[(&bob, &Uint128(9500))]),
+        (&stluna_token_contract, &[(&bob, &Uint128::from(9500u64))]),
         (&String::from("token"), &[]),
     ]);
 
@@ -2778,16 +2903,21 @@ pub fn proper_withdraw_unbonded_respect_slashing_stluna() {
         String::from(MOCK_CONTRACT_ADDR),
         Coin {
             denom: "uluna".to_string(),
-            amount: Uint128(0),
+            amount: Uint128::from(0u64),
         },
     )]);
 
-    let mut env = mock_env(&bob, &[]);
+    let mut info = mock_info(&bob, &[]);
     //set the block time 30 seconds from now.
 
-    env.block.time += 31;
-    let wdraw_unbonded_msg = HandleMsg::WithdrawUnbonded {};
-    let wdraw_unbonded_res = execute(&mut deps, env.clone(), wdraw_unbonded_msg.clone());
+    info.block.time += 31;
+    let wdraw_unbonded_msg = ExecuteMsg::WithdrawUnbonded {};
+    let wdraw_unbonded_res = execute(
+        deps.as_mut(),
+        mock_env(),
+        info.clone(),
+        wdraw_unbonded_msg.clone(),
+    );
     assert_eq!(true, wdraw_unbonded_res.is_err());
     assert_eq!(
         wdraw_unbonded_res.unwrap_err(),
@@ -2795,28 +2925,35 @@ pub fn proper_withdraw_unbonded_respect_slashing_stluna() {
     );
 
     // trigger undelegation message
-    let res = execute_unbond_stluna(&mut deps, env.clone(), unbond_amount, bob.clone()).unwrap();
+    let res = execute_unbond_stluna(
+        deps.as_mut(),
+        mock_env(),
+        info.clone(),
+        unbond_amount,
+        bob.clone(),
+    )
+    .unwrap();
     assert_eq!(2, res.messages.len());
     deps.querier
-        .with_token_balances(&[(&stluna_token_contract, &[(&bob, &Uint128(9000))])]);
+        .with_token_balances(&[(&stluna_token_contract, &[(&bob, &Uint128::from(9000u64))])]);
 
     //this query should be zero since the undelegated period is not passed
     let withdrawable = WithdrawableUnbonded {
         address: bob.clone(),
-        block_time: env.block.time,
+        block_time: info.block.time,
     };
-    let query_with = query(&deps, withdrawable).unwrap();
+    let query_with = query(deps.as_ref(), withdrawable).unwrap();
     let res: WithdrawableUnbondedResponse = from_binary(&query_with).unwrap();
-    assert_eq!(res.withdrawable, Uint128(0));
+    assert_eq!(res.withdrawable, Uint128::from(0u64));
 
-    env.block.time += 91;
+    info.block.time += 91;
 
     // fabricate balance of the hub contract
     deps.querier.with_native_balances(&[(
         String::from(MOCK_CONTRACT_ADDR),
         Coin {
             denom: "uluna".to_string(),
-            amount: Uint128(900),
+            amount: Uint128::from(900u64),
         },
     )]);
 
@@ -2824,38 +2961,33 @@ pub fn proper_withdraw_unbonded_respect_slashing_stluna() {
     let all_unbonded = UnbondRequests {
         address: bob.clone(),
     };
-    let query_unbonded = query(&deps, all_unbonded).unwrap();
+    let query_unbonded = query(deps.as_ref(), all_unbonded).unwrap();
     let res: UnbondRequestsResponse = from_binary(&query_unbonded).unwrap();
     assert_eq!(res.requests.len(), 1);
     //the amount should be 10
     assert_eq!(&res.address, &bob);
-    assert_eq!(res.requests[0].2, Uint128(1000));
+    assert_eq!(res.requests[0].2, Uint128::from(1000u64));
     assert_eq!(res.requests[0].0, 1);
 
     //check with query
     //this query does not reflect the actual withdrawable
     let withdrawable = WithdrawableUnbonded {
         address: bob.clone(),
-        block_time: env.block.time,
+        block_time: info.block.time,
     };
-    let query_with = query(&deps, withdrawable).unwrap();
+    let query_with = query(deps.as_ref(), withdrawable).unwrap();
     let res: WithdrawableUnbondedResponse = from_binary(&query_with).unwrap();
-    assert_eq!(res.withdrawable, Uint128(1000));
+    assert_eq!(res.withdrawable, Uint128::from(1000u64));
 
-    let success_res = execute(&mut deps, env.clone(), wdraw_unbonded_msg).unwrap();
+    let success_res = execute(deps.as_mut(), mock_env(), info.clone(), wdraw_unbonded_msg).unwrap();
 
     assert_eq!(success_res.messages.len(), 1);
 
     let sent_message = &success_res.messages[0];
     match sent_message {
-        CosmosMsg::Bank(BankMsg::Send {
-            from_address,
-            to_address,
-            amount,
-        }) => {
-            assert_eq!(from_address.0, MOCK_CONTRACT_ADDR);
+        CosmosMsg::Bank(BankMsg::Send { to_address, amount }) => {
             assert_eq!(to_address, &bob);
-            assert_eq!(amount[0].amount, Uint128(899))
+            assert_eq!(amount[0].amount, Uint128::from(899u64))
         }
 
         _ => panic!("Unexpected message: {:?}", sent_message),
@@ -2864,23 +2996,23 @@ pub fn proper_withdraw_unbonded_respect_slashing_stluna() {
     // there should not be any result
     let withdrawable = WithdrawableUnbonded {
         address: bob,
-        block_time: env.block.time,
+        block_time: info.block.time,
     };
     let query_with: WithdrawableUnbondedResponse =
-        from_binary(&query(&deps, withdrawable).unwrap()).unwrap();
-    assert_eq!(query_with.withdrawable, Uint128(0));
+        from_binary(&query(deps.as_ref(), withdrawable).unwrap()).unwrap();
+    assert_eq!(query_with.withdrawable, Uint128::from(0u64));
 }
 
 /// Covers withdraw_unbonded/inactivity in the system while there are slashing events.
 #[test]
 pub fn proper_withdraw_unbonded_respect_inactivity_slashing() {
-    let mut deps = dependencies(20, &[]);
+    let mut deps = dependencies(&[]);
 
     let validator = sample_validator(DEFAULT_VALIDATOR);
     set_validator_mock(&mut deps.querier);
 
-    let bond_amount = Uint128(10000);
-    let unbond_amount = Uint128(500);
+    let bond_amount = Uint128::from(10000u64);
+    let unbond_amount = Uint128::from(500u64);
 
     let owner = String::from("owner1");
     let token_contract = String::from("token");
@@ -2888,7 +3020,7 @@ pub fn proper_withdraw_unbonded_respect_inactivity_slashing() {
     let reward_contract = String::from("reward");
 
     initialize(
-        &mut deps,
+        deps.as_mut(),
         owner,
         reward_contract,
         token_contract,
@@ -2899,9 +3031,9 @@ pub fn proper_withdraw_unbonded_respect_inactivity_slashing() {
     do_register_validator(&mut deps, validator.clone());
 
     let bob = String::from("bob");
-    let bond_msg = HandleMsg::Bond {};
+    let bond_msg = ExecuteMsg::Bond {};
 
-    let env = mock_env(&bob, &[coin(bond_amount.0, "uluna")]);
+    let info = mock_info(&bob, &[coin(bond_amount.u128(), "uluna")]);
 
     //set bob's balance to 10 in token contract
     deps.querier.with_token_balances(&[
@@ -2909,25 +3041,25 @@ pub fn proper_withdraw_unbonded_respect_inactivity_slashing() {
         (&stluna_token_contract, &[]),
     ]);
 
-    let res = execute(&mut deps, env.clone(), bond_msg).unwrap();
+    let res = execute(deps.as_mut(), mock_env(), info.clone(), bond_msg).unwrap();
     assert_eq!(2, res.messages.len());
 
     let delegate = &res.messages[0];
     match delegate {
         CosmosMsg::Staking(StakingMsg::Delegate { validator, amount }) => {
             assert_eq!(validator.as_str(), DEFAULT_VALIDATOR);
-            assert_eq!(amount, &coin(bond_amount.0, "uluna"));
+            assert_eq!(amount, &coin(bond_amount.u128(), "uluna"));
         }
         _ => panic!("Unexpected message: {:?}", delegate),
     }
 
-    set_delegation(&mut deps.querier, validator, bond_amount.0, "uluna");
+    set_delegation(&mut deps.querier, validator, bond_amount.u128(), "uluna");
 
-    let res = execute_unbond(&mut deps, env, unbond_amount, bob.clone()).unwrap();
+    let res = execute_unbond(deps.as_mut(), mock_env(), info, unbond_amount, bob.clone()).unwrap();
     assert_eq!(1, res.messages.len());
 
     deps.querier.with_token_balances(&[
-        (&String::from("token"), &[(&bob, &Uint128(9500))]),
+        (&String::from("token"), &[(&bob, &Uint128::from(9500u64))]),
         (&stluna_token_contract, &[]),
     ]);
 
@@ -2935,22 +3067,27 @@ pub fn proper_withdraw_unbonded_respect_inactivity_slashing() {
         String::from(MOCK_CONTRACT_ADDR),
         Coin {
             denom: "uluna".to_string(),
-            amount: Uint128(0),
+            amount: Uint128::from(0u64),
         },
     )]);
 
-    let mut env = mock_env(&bob, &[]);
+    let mut info = mock_info(&bob, &[]);
     //set the block time 30 seconds from now.
 
     let current_batch = CurrentBatch {};
     let query_batch: CurrentBatchResponse =
-        from_binary(&query(&deps, current_batch).unwrap()).unwrap();
+        from_binary(&query(deps.as_ref(), current_batch).unwrap()).unwrap();
     assert_eq!(query_batch.id, 1);
     assert_eq!(query_batch.requested_bluna_with_fee, unbond_amount);
 
-    env.block.time += 1000;
-    let wdraw_unbonded_msg = HandleMsg::WithdrawUnbonded {};
-    let wdraw_unbonded_res = execute(&mut deps, env.clone(), wdraw_unbonded_msg.clone());
+    info.block.time += 1000;
+    let wdraw_unbonded_msg = ExecuteMsg::WithdrawUnbonded {};
+    let wdraw_unbonded_res = execute(
+        deps.as_mut(),
+        mock_env(),
+        info.clone(),
+        wdraw_unbonded_msg.clone(),
+    );
     assert_eq!(true, wdraw_unbonded_res.is_err());
     assert_eq!(
         wdraw_unbonded_res.unwrap_err(),
@@ -2958,14 +3095,21 @@ pub fn proper_withdraw_unbonded_respect_inactivity_slashing() {
     );
 
     // trigger undelegation message
-    let res = execute_unbond(&mut deps, env.clone(), unbond_amount, bob.clone()).unwrap();
+    let res = execute_unbond(
+        deps.as_mut(),
+        mock_env(),
+        info.clone(),
+        unbond_amount,
+        bob.clone(),
+    )
+    .unwrap();
     assert_eq!(2, res.messages.len());
     deps.querier
-        .with_token_balances(&[(&String::from("token"), &[(&bob, &Uint128(9000))])]);
+        .with_token_balances(&[(&String::from("token"), &[(&bob, &Uint128::from(9000u64))])]);
 
     let current_batch = CurrentBatch {};
     let query_batch: CurrentBatchResponse =
-        from_binary(&query(&deps, current_batch).unwrap()).unwrap();
+        from_binary(&query(deps.as_ref(), current_batch).unwrap()).unwrap();
     assert_eq!(query_batch.id, 2);
     assert_eq!(query_batch.requested_bluna_with_fee, Uint128::zero());
 
@@ -2973,8 +3117,8 @@ pub fn proper_withdraw_unbonded_respect_inactivity_slashing() {
         start_from: None,
         limit: None,
     };
-    let res: AllHistoryResponse = from_binary(&query(&deps, all_batches).unwrap()).unwrap();
-    assert_eq!(res.history[0].bluna_amount, Uint128(1000));
+    let res: AllHistoryResponse = from_binary(&query(deps.as_ref(), all_batches).unwrap()).unwrap();
+    assert_eq!(res.history[0].bluna_amount, Uint128::from(1000u64));
     assert_eq!(res.history[0].bluna_withdraw_rate.to_string(), "1");
     assert_eq!(res.history[0].released, false);
     assert_eq!(res.history[0].batch_id, 1);
@@ -2982,58 +3126,53 @@ pub fn proper_withdraw_unbonded_respect_inactivity_slashing() {
     //this query should be zero since the undelegated period is not passed
     let withdrawable = WithdrawableUnbonded {
         address: bob.clone(),
-        block_time: env.block.time,
+        block_time: info.block.time,
     };
-    let query_with = query(&deps, withdrawable).unwrap();
+    let query_with = query(deps.as_ref(), withdrawable).unwrap();
     let res: WithdrawableUnbondedResponse = from_binary(&query_with).unwrap();
     assert_eq!(res.withdrawable, Uint128::zero());
 
-    env.block.time += 1091;
+    info.block.time += 1091;
 
     // fabricate balance of the hub contract
     deps.querier.with_native_balances(&[(
         String::from(MOCK_CONTRACT_ADDR),
         Coin {
             denom: "uluna".to_string(),
-            amount: Uint128(900),
+            amount: Uint128::from(900u64),
         },
     )]);
     //first query AllUnbondedRequests
     let all_unbonded = UnbondRequests {
         address: bob.clone(),
     };
-    let query_unbonded = query(&deps, all_unbonded).unwrap();
+    let query_unbonded = query(deps.as_ref(), all_unbonded).unwrap();
     let res: UnbondRequestsResponse = from_binary(&query_unbonded).unwrap();
     assert_eq!(res.requests.len(), 1);
     //the amount should be 10
     assert_eq!(&res.address, &bob);
-    assert_eq!(res.requests[0].1, Uint128(1000));
+    assert_eq!(res.requests[0].1, Uint128::from(1000u64));
     assert_eq!(res.requests[0].0, 1);
 
     //check with query
     //this query does not reflect the actual withdrawable
     let withdrawable = WithdrawableUnbonded {
         address: bob.clone(),
-        block_time: env.block.time,
+        block_time: info.block.time,
     };
-    let query_with = query(&deps, withdrawable).unwrap();
+    let query_with = query(deps.as_ref(), withdrawable).unwrap();
     let res: WithdrawableUnbondedResponse = from_binary(&query_with).unwrap();
-    assert_eq!(res.withdrawable, Uint128(1000));
+    assert_eq!(res.withdrawable, Uint128::from(1000u64));
 
-    let success_res = execute(&mut deps, env.clone(), wdraw_unbonded_msg).unwrap();
+    let success_res = execute(deps.as_mut(), mock_env(), info.clone(), wdraw_unbonded_msg).unwrap();
 
     assert_eq!(success_res.messages.len(), 1);
 
     let sent_message = &success_res.messages[0];
     match sent_message {
-        CosmosMsg::Bank(BankMsg::Send {
-            from_address,
-            to_address,
-            amount,
-        }) => {
-            assert_eq!(from_address.0, MOCK_CONTRACT_ADDR);
+        CosmosMsg::Bank(BankMsg::Send { to_address, amount }) => {
             assert_eq!(to_address, &bob);
-            assert_eq!(amount[0].amount, Uint128(899))
+            assert_eq!(amount[0].amount, Uint128::from(899u64))
         }
 
         _ => panic!("Unexpected message: {:?}", sent_message),
@@ -3042,18 +3181,18 @@ pub fn proper_withdraw_unbonded_respect_inactivity_slashing() {
     // there should not be any result
     let withdrawable = WithdrawableUnbonded {
         address: bob,
-        block_time: env.block.time,
+        block_time: info.block.time,
     };
     let query_with: WithdrawableUnbondedResponse =
-        from_binary(&query(&deps, withdrawable).unwrap()).unwrap();
-    assert_eq!(query_with.withdrawable, Uint128(0));
+        from_binary(&query(deps.as_ref(), withdrawable).unwrap()).unwrap();
+    assert_eq!(query_with.withdrawable, Uint128::from(0u64));
 
     let all_batches = AllHistory {
         start_from: None,
         limit: None,
     };
-    let res: AllHistoryResponse = from_binary(&query(&deps, all_batches).unwrap()).unwrap();
-    assert_eq!(res.history[0].bluna_amount, Uint128(1000));
+    let res: AllHistoryResponse = from_binary(&query(deps.as_ref(), all_batches).unwrap()).unwrap();
+    assert_eq!(res.history[0].bluna_amount, Uint128::from(1000u64));
     assert_eq!(res.history[0].bluna_applied_exchange_rate.to_string(), "1");
     assert_eq!(res.history[0].bluna_withdraw_rate.to_string(), "0.899");
     assert_eq!(res.history[0].released, true);
@@ -3063,13 +3202,13 @@ pub fn proper_withdraw_unbonded_respect_inactivity_slashing() {
 /// Covers withdraw_unbonded/inactivity in the system while there are slashing events.
 #[test]
 pub fn proper_withdraw_unbonded_respect_inactivity_slashing_stluna() {
-    let mut deps = dependencies(20, &[]);
+    let mut deps = dependencies(&[]);
 
     let validator = sample_validator(DEFAULT_VALIDATOR);
     set_validator_mock(&mut deps.querier);
 
-    let bond_amount = Uint128(10000);
-    let unbond_amount = Uint128(500);
+    let bond_amount = Uint128::from(10000u64);
+    let unbond_amount = Uint128::from(500u64);
 
     let owner = String::from("owner1");
     let token_contract = String::from("token");
@@ -3077,7 +3216,7 @@ pub fn proper_withdraw_unbonded_respect_inactivity_slashing_stluna() {
     let reward_contract = String::from("reward");
 
     initialize(
-        &mut deps,
+        deps.as_mut(),
         owner,
         reward_contract,
         token_contract,
@@ -3088,11 +3227,11 @@ pub fn proper_withdraw_unbonded_respect_inactivity_slashing_stluna() {
     do_register_validator(&mut deps, validator.clone());
 
     let bob = String::from("bob");
-    let bond_msg = HandleMsg::BondForStLuna {};
+    let bond_msg = ExecuteMsg::BondForStLuna {};
 
-    let env = mock_env(&bob, &[coin(bond_amount.0, "uluna")]);
+    let info = mock_info(&bob, &[coin(bond_amount.u128(), "uluna")]);
 
-    let res = execute(&mut deps, env.clone(), bond_msg).unwrap();
+    let res = execute(deps.as_mut(), mock_env(), info.clone(), bond_msg).unwrap();
     assert_eq!(2, res.messages.len());
 
     //set bob's balance to 10 in token contract
@@ -3105,18 +3244,19 @@ pub fn proper_withdraw_unbonded_respect_inactivity_slashing_stluna() {
     match delegate {
         CosmosMsg::Staking(StakingMsg::Delegate { validator, amount }) => {
             assert_eq!(validator.as_str(), DEFAULT_VALIDATOR);
-            assert_eq!(amount, &coin(bond_amount.0, "uluna"));
+            assert_eq!(amount, &coin(bond_amount.u128(), "uluna"));
         }
         _ => panic!("Unexpected message: {:?}", delegate),
     }
 
-    set_delegation(&mut deps.querier, validator, bond_amount.0, "uluna");
+    set_delegation(&mut deps.querier, validator, bond_amount.u128(), "uluna");
 
-    let res = execute_unbond_stluna(&mut deps, env, unbond_amount, bob.clone()).unwrap();
+    let res =
+        execute_unbond_stluna(deps.as_mut(), mock_env(), info, unbond_amount, bob.clone()).unwrap();
     assert_eq!(1, res.messages.len());
 
     deps.querier.with_token_balances(&[
-        (&stluna_token_contract, &[(&bob, &Uint128(9500))]),
+        (&stluna_token_contract, &[(&bob, &Uint128::from(9500u64))]),
         (&String::from("token"), &[]),
     ]);
 
@@ -3124,22 +3264,27 @@ pub fn proper_withdraw_unbonded_respect_inactivity_slashing_stluna() {
         String::from(MOCK_CONTRACT_ADDR),
         Coin {
             denom: "uluna".to_string(),
-            amount: Uint128(0),
+            amount: Uint128::from(0u64),
         },
     )]);
 
-    let mut env = mock_env(&bob, &[]);
+    let mut info = mock_info(&bob, &[]);
     //set the block time 30 seconds from now.
 
     let current_batch = CurrentBatch {};
     let query_batch: CurrentBatchResponse =
-        from_binary(&query(&deps, current_batch).unwrap()).unwrap();
+        from_binary(&query(deps.as_ref(), current_batch).unwrap()).unwrap();
     assert_eq!(query_batch.id, 1);
     assert_eq!(query_batch.requested_stluna, unbond_amount);
 
-    env.block.time += 1000;
-    let wdraw_unbonded_msg = HandleMsg::WithdrawUnbonded {};
-    let wdraw_unbonded_res = execute(&mut deps, env.clone(), wdraw_unbonded_msg.clone());
+    info.block.time += 1000;
+    let wdraw_unbonded_msg = ExecuteMsg::WithdrawUnbonded {};
+    let wdraw_unbonded_res = execute(
+        deps.as_mut(),
+        mock_env(),
+        info.clone(),
+        wdraw_unbonded_msg.clone(),
+    );
     assert_eq!(true, wdraw_unbonded_res.is_err());
     assert_eq!(
         wdraw_unbonded_res.unwrap_err(),
@@ -3147,14 +3292,21 @@ pub fn proper_withdraw_unbonded_respect_inactivity_slashing_stluna() {
     );
 
     // trigger undelegation message
-    let res = execute_unbond_stluna(&mut deps, env.clone(), unbond_amount, bob.clone()).unwrap();
+    let res = execute_unbond_stluna(
+        deps.as_mut(),
+        mock_env(),
+        info.clone(),
+        unbond_amount,
+        bob.clone(),
+    )
+    .unwrap();
     assert_eq!(2, res.messages.len());
     deps.querier
-        .with_token_balances(&[(&stluna_token_contract, &[(&bob, &Uint128(9000))])]);
+        .with_token_balances(&[(&stluna_token_contract, &[(&bob, &Uint128::from(9000u64))])]);
 
     let current_batch = CurrentBatch {};
     let query_batch: CurrentBatchResponse =
-        from_binary(&query(&deps, current_batch).unwrap()).unwrap();
+        from_binary(&query(deps.as_ref(), current_batch).unwrap()).unwrap();
     assert_eq!(query_batch.id, 2);
     assert_eq!(query_batch.requested_stluna, Uint128::zero());
 
@@ -3162,8 +3314,8 @@ pub fn proper_withdraw_unbonded_respect_inactivity_slashing_stluna() {
         start_from: None,
         limit: None,
     };
-    let res: AllHistoryResponse = from_binary(&query(&deps, all_batches).unwrap()).unwrap();
-    assert_eq!(res.history[0].stluna_amount, Uint128(1000));
+    let res: AllHistoryResponse = from_binary(&query(deps.as_ref(), all_batches).unwrap()).unwrap();
+    assert_eq!(res.history[0].stluna_amount, Uint128::from(1000u64));
     assert_eq!(res.history[0].stluna_withdraw_rate.to_string(), "1");
     assert_eq!(res.history[0].released, false);
     assert_eq!(res.history[0].batch_id, 1);
@@ -3171,58 +3323,53 @@ pub fn proper_withdraw_unbonded_respect_inactivity_slashing_stluna() {
     //this query should be zero since the undelegated period is not passed
     let withdrawable = WithdrawableUnbonded {
         address: bob.clone(),
-        block_time: env.block.time,
+        block_time: info.block.time,
     };
-    let query_with = query(&deps, withdrawable).unwrap();
+    let query_with = query(deps.as_ref(), withdrawable).unwrap();
     let res: WithdrawableUnbondedResponse = from_binary(&query_with).unwrap();
     assert_eq!(res.withdrawable, Uint128::zero());
 
-    env.block.time += 1091;
+    info.block.time += 1091;
 
     // fabricate balance of the hub contract
     deps.querier.with_native_balances(&[(
         String::from(MOCK_CONTRACT_ADDR),
         Coin {
             denom: "uluna".to_string(),
-            amount: Uint128(900),
+            amount: Uint128::from(900u64),
         },
     )]);
     //first query AllUnbondedRequests
     let all_unbonded = UnbondRequests {
         address: bob.clone(),
     };
-    let query_unbonded = query(&deps, all_unbonded).unwrap();
+    let query_unbonded = query(deps.as_ref(), all_unbonded).unwrap();
     let res: UnbondRequestsResponse = from_binary(&query_unbonded).unwrap();
     assert_eq!(res.requests.len(), 1);
     //the amount should be 10
     assert_eq!(&res.address, &bob);
-    assert_eq!(res.requests[0].2, Uint128(1000));
+    assert_eq!(res.requests[0].2, Uint128::from(1000u64));
     assert_eq!(res.requests[0].0, 1);
 
     //check with query
     //this query does not reflect the actual withdrawable
     let withdrawable = WithdrawableUnbonded {
         address: bob.clone(),
-        block_time: env.block.time,
+        block_time: info.block.time,
     };
-    let query_with = query(&deps, withdrawable).unwrap();
+    let query_with = query(deps.as_ref(), withdrawable).unwrap();
     let res: WithdrawableUnbondedResponse = from_binary(&query_with).unwrap();
-    assert_eq!(res.withdrawable, Uint128(1000));
+    assert_eq!(res.withdrawable, Uint128::from(1000u64));
 
-    let success_res = execute(&mut deps, env.clone(), wdraw_unbonded_msg).unwrap();
+    let success_res = execute(deps.as_mut(), mock_env(), info.clone(), wdraw_unbonded_msg).unwrap();
 
     assert_eq!(success_res.messages.len(), 1);
 
     let sent_message = &success_res.messages[0];
     match sent_message {
-        CosmosMsg::Bank(BankMsg::Send {
-            from_address,
-            to_address,
-            amount,
-        }) => {
-            assert_eq!(from_address.0, MOCK_CONTRACT_ADDR);
+        CosmosMsg::Bank(BankMsg::Send { to_address, amount }) => {
             assert_eq!(to_address, &bob);
-            assert_eq!(amount[0].amount, Uint128(899))
+            assert_eq!(amount[0].amount, Uint128::from(899u64))
         }
 
         _ => panic!("Unexpected message: {:?}", sent_message),
@@ -3231,18 +3378,18 @@ pub fn proper_withdraw_unbonded_respect_inactivity_slashing_stluna() {
     // there should not be any result
     let withdrawable = WithdrawableUnbonded {
         address: bob,
-        block_time: env.block.time,
+        block_time: info.block.time,
     };
     let query_with: WithdrawableUnbondedResponse =
-        from_binary(&query(&deps, withdrawable).unwrap()).unwrap();
-    assert_eq!(query_with.withdrawable, Uint128(0));
+        from_binary(&query(deps.as_ref(), withdrawable).unwrap()).unwrap();
+    assert_eq!(query_with.withdrawable, Uint128::from(0u64));
 
     let all_batches = AllHistory {
         start_from: None,
         limit: None,
     };
-    let res: AllHistoryResponse = from_binary(&query(&deps, all_batches).unwrap()).unwrap();
-    assert_eq!(res.history[0].stluna_amount, Uint128(1000));
+    let res: AllHistoryResponse = from_binary(&query(deps.as_ref(), all_batches).unwrap()).unwrap();
+    assert_eq!(res.history[0].stluna_amount, Uint128::from(1000u64));
     assert_eq!(res.history[0].stluna_applied_exchange_rate.to_string(), "1");
     assert_eq!(res.history[0].stluna_withdraw_rate.to_string(), "0.899");
     assert_eq!(res.history[0].released, true);
@@ -3253,13 +3400,13 @@ pub fn proper_withdraw_unbonded_respect_inactivity_slashing_stluna() {
 /// the exception when a user sends rogue coin.
 #[test]
 pub fn proper_withdraw_unbond_with_dummies() {
-    let mut deps = dependencies(20, &[]);
+    let mut deps = dependencies(&[]);
 
     let validator = sample_validator(DEFAULT_VALIDATOR);
     set_validator_mock(&mut deps.querier);
 
-    let bond_amount = Uint128(10000);
-    let unbond_amount = Uint128(500);
+    let bond_amount = Uint128::from(10000u64);
+    let unbond_amount = Uint128::from(500u64);
 
     let owner = String::from("owner1");
     let token_contract = String::from("token");
@@ -3267,7 +3414,7 @@ pub fn proper_withdraw_unbond_with_dummies() {
     let reward_contract = String::from("reward");
 
     initialize(
-        &mut deps,
+        deps.as_mut(),
         owner,
         reward_contract,
         token_contract,
@@ -3278,9 +3425,9 @@ pub fn proper_withdraw_unbond_with_dummies() {
     do_register_validator(&mut deps, validator.clone());
 
     let bob = String::from("bob");
-    let bond_msg = HandleMsg::Bond {};
+    let bond_msg = ExecuteMsg::Bond {};
 
-    let env = mock_env(&bob, &[coin(bond_amount.0, "uluna")]);
+    let info = mock_info(&bob, &[coin(bond_amount.u128(), "uluna")]);
 
     //set bob's balance to 10 in token contract
     deps.querier.with_token_balances(&[
@@ -3288,16 +3435,21 @@ pub fn proper_withdraw_unbond_with_dummies() {
         (&stluna_token_contract, &[]),
     ]);
 
-    let res = execute(&mut deps, env.clone(), bond_msg).unwrap();
+    let res = execute(deps.as_mut(), mock_env(), info.clone(), bond_msg).unwrap();
     assert_eq!(2, res.messages.len());
 
-    set_delegation(&mut deps.querier, validator.clone(), bond_amount.0, "uluna");
+    set_delegation(
+        &mut deps.querier,
+        validator.clone(),
+        bond_amount.u128(),
+        "uluna",
+    );
 
-    let res = execute_unbond(&mut deps, env, unbond_amount, bob.clone()).unwrap();
+    let res = execute_unbond(deps.as_mut(), mock_env(), info, unbond_amount, bob.clone()).unwrap();
     assert_eq!(1, res.messages.len());
 
     deps.querier.with_token_balances(&[
-        (&String::from("token"), &[(&bob, &Uint128(9500))]),
+        (&String::from("token"), &[(&bob, &Uint128::from(9500u64))]),
         (&stluna_token_contract, &[]),
     ]);
 
@@ -3305,37 +3457,63 @@ pub fn proper_withdraw_unbond_with_dummies() {
         String::from(MOCK_CONTRACT_ADDR),
         Coin {
             denom: "uluna".to_string(),
-            amount: Uint128(0),
+            amount: Uint128::from(0u64),
         },
     )]);
 
-    let mut env = mock_env(&bob, &[]);
+    let mut info = mock_info(&bob, &[]);
     //set the block time 30 seconds from now.
 
-    env.block.time += 31;
+    info.block.time += 31;
     // trigger undelegation message
-    let res = execute_unbond(&mut deps, env.clone(), unbond_amount, bob.clone()).unwrap();
+    let res = execute_unbond(
+        deps.as_mut(),
+        mock_env(),
+        info.clone(),
+        unbond_amount,
+        bob.clone(),
+    )
+    .unwrap();
     assert_eq!(2, res.messages.len());
     deps.querier.with_token_balances(&[
-        (&String::from("token"), &[(&bob, &Uint128(9000))]),
+        (&String::from("token"), &[(&bob, &Uint128::from(9000u64))]),
         (&stluna_token_contract, &[]),
     ]);
 
     // slashing
-    set_delegation(&mut deps.querier, validator, bond_amount.0 - 2000, "uluna");
+    set_delegation(
+        &mut deps.querier,
+        validator,
+        bond_amount.u128() - 2000,
+        "uluna",
+    );
 
-    let res = execute_unbond(&mut deps, env.clone(), unbond_amount, bob.clone()).unwrap();
+    let res = execute_unbond(
+        deps.as_mut(),
+        mock_env(),
+        info.clone(),
+        unbond_amount,
+        bob.clone(),
+    )
+    .unwrap();
     assert_eq!(1, res.messages.len());
     deps.querier.with_token_balances(&[
-        (&String::from("token"), &[(&bob, &Uint128(8500))]),
+        (&String::from("token"), &[(&bob, &Uint128::from(8500u64))]),
         (&stluna_token_contract, &[]),
     ]);
 
-    env.block.time += 31;
-    let res = execute_unbond(&mut deps, env.clone(), unbond_amount, bob.clone()).unwrap();
+    info.block.time += 31;
+    let res = execute_unbond(
+        deps.as_mut(),
+        mock_env(),
+        info.clone(),
+        unbond_amount,
+        bob.clone(),
+    )
+    .unwrap();
     assert_eq!(2, res.messages.len());
     deps.querier.with_token_balances(&[
-        (&String::from("token"), &[(&bob, &Uint128(8000))]),
+        (&String::from("token"), &[(&bob, &Uint128::from(8000u64))]),
         (&stluna_token_contract, &[]),
     ]);
 
@@ -3344,13 +3522,13 @@ pub fn proper_withdraw_unbond_with_dummies() {
         String::from(MOCK_CONTRACT_ADDR),
         Coin {
             denom: "uluna".to_string(),
-            amount: Uint128(2200),
+            amount: Uint128::from(2200u64),
         },
     )]);
 
-    env.block.time += 120;
-    let wdraw_unbonded_msg = HandleMsg::WithdrawUnbonded {};
-    let success_res = execute(&mut deps, env.clone(), wdraw_unbonded_msg).unwrap();
+    info.block.time += 120;
+    let wdraw_unbonded_msg = ExecuteMsg::WithdrawUnbonded {};
+    let success_res = execute(deps.as_mut(), mock_env(), info.clone(), wdraw_unbonded_msg).unwrap();
 
     assert_eq!(success_res.messages.len(), 1);
 
@@ -3358,12 +3536,12 @@ pub fn proper_withdraw_unbond_with_dummies() {
         start_from: None,
         limit: None,
     };
-    let res: AllHistoryResponse = from_binary(&query(&deps, all_batches).unwrap()).unwrap();
-    assert_eq!(res.history[0].bluna_amount, Uint128(1000));
+    let res: AllHistoryResponse = from_binary(&query(deps.as_ref(), all_batches).unwrap()).unwrap();
+    assert_eq!(res.history[0].bluna_amount, Uint128::from(1000u64));
     assert_eq!(res.history[0].bluna_withdraw_rate.to_string(), "1.164");
     assert_eq!(res.history[0].released, true);
     assert_eq!(res.history[0].batch_id, 1);
-    assert_eq!(res.history[1].bluna_amount, Uint128(1000));
+    assert_eq!(res.history[1].bluna_amount, Uint128::from(1000u64));
     assert_eq!(res.history[1].bluna_withdraw_rate.to_string(), "1.033");
     assert_eq!(res.history[1].released, true);
     assert_eq!(res.history[1].batch_id, 2);
@@ -3372,12 +3550,7 @@ pub fn proper_withdraw_unbond_with_dummies() {
         + res.history[1].bluna_withdraw_rate * res.history[1].bluna_amount;
     let sent_message = &success_res.messages[0];
     match sent_message {
-        CosmosMsg::Bank(BankMsg::Send {
-            from_address,
-            to_address,
-            amount,
-        }) => {
-            assert_eq!(from_address.0, MOCK_CONTRACT_ADDR);
+        CosmosMsg::Bank(BankMsg::Send { to_address, amount }) => {
             assert_eq!(to_address, &bob);
             assert_eq!(amount[0].amount, expected)
         }
@@ -3388,24 +3561,24 @@ pub fn proper_withdraw_unbond_with_dummies() {
     // there should not be any result
     let withdrawable = WithdrawableUnbonded {
         address: bob,
-        block_time: env.block.time,
+        block_time: info.block.time,
     };
     let query_with: WithdrawableUnbondedResponse =
-        from_binary(&query(&deps, withdrawable).unwrap()).unwrap();
-    assert_eq!(query_with.withdrawable, Uint128(0));
+        from_binary(&query(deps.as_ref(), withdrawable).unwrap()).unwrap();
+    assert_eq!(query_with.withdrawable, Uint128::from(0u64));
 }
 
 /// Covers if the signed integer works properly,
 /// the exception when a user sends rogue coin.
 #[test]
 pub fn proper_withdraw_unbond_with_dummies_stluna() {
-    let mut deps = dependencies(20, &[]);
+    let mut deps = dependencies(&[]);
 
     let validator = sample_validator(DEFAULT_VALIDATOR);
     set_validator_mock(&mut deps.querier);
 
-    let bond_amount = Uint128(10000);
-    let unbond_amount = Uint128(500);
+    let bond_amount = Uint128::from(10000u64);
+    let unbond_amount = Uint128::from(500u64);
 
     let owner = String::from("owner1");
     let token_contract = String::from("token");
@@ -3413,7 +3586,7 @@ pub fn proper_withdraw_unbond_with_dummies_stluna() {
     let reward_contract = String::from("reward");
 
     initialize(
-        &mut deps,
+        deps.as_mut(),
         owner,
         reward_contract,
         token_contract,
@@ -3424,11 +3597,11 @@ pub fn proper_withdraw_unbond_with_dummies_stluna() {
     do_register_validator(&mut deps, validator.clone());
 
     let bob = String::from("bob");
-    let bond_msg = HandleMsg::BondForStLuna {};
+    let bond_msg = ExecuteMsg::BondForStLuna {};
 
-    let env = mock_env(&bob, &[coin(bond_amount.0, "uluna")]);
+    let info = mock_info(&bob, &[coin(bond_amount.u128(), "uluna")]);
 
-    let res = execute(&mut deps, env.clone(), bond_msg).unwrap();
+    let res = execute(deps.as_mut(), mock_env(), info.clone(), bond_msg).unwrap();
     assert_eq!(2, res.messages.len());
 
     //set bob's balance to 10 in token contract
@@ -3437,13 +3610,19 @@ pub fn proper_withdraw_unbond_with_dummies_stluna() {
         (&String::from("token"), &[]),
     ]);
 
-    set_delegation(&mut deps.querier, validator.clone(), bond_amount.0, "uluna");
+    set_delegation(
+        &mut deps.querier,
+        validator.clone(),
+        bond_amount.u128(),
+        "uluna",
+    );
 
-    let res = execute_unbond_stluna(&mut deps, env, unbond_amount, bob.clone()).unwrap();
+    let res =
+        execute_unbond_stluna(deps.as_mut(), mock_env(), info, unbond_amount, bob.clone()).unwrap();
     assert_eq!(1, res.messages.len());
 
     deps.querier.with_token_balances(&[
-        (&stluna_token_contract, &[(&bob, &Uint128(9500))]),
+        (&stluna_token_contract, &[(&bob, &Uint128::from(9500u64))]),
         (&String::from("token"), &[]),
     ]);
 
@@ -3451,37 +3630,63 @@ pub fn proper_withdraw_unbond_with_dummies_stluna() {
         String::from(MOCK_CONTRACT_ADDR),
         Coin {
             denom: "uluna".to_string(),
-            amount: Uint128(0),
+            amount: Uint128::from(0u64),
         },
     )]);
 
-    let mut env = mock_env(&bob, &[]);
+    let mut info = mock_info(&bob, &[]);
     //set the block time 30 seconds from now.
 
-    env.block.time += 31;
+    info.block.time += 31;
     // trigger undelegation message
-    let res = execute_unbond_stluna(&mut deps, env.clone(), unbond_amount, bob.clone()).unwrap();
+    let res = execute_unbond_stluna(
+        deps.as_mut(),
+        mock_env(),
+        info.clone(),
+        unbond_amount,
+        bob.clone(),
+    )
+    .unwrap();
     assert_eq!(2, res.messages.len());
     deps.querier.with_token_balances(&[
-        (&stluna_token_contract, &[(&bob, &Uint128(9000))]),
+        (&stluna_token_contract, &[(&bob, &Uint128::from(9000u64))]),
         (&String::from("token"), &[]),
     ]);
 
     // slashing
-    set_delegation(&mut deps.querier, validator, bond_amount.0 - 2000, "uluna");
+    set_delegation(
+        &mut deps.querier,
+        validator,
+        bond_amount.u128() - 2000,
+        "uluna",
+    );
 
-    let res = execute_unbond_stluna(&mut deps, env.clone(), unbond_amount, bob.clone()).unwrap();
+    let res = execute_unbond_stluna(
+        deps.as_mut(),
+        mock_env(),
+        info.clone(),
+        unbond_amount,
+        bob.clone(),
+    )
+    .unwrap();
     assert_eq!(1, res.messages.len());
     deps.querier.with_token_balances(&[
-        (&stluna_token_contract, &[(&bob, &Uint128(8500))]),
+        (&stluna_token_contract, &[(&bob, &Uint128::from(8500u64))]),
         (&String::from("token"), &[]),
     ]);
 
-    env.block.time += 31;
-    let res = execute_unbond_stluna(&mut deps, env.clone(), unbond_amount, bob.clone()).unwrap();
+    info.block.time += 31;
+    let res = execute_unbond_stluna(
+        deps.as_mut(),
+        mock_env(),
+        info.clone(),
+        unbond_amount,
+        bob.clone(),
+    )
+    .unwrap();
     assert_eq!(2, res.messages.len());
     deps.querier.with_token_balances(&[
-        (&stluna_token_contract, &[(&bob, &Uint128(8000))]),
+        (&stluna_token_contract, &[(&bob, &Uint128::from(8000u64))]),
         (&String::from("token"), &[]),
     ]);
 
@@ -3490,13 +3695,13 @@ pub fn proper_withdraw_unbond_with_dummies_stluna() {
         String::from(MOCK_CONTRACT_ADDR),
         Coin {
             denom: "uluna".to_string(),
-            amount: Uint128(2200),
+            amount: Uint128::from(2200u64),
         },
     )]);
 
-    env.block.time += 120;
-    let wdraw_unbonded_msg = HandleMsg::WithdrawUnbonded {};
-    let success_res = execute(&mut deps, env.clone(), wdraw_unbonded_msg).unwrap();
+    info.block.time += 120;
+    let wdraw_unbonded_msg = ExecuteMsg::WithdrawUnbonded {};
+    let success_res = execute(deps.as_mut(), mock_env(), info.clone(), wdraw_unbonded_msg).unwrap();
 
     assert_eq!(success_res.messages.len(), 1);
 
@@ -3504,12 +3709,12 @@ pub fn proper_withdraw_unbond_with_dummies_stluna() {
         start_from: None,
         limit: None,
     };
-    let res: AllHistoryResponse = from_binary(&query(&deps, all_batches).unwrap()).unwrap();
-    assert_eq!(res.history[0].stluna_amount, Uint128(1000));
+    let res: AllHistoryResponse = from_binary(&query(deps.as_ref(), all_batches).unwrap()).unwrap();
+    assert_eq!(res.history[0].stluna_amount, Uint128::from(1000u64));
     assert_eq!(res.history[0].stluna_withdraw_rate.to_string(), "1.164");
     assert_eq!(res.history[0].released, true);
     assert_eq!(res.history[0].batch_id, 1);
-    assert_eq!(res.history[1].stluna_amount, Uint128(1000));
+    assert_eq!(res.history[1].stluna_amount, Uint128::from(1000u64));
     assert_eq!(res.history[1].stluna_withdraw_rate.to_string(), "1.033");
     assert_eq!(res.history[1].released, true);
     assert_eq!(res.history[1].batch_id, 2);
@@ -3518,12 +3723,7 @@ pub fn proper_withdraw_unbond_with_dummies_stluna() {
         + res.history[1].stluna_withdraw_rate * res.history[1].stluna_amount;
     let sent_message = &success_res.messages[0];
     match sent_message {
-        CosmosMsg::Bank(BankMsg::Send {
-            from_address,
-            to_address,
-            amount,
-        }) => {
-            assert_eq!(from_address.0, MOCK_CONTRACT_ADDR);
+        CosmosMsg::Bank(BankMsg::Send { to_address, amount }) => {
             assert_eq!(to_address, &bob);
             assert_eq!(amount[0].amount, expected)
         }
@@ -3534,11 +3734,11 @@ pub fn proper_withdraw_unbond_with_dummies_stluna() {
     // there should not be any result
     let withdrawable = WithdrawableUnbonded {
         address: bob,
-        block_time: env.block.time,
+        block_time: info.block.time,
     };
     let query_with: WithdrawableUnbondedResponse =
-        from_binary(&query(&deps, withdrawable).unwrap()).unwrap();
-    assert_eq!(query_with.withdrawable, Uint128(0));
+        from_binary(&query(deps.as_ref(), withdrawable).unwrap()).unwrap();
+    assert_eq!(query_with.withdrawable, Uint128::from(0u64));
 }
 
 /// Covers if the state/parameters storage is updated to the given value,
@@ -3546,7 +3746,7 @@ pub fn proper_withdraw_unbond_with_dummies_stluna() {
 /// RewardUpdateDenom message is sent to the reward contract
 #[test]
 pub fn test_update_params() {
-    let mut deps = dependencies(20, &[]);
+    let mut deps = dependencies(&[]);
 
     let _validator = sample_validator(DEFAULT_VALIDATOR);
     set_validator_mock(&mut deps.querier);
@@ -3564,21 +3764,26 @@ pub fn test_update_params() {
     let reward_contract = String::from("reward");
 
     initialize(
-        &mut deps,
+        deps.as_mut(),
         owner,
         reward_contract,
         token_contract,
         stluna_token_contract,
     );
 
-    let invalid_env = mock_env(String::from("invalid"), &[]);
-    let res = execute(&mut deps, invalid_env, update_prams.clone());
-    assert_eq!(res.unwrap_err(), StdError::unauthorized());
-    let creator_env = mock_env(String::from("owner1"), &[]);
-    let res = execute(&mut deps, creator_env, update_prams).unwrap();
+    let invalid_info = mock_info(String::from("invalid").as_str(), &[]);
+    let res = execute(
+        deps.as_mut(),
+        mock_env(),
+        invalid_info,
+        update_prams.clone(),
+    );
+    assert_eq!(res.unwrap_err(), StdError::generic_err("unauthorized"));
+    let creator_info = mock_info(String::from("owner1").as_str(), &[]);
+    let res = execute(deps.as_mut(), mock_env(), creator_info, update_prams).unwrap();
     assert_eq!(res.messages.len(), 0);
 
-    let params: Parameters = from_binary(&query(&deps, Params {}).unwrap()).unwrap();
+    let params: Parameters = from_binary(&query(deps.as_ref(), Params {}).unwrap()).unwrap();
     assert_eq!(params.epoch_period, 20);
     assert_eq!(params.underlying_coin_denom, "uluna");
     assert_eq!(params.unbonding_period, 2);
@@ -3595,11 +3800,11 @@ pub fn test_update_params() {
     };
 
     //the result must be 1
-    let creator_env = mock_env(String::from("owner1"), &[]);
-    let res = execute(&mut deps, creator_env, update_prams).unwrap();
+    let creator_info = mock_info(String::from("owner1").as_str(), &[]);
+    let res = execute(deps.as_mut(), mock_env(), creator_info, update_prams).unwrap();
     assert_eq!(res.messages.len(), 0);
 
-    let params: Parameters = from_binary(&query(&deps, Params {}).unwrap()).unwrap();
+    let params: Parameters = from_binary(&query(deps.as_ref(), Params {}).unwrap()).unwrap();
     assert_eq!(params.epoch_period, 20);
     assert_eq!(params.underlying_coin_denom, "uluna");
     assert_eq!(params.unbonding_period, 3);
@@ -3612,38 +3817,44 @@ pub fn test_update_params() {
 /// and "withdraw_unbonded" messages) in case of a slashing event
 #[test]
 pub fn proper_recovery_fee() {
-    let mut deps = dependencies(20, &[]);
+    let mut deps = dependencies(&[]);
     let validator = sample_validator(DEFAULT_VALIDATOR);
     set_validator_mock(&mut deps.querier);
 
     let update_prams = UpdateParams {
         epoch_period: None,
         unbonding_period: None,
-        peg_recovery_fee: Some(Decimal::from_ratio(Uint128(1), Uint128(1000))),
-        er_threshold: Some(Decimal::from_ratio(Uint128(99), Uint128(100))),
+        peg_recovery_fee: Some(Decimal::from_ratio(
+            Uint128::from(1u64),
+            Uint128::from(1000u64),
+        )),
+        er_threshold: Some(Decimal::from_ratio(
+            Uint128::from(99u64),
+            Uint128::from(100u64),
+        )),
     };
     let owner = String::from("owner1");
     let token_contract = String::from("token");
     let stluna_token_contract = String::from("stluna_token");
     let reward_contract = String::from("reward");
 
-    let bond_amount = Uint128(1000000u128);
-    let unbond_amount = Uint128(100000u128);
+    let bond_amount = Uint128::from(1000000u128);
+    let unbond_amount = Uint128::from(100000u128);
 
     initialize(
-        &mut deps,
+        deps.as_mut(),
         owner,
         reward_contract,
         token_contract.clone(),
         stluna_token_contract.clone(),
     );
 
-    let creator_env = mock_env(String::from("owner1"), &[]);
-    let res = execute(&mut deps, creator_env, update_prams).unwrap();
+    let creator_info = mock_info(String::from("owner1").as_str(), &[]);
+    let res = execute(deps.as_mut(), mock_env(), creator_info, update_prams).unwrap();
     assert_eq!(res.messages.len(), 0);
 
     let get_params = Params {};
-    let parmas: Parameters = from_binary(&query(&deps, get_params).unwrap()).unwrap();
+    let parmas: Parameters = from_binary(&query(deps.as_ref(), get_params).unwrap()).unwrap();
     assert_eq!(parmas.epoch_period, 30);
     assert_eq!(parmas.underlying_coin_denom, "uluna");
     assert_eq!(parmas.unbonding_period, 2);
@@ -3654,7 +3865,7 @@ pub fn proper_recovery_fee() {
     do_register_validator(&mut deps, validator.clone());
 
     let bob = String::from("bob");
-    let bond_msg = HandleMsg::Bond {};
+    let bond_msg = ExecuteMsg::Bond {};
 
     //this will set the balance of the user in token contract
     deps.querier.with_token_balances(&[
@@ -3662,37 +3873,42 @@ pub fn proper_recovery_fee() {
         (&stluna_token_contract, &[]),
     ]);
 
-    let env = mock_env(&bob, &[coin(bond_amount.0, "uluna")]);
+    let info = mock_info(&bob, &[coin(bond_amount.u128(), "uluna")]);
 
-    let res = execute(&mut deps, env.clone(), bond_msg).unwrap();
+    let res = execute(deps.as_mut(), mock_env(), info.clone(), bond_msg).unwrap();
     assert_eq!(2, res.messages.len());
 
     set_delegation(&mut deps.querier, validator.clone(), 900000, "uluna");
 
     let report_slashing = CheckSlashing {};
-    let res = execute(&mut deps, env, report_slashing).unwrap();
+    let res = execute(deps.as_mut(), mock_env(), info, report_slashing).unwrap();
     assert_eq!(0, res.messages.len());
 
     let ex_rate = State {};
-    let query_exchange_rate: StateResponse = from_binary(&query(&deps, ex_rate).unwrap()).unwrap();
+    let query_exchange_rate: StateResponse =
+        from_binary(&query(deps.as_ref(), ex_rate).unwrap()).unwrap();
     assert_eq!(query_exchange_rate.bluna_exchange_rate.to_string(), "0.9");
 
     //Bond again to see the applied result
     let bob = String::from("bob");
-    let bond_msg = HandleMsg::Bond {};
+    let bond_msg = ExecuteMsg::Bond {};
 
     deps.querier.with_token_balances(&[
         (&String::from("token"), &[(&bob, &bond_amount)]),
         (&stluna_token_contract, &[]),
     ]);
 
-    let env = mock_env(&bob, &[coin(bond_amount.0, "uluna")]);
+    let info = mock_info(&bob, &[coin(bond_amount.u128(), "uluna")]);
 
-    let res = execute(&mut deps, env, bond_msg).unwrap();
-    let mint_amount = decimal_division(bond_amount, Decimal::from_ratio(Uint128(9), Uint128(10)));
+    let res = execute(deps.as_mut(), mock_env(), info, bond_msg).unwrap();
+    let mint_amount = decimal_division(
+        bond_amount,
+        Decimal::from_ratio(Uint128::from(9u64), Uint128::from(10u64)),
+    );
     let max_peg_fee = mint_amount * parmas.peg_recovery_fee;
-    let required_peg_fee =
-        ((bond_amount + mint_amount + Uint128::zero()) - (Uint128(900000) + bond_amount)).unwrap();
+    let required_peg_fee = ((bond_amount + mint_amount + Uint128::zero())
+        - (Uint128::from(900000u64) + bond_amount))
+        .unwrap();
     let peg_fee = Uint128::min(max_peg_fee, required_peg_fee);
     let mint_amount_with_fee = (mint_amount - peg_fee).unwrap();
 
@@ -3701,7 +3917,7 @@ pub fn proper_recovery_fee() {
         CosmosMsg::Wasm(WasmMsg::Execute {
             contract_addr: _,
             msg,
-            send: _,
+            funds: _,
         }) => assert_eq!(
             msg,
             &to_binary(&Mint {
@@ -3718,20 +3934,21 @@ pub fn proper_recovery_fee() {
     let receive = Receive(Cw20ReceiveMsg {
         sender: token_contract.clone(),
         amount: unbond_amount,
-        msg: Some(to_binary(&unbond).unwrap()),
+        msg: to_binary(&unbond).unwrap(),
     });
 
     let new_balance = (bond_amount - unbond_amount).unwrap();
 
-    let mut token_env = mock_env(&token_contract, &[]);
-    let res = execute(&mut deps, token_env.clone(), receive).unwrap();
+    let mut token_info = mock_info(&token_contract, &[]);
+    let res = execute(deps.as_mut(), mock_env(), token_info.clone(), receive).unwrap();
     assert_eq!(1, res.messages.len());
 
     //check current batch
-    let bonded_with_fee = unbond_amount * Decimal::from_ratio(Uint128(999), Uint128(1000));
+    let bonded_with_fee =
+        unbond_amount * Decimal::from_ratio(Uint128::from(999u64), Uint128::from(1000u64));
     let current_batch = CurrentBatch {};
     let query_batch: CurrentBatchResponse =
-        from_binary(&query(&deps, current_batch).unwrap()).unwrap();
+        from_binary(&query(deps.as_ref(), current_batch).unwrap()).unwrap();
     assert_eq!(query_batch.id, 1);
     assert_eq!(query_batch.requested_bluna_with_fee, bonded_with_fee);
 
@@ -3740,19 +3957,20 @@ pub fn proper_recovery_fee() {
         (&stluna_token_contract, &[]),
     ]);
 
-    token_env.block.time += 60;
+    token_info.block.time += 60;
 
     let second_unbond = Unbond {};
     let receive = Receive(Cw20ReceiveMsg {
         sender: token_contract,
         amount: unbond_amount,
-        msg: Some(to_binary(&second_unbond).unwrap()),
+        msg: to_binary(&second_unbond).unwrap(),
     });
-    let res = execute(&mut deps, token_env.clone(), receive).unwrap();
+    let res = execute(deps.as_mut(), mock_env(), token_info.clone(), receive).unwrap();
     assert_eq!(2, res.messages.len());
 
     let ex_rate = State {};
-    let query_exchange_rate: StateResponse = from_binary(&query(&deps, ex_rate).unwrap()).unwrap();
+    let query_exchange_rate: StateResponse =
+        from_binary(&query(deps.as_ref(), ex_rate).unwrap()).unwrap();
     let new_exchange = query_exchange_rate.bluna_exchange_rate;
 
     let expected = bonded_with_fee + bonded_with_fee;
@@ -3773,28 +3991,28 @@ pub fn proper_recovery_fee() {
         String::from(MOCK_CONTRACT_ADDR),
         Coin {
             denom: "uluna".to_string(),
-            amount: Uint128(161870),
+            amount: Uint128::from(161870u64),
         },
     )]);
 
-    token_env.block.time += 90;
+    token_info.block.time += 90;
     //check withdrawUnbonded message
-    let withdraw_unbond_msg = HandleMsg::WithdrawUnbonded {};
-    let wdraw_unbonded_res = execute(&mut deps, token_env, withdraw_unbond_msg).unwrap();
+    let withdraw_unbond_msg = ExecuteMsg::WithdrawUnbonded {};
+    let wdraw_unbonded_res =
+        execute(deps.as_mut(), mock_env(), token_info, withdraw_unbond_msg).unwrap();
     assert_eq!(wdraw_unbonded_res.messages.len(), 1);
 
     let sent_message = &wdraw_unbonded_res.messages[0];
-    let expected =
-        ((expected * new_exchange * Decimal::from_ratio(Uint128(161870), expected * new_exchange))
-            - Uint128(1))
-        .unwrap();
+    let expected = ((expected
+        * new_exchange
+        * Decimal::from_ratio(Uint128::from(161870u64), expected * new_exchange))
+        - Uint128::from(1u64))
+    .unwrap();
     match sent_message {
         CosmosMsg::Bank(BankMsg::Send {
-            from_address,
             to_address: _,
             amount,
         }) => {
-            assert_eq!(from_address.0, MOCK_CONTRACT_ADDR);
             assert_eq!(amount[0].amount, expected);
         }
 
@@ -3805,7 +4023,7 @@ pub fn proper_recovery_fee() {
         start_from: None,
         limit: None,
     };
-    let res: AllHistoryResponse = from_binary(&query(&deps, all_batches).unwrap()).unwrap();
+    let res: AllHistoryResponse = from_binary(&query(deps.as_ref(), all_batches).unwrap()).unwrap();
     // amount should be 99 + 99 since we store the requested amount with peg fee applied.
     assert_eq!(
         res.history[0].bluna_amount,
@@ -3814,7 +4032,7 @@ pub fn proper_recovery_fee() {
     assert_eq!(res.history[0].bluna_applied_exchange_rate, new_exchange);
     assert_eq!(
         res.history[0].bluna_withdraw_rate,
-        Decimal::from_ratio(Uint128(161869), bonded_with_fee + bonded_with_fee)
+        Decimal::from_ratio(Uint128::from(161869u64), bonded_with_fee + bonded_with_fee)
     );
     assert_eq!(res.history[0].released, true);
     assert_eq!(res.history[0].batch_id, 1);
@@ -3823,7 +4041,7 @@ pub fn proper_recovery_fee() {
 /// Covers if the storage affected by update_config are updated properly
 #[test]
 pub fn proper_update_config() {
-    let mut deps = dependencies(20, &[]);
+    let mut deps = dependencies(&[]);
 
     let _validator = sample_validator(DEFAULT_VALIDATOR);
     set_validator_mock(&mut deps.querier);
@@ -3837,7 +4055,7 @@ pub fn proper_update_config() {
     let airdrop_registry = String::from("airdrop_registry");
 
     initialize(
-        &mut deps,
+        deps.as_mut(),
         owner.clone(),
         reward_contract.clone(),
         token_contract.clone(),
@@ -3845,7 +4063,7 @@ pub fn proper_update_config() {
     );
 
     let config = Config {};
-    let config_query: ConfigResponse = from_binary(&query(&deps, config).unwrap()).unwrap();
+    let config_query: ConfigResponse = from_binary(&query(deps.as_ref(), config).unwrap()).unwrap();
     assert_eq!(&config_query.bluna_token_contract.unwrap(), &token_contract);
     assert_eq!(
         &config_query.airdrop_registry_contract.unwrap(),
@@ -3868,9 +4086,9 @@ pub fn proper_update_config() {
         validators_registry_contract: None,
         stluna_token_contract: None,
     };
-    let env = mock_env(&invalid_owner, &[]);
-    let res = execute(&mut deps, env, update_config);
-    assert_eq!(res.unwrap_err(), StdError::unauthorized());
+    let info = mock_info(&invalid_owner, &[]);
+    let res = execute(deps.as_mut(), mock_env(), info, update_config);
+    assert_eq!(res.unwrap_err(), StdError::generic_err("unauthorized"));
 
     // change the owner
     let update_config = UpdateConfig {
@@ -3881,11 +4099,11 @@ pub fn proper_update_config() {
         validators_registry_contract: None,
         stluna_token_contract: None,
     };
-    let env = mock_env(&owner, &[]);
-    let res = execute(&mut deps, env, update_config).unwrap();
+    let info = mock_info(&owner, &[]);
+    let res = execute(deps.as_mut(), mock_env(), info, update_config).unwrap();
     assert_eq!(res.messages.len(), 0);
 
-    let config = read_config(deps.storage).load().unwrap();
+    let config = CONFIG.load(&deps.storage).unwrap();
     let new_owner_raw = deps.api.addr_canonicalize(&new_owner).unwrap();
     assert_eq!(new_owner_raw, config.creator);
 
@@ -3897,8 +4115,8 @@ pub fn proper_update_config() {
         er_threshold: None,
     };
 
-    let new_owner_env = mock_env(&new_owner, &[]);
-    let res = execute(&mut deps, new_owner_env, update_prams).unwrap();
+    let new_owner_info = mock_info(&new_owner, &[]);
+    let res = execute(deps.as_mut(), mock_env(), new_owner_info, update_prams).unwrap();
     assert_eq!(res.messages.len(), 0);
 
     //previous owner cannot send this message
@@ -3909,9 +4127,9 @@ pub fn proper_update_config() {
         er_threshold: None,
     };
 
-    let new_owner_env = mock_env(&owner, &[]);
-    let res = execute(&mut deps, new_owner_env, update_prams);
-    assert_eq!(res.unwrap_err(), StdError::unauthorized());
+    let new_owner_info = mock_info(&owner, &[]);
+    let res = execute(deps.as_mut(), mock_env(), new_owner_info, update_prams);
+    assert_eq!(res.unwrap_err(), StdError::generic_err("unauthorized"));
 
     let update_config = UpdateConfig {
         owner: None,
@@ -3921,18 +4139,17 @@ pub fn proper_update_config() {
         validators_registry_contract: None,
         stluna_token_contract: None,
     };
-    let new_owner_env = mock_env(&new_owner, &[]);
-    let res = execute(&mut deps, new_owner_env, update_config).unwrap();
+    let new_owner_info = mock_info(&new_owner, &[]);
+    let res = execute(deps.as_mut(), mock_env(), new_owner_info, update_config).unwrap();
     assert_eq!(res.messages.len(), 1);
 
-    let msg: CosmosMsg = CosmosMsg::Staking(StakingMsg::Withdraw {
+    let msg: CosmosMsg = CosmosMsg::Distribution(DistributionMsg::WithdrawDelegatorReward {
         validator: String::default(),
-        recipient: Some(String::from("new reward")),
     });
     assert_eq!(msg, res.messages[0]);
 
     let config = Config {};
-    let config_query: ConfigResponse = from_binary(&query(&deps, config).unwrap()).unwrap();
+    let config_query: ConfigResponse = from_binary(&query(deps.as_ref(), config).unwrap()).unwrap();
     assert_eq!(
         config_query.reward_dispatcher_contract.unwrap(),
         String::from("new reward")
@@ -3946,12 +4163,12 @@ pub fn proper_update_config() {
         validators_registry_contract: None,
         stluna_token_contract: None,
     };
-    let new_owner_env = mock_env(&new_owner, &[]);
-    let res = execute(&mut deps, new_owner_env, update_config).unwrap();
+    let new_owner_info = mock_info(&new_owner, &[]);
+    let res = execute(deps.as_mut(), mock_env(), new_owner_info, update_config).unwrap();
     assert_eq!(res.messages.len(), 0);
 
     let config = Config {};
-    let config_query: ConfigResponse = from_binary(&query(&deps, config).unwrap()).unwrap();
+    let config_query: ConfigResponse = from_binary(&query(deps.as_ref(), config).unwrap()).unwrap();
     assert_eq!(
         config_query.bluna_token_contract.unwrap(),
         String::from("new token")
@@ -3972,12 +4189,12 @@ pub fn proper_update_config() {
         validators_registry_contract: None,
         stluna_token_contract: None,
     };
-    let new_owner_env = mock_env(&new_owner, &[]);
-    let res = execute(&mut deps, new_owner_env, update_config).unwrap();
+    let new_owner_info = mock_info(&new_owner, &[]);
+    let res = execute(deps.as_mut(), mock_env(), new_owner_info, update_config).unwrap();
     assert_eq!(res.messages.len(), 0);
 
     let config = Config {};
-    let config_query: ConfigResponse = from_binary(&query(&deps, config).unwrap()).unwrap();
+    let config_query: ConfigResponse = from_binary(&query(deps.as_ref(), config).unwrap()).unwrap();
     assert_eq!(
         config_query.airdrop_registry_contract.unwrap(),
         String::from("new airdrop")
@@ -3991,12 +4208,12 @@ pub fn proper_update_config() {
         bluna_token_contract: None,
         stluna_token_contract: None,
     };
-    let new_owner_env = mock_env(&new_owner, &[]);
-    let res = execute(&mut deps, new_owner_env, update_config).unwrap();
+    let new_owner_info = mock_info(&new_owner, &[]);
+    let res = execute(deps.as_mut(), mock_env(), new_owner_info, update_config).unwrap();
     assert_eq!(res.messages.len(), 0);
 
     let config = Config {};
-    let config_query: ConfigResponse = from_binary(&query(&deps, config).unwrap()).unwrap();
+    let config_query: ConfigResponse = from_binary(&query(deps.as_ref(), config).unwrap()).unwrap();
     assert_eq!(
         config_query.validators_registry_contract.unwrap(),
         String::from("new registry"),
@@ -4010,12 +4227,12 @@ pub fn proper_update_config() {
         bluna_token_contract: None,
         stluna_token_contract: Some(stluna_token_contract.clone()),
     };
-    let new_owner_env = mock_env(&new_owner, &[]);
-    let res = execute(&mut deps, new_owner_env, update_config).unwrap();
+    let new_owner_info = mock_info(&new_owner, &[]);
+    let res = execute(deps.as_mut(), mock_env(), new_owner_info, update_config).unwrap();
     assert_eq!(res.messages.len(), 0);
 
     let config = Config {};
-    let config_query: ConfigResponse = from_binary(&query(&deps, config).unwrap()).unwrap();
+    let config_query: ConfigResponse = from_binary(&query(deps.as_ref(), config).unwrap()).unwrap();
     assert_eq!(
         config_query.stluna_token_contract.unwrap(),
         stluna_token_contract,
@@ -4024,7 +4241,7 @@ pub fn proper_update_config() {
 
 #[test]
 fn proper_claim_airdrop() {
-    let mut deps = dependencies(20, &[]);
+    let mut deps = dependencies(&[]);
 
     set_validator_mock(&mut deps.querier);
 
@@ -4035,14 +4252,14 @@ fn proper_claim_airdrop() {
     let airdrop_registry = String::from("airdrop_registry");
 
     initialize(
-        &mut deps,
+        deps.as_mut(),
         owner.clone(),
         reward_contract,
         token_contract,
         stluna_token_contract,
     );
 
-    let claim_msg = HandleMsg::ClaimAirdrop {
+    let claim_msg = ExecuteMsg::ClaimAirdrop {
         airdrop_token_contract: String::from("airdrop_token"),
         airdrop_contract: String::from("MIR_contract"),
         airdrop_swap_contract: String::from("airdrop_swap"),
@@ -4051,15 +4268,15 @@ fn proper_claim_airdrop() {
     };
 
     //invalid sender
-    let env = mock_env(&owner, &[]);
-    let res = execute(&mut deps, env, claim_msg.clone()).unwrap_err();
+    let info = mock_info(&owner, &[]);
+    let res = execute(deps.as_mut(), mock_env(), info, claim_msg.clone()).unwrap_err();
     assert_eq!(
         res,
         StdError::generic_err(format!("Sender must be {}", &airdrop_registry))
     );
 
-    let valid_env = mock_env(&airdrop_registry, &[]);
-    let res = execute(&mut deps, valid_env.clone(), claim_msg).unwrap();
+    let valid_info = mock_info(&airdrop_registry, &[]);
+    let res = execute(deps.as_mut(), mock_env(), valid_info.clone(), claim_msg).unwrap();
     assert_eq!(res.messages.len(), 2);
 
     assert_eq!(
@@ -4067,27 +4284,27 @@ fn proper_claim_airdrop() {
         CosmosMsg::Wasm(WasmMsg::Execute {
             contract_addr: String::from("MIR_contract"),
             msg: to_binary(&MIRMsg::MIRClaim {}).unwrap(),
-            send: vec![],
+            funds: vec![],
         })
     );
     assert_eq!(
         res.messages[1],
         CosmosMsg::Wasm(WasmMsg::Execute {
-            contract_addr: valid_env.contract.address,
-            msg: to_binary(&HandleMsg::SwapHook {
+            contract_addr: valid_info.contract.address,
+            msg: to_binary(&ExecuteMsg::SwapHook {
                 airdrop_token_contract: String::from("airdrop_token"),
                 airdrop_swap_contract: String::from("airdrop_swap"),
                 swap_msg: Default::default(),
             })
             .unwrap(),
-            send: vec![],
+            funds: vec![],
         })
     );
 }
 
 #[test]
 fn proper_swap_hook() {
-    let mut deps = dependencies(20, &[]);
+    let mut deps = dependencies(&[]);
 
     set_validator_mock(&mut deps.querier);
 
@@ -4097,14 +4314,14 @@ fn proper_swap_hook() {
     let reward_contract = String::from("reward");
 
     initialize(
-        &mut deps,
+        deps.as_mut(),
         owner.clone(),
         reward_contract.clone(),
         token_contract,
         stluna_token_contract,
     );
 
-    let swap_msg = HandleMsg::SwapHook {
+    let swap_msg = ExecuteMsg::SwapHook {
         airdrop_token_contract: String::from("airdrop_token"),
         airdrop_swap_contract: String::from("swap_contract"),
         swap_msg: to_binary(&PairHandleMsg::Swap {
@@ -4116,60 +4333,64 @@ fn proper_swap_hook() {
     };
 
     //invalid sender
-    let env = mock_env(&owner, &[]);
-    let res = execute(&mut deps, env.clone(), swap_msg.clone()).unwrap_err();
-    assert_eq!(res, StdError::unauthorized());
+    let info = mock_info(&owner, &[]);
+    let res = execute(deps.as_mut(), mock_env(), info.clone(), swap_msg.clone()).unwrap_err();
+    assert_eq!(res, StdError::generic_err("unauthorized"));
 
     // no balance for hub
-    let contract_env = mock_env(&env.contract.address, &[]);
-    let res = execute(&mut deps, contract_env.clone(), swap_msg.clone()).unwrap_err();
+    let contract_info = mock_info(&info.contract.address, &[]);
+    let res = execute(
+        deps.as_mut(),
+        mock_env(),
+        contract_info.clone(),
+        swap_msg.clone(),
+    )
+    .unwrap_err();
     assert_eq!(
         res,
         StdError::generic_err(format!(
             "There is no balance for {} in airdrop token contract {}",
-            &env.contract.address,
+            &info.contract.address,
             &String::from("airdrop_token")
         ))
     );
 
     deps.querier.with_token_balances(&[(
         &String::from("airdrop_token"),
-        &[(&env.contract.address, &Uint128(1000))],
+        &[(&info.contract.address, &Uint128::from(1000u64))],
     )]);
 
-    let res = execute(&mut deps, contract_env, swap_msg).unwrap();
+    let res = execute(deps.as_mut(), mock_env(), contract_info, swap_msg).unwrap();
     assert_eq!(res.messages.len(), 1);
     assert_eq!(
         res.messages[0],
         CosmosMsg::Wasm(WasmMsg::Execute {
             contract_addr: String::from("airdrop_token"),
-            msg: to_binary(&Cw20HandleMsg::Send {
+            msg: to_binary(&Cw20ExecuteMsg::Send {
                 contract: String::from("swap_contract"),
-                amount: Uint128(1000),
-                msg: Some(
-                    to_binary(&PairHandleMsg::Swap {
-                        belief_price: None,
-                        max_spread: None,
-                        to: Some(reward_contract),
-                    })
-                    .unwrap()
-                ),
+                amount: Uint128::from(1000u64),
+                msg: to_binary(&PairHandleMsg::Swap {
+                    belief_price: None,
+                    max_spread: None,
+                    to: Some(reward_contract),
+                })
+                .unwrap(),
             })
             .unwrap(),
-            send: vec![],
+            funds: vec![],
         })
     )
 }
 
 #[test]
 fn proper_update_global_index_with_airdrop() {
-    let mut deps = dependencies(20, &[]);
+    let mut deps = dependencies(&[]);
 
     let validator = sample_validator(DEFAULT_VALIDATOR);
     set_validator_mock(&mut deps.querier);
 
     let addr1 = String::from("addr1000");
-    let bond_amount = Uint128(10);
+    let bond_amount = Uint128::from(10u64);
 
     let owner = String::from("owner1");
     let token_contract = String::from("token");
@@ -4177,7 +4398,7 @@ fn proper_update_global_index_with_airdrop() {
     let reward_contract = String::from("reward");
 
     initialize(
-        &mut deps,
+        deps.as_mut(),
         owner,
         reward_contract,
         token_contract,
@@ -4192,7 +4413,7 @@ fn proper_update_global_index_with_airdrop() {
 
     //set delegation for query-all-delegation
     let delegations: [FullDelegation; 1] =
-        [(sample_delegation(validator.address.clone(), coin(bond_amount.0, "uluna")))];
+        [(sample_delegation(validator.address.clone(), coin(bond_amount.u128(), "uluna")))];
 
     let validators: [Validator; 1] = [(validator)];
 
@@ -4201,28 +4422,28 @@ fn proper_update_global_index_with_airdrop() {
     //set bob's balance to 10 in token contract
     deps.querier.with_token_balances(&[
         (&String::from("token"), &[(&addr1, &bond_amount)]),
-        (&stluna_token_contract, &[(&addr1, &Uint128(10))]),
+        (&stluna_token_contract, &[(&addr1, &Uint128::from(10u64))]),
     ]);
 
     let binary_msg = to_binary(&FabricateMIRClaim {
         stage: 0,
-        amount: Uint128(1000),
+        amount: Uint128::from(1000u64),
         proof: vec!["proof".to_string()],
     })
     .unwrap();
 
     let binary_msg2 = to_binary(&FabricateANCClaim {
         stage: 0,
-        amount: Uint128(1000),
+        amount: Uint128::from(1000u64),
         proof: vec!["proof".to_string()],
     })
     .unwrap();
-    let reward_msg = HandleMsg::UpdateGlobalIndex {
+    let reward_msg = ExecuteMsg::UpdateGlobalIndex {
         airdrop_hooks: Some(vec![binary_msg.clone(), binary_msg2.clone()]),
     };
 
-    let env = mock_env(&addr1, &[]);
-    let res = execute(&mut deps, env, reward_msg).unwrap();
+    let info = mock_info(&addr1, &[]);
+    let res = execute(deps.as_mut(), mock_env(), info, reward_msg).unwrap();
     assert_eq!(5, res.messages.len());
 
     assert_eq!(
@@ -4230,7 +4451,7 @@ fn proper_update_global_index_with_airdrop() {
         CosmosMsg::Wasm(WasmMsg::Execute {
             contract_addr: String::from("airdrop_registry"),
             msg: binary_msg,
-            send: vec![],
+            funds: vec![],
         })
     );
 
@@ -4239,7 +4460,7 @@ fn proper_update_global_index_with_airdrop() {
         CosmosMsg::Wasm(WasmMsg::Execute {
             contract_addr: String::from("airdrop_registry"),
             msg: binary_msg2,
-            send: vec![],
+            funds: vec![],
         })
     );
 }
@@ -4262,10 +4483,10 @@ fn set_delegation_query(
 
 fn sample_delegation(addr: String, amount: Coin) -> FullDelegation {
     let can_redelegate = amount.clone();
-    let accumulated_rewards = coin(0, &amount.denom);
+    let accumulated_rewards = coins(0, &amount.denom);
     FullDelegation {
         validator: addr,
-        delegator: String::from(MOCK_CONTRACT_ADDR),
+        delegator: Addr::unchecked(String::from(MOCK_CONTRACT_ADDR)),
         amount,
         can_redelegate,
         accumulated_rewards,
@@ -4281,7 +4502,7 @@ pub enum MIRMsg {
 
 #[test]
 fn test_receive_cw20() {
-    let mut deps = dependencies(20, &coins(2, "token"));
+    let mut deps = dependencies(&coins(2, "token"));
     // let stluna_addr = String::from("stluna_token");
     let sender_addr = String::from("addr001");
     let owner = String::from("owner1");
@@ -4290,45 +4511,48 @@ fn test_receive_cw20() {
     let reward_contract = String::from("reward");
 
     initialize(
-        &mut deps,
+        deps.as_mut(),
         owner,
         reward_contract,
         bluna_token_contract.clone(),
         stluna_token_contract.clone(),
     );
-    store_state(deps.storage)
-        .update(|mut prev_state| {
-            prev_state.total_bond_stluna_amount = Uint128(1000);
-            prev_state.total_bond_bluna_amount = Uint128(1000);
+    STATE
+        .update(&mut deps.storage, |mut prev_state| -> StdResult<_> {
+            prev_state.total_bond_stluna_amount = Uint128::from(1000u64);
+            prev_state.total_bond_bluna_amount = Uint128::from(1000u64);
             Ok(prev_state)
         })
         .unwrap();
     deps.querier.with_token_balances(&[
         (
             &String::from("stluna_token"),
-            &[(&sender_addr, &Uint128(1000))],
+            &[(&sender_addr, &Uint128::from(1000u64))],
         ),
-        (&String::from("token"), &[(&sender_addr, &Uint128(1000))]),
+        (
+            &String::from("token"),
+            &[(&sender_addr, &Uint128::from(1000u64))],
+        ),
     ]);
     {
         // just enough stluna tokens to convert
-        let env = mock_env(stluna_token_contract.clone(), &[]);
-        let msg = HandleMsg::Receive(Cw20ReceiveMsg {
+        let info = mock_info(stluna_token_contract.as_str(), &[]);
+        let msg = ExecuteMsg::Receive(Cw20ReceiveMsg {
             sender: sender_addr.clone(),
-            amount: Uint128(1000),
-            msg: Some(to_binary(&Cw20HookMsg::Convert {}).unwrap()),
+            amount: Uint128::from(1000u64),
+            msg: to_binary(&Cw20HookMsg::Convert {}).unwrap(),
         });
-        let _ = execute(&mut deps, env, msg).unwrap();
+        let _ = execute(deps.as_mut(), mock_env(), info, msg).unwrap();
     }
     {
         // does not enough stluna tokens to convert
-        let env = mock_env(stluna_token_contract, &[]);
-        let msg = HandleMsg::Receive(Cw20ReceiveMsg {
+        let info = mock_info(stluna_token_contract.as_str(), &[]);
+        let msg = ExecuteMsg::Receive(Cw20ReceiveMsg {
             sender: sender_addr.clone(),
-            amount: Uint128(1001),
-            msg: Some(to_binary(&Cw20HookMsg::Convert {}).unwrap()),
+            amount: Uint128::from(1001u64),
+            msg: to_binary(&Cw20HookMsg::Convert {}).unwrap(),
         });
-        let err = execute(&mut deps, env, msg).unwrap_err();
+        let err = execute(deps.as_mut(), mock_env(), info, msg).unwrap_err();
         assert_eq!(
             StdError::generic_err(
                 "Decrease amount cannot exceed total stluna bond amount: 0. Trying to reduce: 1001"
@@ -4339,23 +4563,23 @@ fn test_receive_cw20() {
 
     {
         // just enough bluna tokens to convert
-        let env = mock_env(bluna_token_contract.clone(), &[]);
-        let msg = HandleMsg::Receive(Cw20ReceiveMsg {
+        let info = mock_info(bluna_token_contract.as_str(), &[]);
+        let msg = ExecuteMsg::Receive(Cw20ReceiveMsg {
             sender: sender_addr.clone(),
-            amount: Uint128(1000),
-            msg: Some(to_binary(&Cw20HookMsg::Convert {}).unwrap()),
+            amount: Uint128::from(1000u64),
+            msg: to_binary(&Cw20HookMsg::Convert {}).unwrap(),
         });
-        let _ = execute(&mut deps, env, msg).unwrap();
+        let _ = execute(deps.as_mut(), mock_env(), info, msg).unwrap();
     }
     {
         // does not enough bluna tokens to convert
-        let env = mock_env(bluna_token_contract, &[]);
-        let msg = HandleMsg::Receive(Cw20ReceiveMsg {
+        let info = mock_info(bluna_token_contract.as_str(), &[]);
+        let msg = ExecuteMsg::Receive(Cw20ReceiveMsg {
             sender: sender_addr,
-            amount: Uint128(1001),
-            msg: Some(to_binary(&Cw20HookMsg::Convert {}).unwrap()),
+            amount: Uint128::from(1001u64),
+            msg: to_binary(&Cw20HookMsg::Convert {}).unwrap(),
         });
-        let err = execute(&mut deps, env, msg).unwrap_err();
+        let err = execute(deps.as_mut(), mock_env(), info, msg).unwrap_err();
         assert_eq!(
             StdError::generic_err(
                 "Decrease amount cannot exceed total bluna bond amount: 1000. Trying to reduce: 1001"

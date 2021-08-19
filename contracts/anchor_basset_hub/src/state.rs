@@ -1,10 +1,7 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use cosmwasm_std::{
-    from_slice, to_vec, Decimal, Order, ReadonlyStorage, StdError, StdResult, Storage, String,
-    Uint128,
-};
+use cosmwasm_std::{from_slice, to_vec, Decimal, Order, StdError, StdResult, Storage, Uint128};
 use cosmwasm_storage::{
     singleton, singleton_read, Bucket, PrefixedStorage, ReadonlyBucket, ReadonlyPrefixedStorage,
     ReadonlySingleton, Singleton,
@@ -14,7 +11,6 @@ use cw_storage_plus::Item;
 
 use crate::msg::UnbondRequest;
 use basset::hub::{Config, OldConfig, OldState, State};
-use hub_querier::{Config, OldConfig, OldState, State};
 
 pub type LastBatch = u64;
 
@@ -199,7 +195,7 @@ pub fn get_finished_amount(storage: &dyn Storage, sender_addr: String) -> StdRes
 }
 
 /// Return the finished amount for all batches that has been before the given block time.
-pub fn query_get_finished_amount<'a, S: ReadonlyStorage>(
+pub fn query_get_finished_amount(
     storage: &dyn Storage,
     sender_addr: String,
     block_time: u64,

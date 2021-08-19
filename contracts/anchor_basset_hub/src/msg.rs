@@ -1,5 +1,5 @@
 use crate::state::UnbondHistory;
-use cosmwasm_std::{Decimal, String, Uint128};
+use cosmwasm_std::{Decimal, Uint128};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
