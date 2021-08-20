@@ -1,26 +1,22 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "title": "TokenInfoResponse",
+  "title": "CurrentBatchResponse",
   "type": "object",
   "required": [
-    "decimals",
-    "name",
-    "symbol",
-    "total_supply"
+    "id",
+    "requested_bluna_with_fee",
+    "requested_stluna"
   ],
   "properties": {
-    "decimals": {
+    "id": {
       "type": "integer",
-      "format": "uint8",
+      "format": "uint64",
       "minimum": 0.0
     },
-    "name": {
-      "type": "string"
+    "requested_bluna_with_fee": {
+      "$ref": "#/definitions/Uint128"
     },
-    "symbol": {
-      "type": "string"
-    },
-    "total_supply": {
+    "requested_stluna": {
       "$ref": "#/definitions/Uint128"
     }
   },

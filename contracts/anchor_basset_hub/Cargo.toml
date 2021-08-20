@@ -30,6 +30,7 @@ overflow-checks = true
 # for quicker tests, cargo test --lib
 # for more explicit tests, cargo test --features=backtraces
 backtraces = ["cosmwasm-std/backtraces", "cosmwasm-vm/backtraces"]
+library = []
 
 [dependencies]
 cw20 = "0.8.0"
@@ -42,9 +43,9 @@ schemars = "0.8.0"
 serde = { version = "1.0.103", default-features = false, features = ["derive"] }
 snafu = { version = "0.6.3" }
 rand = "0.5.0"
-anchor_basset_rewards_dispatcher = {path = "../anchor_basset_rewards_dispatcher" }
-anchor_basset_token = {path = "../anchor_basset_token"}
-anchor_airdrop_registry = {path = "../anchor_airdrop_registry", default-features = false, version = "1.0.0"}
+anchor_basset_rewards_dispatcher = {path = "../anchor_basset_rewards_dispatcher", features = ["library"] }
+anchor_basset_token = {path = "../anchor_basset_token", features = ["library"]}
+anchor_airdrop_registry = {path = "../anchor_airdrop_registry", default-features = false, version = "1.0.0", features = ["library"]}
 basset = { path = "../../packages/basset", default-features = false, version = "0.1.0"}
 signed_integer = { path = "../../packages/signed_integers", default-features = false, version = "0.1.0"}
 anchor_basset_validators_registry = {path = "../anchor_basset_validators_registry", features = ["library"]}

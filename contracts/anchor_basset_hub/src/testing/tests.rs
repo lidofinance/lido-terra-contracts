@@ -212,7 +212,8 @@ fn proper_initialization() {
 
     // check parameters storage
     let params = Params {};
-    let query_params: Parameters = from_binary(&query(deps.as_ref(), params).unwrap()).unwrap();
+    let query_params: Parameters =
+        from_binary(&query(deps.as_ref(), mock_env(), params).unwrap()).unwrap();
     assert_eq!(query_params.epoch_period, 30);
     assert_eq!(query_params.underlying_coin_denom, "uluna");
     assert_eq!(query_params.unbonding_period, 210);
@@ -222,7 +223,8 @@ fn proper_initialization() {
 
     // state storage must be initialized
     let state = State {};
-    let query_state: StateResponse = from_binary(&query(deps.as_ref(), state).unwrap()).unwrap();
+    let query_state: StateResponse =
+        from_binary(&query(deps.as_ref(), mock_env(), state).unwrap()).unwrap();
     let expected_result = StateResponse {
         bluna_exchange_rate: Decimal::one(),
         stluna_exchange_rate: Decimal::one(),
@@ -237,7 +239,8 @@ fn proper_initialization() {
 
     // config storage must be initialized
     let conf = Config {};
-    let query_conf: ConfigResponse = from_binary(&query(deps.as_ref(), conf).unwrap()).unwrap();
+    let query_conf: ConfigResponse =
+        from_binary(&query(deps.as_ref(), mock_env(), conf).unwrap()).unwrap();
     let expected_conf = ConfigResponse {
         owner: String::from("owner1"),
         reward_dispatcher_contract: None,
@@ -252,7 +255,7 @@ fn proper_initialization() {
     // current branch storage must be initialized
     let current_batch = CurrentBatch {};
     let query_batch: CurrentBatchResponse =
-        from_binary(&query(deps.as_ref(), current_batch).unwrap()).unwrap();
+        from_binary(&query(deps.as_ref(), mock_env(), current_batch).unwrap()).unwrap();
     assert_eq!(
         query_batch,
         CurrentBatchResponse {
@@ -353,7 +356,8 @@ fn proper_bond() {
 
     // get total bonded
     let state = State {};
-    let query_state: StateResponse = from_binary(&query(deps.as_ref(), state).unwrap()).unwrap();
+    let query_state: StateResponse =
+        from_binary(&query(deps.as_ref(), mock_env(), state).unwrap()).unwrap();
     assert_eq!(query_state.total_bond_bluna_amount, bond_amount);
     assert_eq!(query_state.bluna_exchange_rate, Decimal::one());
 
@@ -485,7 +489,8 @@ fn proper_bond_for_st_luna() {
 
     // get total bonded
     let state = State {};
-    let query_state: StateResponse = from_binary(&query(deps.as_ref(), state).unwrap()).unwrap();
+    let query_state: StateResponse =
+        from_binary(&query(deps.as_ref(), mock_env(), state).unwrap()).unwrap();
     assert_eq!(query_state.total_bond_stluna_amount, bond_amount);
     assert_eq!(query_state.stluna_exchange_rate, Decimal::one());
 
@@ -607,7 +612,8 @@ fn proper_bond_rewards() {
 
     // get total bonded
     let state = State {};
-    let query_state: StateResponse = from_binary(&query(deps.as_ref(), state).unwrap()).unwrap();
+    let query_state: StateResponse =
+        from_binary(&query(deps.as_ref(), mock_env(), state).unwrap()).unwrap();
     assert_eq!(
         query_state.total_bond_stluna_amount,
         bond_amount + bond_amount // BondForStLuna + BondRewards
@@ -733,7 +739,7 @@ pub fn proper_update_global_index() {
 
     let last_index_query = State {};
     let last_modification: StateResponse =
-        from_binary(&query(deps.as_ref(), last_index_query).unwrap()).unwrap();
+        from_binary(&query(deps.as_ref(), mock_env(), last_index_query).unwrap()).unwrap();
     assert_eq!(
         &last_modification.last_index_modification,
         &env.block.time.nanos()
@@ -1082,7 +1088,7 @@ pub fn proper_unbond() {
     //check the current batch before unbond
     let current_batch = CurrentBatch {};
     let query_batch: CurrentBatchResponse =
-        from_binary(&query(deps.as_ref(), current_batch).unwrap()).unwrap();
+        from_binary(&query(deps.as_ref(), mock_env(), current_batch).unwrap()).unwrap();
     assert_eq!(query_batch.id, 1);
     assert_eq!(query_batch.requested_bluna_with_fee, Uint128::zero());
 
@@ -1090,7 +1096,8 @@ pub fn proper_unbond() {
 
     // check the state before unbond
     let state = State {};
-    let query_state: StateResponse = from_binary(&query(deps.as_ref(), state).unwrap()).unwrap();
+    let query_state: StateResponse =
+        from_binary(&query(deps.as_ref(), mock_env(), state).unwrap()).unwrap();
     assert_eq!(
         query_state.last_unbonded_time,
         mock_env().block.time.nanos()
@@ -1154,7 +1161,7 @@ pub fn proper_unbond() {
 
     let current_batch = CurrentBatch {};
     let query_batch: CurrentBatchResponse =
-        from_binary(&query(deps.as_ref(), current_batch).unwrap()).unwrap();
+        from_binary(&query(deps.as_ref(), mock_env(), current_batch).unwrap()).unwrap();
     assert_eq!(query_batch.id, 1);
     assert_eq!(query_batch.requested_bluna_with_fee, Uint128::from(6u64));
 
@@ -1200,20 +1207,21 @@ pub fn proper_unbond() {
     // check the current batch
     let current_batch = CurrentBatch {};
     let query_batch: CurrentBatchResponse =
-        from_binary(&query(deps.as_ref(), current_batch).unwrap()).unwrap();
+        from_binary(&query(deps.as_ref(), mock_env(), current_batch).unwrap()).unwrap();
     assert_eq!(query_batch.id, 2);
     assert_eq!(query_batch.requested_bluna_with_fee, Uint128::zero());
 
     // check the state
     let state = State {};
-    let query_state: StateResponse = from_binary(&query(deps.as_ref(), state).unwrap()).unwrap();
+    let query_state: StateResponse =
+        from_binary(&query(deps.as_ref(), mock_env(), state).unwrap()).unwrap();
     assert_eq!(query_state.last_unbonded_time, env.block.time.nanos());
     assert_eq!(query_state.total_bond_bluna_amount, Uint128::from(2u64));
 
     // the last request (2) gets combined and processed with the previous requests (1, 5)
     let waitlist = UnbondRequests { address: bob };
     let query_unbond: UnbondRequestsResponse =
-        from_binary(&query(deps.as_ref(), waitlist).unwrap()).unwrap();
+        from_binary(&query(deps.as_ref(), mock_env(), waitlist).unwrap()).unwrap();
     assert_eq!(query_unbond.requests[0].0, 1);
     assert_eq!(query_unbond.requests[0].1, Uint128::from(8u64));
 
@@ -1221,7 +1229,8 @@ pub fn proper_unbond() {
         start_from: None,
         limit: None,
     };
-    let res: AllHistoryResponse = from_binary(&query(deps.as_ref(), all_batches).unwrap()).unwrap();
+    let res: AllHistoryResponse =
+        from_binary(&query(deps.as_ref(), mock_env(), all_batches).unwrap()).unwrap();
     assert_eq!(res.history[0].bluna_amount, Uint128::from(8u64));
     assert_eq!(res.history[0].bluna_applied_exchange_rate, Decimal::one());
     assert_eq!(res.history[0].released, false);
@@ -1377,7 +1386,7 @@ pub fn proper_unbond_stluna() {
     //check the current batch before unbond
     let current_batch = CurrentBatch {};
     let query_batch: CurrentBatchResponse =
-        from_binary(&query(deps.as_ref(), current_batch).unwrap()).unwrap();
+        from_binary(&query(deps.as_ref(), mock_env(), current_batch).unwrap()).unwrap();
     assert_eq!(query_batch.id, 1);
     assert_eq!(query_batch.requested_bluna_with_fee, Uint128::zero());
     assert_eq!(query_batch.requested_stluna, Uint128::zero());
@@ -1386,7 +1395,8 @@ pub fn proper_unbond_stluna() {
 
     // check the state before unbond
     let state = State {};
-    let query_state: StateResponse = from_binary(&query(deps.as_ref(), state).unwrap()).unwrap();
+    let query_state: StateResponse =
+        from_binary(&query(deps.as_ref(), mock_env(), state).unwrap()).unwrap();
     assert_eq!(
         query_state.last_unbonded_time,
         mock_env().block.time.nanos()
@@ -1450,7 +1460,7 @@ pub fn proper_unbond_stluna() {
 
     let current_batch = CurrentBatch {};
     let query_batch: CurrentBatchResponse =
-        from_binary(&query(deps.as_ref(), current_batch).unwrap()).unwrap();
+        from_binary(&query(deps.as_ref(), mock_env(), current_batch).unwrap()).unwrap();
     assert_eq!(query_batch.id, 1);
     assert_eq!(query_batch.requested_stluna, Uint128::from(6u64));
     assert_eq!(query_batch.requested_bluna_with_fee, Uint128::zero());
@@ -1497,14 +1507,15 @@ pub fn proper_unbond_stluna() {
     // check the current batch
     let current_batch = CurrentBatch {};
     let query_batch: CurrentBatchResponse =
-        from_binary(&query(deps.as_ref(), current_batch).unwrap()).unwrap();
+        from_binary(&query(deps.as_ref(), mock_env(), current_batch).unwrap()).unwrap();
     assert_eq!(query_batch.id, 2);
     assert_eq!(query_batch.requested_stluna, Uint128::zero());
     assert_eq!(query_batch.requested_bluna_with_fee, Uint128::zero());
 
     // check the state
     let state = State {};
-    let query_state: StateResponse = from_binary(&query(deps.as_ref(), state).unwrap()).unwrap();
+    let query_state: StateResponse =
+        from_binary(&query(deps.as_ref(), mock_env(), state).unwrap()).unwrap();
     assert_eq!(query_state.last_unbonded_time, env.block.time.nanos());
     assert_eq!(query_state.total_bond_bluna_amount, Uint128::from(0u64));
     assert_eq!(query_state.total_bond_stluna_amount, Uint128::from(2u64));
@@ -1512,7 +1523,7 @@ pub fn proper_unbond_stluna() {
     // the last request (2) gets combined and processed with the previous requests (1, 5)
     let waitlist = UnbondRequests { address: bob };
     let query_unbond: UnbondRequestsResponse =
-        from_binary(&query(deps.as_ref(), waitlist).unwrap()).unwrap();
+        from_binary(&query(deps.as_ref(), mock_env(), waitlist).unwrap()).unwrap();
     assert_eq!(query_unbond.requests[0].0, 1);
     assert_eq!(query_unbond.requests[0].2, Uint128::from(8u64));
 
@@ -1520,7 +1531,8 @@ pub fn proper_unbond_stluna() {
         start_from: None,
         limit: None,
     };
-    let res: AllHistoryResponse = from_binary(&query(deps.as_ref(), all_batches).unwrap()).unwrap();
+    let res: AllHistoryResponse =
+        from_binary(&query(deps.as_ref(), mock_env(), all_batches).unwrap()).unwrap();
     assert_eq!(res.history[0].stluna_amount, Uint128::from(8u64));
     assert_eq!(res.history[0].stluna_applied_exchange_rate, Decimal::one());
     assert_eq!(res.history[0].released, false);
@@ -1778,7 +1790,7 @@ pub fn proper_slashing() {
 
     let ex_rate = State {};
     let query_exchange_rate: StateResponse =
-        from_binary(&query(deps.as_ref(), ex_rate).unwrap()).unwrap();
+        from_binary(&query(deps.as_ref(), mock_env(), ex_rate).unwrap()).unwrap();
     assert_eq!(query_exchange_rate.bluna_exchange_rate.to_string(), "0.9");
 
     //bond again to see the update exchange rate
@@ -1793,7 +1805,7 @@ pub fn proper_slashing() {
     let expected_er = Decimal::from_ratio(Uint128::from(1900u64), Uint128::from(2111u64));
     let ex_rate = State {};
     let query_exchange_rate: StateResponse =
-        from_binary(&query(deps.as_ref(), ex_rate).unwrap()).unwrap();
+        from_binary(&query(deps.as_ref(), mock_env(), ex_rate).unwrap()).unwrap();
     assert_eq!(query_exchange_rate.bluna_exchange_rate, expected_er);
 
     let delegate = &res.messages[0];
@@ -1885,7 +1897,7 @@ pub fn proper_slashing() {
 
     let ex_rate = State {};
     let query_exchange_rate: StateResponse =
-        from_binary(&query(deps.as_ref(), ex_rate).unwrap()).unwrap();
+        from_binary(&query(deps.as_ref(), mock_env(), ex_rate).unwrap()).unwrap();
     assert_eq!(query_exchange_rate.bluna_exchange_rate, expected_er);
 
     env.block.time = env.block.time.plus_seconds(90);
@@ -1896,7 +1908,7 @@ pub fn proper_slashing() {
 
     let ex_rate = State {};
     let query_exchange_rate: StateResponse =
-        from_binary(&query(deps.as_ref(), ex_rate).unwrap()).unwrap();
+        from_binary(&query(deps.as_ref(), mock_env(), ex_rate).unwrap()).unwrap();
     assert_eq!(query_exchange_rate.bluna_exchange_rate, expected_er);
 
     let sent_message = &wdraw_unbonded_res.messages[0];
@@ -1957,7 +1969,7 @@ pub fn proper_slashing_stluna() {
 
     let ex_rate = State {};
     let query_exchange_rate: StateResponse =
-        from_binary(&query(deps.as_ref(), ex_rate).unwrap()).unwrap();
+        from_binary(&query(deps.as_ref(), mock_env(), ex_rate).unwrap()).unwrap();
     assert_eq!(query_exchange_rate.stluna_exchange_rate.to_string(), "0.9");
 
     //bond again to see the update exchange rate
@@ -1972,7 +1984,7 @@ pub fn proper_slashing_stluna() {
     let expected_er = Decimal::from_ratio(Uint128::from(1900u64), Uint128::from(2111u64));
     let ex_rate = State {};
     let query_exchange_rate: StateResponse =
-        from_binary(&query(deps.as_ref(), ex_rate).unwrap()).unwrap();
+        from_binary(&query(deps.as_ref(), mock_env(), ex_rate).unwrap()).unwrap();
     assert_eq!(query_exchange_rate.stluna_exchange_rate, expected_er);
 
     let delegate = &res.messages[0];
@@ -2064,7 +2076,7 @@ pub fn proper_slashing_stluna() {
 
     let ex_rate = State {};
     let query_exchange_rate: StateResponse =
-        from_binary(&query(deps.as_ref(), ex_rate).unwrap()).unwrap();
+        from_binary(&query(deps.as_ref(), mock_env(), ex_rate).unwrap()).unwrap();
     assert_eq!(query_exchange_rate.stluna_exchange_rate, expected_er);
 
     env.block.time = env.block.time.plus_seconds(90);
@@ -2075,7 +2087,7 @@ pub fn proper_slashing_stluna() {
 
     let ex_rate = State {};
     let query_exchange_rate: StateResponse =
-        from_binary(&query(deps.as_ref(), ex_rate).unwrap()).unwrap();
+        from_binary(&query(deps.as_ref(), mock_env(), ex_rate).unwrap()).unwrap();
     assert_eq!(query_exchange_rate.stluna_exchange_rate, expected_er);
 
     let sent_message = &wdraw_unbonded_res.messages[0];
@@ -2202,7 +2214,7 @@ pub fn proper_withdraw_unbonded() {
         address: bob.clone(),
         block_time: env.block.time.nanos(),
     };
-    let query_with = query(deps.as_ref(), withdrawable).unwrap();
+    let query_with = query(deps.as_ref(), mock_env(), withdrawable).unwrap();
     let res: WithdrawableUnbondedResponse = from_binary(&query_with).unwrap();
     assert_eq!(res.withdrawable, Uint128::from(0u64));
 
@@ -2220,7 +2232,7 @@ pub fn proper_withdraw_unbonded() {
     let all_unbonded = UnbondRequests {
         address: bob.clone(),
     };
-    let query_unbonded = query(deps.as_ref(), all_unbonded).unwrap();
+    let query_unbonded = query(deps.as_ref(), mock_env(), all_unbonded).unwrap();
     let res: UnbondRequestsResponse = from_binary(&query_unbonded).unwrap();
     assert_eq!(res.requests.len(), 1);
     //the amount should be 10
@@ -2232,7 +2244,8 @@ pub fn proper_withdraw_unbonded() {
         start_from: None,
         limit: None,
     };
-    let res: AllHistoryResponse = from_binary(&query(deps.as_ref(), all_batches).unwrap()).unwrap();
+    let res: AllHistoryResponse =
+        from_binary(&query(deps.as_ref(), mock_env(), all_batches).unwrap()).unwrap();
     assert_eq!(res.history[0].bluna_amount, Uint128::from(20u64));
     assert_eq!(res.history[0].batch_id, 1);
 
@@ -2241,7 +2254,7 @@ pub fn proper_withdraw_unbonded() {
         address: bob.clone(),
         block_time: env.block.time.nanos(),
     };
-    let query_with = query(deps.as_ref(), withdrawable).unwrap();
+    let query_with = query(deps.as_ref(), mock_env(), withdrawable).unwrap();
     let res: WithdrawableUnbondedResponse = from_binary(&query_with).unwrap();
     assert_eq!(res.withdrawable, Uint128::from(20u64));
 
@@ -2265,14 +2278,14 @@ pub fn proper_withdraw_unbonded() {
         block_time: env.block.time.nanos(),
     };
     let query_with: WithdrawableUnbondedResponse =
-        from_binary(&query(deps.as_ref(), withdrawable).unwrap()).unwrap();
+        from_binary(&query(deps.as_ref(), mock_env(), withdrawable).unwrap()).unwrap();
     assert_eq!(query_with.withdrawable, Uint128::from(0u64));
 
     let waitlist = UnbondRequests {
         address: bob.clone(),
     };
     let query_unbond: UnbondRequestsResponse =
-        from_binary(&query(deps.as_ref(), waitlist).unwrap()).unwrap();
+        from_binary(&query(deps.as_ref(), mock_env(), waitlist).unwrap()).unwrap();
     assert_eq!(
         query_unbond,
         UnbondRequestsResponse {
@@ -2283,7 +2296,8 @@ pub fn proper_withdraw_unbonded() {
 
     // because of one that we add for each batch
     let state = State {};
-    let state_query: StateResponse = from_binary(&query(deps.as_ref(), state).unwrap()).unwrap();
+    let state_query: StateResponse =
+        from_binary(&query(deps.as_ref(), mock_env(), state).unwrap()).unwrap();
     assert_eq!(state_query.prev_hub_balance, Uint128::from(0u64));
     assert_eq!(state_query.bluna_exchange_rate, Decimal::one());
 }
@@ -2404,7 +2418,8 @@ pub fn proper_withdraw_unbonded_stluna() {
     ]);
 
     let state = State {};
-    let query_state: StateResponse = from_binary(&query(deps.as_ref(), state).unwrap()).unwrap();
+    let query_state: StateResponse =
+        from_binary(&query(deps.as_ref(), mock_env(), state).unwrap()).unwrap();
     assert_eq!(query_state.total_bond_stluna_amount, Uint128::from(160u64));
     assert_eq!(
         query_state.stluna_exchange_rate,
@@ -2416,7 +2431,7 @@ pub fn proper_withdraw_unbonded_stluna() {
         address: bob.clone(),
         block_time: env.block.time.nanos(),
     };
-    let query_with = query(deps.as_ref(), withdrawable).unwrap();
+    let query_with = query(deps.as_ref(), mock_env(), withdrawable).unwrap();
     let res: WithdrawableUnbondedResponse = from_binary(&query_with).unwrap();
     assert_eq!(res.withdrawable, Uint128::from(0u64));
 
@@ -2434,7 +2449,7 @@ pub fn proper_withdraw_unbonded_stluna() {
     let all_unbonded = UnbondRequests {
         address: bob.clone(),
     };
-    let query_unbonded = query(deps.as_ref(), all_unbonded).unwrap();
+    let query_unbonded = query(deps.as_ref(), mock_env(), all_unbonded).unwrap();
     let res: UnbondRequestsResponse = from_binary(&query_unbonded).unwrap();
     assert_eq!(res.requests.len(), 1);
     //the amount should be 10
@@ -2446,7 +2461,8 @@ pub fn proper_withdraw_unbonded_stluna() {
         start_from: None,
         limit: None,
     };
-    let res: AllHistoryResponse = from_binary(&query(deps.as_ref(), all_batches).unwrap()).unwrap();
+    let res: AllHistoryResponse =
+        from_binary(&query(deps.as_ref(), mock_env(), all_batches).unwrap()).unwrap();
     assert_eq!(res.history[0].stluna_amount, Uint128::from(20u64));
     assert_eq!(res.history[0].batch_id, 1);
 
@@ -2455,7 +2471,7 @@ pub fn proper_withdraw_unbonded_stluna() {
         address: bob.clone(),
         block_time: env.block.time.nanos(),
     };
-    let query_with = query(deps.as_ref(), withdrawable).unwrap();
+    let query_with = query(deps.as_ref(), mock_env(), withdrawable).unwrap();
     let res: WithdrawableUnbondedResponse = from_binary(&query_with).unwrap();
     assert_eq!(res.withdrawable, Uint128::from(40u64));
 
@@ -2479,14 +2495,14 @@ pub fn proper_withdraw_unbonded_stluna() {
         block_time: env.block.time.nanos(),
     };
     let query_with: WithdrawableUnbondedResponse =
-        from_binary(&query(deps.as_ref(), withdrawable).unwrap()).unwrap();
+        from_binary(&query(deps.as_ref(), mock_env(), withdrawable).unwrap()).unwrap();
     assert_eq!(query_with.withdrawable, Uint128::from(0u64));
 
     let waitlist = UnbondRequests {
         address: bob.clone(),
     };
     let query_unbond: UnbondRequestsResponse =
-        from_binary(&query(deps.as_ref(), waitlist).unwrap()).unwrap();
+        from_binary(&query(deps.as_ref(), mock_env(), waitlist).unwrap()).unwrap();
     assert_eq!(
         query_unbond,
         UnbondRequestsResponse {
@@ -2497,7 +2513,8 @@ pub fn proper_withdraw_unbonded_stluna() {
 
     // because of one that we add for each batch
     let state = State {};
-    let state_query: StateResponse = from_binary(&query(deps.as_ref(), state).unwrap()).unwrap();
+    let state_query: StateResponse =
+        from_binary(&query(deps.as_ref(), mock_env(), state).unwrap()).unwrap();
     assert_eq!(state_query.prev_hub_balance, Uint128::from(0u64));
     assert_eq!(state_query.bluna_exchange_rate, Decimal::one());
 }
@@ -2616,7 +2633,7 @@ pub fn proper_withdraw_unbonded_both_tokens() {
         address: bob.clone(),
         block_time: env.block.time.nanos(),
     };
-    let query_with = query(deps.as_ref(), withdrawable).unwrap();
+    let query_with = query(deps.as_ref(), mock_env(), withdrawable).unwrap();
     let res: WithdrawableUnbondedResponse = from_binary(&query_with).unwrap();
     assert_eq!(res.withdrawable, Uint128::from(0u64));
 
@@ -2634,7 +2651,7 @@ pub fn proper_withdraw_unbonded_both_tokens() {
     let all_unbonded = UnbondRequests {
         address: bob.clone(),
     };
-    let query_unbonded = query(deps.as_ref(), all_unbonded).unwrap();
+    let query_unbonded = query(deps.as_ref(), mock_env(), all_unbonded).unwrap();
     let res: UnbondRequestsResponse = from_binary(&query_unbonded).unwrap();
     assert_eq!(res.requests.len(), 1);
     //the amount should be 10
@@ -2647,7 +2664,8 @@ pub fn proper_withdraw_unbonded_both_tokens() {
         start_from: None,
         limit: None,
     };
-    let res: AllHistoryResponse = from_binary(&query(deps.as_ref(), all_batches).unwrap()).unwrap();
+    let res: AllHistoryResponse =
+        from_binary(&query(deps.as_ref(), mock_env(), all_batches).unwrap()).unwrap();
     assert_eq!(res.history[0].bluna_amount, Uint128::from(100u64));
     assert_eq!(res.history[0].stluna_amount, Uint128::from(100u64));
     assert_eq!(res.history[0].batch_id, 1);
@@ -2657,7 +2675,7 @@ pub fn proper_withdraw_unbonded_both_tokens() {
         address: bob.clone(),
         block_time: env.block.time.nanos(),
     };
-    let query_with = query(deps.as_ref(), withdrawable).unwrap();
+    let query_with = query(deps.as_ref(), mock_env(), withdrawable).unwrap();
     let res: WithdrawableUnbondedResponse = from_binary(&query_with).unwrap();
     assert_eq!(res.withdrawable, Uint128::from(300u64));
 
@@ -2682,14 +2700,14 @@ pub fn proper_withdraw_unbonded_both_tokens() {
         block_time: env.block.time.nanos(),
     };
     let query_with: WithdrawableUnbondedResponse =
-        from_binary(&query(deps.as_ref(), withdrawable).unwrap()).unwrap();
+        from_binary(&query(deps.as_ref(), mock_env(), withdrawable).unwrap()).unwrap();
     assert_eq!(query_with.withdrawable, Uint128::from(0u64));
 
     let waitlist = UnbondRequests {
         address: bob.clone(),
     };
     let query_unbond: UnbondRequestsResponse =
-        from_binary(&query(deps.as_ref(), waitlist).unwrap()).unwrap();
+        from_binary(&query(deps.as_ref(), mock_env(), waitlist).unwrap()).unwrap();
     assert_eq!(
         query_unbond,
         UnbondRequestsResponse {
@@ -2700,7 +2718,8 @@ pub fn proper_withdraw_unbonded_both_tokens() {
 
     // because of one that we add for each batch
     let state = State {};
-    let state_query: StateResponse = from_binary(&query(deps.as_ref(), state).unwrap()).unwrap();
+    let state_query: StateResponse =
+        from_binary(&query(deps.as_ref(), mock_env(), state).unwrap()).unwrap();
     assert_eq!(state_query.prev_hub_balance, Uint128::from(2u64));
     assert_eq!(state_query.bluna_exchange_rate, Decimal::one());
     assert_eq!(state_query.stluna_exchange_rate.to_string(), "2");
@@ -2809,7 +2828,7 @@ pub fn proper_withdraw_unbonded_respect_slashing() {
         address: bob.clone(),
         block_time: env.block.time.nanos(),
     };
-    let query_with = query(deps.as_ref(), withdrawable).unwrap();
+    let query_with = query(deps.as_ref(), mock_env(), withdrawable).unwrap();
     let res: WithdrawableUnbondedResponse = from_binary(&query_with).unwrap();
     assert_eq!(res.withdrawable, Uint128::from(0u64));
 
@@ -2828,7 +2847,7 @@ pub fn proper_withdraw_unbonded_respect_slashing() {
     let all_unbonded = UnbondRequests {
         address: bob.clone(),
     };
-    let query_unbonded = query(deps.as_ref(), all_unbonded).unwrap();
+    let query_unbonded = query(deps.as_ref(), mock_env(), all_unbonded).unwrap();
     let res: UnbondRequestsResponse = from_binary(&query_unbonded).unwrap();
     assert_eq!(res.requests.len(), 1);
     //the amount should be 10
@@ -2842,7 +2861,7 @@ pub fn proper_withdraw_unbonded_respect_slashing() {
         address: bob.clone(),
         block_time: env.block.time.nanos(),
     };
-    let query_with = query(deps.as_ref(), withdrawable).unwrap();
+    let query_with = query(deps.as_ref(), mock_env(), withdrawable).unwrap();
     let res: WithdrawableUnbondedResponse = from_binary(&query_with).unwrap();
     assert_eq!(res.withdrawable, Uint128::from(1000u64));
 
@@ -2866,7 +2885,7 @@ pub fn proper_withdraw_unbonded_respect_slashing() {
         block_time: env.block.time.nanos(),
     };
     let query_with: WithdrawableUnbondedResponse =
-        from_binary(&query(deps.as_ref(), withdrawable).unwrap()).unwrap();
+        from_binary(&query(deps.as_ref(), mock_env(), withdrawable).unwrap()).unwrap();
     assert_eq!(query_with.withdrawable, Uint128::from(0u64));
 }
 
@@ -2974,7 +2993,7 @@ pub fn proper_withdraw_unbonded_respect_slashing_stluna() {
         address: bob.clone(),
         block_time: env.block.time.nanos(),
     };
-    let query_with = query(deps.as_ref(), withdrawable).unwrap();
+    let query_with = query(deps.as_ref(), mock_env(), withdrawable).unwrap();
     let res: WithdrawableUnbondedResponse = from_binary(&query_with).unwrap();
     assert_eq!(res.withdrawable, Uint128::from(0u64));
 
@@ -2993,7 +3012,7 @@ pub fn proper_withdraw_unbonded_respect_slashing_stluna() {
     let all_unbonded = UnbondRequests {
         address: bob.clone(),
     };
-    let query_unbonded = query(deps.as_ref(), all_unbonded).unwrap();
+    let query_unbonded = query(deps.as_ref(), mock_env(), all_unbonded).unwrap();
     let res: UnbondRequestsResponse = from_binary(&query_unbonded).unwrap();
     assert_eq!(res.requests.len(), 1);
     //the amount should be 10
@@ -3007,7 +3026,7 @@ pub fn proper_withdraw_unbonded_respect_slashing_stluna() {
         address: bob.clone(),
         block_time: env.block.time.nanos(),
     };
-    let query_with = query(deps.as_ref(), withdrawable).unwrap();
+    let query_with = query(deps.as_ref(), mock_env(), withdrawable).unwrap();
     let res: WithdrawableUnbondedResponse = from_binary(&query_with).unwrap();
     assert_eq!(res.withdrawable, Uint128::from(1000u64));
 
@@ -3031,7 +3050,7 @@ pub fn proper_withdraw_unbonded_respect_slashing_stluna() {
         block_time: env.block.time.nanos(),
     };
     let query_with: WithdrawableUnbondedResponse =
-        from_binary(&query(deps.as_ref(), withdrawable).unwrap()).unwrap();
+        from_binary(&query(deps.as_ref(), mock_env(), withdrawable).unwrap()).unwrap();
     assert_eq!(query_with.withdrawable, Uint128::from(0u64));
 }
 
@@ -3109,7 +3128,7 @@ pub fn proper_withdraw_unbonded_respect_inactivity_slashing() {
 
     let current_batch = CurrentBatch {};
     let query_batch: CurrentBatchResponse =
-        from_binary(&query(deps.as_ref(), current_batch).unwrap()).unwrap();
+        from_binary(&query(deps.as_ref(), mock_env(), current_batch).unwrap()).unwrap();
     assert_eq!(query_batch.id, 1);
     assert_eq!(query_batch.requested_bluna_with_fee, unbond_amount);
 
@@ -3142,7 +3161,7 @@ pub fn proper_withdraw_unbonded_respect_inactivity_slashing() {
 
     let current_batch = CurrentBatch {};
     let query_batch: CurrentBatchResponse =
-        from_binary(&query(deps.as_ref(), current_batch).unwrap()).unwrap();
+        from_binary(&query(deps.as_ref(), mock_env(), current_batch).unwrap()).unwrap();
     assert_eq!(query_batch.id, 2);
     assert_eq!(query_batch.requested_bluna_with_fee, Uint128::zero());
 
@@ -3150,7 +3169,8 @@ pub fn proper_withdraw_unbonded_respect_inactivity_slashing() {
         start_from: None,
         limit: None,
     };
-    let res: AllHistoryResponse = from_binary(&query(deps.as_ref(), all_batches).unwrap()).unwrap();
+    let res: AllHistoryResponse =
+        from_binary(&query(deps.as_ref(), mock_env(), all_batches).unwrap()).unwrap();
     assert_eq!(res.history[0].bluna_amount, Uint128::from(1000u64));
     assert_eq!(res.history[0].bluna_withdraw_rate.to_string(), "1");
     assert_eq!(res.history[0].released, false);
@@ -3161,7 +3181,7 @@ pub fn proper_withdraw_unbonded_respect_inactivity_slashing() {
         address: bob.clone(),
         block_time: env.block.time.nanos(),
     };
-    let query_with = query(deps.as_ref(), withdrawable).unwrap();
+    let query_with = query(deps.as_ref(), mock_env(), withdrawable).unwrap();
     let res: WithdrawableUnbondedResponse = from_binary(&query_with).unwrap();
     assert_eq!(res.withdrawable, Uint128::zero());
 
@@ -3179,7 +3199,7 @@ pub fn proper_withdraw_unbonded_respect_inactivity_slashing() {
     let all_unbonded = UnbondRequests {
         address: bob.clone(),
     };
-    let query_unbonded = query(deps.as_ref(), all_unbonded).unwrap();
+    let query_unbonded = query(deps.as_ref(), mock_env(), all_unbonded).unwrap();
     let res: UnbondRequestsResponse = from_binary(&query_unbonded).unwrap();
     assert_eq!(res.requests.len(), 1);
     //the amount should be 10
@@ -3193,7 +3213,7 @@ pub fn proper_withdraw_unbonded_respect_inactivity_slashing() {
         address: bob.clone(),
         block_time: env.block.time.nanos(),
     };
-    let query_with = query(deps.as_ref(), withdrawable).unwrap();
+    let query_with = query(deps.as_ref(), mock_env(), withdrawable).unwrap();
     let res: WithdrawableUnbondedResponse = from_binary(&query_with).unwrap();
     assert_eq!(res.withdrawable, Uint128::from(1000u64));
 
@@ -3217,14 +3237,15 @@ pub fn proper_withdraw_unbonded_respect_inactivity_slashing() {
         block_time: env.block.time.nanos(),
     };
     let query_with: WithdrawableUnbondedResponse =
-        from_binary(&query(deps.as_ref(), withdrawable).unwrap()).unwrap();
+        from_binary(&query(deps.as_ref(), mock_env(), withdrawable).unwrap()).unwrap();
     assert_eq!(query_with.withdrawable, Uint128::from(0u64));
 
     let all_batches = AllHistory {
         start_from: None,
         limit: None,
     };
-    let res: AllHistoryResponse = from_binary(&query(deps.as_ref(), all_batches).unwrap()).unwrap();
+    let res: AllHistoryResponse =
+        from_binary(&query(deps.as_ref(), mock_env(), all_batches).unwrap()).unwrap();
     assert_eq!(res.history[0].bluna_amount, Uint128::from(1000u64));
     assert_eq!(res.history[0].bluna_applied_exchange_rate.to_string(), "1");
     assert_eq!(res.history[0].bluna_withdraw_rate.to_string(), "0.899");
@@ -3307,7 +3328,7 @@ pub fn proper_withdraw_unbonded_respect_inactivity_slashing_stluna() {
 
     let current_batch = CurrentBatch {};
     let query_batch: CurrentBatchResponse =
-        from_binary(&query(deps.as_ref(), current_batch).unwrap()).unwrap();
+        from_binary(&query(deps.as_ref(), mock_env(), current_batch).unwrap()).unwrap();
     assert_eq!(query_batch.id, 1);
     assert_eq!(query_batch.requested_stluna, unbond_amount);
 
@@ -3340,7 +3361,7 @@ pub fn proper_withdraw_unbonded_respect_inactivity_slashing_stluna() {
 
     let current_batch = CurrentBatch {};
     let query_batch: CurrentBatchResponse =
-        from_binary(&query(deps.as_ref(), current_batch).unwrap()).unwrap();
+        from_binary(&query(deps.as_ref(), mock_env(), current_batch).unwrap()).unwrap();
     assert_eq!(query_batch.id, 2);
     assert_eq!(query_batch.requested_stluna, Uint128::zero());
 
@@ -3348,7 +3369,8 @@ pub fn proper_withdraw_unbonded_respect_inactivity_slashing_stluna() {
         start_from: None,
         limit: None,
     };
-    let res: AllHistoryResponse = from_binary(&query(deps.as_ref(), all_batches).unwrap()).unwrap();
+    let res: AllHistoryResponse =
+        from_binary(&query(deps.as_ref(), mock_env(), all_batches).unwrap()).unwrap();
     assert_eq!(res.history[0].stluna_amount, Uint128::from(1000u64));
     assert_eq!(res.history[0].stluna_withdraw_rate.to_string(), "1");
     assert_eq!(res.history[0].released, false);
@@ -3359,7 +3381,7 @@ pub fn proper_withdraw_unbonded_respect_inactivity_slashing_stluna() {
         address: bob.clone(),
         block_time: env.block.time.nanos(),
     };
-    let query_with = query(deps.as_ref(), withdrawable).unwrap();
+    let query_with = query(deps.as_ref(), mock_env(), withdrawable).unwrap();
     let res: WithdrawableUnbondedResponse = from_binary(&query_with).unwrap();
     assert_eq!(res.withdrawable, Uint128::zero());
 
@@ -3377,7 +3399,7 @@ pub fn proper_withdraw_unbonded_respect_inactivity_slashing_stluna() {
     let all_unbonded = UnbondRequests {
         address: bob.clone(),
     };
-    let query_unbonded = query(deps.as_ref(), all_unbonded).unwrap();
+    let query_unbonded = query(deps.as_ref(), mock_env(), all_unbonded).unwrap();
     let res: UnbondRequestsResponse = from_binary(&query_unbonded).unwrap();
     assert_eq!(res.requests.len(), 1);
     //the amount should be 10
@@ -3391,7 +3413,7 @@ pub fn proper_withdraw_unbonded_respect_inactivity_slashing_stluna() {
         address: bob.clone(),
         block_time: env.block.time.nanos(),
     };
-    let query_with = query(deps.as_ref(), withdrawable).unwrap();
+    let query_with = query(deps.as_ref(), mock_env(), withdrawable).unwrap();
     let res: WithdrawableUnbondedResponse = from_binary(&query_with).unwrap();
     assert_eq!(res.withdrawable, Uint128::from(1000u64));
 
@@ -3415,14 +3437,15 @@ pub fn proper_withdraw_unbonded_respect_inactivity_slashing_stluna() {
         block_time: env.block.time.nanos(),
     };
     let query_with: WithdrawableUnbondedResponse =
-        from_binary(&query(deps.as_ref(), withdrawable).unwrap()).unwrap();
+        from_binary(&query(deps.as_ref(), mock_env(), withdrawable).unwrap()).unwrap();
     assert_eq!(query_with.withdrawable, Uint128::from(0u64));
 
     let all_batches = AllHistory {
         start_from: None,
         limit: None,
     };
-    let res: AllHistoryResponse = from_binary(&query(deps.as_ref(), all_batches).unwrap()).unwrap();
+    let res: AllHistoryResponse =
+        from_binary(&query(deps.as_ref(), mock_env(), all_batches).unwrap()).unwrap();
     assert_eq!(res.history[0].stluna_amount, Uint128::from(1000u64));
     assert_eq!(res.history[0].stluna_applied_exchange_rate.to_string(), "1");
     assert_eq!(res.history[0].stluna_withdraw_rate.to_string(), "0.899");
@@ -3571,7 +3594,8 @@ pub fn proper_withdraw_unbond_with_dummies() {
         start_from: None,
         limit: None,
     };
-    let res: AllHistoryResponse = from_binary(&query(deps.as_ref(), all_batches).unwrap()).unwrap();
+    let res: AllHistoryResponse =
+        from_binary(&query(deps.as_ref(), mock_env(), all_batches).unwrap()).unwrap();
     assert_eq!(res.history[0].bluna_amount, Uint128::from(1000u64));
     assert_eq!(res.history[0].bluna_withdraw_rate.to_string(), "1.164");
     assert_eq!(res.history[0].released, true);
@@ -3599,7 +3623,7 @@ pub fn proper_withdraw_unbond_with_dummies() {
         block_time: env.block.time.nanos(),
     };
     let query_with: WithdrawableUnbondedResponse =
-        from_binary(&query(deps.as_ref(), withdrawable).unwrap()).unwrap();
+        from_binary(&query(deps.as_ref(), mock_env(), withdrawable).unwrap()).unwrap();
     assert_eq!(query_with.withdrawable, Uint128::from(0u64));
 }
 
@@ -3745,7 +3769,8 @@ pub fn proper_withdraw_unbond_with_dummies_stluna() {
         start_from: None,
         limit: None,
     };
-    let res: AllHistoryResponse = from_binary(&query(deps.as_ref(), all_batches).unwrap()).unwrap();
+    let res: AllHistoryResponse =
+        from_binary(&query(deps.as_ref(), mock_env(), all_batches).unwrap()).unwrap();
     assert_eq!(res.history[0].stluna_amount, Uint128::from(1000u64));
     assert_eq!(res.history[0].stluna_withdraw_rate.to_string(), "1.164");
     assert_eq!(res.history[0].released, true);
@@ -3773,7 +3798,7 @@ pub fn proper_withdraw_unbond_with_dummies_stluna() {
         block_time: env.block.time.nanos(),
     };
     let query_with: WithdrawableUnbondedResponse =
-        from_binary(&query(deps.as_ref(), withdrawable).unwrap()).unwrap();
+        from_binary(&query(deps.as_ref(), mock_env(), withdrawable).unwrap()).unwrap();
     assert_eq!(query_with.withdrawable, Uint128::from(0u64));
 }
 
@@ -3819,7 +3844,8 @@ pub fn test_update_params() {
     let res = execute(deps.as_mut(), mock_env(), creator_info, update_prams).unwrap();
     assert_eq!(res.messages.len(), 0);
 
-    let params: Parameters = from_binary(&query(deps.as_ref(), Params {}).unwrap()).unwrap();
+    let params: Parameters =
+        from_binary(&query(deps.as_ref(), mock_env(), Params {}).unwrap()).unwrap();
     assert_eq!(params.epoch_period, 20);
     assert_eq!(params.underlying_coin_denom, "uluna");
     assert_eq!(params.unbonding_period, 2);
@@ -3840,7 +3866,8 @@ pub fn test_update_params() {
     let res = execute(deps.as_mut(), mock_env(), creator_info, update_prams).unwrap();
     assert_eq!(res.messages.len(), 0);
 
-    let params: Parameters = from_binary(&query(deps.as_ref(), Params {}).unwrap()).unwrap();
+    let params: Parameters =
+        from_binary(&query(deps.as_ref(), mock_env(), Params {}).unwrap()).unwrap();
     assert_eq!(params.epoch_period, 20);
     assert_eq!(params.underlying_coin_denom, "uluna");
     assert_eq!(params.unbonding_period, 3);
@@ -3890,7 +3917,8 @@ pub fn proper_recovery_fee() {
     assert_eq!(res.messages.len(), 0);
 
     let get_params = Params {};
-    let parmas: Parameters = from_binary(&query(deps.as_ref(), get_params).unwrap()).unwrap();
+    let parmas: Parameters =
+        from_binary(&query(deps.as_ref(), mock_env(), get_params).unwrap()).unwrap();
     assert_eq!(parmas.epoch_period, 30);
     assert_eq!(parmas.underlying_coin_denom, "uluna");
     assert_eq!(parmas.unbonding_period, 2);
@@ -3922,7 +3950,7 @@ pub fn proper_recovery_fee() {
 
     let ex_rate = State {};
     let query_exchange_rate: StateResponse =
-        from_binary(&query(deps.as_ref(), ex_rate).unwrap()).unwrap();
+        from_binary(&query(deps.as_ref(), mock_env(), ex_rate).unwrap()).unwrap();
     assert_eq!(query_exchange_rate.bluna_exchange_rate.to_string(), "0.9");
 
     //Bond again to see the applied result
@@ -3984,7 +4012,7 @@ pub fn proper_recovery_fee() {
         unbond_amount * Decimal::from_ratio(Uint128::from(999u64), Uint128::from(1000u64));
     let current_batch = CurrentBatch {};
     let query_batch: CurrentBatchResponse =
-        from_binary(&query(deps.as_ref(), current_batch).unwrap()).unwrap();
+        from_binary(&query(deps.as_ref(), mock_env(), current_batch).unwrap()).unwrap();
     assert_eq!(query_batch.id, 1);
     assert_eq!(query_batch.requested_bluna_with_fee, bonded_with_fee);
 
@@ -4006,7 +4034,7 @@ pub fn proper_recovery_fee() {
 
     let ex_rate = State {};
     let query_exchange_rate: StateResponse =
-        from_binary(&query(deps.as_ref(), ex_rate).unwrap()).unwrap();
+        from_binary(&query(deps.as_ref(), mock_env(), ex_rate).unwrap()).unwrap();
     let new_exchange = query_exchange_rate.bluna_exchange_rate;
 
     let expected = bonded_with_fee + bonded_with_fee;
@@ -4057,7 +4085,8 @@ pub fn proper_recovery_fee() {
         start_from: None,
         limit: None,
     };
-    let res: AllHistoryResponse = from_binary(&query(deps.as_ref(), all_batches).unwrap()).unwrap();
+    let res: AllHistoryResponse =
+        from_binary(&query(deps.as_ref(), mock_env(), all_batches).unwrap()).unwrap();
     // amount should be 99 + 99 since we store the requested amount with peg fee applied.
     assert_eq!(
         res.history[0].bluna_amount,
@@ -4097,7 +4126,8 @@ pub fn proper_update_config() {
     );
 
     let config = Config {};
-    let config_query: ConfigResponse = from_binary(&query(deps.as_ref(), config).unwrap()).unwrap();
+    let config_query: ConfigResponse =
+        from_binary(&query(deps.as_ref(), mock_env(), config).unwrap()).unwrap();
     assert_eq!(&config_query.bluna_token_contract.unwrap(), &token_contract);
     assert_eq!(
         &config_query.airdrop_registry_contract.unwrap(),
@@ -4183,7 +4213,8 @@ pub fn proper_update_config() {
     assert_eq!(msg, res.messages[0].msg.clone());
 
     let config = Config {};
-    let config_query: ConfigResponse = from_binary(&query(deps.as_ref(), config).unwrap()).unwrap();
+    let config_query: ConfigResponse =
+        from_binary(&query(deps.as_ref(), mock_env(), config).unwrap()).unwrap();
     assert_eq!(
         config_query.reward_dispatcher_contract.unwrap(),
         String::from("new reward")
@@ -4202,7 +4233,8 @@ pub fn proper_update_config() {
     assert_eq!(res.messages.len(), 0);
 
     let config = Config {};
-    let config_query: ConfigResponse = from_binary(&query(deps.as_ref(), config).unwrap()).unwrap();
+    let config_query: ConfigResponse =
+        from_binary(&query(deps.as_ref(), mock_env(), config).unwrap()).unwrap();
     assert_eq!(
         config_query.bluna_token_contract.unwrap(),
         String::from("new token")
@@ -4228,7 +4260,8 @@ pub fn proper_update_config() {
     assert_eq!(res.messages.len(), 0);
 
     let config = Config {};
-    let config_query: ConfigResponse = from_binary(&query(deps.as_ref(), config).unwrap()).unwrap();
+    let config_query: ConfigResponse =
+        from_binary(&query(deps.as_ref(), mock_env(), config).unwrap()).unwrap();
     assert_eq!(
         config_query.airdrop_registry_contract.unwrap(),
         String::from("new airdrop")
@@ -4247,7 +4280,8 @@ pub fn proper_update_config() {
     assert_eq!(res.messages.len(), 0);
 
     let config = Config {};
-    let config_query: ConfigResponse = from_binary(&query(deps.as_ref(), config).unwrap()).unwrap();
+    let config_query: ConfigResponse =
+        from_binary(&query(deps.as_ref(), mock_env(), config).unwrap()).unwrap();
     assert_eq!(
         config_query.validators_registry_contract.unwrap(),
         String::from("new registry"),
@@ -4266,7 +4300,8 @@ pub fn proper_update_config() {
     assert_eq!(res.messages.len(), 0);
 
     let config = Config {};
-    let config_query: ConfigResponse = from_binary(&query(deps.as_ref(), config).unwrap()).unwrap();
+    let config_query: ConfigResponse =
+        from_binary(&query(deps.as_ref(), mock_env(), config).unwrap()).unwrap();
     assert_eq!(
         config_query.stluna_token_contract.unwrap(),
         stluna_token_contract,
