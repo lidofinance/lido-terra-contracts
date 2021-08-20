@@ -34,7 +34,7 @@ cw20-legacy = "0.2.0"
 serde = { version = "1.0.103", default-features = false, features = ["derive"] }
 snafu = { version = "0.6.3" }
 basset = { path = "../../packages/basset", default-features = false, version = "0.1.0"}
-anchor_basset_rewards_dispatcher = {path = "../anchor_basset_rewards_dispatcher" }
+anchor_basset_rewards_dispatcher = {path = "../anchor_basset_rewards_dispatcher", features = ["library"] }
 
 [dev-dependencies]
 # we only need to enable this if we use integration tests
