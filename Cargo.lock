@@ -54,7 +54,7 @@ dependencies = [
  "serde",
  "signed_integer",
  "snafu",
- "terra-cosmwasm 2.2.0",
+ "terra-cosmwasm",
 ]
 
 [[package]]
@@ -70,7 +70,7 @@ dependencies = [
  "cw20 0.2.3",
  "schemars 0.8.3",
  "serde",
- "terra-cosmwasm 2.2.0",
+ "terra-cosmwasm",
  "thiserror",
 ]
 
@@ -86,7 +86,7 @@ dependencies = [
  "schemars 0.8.3",
  "serde",
  "snafu",
- "terra-cosmwasm 2.2.0",
+ "terra-cosmwasm",
 ]
 
 [[package]]
@@ -117,7 +117,6 @@ dependencies = [
  "cw2",
  "cw20 0.8.0",
  "cw20-base",
- "hub_querier",
  "schemars 0.8.3",
  "serde",
  "snafu",
@@ -134,7 +133,7 @@ dependencies = [
  "schemars 0.8.3",
  "serde",
  "snafu",
- "terra-cosmwasm 2.2.0",
+ "terra-cosmwasm",
 ]
 
 [[package]]
@@ -180,7 +179,7 @@ dependencies = [
  "cw20 0.8.0",
  "schemars 0.8.3",
  "serde",
- "terra-cosmwasm 2.2.0",
+ "terra-cosmwasm",
  "thiserror",
 ]
 
@@ -905,20 +904,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "hub_querier"
-version = "0.1.0"
-dependencies = [
- "cosmwasm-schema",
- "cosmwasm-std 0.16.0",
- "cosmwasm-storage",
- "cw20 0.8.0",
- "schemars 0.8.3",
- "serde",
- "terra-cosmwasm 1.2.4",
- "thiserror",
-]
-
-[[package]]
 name = "ident_case"
 version = "1.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1536,7 +1521,7 @@ dependencies = [
  "cw20 0.8.0",
  "schemars 0.8.3",
  "serde",
- "terra-cosmwasm 2.2.0",
+ "terra-cosmwasm",
 ]
 
 [[package]]
@@ -1628,17 +1613,6 @@ dependencies = [
  "redox_syscall",
  "remove_dir_all",
  "winapi",
-]
-
-[[package]]
-name = "terra-cosmwasm"
-version = "1.2.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4d7275aacd385e4f41647634c35692b1982085917b4dcfc1fdfa3984ee4ce45d"
-dependencies = [
- "cosmwasm-std 0.10.1",
- "schemars 0.7.6",
- "serde",
 ]
 
 [[package]]
