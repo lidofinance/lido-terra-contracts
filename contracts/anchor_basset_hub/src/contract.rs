@@ -1,19 +1,15 @@
 use cosmwasm_std::{
     attr, from_binary, to_binary, Binary, Coin, CosmosMsg, Decimal, Deps, DepsMut, DistributionMsg,
-    Env, MessageInfo, QueryRequest, Response, StakingMsg, StdError, StdResult, Storage, Uint128,
-    WasmMsg, WasmQuery,
+    Env, MessageInfo, QueryRequest, Response, StakingMsg, StdError, StdResult, Uint128, WasmMsg,
+    WasmQuery,
 };
 
 use crate::config::{execute_update_config, execute_update_params};
 use crate::math::decimal_division;
-use crate::msg::{
-    AllHistoryResponse, ConfigResponse, CurrentBatchResponse, InitMsg, MigrateMsg, QueryMsg,
-    StateResponse, UnbondRequestsResponse, WithdrawableUnbondedResponse,
-};
 use crate::state::{
     all_unbond_history, get_unbond_requests, migrate_unbond_history, migrate_unbond_wait_lists,
-    query_get_finished_amount, read_validators, remove_whitelisted_validators_store, CurrentBatch,
-    Parameters, CONFIG, CURRENT_BATCH, OLD_CONFIG, OLD_CURRENT_BATCH, OLD_STATE, PARAMETERS, STATE,
+    query_get_finished_amount, read_validators, remove_whitelisted_validators_store, CONFIG,
+    CURRENT_BATCH, OLD_CONFIG, OLD_CURRENT_BATCH, OLD_STATE, PARAMETERS, STATE,
 };
 use crate::unbond::{execute_unbond, execute_unbond_stluna, execute_withdraw_unbonded};
 
@@ -23,19 +19,22 @@ use anchor_basset_rewards_dispatcher::msg::ExecuteMsg::{DispatchRewards, SwapToR
 use anchor_basset_validators_registry::msg::ExecuteMsg::AddValidator;
 use anchor_basset_validators_registry::registry::Validator;
 use basset::hub::ExecuteMsg::SwapHook;
-use basset::hub::{Config, State};
+use basset::hub::{
+    AllHistoryResponse, Config, ConfigResponse, CurrentBatch, CurrentBatchResponse, InstantiateMsg,
+    MigrateMsg, Parameters, QueryMsg, State, StateResponse, UnbondRequestsResponse,
+    WithdrawableUnbondedResponse,
+};
 use basset::hub::{Cw20HookMsg, ExecuteMsg};
 use cosmwasm_storage::to_length_prefixed;
 use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg};
 use cw20_base::state::TokenInfo;
-use std::io::SeekFrom::Current;
 use std::ops::Mul;
 
 pub fn instantiate(
     deps: DepsMut,
     env: Env,
     info: MessageInfo,
-    msg: InitMsg,
+    msg: InstantiateMsg,
 ) -> StdResult<Response> {
     let sender = info.sender;
     let sndr_raw = deps.api.addr_canonicalize(&sender.as_str())?;
@@ -61,7 +60,7 @@ pub fn instantiate(
         ..Default::default()
     };
 
-    STATE.save(deps.storage, &state);
+    STATE.save(deps.storage, &state)?;
 
     // instantiate parameters
     let params = Parameters {
@@ -73,14 +72,14 @@ pub fn instantiate(
         reward_denom: msg.reward_denom,
     };
 
-    PARAMETERS.save(deps.storage, &params);
+    PARAMETERS.save(deps.storage, &params)?;
 
     let batch = CurrentBatch {
         id: 1,
         requested_bluna_with_fee: Default::default(),
         requested_stluna: Default::default(),
     };
-    CURRENT_BATCH.save(deps.storage, &batch);
+    CURRENT_BATCH.save(deps.storage, &batch)?;
 
     let res = Response::new();
     Ok(res)
@@ -167,7 +166,7 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
 
 pub fn execute_redelegate_proxy(
     deps: DepsMut,
-    env: Env,
+    _env: Env,
     info: MessageInfo,
     src_validator: String,
     dst_validator: String,
@@ -250,7 +249,7 @@ pub fn receive_cw20(
 pub fn execute_update_global(
     deps: DepsMut,
     env: Env,
-    info: MessageInfo,
+    _info: MessageInfo,
     airdrop_hooks: Option<Vec<Binary>>,
 ) -> StdResult<Response> {
     let mut messages: Vec<CosmosMsg> = vec![];
@@ -312,6 +311,7 @@ pub fn execute_update_global(
 /// Create withdraw requests for all validators
 fn withdraw_all_rewards(deps: &DepsMut, delegator: String) -> StdResult<Vec<CosmosMsg>> {
     let mut messages: Vec<CosmosMsg> = vec![];
+
     let delegations = deps.querier.query_all_delegations(delegator);
 
     match delegations {
@@ -335,7 +335,7 @@ fn withdraw_all_rewards(deps: &DepsMut, delegator: String) -> StdResult<Vec<Cosm
 
 /// Check whether slashing has happened
 /// This is used for checking slashing while bonding or unbonding
-pub fn slashing(deps: &mut DepsMut, env: Env, info: MessageInfo) -> StdResult<()> {
+pub fn slashing(deps: &mut DepsMut, env: Env, _info: MessageInfo) -> StdResult<()> {
     //read params
     let params = PARAMETERS.load(deps.storage)?;
     let coin_denom = params.underlying_coin_denom;
@@ -429,7 +429,7 @@ pub fn claim_airdrop(
         funds: vec![],
     }));
 
-    Ok(Response::new())
+    Ok(Response::new().add_messages(messages))
 }
 
 pub fn swap_hook(
@@ -444,18 +444,16 @@ pub fn swap_hook(
         return Err(StdError::generic_err("unauthorized"));
     }
 
-    let res: Binary = deps
+    let airdrop_token_balance: Uint128 = deps
         .querier
         .query(&QueryRequest::Wasm(WasmQuery::Raw {
-            contract_addr: airdrop_token_contract.clone(),
+            contract_addr: airdrop_token_contract.to_string(),
             key: Binary::from(concat(
                 &to_length_prefixed(b"balance").to_vec(),
-                (deps.api.addr_canonicalize(&env.contract.address.as_str())?).as_slice(),
+                (deps.api.addr_canonicalize(env.contract.address.as_str())?).as_slice(),
             )),
         }))
-        .unwrap_or_else(|_| to_binary(&Uint128::zero()).unwrap());
-
-    let airdrop_token_balance: Uint128 = from_binary(&res)?;
+        .unwrap_or_else(|_| Uint128::zero());
 
     if airdrop_token_balance == Uint128::zero() {
         return Err(StdError::generic_err(format!(
@@ -543,13 +541,24 @@ fn convert_stluna_bluna(
 
     STATE.update(deps.storage, |mut prev_state| -> StdResult<_> {
         prev_state.total_bond_bluna_amount += denom_equiv;
-        prev_state.total_bond_stluna_amount = prev_state.total_bond_stluna_amount - denom_equiv;
+        prev_state.total_bond_stluna_amount = prev_state.total_bond_stluna_amount.checked_sub(denom_equiv)
+            .map_err(|_| {
+                StdError::generic_err(format!(
+                    "Decrease amount cannot exceed total stluna bond amount: {}. Trying to reduce: {}",
+                    prev_state.total_bond_stluna_amount, denom_equiv,
+                ))
+            })?;
         prev_state.update_bluna_exchange_rate(
             total_bluna_supply + bluna_to_mint,
             requested_bluna_with_fee,
         );
         prev_state
-            .update_stluna_exchange_rate(total_stluna_supply - stluna_amount, requested_stluna);
+            .update_stluna_exchange_rate(total_stluna_supply .checked_sub(stluna_amount).map_err(|_| {
+                StdError::generic_err(format!(
+                    "Decrease amount cannot exceed total stluna supply: {}. Trying to reduce: {}",
+                    total_stluna_supply, stluna_amount,
+                ))
+            })?, requested_stluna);
         Ok(prev_state)
     })?;
 
@@ -603,13 +612,24 @@ fn convert_bluna_stluna(
     let requested_bluna_with_fee = current_batch.requested_bluna_with_fee;
     let requested_stluna_with_fee = current_batch.requested_stluna;
 
-    let total_bluna_supply = query_total_bluna_issued(deps.as_ref()).unwrap_or_default();
-    let total_stluna_supply = query_total_stluna_issued(deps.as_ref()).unwrap_or_default();
+    let total_bluna_supply = query_total_bluna_issued(deps.as_ref())?;
+    let total_stluna_supply = query_total_stluna_issued(deps.as_ref())?;
     STATE.update(deps.storage, |mut prev_state| -> StdResult<_> {
-        prev_state.total_bond_bluna_amount = prev_state.total_bond_bluna_amount - denom_equiv;
+        prev_state.total_bond_bluna_amount = prev_state.total_bond_bluna_amount.checked_sub(denom_equiv)
+            .map_err(|_| {
+                StdError::generic_err(format!(
+                    "Decrease amount cannot exceed total bluna bond amount: {}. Trying to reduce: {}",
+                    prev_state.total_bond_bluna_amount, denom_equiv,
+                ))
+            })?;
         prev_state.total_bond_stluna_amount += denom_equiv;
         prev_state.update_bluna_exchange_rate(
-            total_bluna_supply - bluna_amount,
+            total_bluna_supply.checked_sub(bluna_amount).map_err(|_| {
+                StdError::generic_err(format!(
+                    "Decrease amount cannot exceed total bluna supply: {}. Trying to reduce: {}",
+                    total_bluna_supply, bluna_amount,
+                ))
+            })?,
             requested_bluna_with_fee,
         );
         prev_state.update_stluna_exchange_rate(
@@ -781,11 +801,10 @@ pub(crate) fn query_total_bluna_issued(deps: Deps) -> StdResult<Uint128> {
             .bluna_token_contract
             .expect("token contract must have been registered"),
     )?;
-    let res = deps.querier.query(&QueryRequest::Wasm(WasmQuery::Raw {
+    let token_info: TokenInfo = deps.querier.query(&QueryRequest::Wasm(WasmQuery::Raw {
         contract_addr: token_address.to_string(),
-        key: Binary::from(to_length_prefixed(b"token_info")),
+        key: Binary::from("\u{0}\ntoken_info".as_bytes()),
     }))?;
-    let token_info: TokenInfo = from_binary(&res)?;
     Ok(token_info.total_supply)
 }
 
@@ -796,11 +815,10 @@ pub(crate) fn query_total_stluna_issued(deps: Deps) -> StdResult<Uint128> {
             .stluna_token_contract
             .expect("token contract must have been registered"),
     )?;
-    let res = deps.querier.query(&QueryRequest::Wasm(WasmQuery::Raw {
+    let token_info: TokenInfo = deps.querier.query(&QueryRequest::Wasm(WasmQuery::Raw {
         contract_addr: token_address.to_string(),
-        key: Binary::from(to_length_prefixed(b"token_info")),
+        key: Binary::from("\u{0}\ntoken_info".as_bytes()),
     }))?;
-    let token_info: TokenInfo = from_binary(&res)?;
     Ok(token_info.total_supply)
 }
 

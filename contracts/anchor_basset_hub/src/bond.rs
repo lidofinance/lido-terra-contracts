@@ -6,7 +6,7 @@ use anchor_basset_validators_registry::msg::QueryMsg as QueryValidators;
 use anchor_basset_validators_registry::registry::Validator;
 use cosmwasm_std::{
     to_binary, Coin, CosmosMsg, DepsMut, Env, MessageInfo, QueryRequest, Response, StakingMsg,
-    StdError, StdResult, Storage, Uint128, WasmMsg, WasmQuery,
+    StdError, StdResult, Uint128, WasmMsg, WasmQuery,
 };
 use cw20::Cw20ExecuteMsg;
 
@@ -257,7 +257,7 @@ pub fn execute_bond_rewards(mut deps: DepsMut, env: Env, info: MessageInfo) -> S
     // check slashing
     slashing(&mut deps, env.clone(), info.clone())?;
 
-    let total_supply = query_total_stluna_issued(deps.as_ref()).unwrap_or_default();
+    let total_supply = query_total_stluna_issued(deps.as_ref())?;
 
     STATE.update(deps.storage, |mut prev_state| -> StdResult<_> {
         prev_state.total_bond_stluna_amount += payment.amount;

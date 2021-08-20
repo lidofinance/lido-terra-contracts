@@ -1,20 +1,18 @@
 use crate::contract::{query_total_bluna_issued, slashing};
 use crate::state::{
     get_finished_amount, get_unbond_batches, read_unbond_history, remove_unbond_wait_list,
-    store_unbond_history, store_unbond_wait_list, CurrentBatch, UnbondHistory, UnbondType, CONFIG,
-    CURRENT_BATCH, PARAMETERS, STATE,
+    store_unbond_history, store_unbond_wait_list, CONFIG, CURRENT_BATCH, PARAMETERS, STATE,
 };
 use anchor_basset_validators_registry::common::calculate_undelegations;
 use anchor_basset_validators_registry::registry::Validator;
-use basset::hub::State;
+use basset::hub::{CurrentBatch, State, UnbondHistory, UnbondType};
 use cosmwasm_bignumber::{Decimal256, Uint256};
 use cosmwasm_std::{
-    attr, coin, coins, to_binary, Api, BankMsg, CosmosMsg, Decimal, DepsMut, Env, MessageInfo,
-    Response, StakingMsg, StdError, StdResult, Storage, Uint128, WasmMsg,
+    attr, coin, coins, to_binary, BankMsg, CosmosMsg, Decimal, DepsMut, Env, MessageInfo, Response,
+    StakingMsg, StdError, StdResult, Storage, Uint128, WasmMsg,
 };
 use cw20::Cw20ExecuteMsg;
 use signed_integer::SignedInt;
-use std::convert::TryInto;
 
 /// This message must be call by receive_cw20
 /// This message will undelegate coin and burn basset token
@@ -75,15 +73,15 @@ pub(crate) fn execute_unbond(
     // If the epoch period is passed, the undelegate message would be sent.
     if passed_time > epoch_period {
         let mut undelegate_msgs =
-            process_undelegations(&deps, env, &mut current_batch, &mut state)?;
+            process_undelegations(&mut deps, env, &mut current_batch, &mut state)?;
         messages.append(&mut undelegate_msgs);
     }
 
     // Store the new requested_with_fee or id in the current batch
-    CURRENT_BATCH.save(deps.storage, &current_batch);
+    CURRENT_BATCH.save(deps.storage, &current_batch)?;
 
     // Store state's new exchange rate
-    STATE.save(deps.storage, &state);
+    STATE.save(deps.storage, &state)?;
 
     // Send Burn message to token contract
     let config = CONFIG.load(deps.storage)?;
@@ -110,7 +108,7 @@ pub(crate) fn execute_unbond(
 }
 
 pub fn execute_withdraw_unbonded(
-    deps: DepsMut,
+    mut deps: DepsMut,
     env: Env,
     info: MessageInfo,
 ) -> StdResult<Response> {
@@ -131,7 +129,7 @@ pub fn execute_withdraw_unbonded(
         .amount;
 
     // calculate withdraw rate for user requests
-    process_withdraw_rate(&deps, historical_time, hub_balance)?;
+    process_withdraw_rate(&mut deps, historical_time, hub_balance)?;
 
     let withdraw_amount = get_finished_amount(deps.storage, sender_human.to_string())?;
 
@@ -265,7 +263,7 @@ fn calculate_new_withdraw_rate(
 /// This is designed for an accurate unbonded amount calculation.
 /// Execute while processing withdraw_unbonded
 fn process_withdraw_rate(
-    deps: &DepsMut,
+    deps: &mut DepsMut,
     historical_time: u64,
     hub_balance: Uint128,
 ) -> StdResult<()> {
@@ -422,7 +420,7 @@ pub(crate) fn execute_unbond_stluna(
     // If the epoch period is passed, the undelegate message would be sent.
     if passed_time > epoch_period {
         let mut undelegate_msgs =
-            process_undelegations(&deps, env, &mut current_batch, &mut state)?;
+            process_undelegations(&mut deps, env, &mut current_batch, &mut state)?;
         messages.append(&mut undelegate_msgs);
     }
 
@@ -457,7 +455,7 @@ pub(crate) fn execute_unbond_stluna(
 }
 
 fn process_undelegations(
-    deps: &DepsMut,
+    deps: &mut DepsMut,
     env: Env,
     current_batch: &mut CurrentBatch,
     state: &mut State,
