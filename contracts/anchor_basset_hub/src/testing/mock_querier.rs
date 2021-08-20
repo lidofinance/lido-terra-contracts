@@ -116,6 +116,7 @@ impl WasmMockQuerier {
             QueryRequest::Wasm(WasmQuery::Raw { contract_addr, key }) => {
                 let prefix_config = to_length_prefixed(b"config").to_vec();
                 let prefix_token_inf = to_length_prefixed(b"token_info").to_vec();
+                let new_storage_prefix_token_inf = b"token_info".to_vec();
                 let prefix_balance = to_length_prefixed(b"balance").to_vec();
                 let api: MockApi = MockApi::default();
 
@@ -165,6 +166,37 @@ impl WasmMockQuerier {
                     let token_inf: TokenInfo = TokenInfo {
                         name: "bluna".to_string(),
                         symbol: "BLUNA".to_string(),
+                        decimals: 6,
+                        total_supply,
+                        mint: Some(MinterData {
+                            minter: api.addr_validate(&String::from("hub")).unwrap(),
+                            cap: None,
+                        }),
+                    };
+                    QuerierResult::Ok(ContractResult::from(to_binary(&token_inf)))
+                } else if key.as_slice().to_vec() == new_storage_prefix_token_inf {
+                    let balances: &HashMap<String, Uint128> =
+                        match self.token_querier.balances.get(contract_addr) {
+                            Some(balances) => balances,
+                            None => {
+                                return QuerierResult::Err(SystemError::InvalidRequest {
+                                    error: format!(
+                                        "No balance info exists for the contract {}",
+                                        contract_addr
+                                    ),
+                                    request: key.as_slice().into(),
+                                })
+                            }
+                        };
+                    let mut total_supply = Uint128::zero();
+
+                    for balance in balances {
+                        total_supply += *balance.1;
+                    }
+                    let api: MockApi = MockApi::default();
+                    let token_inf: TokenInfo = TokenInfo {
+                        name: "stluna".to_string(),
+                        symbol: "STLUNA".to_string(),
                         decimals: 6,
                         total_supply,
                         mint: Some(MinterData {

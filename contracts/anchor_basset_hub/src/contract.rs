@@ -818,7 +818,7 @@ pub(crate) fn query_total_stluna_issued(deps: Deps) -> StdResult<Uint128> {
     )?;
     let token_info: TokenInfo = deps.querier.query(&QueryRequest::Wasm(WasmQuery::Raw {
         contract_addr: token_address.to_string(),
-        key: Binary::from("\u{0}\ntoken_info".as_bytes()),
+        key: Binary::from("token_info".as_bytes()),
     }))?;
     Ok(token_info.total_supply)
 }

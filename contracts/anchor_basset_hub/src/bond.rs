@@ -42,7 +42,7 @@ pub fn execute_bond(mut deps: DepsMut, env: Env, info: MessageInfo) -> Result<Re
     let sender = info.sender.clone();
 
     // get the total supply
-    let mut total_supply = query_total_bluna_issued(deps.as_ref()).unwrap_or_default();
+    let mut total_supply = query_total_bluna_issued(deps.as_ref())?;
 
     // peg recovery fee should be considered
 
@@ -152,7 +152,7 @@ pub fn execute_bond_stluna(mut deps: DepsMut, env: Env, info: MessageInfo) -> St
     let sender = info.sender.clone();
 
     // get the total supply
-    let mut total_supply = query_total_stluna_issued(deps.as_ref()).unwrap_or_default();
+    let mut total_supply = query_total_stluna_issued(deps.as_ref())?;
 
     let mint_amount = decimal_division(payment.amount, state.stluna_exchange_rate);
 

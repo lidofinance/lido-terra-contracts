@@ -40,10 +40,10 @@ export async function instantiateContract(terraClient: LCDClient, wallet: Wallet
 
   const instantiate = new MsgInstantiateContract(
     wallet.key.accAddress,
+    wallet.key.accAddress,
     codeId,
     message,
     coins,
-    true
   );
 
   const instantiateTx = await wallet.createAndSignTx({
