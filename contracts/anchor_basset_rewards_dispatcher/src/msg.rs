@@ -25,6 +25,8 @@ pub enum ExecuteMsg {
         bluna_reward_contract: Option<String>,
         stluna_reward_denom: Option<String>,
         bluna_reward_denom: Option<String>,
+        lido_fee_address: Option<String>,
+        lido_fee_rate: Option<Decimal>,
     },
     DispatchRewards {},
 }
@@ -41,3 +43,6 @@ pub enum QueryMsg {
 // We define a custom struct for each query response
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct GetBufferedRewardsResponse {}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct MigrateMsg {}
