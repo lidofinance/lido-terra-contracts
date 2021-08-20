@@ -885,7 +885,7 @@ pub fn migrate(deps: DepsMut, _env: Env, msg: MigrateMsg) -> StdResult<Response>
     //migrate whitelisted validators
     //we must add them to validators_registry_contract
     let whitelisted_validators = read_validators(deps.storage)?;
-    let messages: Vec<CosmosMsg> = whitelisted_validators
+    let mut messages: Vec<CosmosMsg> = whitelisted_validators
         .iter()
         .map(|validator_address| {
             CosmosMsg::Wasm(WasmMsg::Execute {
@@ -902,6 +902,11 @@ pub fn migrate(deps: DepsMut, _env: Env, msg: MigrateMsg) -> StdResult<Response>
         })
         .collect();
     remove_whitelisted_validators_store(deps.storage)?;
+
+    let msg: CosmosMsg = CosmosMsg::Distribution(DistributionMsg::SetWithdrawAddress {
+        address: msg.reward_dispatcher_contract,
+    });
+    messages.push(msg);
 
     // migrate unbond waitlist
     // update old values (Uint128) in PREFIX_WAIT_MAP storage to UnbondWaitEntity

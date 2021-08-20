@@ -1,9 +1,9 @@
 use cosmwasm_std::{
-    attr, entry_point, to_binary, BankMsg, Binary, Coin, CosmosMsg, Decimal, Deps, DepsMut, Env,
-    MessageInfo, Response, StdError, StdResult, Uint128, WasmMsg,
+    attr, entry_point, to_binary, Attribute, BankMsg, Binary, Coin, CosmosMsg, Decimal, Deps,
+    DepsMut, Env, MessageInfo, Response, StdError, StdResult, Uint128, WasmMsg,
 };
 
-use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
+use crate::msg::{ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg};
 use crate::state::{read_config, store_config, update_config, Config};
 use basset::hub::ExecuteMsg::{BondRewards, UpdateGlobalIndex};
 use basset::{compute_lido_fee, deduct_tax};
@@ -57,6 +57,8 @@ pub fn execute(
             bluna_reward_contract,
             stluna_reward_denom,
             bluna_reward_denom,
+            lido_fee_address,
+            lido_fee_rate,
         } => execute_update_config(
             deps,
             env,
@@ -66,6 +68,8 @@ pub fn execute(
             bluna_reward_contract,
             stluna_reward_denom,
             bluna_reward_denom,
+            lido_fee_address,
+            lido_fee_rate,
         ),
     }
 }
@@ -80,6 +84,8 @@ pub fn execute_update_config(
     bluna_reward_contract: Option<String>,
     stluna_reward_denom: Option<String>,
     bluna_reward_denom: Option<String>,
+    lido_fee_address: Option<String>,
+    lido_fee_rate: Option<Decimal>,
 ) -> StdResult<Response<TerraMsgWrapper>> {
     let conf = read_config(deps.storage)?;
     let sender_raw = deps.api.addr_canonicalize(&info.sender.as_str())?;
@@ -124,6 +130,22 @@ pub fn execute_update_config(
     if let Some(b) = bluna_reward_denom {
         update_config(deps.storage).update(|mut last_config| -> StdResult<_> {
             last_config.bluna_reward_denom = b;
+            Ok(last_config)
+        })?;
+    }
+
+    if let Some(r) = lido_fee_rate {
+        update_config(deps.storage).update(|mut last_config| -> StdResult<_> {
+            last_config.lido_fee_rate = r;
+            Ok(last_config)
+        })?;
+    }
+
+    if let Some(a) = lido_fee_address {
+        let address_raw = deps.api.addr_canonicalize(&a)?;
+
+        update_config(deps.storage).update(|mut last_config| -> StdResult<_> {
+            last_config.lido_fee_address = address_raw;
             Ok(last_config)
         })?;
     }
@@ -319,27 +341,39 @@ pub fn execute_dispatch_rewards(
     let mut stluna_rewards = deps
         .querier
         .query_balance(contr_addr.clone(), config.stluna_reward_denom.as_str())?;
-    let lido_stluna_fee = compute_lido_fee(stluna_rewards.amount, config.lido_fee_rate)?;
-    stluna_rewards.amount -= lido_stluna_fee;
+    let lido_stluna_fee_amount = compute_lido_fee(stluna_rewards.amount, config.lido_fee_rate)?;
+    stluna_rewards.amount -= lido_stluna_fee_amount;
 
     let mut bluna_rewards = deps
         .querier
         .query_balance(contr_addr, config.bluna_reward_denom.as_str())?;
-    let lido_bluna_fee = compute_lido_fee(bluna_rewards.amount, config.lido_fee_rate)?;
-    bluna_rewards.amount -= lido_bluna_fee;
+    let lido_bluna_fee_amount = compute_lido_fee(bluna_rewards.amount, config.lido_fee_rate)?;
+    bluna_rewards.amount -= lido_bluna_fee_amount;
+
+    let mut fees_attrs: Vec<Attribute> = vec![];
 
     let mut lido_fees: Vec<Coin> = vec![];
-    if !lido_stluna_fee.is_zero() {
-        lido_fees.push(Coin {
-            amount: lido_stluna_fee,
-            denom: stluna_rewards.denom.clone(),
-        })
+    if !lido_stluna_fee_amount.is_zero() {
+        let stluna_fee = deduct_tax(
+            &deps.querier,
+            Coin {
+                amount: lido_stluna_fee_amount,
+                denom: stluna_rewards.denom.clone(),
+            },
+        )?;
+        lido_fees.push(stluna_fee.clone());
+        fees_attrs.push(attr("lido_stluna_fee", stluna_fee.to_string()));
     }
-    if !lido_bluna_fee.is_zero() {
-        lido_fees.push(Coin {
-            amount: lido_bluna_fee,
-            denom: bluna_rewards.denom.clone(),
-        })
+    if !lido_bluna_fee_amount.is_zero() {
+        let bluna_fee = deduct_tax(
+            &deps.querier,
+            Coin {
+                amount: lido_bluna_fee_amount,
+                denom: bluna_rewards.denom.clone(),
+            },
+        )?;
+        lido_fees.push(bluna_fee.clone());
+        fees_attrs.push(attr("lido_bluna_fee", bluna_fee.to_string()));
     }
 
     let mut messages: Vec<CosmosMsg<TerraMsgWrapper>> = vec![];
@@ -347,7 +381,7 @@ pub fn execute_dispatch_rewards(
         messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
             contract_addr: hub_addr.to_string(),
             msg: to_binary(&BondRewards {}).unwrap(),
-            funds: vec![deduct_tax(&deps.querier, stluna_rewards.clone())?],
+            funds: vec![stluna_rewards.clone()],
         }));
     }
     if !lido_fees.is_empty() {
@@ -363,10 +397,11 @@ pub fn execute_dispatch_rewards(
         )
     }
     if !bluna_rewards.amount.is_zero() {
+        bluna_rewards = deduct_tax(&deps.querier, bluna_rewards.clone())?;
         messages.push(
             BankMsg::Send {
                 to_address: bluna_reward_addr.to_string(),
-                amount: vec![deduct_tax(&deps.querier, bluna_rewards.clone())?],
+                amount: vec![bluna_rewards.clone()],
             }
             .into(),
         )
@@ -380,16 +415,15 @@ pub fn execute_dispatch_rewards(
         funds: vec![],
     }));
 
-    Ok(Response::new().add_messages(messages).add_attributes(vec![
-        attr("action", "claim_reward"),
-        attr("bluna_reward_addr", bluna_reward_addr),
-        attr("stluna_rewards_denom", stluna_rewards.denom),
-        attr("stluna_rewards_amount", stluna_rewards.amount),
-        attr("bluna_rewards_denom", bluna_rewards.denom),
-        attr("bluna_rewards_amount", bluna_rewards.amount),
-        attr("lido_stluna_fee", lido_stluna_fee),
-        attr("lido_bluna_fee", lido_bluna_fee),
-    ]))
+    Ok(Response::new()
+        .add_messages(messages)
+        .add_attributes(vec![
+            attr("action", "claim_reward"),
+            attr("bluna_reward_addr", bluna_reward_addr),
+            attr("stluna_rewards", stluna_rewards.to_string()),
+            attr("bluna_rewards", bluna_rewards.to_string()),
+        ])
+        .add_attributes(fees_attrs))
 }
 
 fn query_config(deps: Deps) -> StdResult<Config> {
@@ -403,4 +437,9 @@ pub fn query(deps: Deps, msg: QueryMsg) -> StdResult<Binary> {
         QueryMsg::Config {} => to_binary(&query_config(deps)?),
         QueryMsg::GetBufferedRewards {} => unimplemented!(),
     }
+}
+
+#[entry_point]
+pub fn migrate(_deps: DepsMut, _env: Env, _msg: MigrateMsg) -> StdResult<Response> {
+    Ok(Response::default())
 }

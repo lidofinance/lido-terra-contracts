@@ -29,4 +29,8 @@ pub enum ExecuteMsg {
 pub enum QueryMsg {
     // GetValidatorsForDelegation returns validators sorted by available amount for delegation (delegation_limit - total_delegated)
     GetValidatorsForDelegation {},
+    Config {},
 }
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct MigrateMsg {}

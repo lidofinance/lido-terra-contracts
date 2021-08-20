@@ -4,7 +4,7 @@ use cosmwasm_std::{
 };
 
 use crate::common::calculate_delegations;
-use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
+use crate::msg::{ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg};
 use crate::registry::{
     config, config_read, registry, registry_read, store_config, Config, Validator,
 };
@@ -175,7 +175,13 @@ pub fn query(deps: Deps, msg: QueryMsg) -> StdResult<Binary> {
             validators.sort_by(|v1, v2| v1.total_delegated.cmp(&v2.total_delegated));
             to_binary(&validators)
         }
+        QueryMsg::Config {} => to_binary(&query_config(deps)?),
     }
+}
+
+fn query_config(deps: Deps) -> StdResult<Config> {
+    let config = config_read(deps.storage).load()?;
+    Ok(config)
 }
 
 fn query_validators(deps: Deps) -> StdResult<Vec<Validator>> {
@@ -209,4 +215,9 @@ fn query_validators(deps: Deps) -> StdResult<Vec<Validator>> {
         validators.push(validator);
     }
     Ok(validators)
+}
+
+#[entry_point]
+pub fn migrate(_deps: DepsMut, _env: Env, _msg: MigrateMsg) -> StdResult<Response> {
+    Ok(Response::default())
 }
