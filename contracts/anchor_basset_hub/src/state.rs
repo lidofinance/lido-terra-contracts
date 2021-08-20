@@ -2,15 +2,14 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use cosmwasm_std::{from_slice, to_vec, Decimal, Order, StdError, StdResult, Storage, Uint128};
-use cosmwasm_storage::{
-    singleton, singleton_read, Bucket, PrefixedStorage, ReadonlyBucket, ReadonlyPrefixedStorage,
-    ReadonlySingleton, Singleton,
-};
+use cosmwasm_storage::{Bucket, PrefixedStorage, ReadonlyBucket, ReadonlyPrefixedStorage};
 
 use cw_storage_plus::Item;
 
-use crate::msg::UnbondRequest;
-use basset::hub::{Config, OldConfig, OldState, State};
+use basset::hub::{
+    Config, CurrentBatch, OldConfig, OldCurrentBatch, OldState, Parameters, State, UnbondHistory,
+    UnbondRequest, UnbondType, UnbondWaitEntity,
+};
 
 pub type LastBatch = u64;
 
@@ -27,55 +26,6 @@ pub static PREFIX_WAIT_MAP: &[u8] = b"wait";
 pub static UNBOND_HISTORY_MAP: &[u8] = b"history_map";
 pub static PREFIX_AIRDROP_INFO: &[u8] = b"airedrop_info";
 pub static VALIDATORS: &[u8] = b"validators";
-
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct Parameters {
-    pub epoch_period: u64,
-    pub underlying_coin_denom: String,
-    pub unbonding_period: u64,
-    pub peg_recovery_fee: Decimal,
-    pub er_threshold: Decimal,
-    pub reward_denom: String,
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct CurrentBatch {
-    pub id: u64,
-    pub requested_bluna_with_fee: Uint128,
-    pub requested_stluna: Uint128,
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct OldCurrentBatch {
-    pub id: u64,
-    pub requested_with_fee: Uint128,
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct UnbondHistory {
-    pub batch_id: u64,
-    pub time: u64,
-    pub bluna_amount: Uint128,
-    pub bluna_applied_exchange_rate: Decimal,
-    pub bluna_withdraw_rate: Decimal,
-
-    pub stluna_amount: Uint128,
-    pub stluna_applied_exchange_rate: Decimal,
-    pub stluna_withdraw_rate: Decimal,
-
-    pub released: bool,
-}
-
-#[derive(JsonSchema, Serialize, Deserialize, Default)]
-pub struct UnbondWaitEntity {
-    pub bluna_amount: Uint128,
-    pub stluna_amount: Uint128,
-}
-
-pub enum UnbondType {
-    BLuna,
-    StLuna,
-}
 
 /// Store undelegation wait list per each batch
 /// HashMap<user's address, <batch_id, requested_amount>

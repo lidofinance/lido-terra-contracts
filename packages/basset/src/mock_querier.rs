@@ -112,14 +112,21 @@ impl WasmMockQuerier {
                 if key.as_slice().to_vec() == prefix_config {
                     let config = Config {
                         creator: api.addr_canonicalize(&String::from("owner1")).unwrap(),
-                        reward_contract: Some(
+                        reward_dispatcher_contract: Some(
                             api.addr_canonicalize(&String::from("reward")).unwrap(),
                         ),
-                        token_contract: Some(
+                        validators_registry_contract: Some(
+                            api.addr_canonicalize(&String::from("validators")).unwrap(),
+                        ),
+                        bluna_token_contract: Some(
                             api.addr_canonicalize(&String::from("token")).unwrap(),
                         ),
                         airdrop_registry_contract: Some(
                             api.addr_canonicalize(&String::from("airdrop")).unwrap(),
+                        ),
+                        stluna_token_contract: Some(
+                            api.addr_canonicalize(&String::from("stluna_token"))
+                                .unwrap(),
                         ),
                     };
                     SystemResult::Ok(ContractResult::from(to_binary(&config)))

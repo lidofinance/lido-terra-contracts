@@ -1,8 +1,8 @@
-use crate::msg::QueryMsg::Config;
-use crate::state::{Parameters, CONFIG, PARAMETERS};
+use crate::state::{CONFIG, PARAMETERS};
+use basset::hub::Parameters;
 use cosmwasm_std::{
-    attr, Api, CosmosMsg, Decimal, DepsMut, DistributionMsg, Env, MessageInfo, Response,
-    StakingMsg, StdError, StdResult, Storage,
+    attr, CosmosMsg, Decimal, DepsMut, DistributionMsg, Env, MessageInfo, Response, StdError,
+    StdResult,
 };
 
 /// Update general parameters
@@ -10,7 +10,7 @@ use cosmwasm_std::{
 #[allow(clippy::too_many_arguments)]
 pub fn execute_update_params(
     deps: DepsMut,
-    env: Env,
+    _env: Env,
     info: MessageInfo,
     epoch_period: Option<u64>,
     unbonding_period: Option<u64>,
@@ -46,7 +46,7 @@ pub fn execute_update_params(
 /// Only creator/owner is allowed to execute
 pub fn execute_update_config(
     deps: DepsMut,
-    env: Env,
+    _env: Env,
     info: MessageInfo,
     owner: Option<String>,
     rewards_dispatcher_contract: Option<String>,
@@ -120,6 +120,8 @@ pub fn execute_update_config(
         })?;
     }
 
-    let res = Response::new().add_attributes(vec![attr("action", "update_config")]);
+    let res = Response::new()
+        .add_messages(messages)
+        .add_attributes(vec![attr("action", "update_config")]);
     Ok(res)
 }

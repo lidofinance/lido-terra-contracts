@@ -3,7 +3,7 @@ use cw20::Cw20ReceiveMsg;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-pub type UnbondRequest = Vec<(u64, Uint128)>;
+pub type UnbondRequest = Vec<(u64, Uint128, Uint128)>;
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct InstantiateMsg {
@@ -13,7 +13,6 @@ pub struct InstantiateMsg {
     pub peg_recovery_fee: Decimal,
     pub er_threshold: Decimal,
     pub reward_denom: String,
-    pub validator: String,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema, Default)]
@@ -173,24 +172,63 @@ pub enum Cw20HookMsg {
     Unbond {},
     Convert {},
 }
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct Parameters {
+    pub epoch_period: u64,
+    pub underlying_coin_denom: String,
+    pub unbonding_period: u64,
+    pub peg_recovery_fee: Decimal,
+    pub er_threshold: Decimal,
+    pub reward_denom: String,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct CurrentBatch {
+    pub id: u64,
+    pub requested_bluna_with_fee: Uint128,
+    pub requested_stluna: Uint128,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct OldCurrentBatch {
+    pub id: u64,
+    pub requested_with_fee: Uint128,
+}
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct UnbondHistory {
     pub batch_id: u64,
     pub time: u64,
-    pub amount: Uint128,
-    pub applied_exchange_rate: Decimal,
-    pub withdraw_rate: Decimal,
+    pub bluna_amount: Uint128,
+    pub bluna_applied_exchange_rate: Decimal,
+    pub bluna_withdraw_rate: Decimal,
+
+    pub stluna_amount: Uint128,
+    pub stluna_applied_exchange_rate: Decimal,
+    pub stluna_withdraw_rate: Decimal,
+
     pub released: bool,
+}
+
+#[derive(JsonSchema, Serialize, Deserialize, Default)]
+pub struct UnbondWaitEntity {
+    pub bluna_amount: Uint128,
+    pub stluna_amount: Uint128,
+}
+
+pub enum UnbondType {
+    BLuna,
+    StLuna,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct StateResponse {
-    pub exchange_rate: Decimal,
-    pub total_bond_amount: Uint128,
+    pub bluna_exchange_rate: Decimal,
+    pub stluna_exchange_rate: Decimal,
+    pub total_bond_bluna_amount: Uint128,
+    pub total_bond_stluna_amount: Uint128,
     pub last_index_modification: u64,
     pub prev_hub_balance: Uint128,
-    pub actual_unbonded_amount: Uint128,
     pub last_unbonded_time: u64,
     pub last_processed_batch: u64,
 }
@@ -198,20 +236,18 @@ pub struct StateResponse {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct ConfigResponse {
     pub owner: String,
-    pub reward_contract: Option<String>,
-    pub token_contract: Option<String>,
+    pub reward_dispatcher_contract: Option<String>,
+    pub validators_registry_contract: Option<String>,
+    pub bluna_token_contract: Option<String>,
+    pub stluna_token_contract: Option<String>,
     pub airdrop_registry_contract: Option<String>,
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct WhitelistedValidatorsResponse {
-    pub validators: Vec<String>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct CurrentBatchResponse {
     pub id: u64,
-    pub requested_with_fee: Uint128,
+    pub requested_bluna_with_fee: Uint128,
+    pub requested_stluna: Uint128,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -230,4 +266,28 @@ pub struct AllHistoryResponse {
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct MigrateMsg {}
+pub struct MigrateMsg {
+    pub reward_dispatcher_contract: String,
+    pub validators_registry_contract: String,
+    pub stluna_token_contract: String,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum QueryMsg {
+    Config {},
+    State {},
+    CurrentBatch {},
+    WithdrawableUnbonded {
+        address: String,
+        block_time: u64,
+    },
+    Parameters {},
+    UnbondRequests {
+        address: String,
+    },
+    AllHistory {
+        start_from: Option<u64>,
+        limit: Option<u32>,
+    },
+}

@@ -1,15 +1,17 @@
 use anchor_basset_validators_registry::registry::Validator as RegistryValidator;
 use cosmwasm_std::testing::{MockApi, MockQuerier, MockStorage};
 use cosmwasm_std::{
-    from_slice, to_binary, AllBalanceResponse, Api, BalanceResponse, BankQuery, CanonicalAddr,
-    Coin, ContractResult, Decimal, FullDelegation, OwnedDeps, Querier, QuerierResult, QueryRequest,
-    SystemError, Uint128, Validator, WasmQuery,
+    from_binary, from_slice, to_binary, to_vec, AllBalanceResponse, Api, BalanceResponse,
+    BankQuery, CanonicalAddr, Coin, ContractResult, CustomQuery, Decimal, Empty, FullDelegation,
+    OwnedDeps, Querier, QuerierResult, QueryRequest, StdError, StdResult, SystemError,
+    SystemResult, Uint128, Validator, WasmQuery,
 };
 use cosmwasm_storage::to_length_prefixed;
 use cw20_base::state::{MinterData, TokenInfo};
 use std::collections::HashMap;
 
 use basset::hub::Config;
+use serde::de::DeserializeOwned;
 use terra_cosmwasm::{TaxCapResponse, TaxRateResponse, TerraQuery, TerraQueryWrapper, TerraRoute};
 
 pub const MOCK_CONTRACT_ADDR: &str = "cosmos2contract";
@@ -242,13 +244,15 @@ impl WasmMockQuerier {
                         .balances
                         .get(&String::from(MOCK_CONTRACT_ADDR))
                     {
-                        Some(coin) => Ok(to_binary(&BalanceResponse {
-                            amount: Coin {
-                                denom: coin.denom.clone(),
-                                amount: coin.amount,
-                            },
-                        })),
-                        None => Err(SystemError::InvalidRequest {
+                        Some(coin) => {
+                            QuerierResult::Ok(ContractResult::from(to_binary(&BalanceResponse {
+                                amount: Coin {
+                                    denom: coin.denom.clone(),
+                                    amount: coin.amount,
+                                },
+                            })))
+                        }
+                        None => QuerierResult::Err(SystemError::InvalidRequest {
                             error: "balance not found".to_string(),
                             request: Default::default(),
                         }),
@@ -275,6 +279,36 @@ impl WasmMockQuerier {
         delegations: &[FullDelegation],
     ) {
         self.base.update_staking(denom, validators, delegations);
+    }
+
+    pub fn query<T: DeserializeOwned>(&self, request: &QueryRequest<Empty>) -> StdResult<T> {
+        self.custom_query(request)
+    }
+
+    /// Makes the query and parses the response. Also handles custom queries,
+    /// so you need to specify the custom query type in the function parameters.
+    /// If you are no using a custom query, just use `query` for easier interface.
+    ///
+    /// Any error (System Error, Error or called contract, or Parse Error) are flattened into
+    /// one level. Only use this if you don't need to check the SystemError
+    /// eg. If you don't differentiate between contract missing and contract returned error
+    pub fn custom_query<C: CustomQuery, U: DeserializeOwned>(
+        &self,
+        request: &QueryRequest<C>,
+    ) -> StdResult<U> {
+        let raw = to_vec(request).map_err(|serialize_err| {
+            StdError::generic_err(format!("Serializing QueryRequest: {}", serialize_err))
+        })?;
+        match self.raw_query(&raw) {
+            SystemResult::Err(system_err) => Err(StdError::generic_err(format!(
+                "Querier system error: {}",
+                system_err
+            ))),
+            SystemResult::Ok(ContractResult::Err(contract_err)) => Err(StdError::generic_err(
+                format!("Querier contract error: {}", contract_err),
+            )),
+            SystemResult::Ok(ContractResult::Ok(value)) => from_binary(&value),
+        }
     }
 }
 
@@ -323,10 +357,10 @@ pub(crate) fn balances_to_map(
     for (contract_addr, balances) in balances.iter() {
         let mut contract_balances_map: HashMap<String, Uint128> = HashMap::new();
         for (addr, balance) in balances.iter() {
-            contract_balances_map.insert(String::from(addr), **balance);
+            contract_balances_map.insert(addr.to_string(), **balance);
         }
 
-        balances_map.insert(String::from(contract_addr), contract_balances_map);
+        balances_map.insert(contract_addr.to_string(), contract_balances_map);
     }
     balances_map
 }
