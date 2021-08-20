@@ -60,7 +60,7 @@ pub(crate) fn execute_unbond(
         UnbondType::BLuna,
     )?;
 
-    total_supply = total_supply - amount;
+    total_supply -= amount;
 
     // Update exchange rate
     state.update_bluna_exchange_rate(total_supply, current_batch.requested_bluna_with_fee);
@@ -112,7 +112,7 @@ pub fn execute_withdraw_unbonded(
     env: Env,
     info: MessageInfo,
 ) -> StdResult<Response> {
-    let sender_human = info.sender.clone();
+    let sender_human = info.sender;
     let contract_address = env.contract.address.clone();
 
     // read params
@@ -483,8 +483,8 @@ fn process_undelegations(
         delegator.to_string(),
     )?;
 
-    state.total_bond_stluna_amount = state.total_bond_stluna_amount - stluna_undelegation_amount;
-    state.total_bond_bluna_amount = state.total_bond_bluna_amount - bluna_undelegation_amount;
+    state.total_bond_stluna_amount -= stluna_undelegation_amount;
+    state.total_bond_bluna_amount -= bluna_undelegation_amount;
 
     // Store history for withdraw unbonded
     let history = UnbondHistory {

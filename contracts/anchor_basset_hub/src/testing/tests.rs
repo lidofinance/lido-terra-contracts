@@ -207,7 +207,7 @@ fn proper_initialization() {
     let env = mock_env();
 
     // we can just call .unwrap() to assert this was a success
-    let res: Response = instantiate(deps.as_mut(), mock_env(), owner_info.clone(), msg).unwrap();
+    let res: Response = instantiate(deps.as_mut(), mock_env(), owner_info, msg).unwrap();
     assert_eq!(0, res.messages.len());
 
     // check parameters storage
@@ -726,7 +726,7 @@ pub fn proper_update_global_index() {
     };
 
     let info = mock_info(&addr1, &[]);
-    let res = execute(deps.as_mut(), mock_env(), info.clone(), reward_msg).unwrap();
+    let res = execute(deps.as_mut(), mock_env(), info, reward_msg).unwrap();
     assert_eq!(3, res.messages.len());
 
     let env = mock_env();
@@ -1168,7 +1168,7 @@ pub fn proper_unbond() {
         amount: Uint128::from(2u64),
         msg: to_binary(&successful_bond).unwrap(),
     });
-    let res = execute(deps.as_mut(), env.clone(), token_info.clone(), receive).unwrap();
+    let res = execute(deps.as_mut(), env.clone(), token_info, receive).unwrap();
     assert_eq!(2, res.messages.len());
 
     let msg = &res.messages[1];
@@ -1207,10 +1207,7 @@ pub fn proper_unbond() {
     // check the state
     let state = State {};
     let query_state: StateResponse = from_binary(&query(deps.as_ref(), state).unwrap()).unwrap();
-    assert_eq!(
-        query_state.last_unbonded_time,
-        env.clone().block.time.nanos()
-    );
+    assert_eq!(query_state.last_unbonded_time, env.block.time.nanos());
     assert_eq!(query_state.total_bond_bluna_amount, Uint128::from(2u64));
 
     // the last request (2) gets combined and processed with the previous requests (1, 5)
@@ -1468,7 +1465,7 @@ pub fn proper_unbond_stluna() {
         amount: Uint128::from(2u64),
         msg: to_binary(&successful_bond).unwrap(),
     });
-    let res = execute(deps.as_mut(), env.clone(), token_info.clone(), receive).unwrap();
+    let res = execute(deps.as_mut(), env.clone(), token_info, receive).unwrap();
     assert_eq!(2, res.messages.len());
 
     let msg = &res.messages[1];
@@ -1508,10 +1505,7 @@ pub fn proper_unbond_stluna() {
     // check the state
     let state = State {};
     let query_state: StateResponse = from_binary(&query(deps.as_ref(), state).unwrap()).unwrap();
-    assert_eq!(
-        query_state.last_unbonded_time,
-        env.clone().block.time.nanos()
-    );
+    assert_eq!(query_state.last_unbonded_time, env.block.time.nanos());
     assert_eq!(query_state.total_bond_bluna_amount, Uint128::from(0u64));
     assert_eq!(query_state.total_bond_stluna_amount, Uint128::from(2u64));
 
@@ -1623,7 +1617,7 @@ pub fn proper_pick_validator() {
     let res = do_unbond(
         deps.as_mut(),
         addr2.clone(),
-        env.clone(),
+        env,
         token_info,
         Uint128::from(100u64),
     );
@@ -1722,7 +1716,7 @@ pub fn proper_pick_validator_respect_distributed_delegation() {
     let res = do_unbond(
         deps.as_mut(),
         addr2,
-        env.clone(),
+        env,
         token_info,
         Uint128::from(2000u64),
     );
@@ -1897,8 +1891,7 @@ pub fn proper_slashing() {
     env.block.time = env.block.time.plus_seconds(90);
     //check withdrawUnbonded message
     let withdraw_unbond_msg = ExecuteMsg::WithdrawUnbonded {};
-    let wdraw_unbonded_res =
-        execute(deps.as_mut(), env.clone(), info, withdraw_unbond_msg).unwrap();
+    let wdraw_unbonded_res = execute(deps.as_mut(), env, info, withdraw_unbond_msg).unwrap();
     assert_eq!(wdraw_unbonded_res.messages.len(), 1);
 
     let ex_rate = State {};
@@ -2077,8 +2070,7 @@ pub fn proper_slashing_stluna() {
     env.block.time = env.block.time.plus_seconds(90);
     //check withdrawUnbonded message
     let withdraw_unbond_msg = ExecuteMsg::WithdrawUnbonded {};
-    let wdraw_unbonded_res =
-        execute(deps.as_mut(), env.clone(), info, withdraw_unbond_msg).unwrap();
+    let wdraw_unbonded_res = execute(deps.as_mut(), env, info, withdraw_unbond_msg).unwrap();
     assert_eq!(wdraw_unbonded_res.messages.len(), 1);
 
     let ex_rate = State {};
@@ -2253,8 +2245,7 @@ pub fn proper_withdraw_unbonded() {
     let res: WithdrawableUnbondedResponse = from_binary(&query_with).unwrap();
     assert_eq!(res.withdrawable, Uint128::from(20u64));
 
-    let success_res =
-        execute(deps.as_mut(), env.clone(), info.clone(), wdraw_unbonded_msg).unwrap();
+    let success_res = execute(deps.as_mut(), env.clone(), info, wdraw_unbonded_msg).unwrap();
 
     assert_eq!(success_res.messages.len(), 1);
 
@@ -2468,8 +2459,7 @@ pub fn proper_withdraw_unbonded_stluna() {
     let res: WithdrawableUnbondedResponse = from_binary(&query_with).unwrap();
     assert_eq!(res.withdrawable, Uint128::from(40u64));
 
-    let success_res =
-        execute(deps.as_mut(), env.clone(), info.clone(), wdraw_unbonded_msg).unwrap();
+    let success_res = execute(deps.as_mut(), env.clone(), info, wdraw_unbonded_msg).unwrap();
 
     assert_eq!(success_res.messages.len(), 1);
 
@@ -2672,8 +2662,7 @@ pub fn proper_withdraw_unbonded_both_tokens() {
     assert_eq!(res.withdrawable, Uint128::from(300u64));
 
     let wdraw_unbonded_msg = ExecuteMsg::WithdrawUnbonded {};
-    let success_res =
-        execute(deps.as_mut(), env.clone(), info.clone(), wdraw_unbonded_msg).unwrap();
+    let success_res = execute(deps.as_mut(), env.clone(), info, wdraw_unbonded_msg).unwrap();
 
     assert_eq!(success_res.messages.len(), 1);
 
@@ -2857,8 +2846,7 @@ pub fn proper_withdraw_unbonded_respect_slashing() {
     let res: WithdrawableUnbondedResponse = from_binary(&query_with).unwrap();
     assert_eq!(res.withdrawable, Uint128::from(1000u64));
 
-    let success_res =
-        execute(deps.as_mut(), env.clone(), info.clone(), wdraw_unbonded_msg).unwrap();
+    let success_res = execute(deps.as_mut(), env.clone(), info, wdraw_unbonded_msg).unwrap();
 
     assert_eq!(success_res.messages.len(), 1);
 
@@ -3023,8 +3011,7 @@ pub fn proper_withdraw_unbonded_respect_slashing_stluna() {
     let res: WithdrawableUnbondedResponse = from_binary(&query_with).unwrap();
     assert_eq!(res.withdrawable, Uint128::from(1000u64));
 
-    let success_res =
-        execute(deps.as_mut(), env.clone(), info.clone(), wdraw_unbonded_msg).unwrap();
+    let success_res = execute(deps.as_mut(), env.clone(), info, wdraw_unbonded_msg).unwrap();
 
     assert_eq!(success_res.messages.len(), 1);
 
@@ -3210,8 +3197,7 @@ pub fn proper_withdraw_unbonded_respect_inactivity_slashing() {
     let res: WithdrawableUnbondedResponse = from_binary(&query_with).unwrap();
     assert_eq!(res.withdrawable, Uint128::from(1000u64));
 
-    let success_res =
-        execute(deps.as_mut(), env.clone(), info.clone(), wdraw_unbonded_msg).unwrap();
+    let success_res = execute(deps.as_mut(), env.clone(), info, wdraw_unbonded_msg).unwrap();
 
     assert_eq!(success_res.messages.len(), 1);
 
@@ -3409,8 +3395,7 @@ pub fn proper_withdraw_unbonded_respect_inactivity_slashing_stluna() {
     let res: WithdrawableUnbondedResponse = from_binary(&query_with).unwrap();
     assert_eq!(res.withdrawable, Uint128::from(1000u64));
 
-    let success_res =
-        execute(deps.as_mut(), env.clone(), info.clone(), wdraw_unbonded_msg).unwrap();
+    let success_res = execute(deps.as_mut(), env.clone(), info, wdraw_unbonded_msg).unwrap();
 
     assert_eq!(success_res.messages.len(), 1);
 
@@ -3578,8 +3563,7 @@ pub fn proper_withdraw_unbond_with_dummies() {
 
     env.block.time = env.block.time.plus_seconds(120);
     let wdraw_unbonded_msg = ExecuteMsg::WithdrawUnbonded {};
-    let success_res =
-        execute(deps.as_mut(), env.clone(), info.clone(), wdraw_unbonded_msg).unwrap();
+    let success_res = execute(deps.as_mut(), env.clone(), info, wdraw_unbonded_msg).unwrap();
 
     assert_eq!(success_res.messages.len(), 1);
 
@@ -3753,8 +3737,7 @@ pub fn proper_withdraw_unbond_with_dummies_stluna() {
 
     env.block.time = env.block.time.plus_seconds(120);
     let wdraw_unbonded_msg = ExecuteMsg::WithdrawUnbonded {};
-    let success_res =
-        execute(deps.as_mut(), env.clone(), info.clone(), wdraw_unbonded_msg).unwrap();
+    let success_res = execute(deps.as_mut(), env.clone(), info, wdraw_unbonded_msg).unwrap();
 
     assert_eq!(success_res.messages.len(), 1);
 
@@ -4051,8 +4034,7 @@ pub fn proper_recovery_fee() {
     env.block.time = env.block.time.plus_seconds(90);
     //check withdrawUnbonded message
     let withdraw_unbond_msg = ExecuteMsg::WithdrawUnbonded {};
-    let wdraw_unbonded_res =
-        execute(deps.as_mut(), env.clone(), token_info, withdraw_unbond_msg).unwrap();
+    let wdraw_unbonded_res = execute(deps.as_mut(), env, token_info, withdraw_unbond_msg).unwrap();
     assert_eq!(wdraw_unbonded_res.messages.len(), 1);
 
     let sent_message = &wdraw_unbonded_res.messages[0];
@@ -4328,7 +4310,7 @@ fn proper_claim_airdrop() {
     );
 
     let valid_info = mock_info(&airdrop_registry, &[]);
-    let res = execute(deps.as_mut(), mock_env(), valid_info.clone(), claim_msg).unwrap();
+    let res = execute(deps.as_mut(), mock_env(), valid_info, claim_msg).unwrap();
     assert_eq!(res.messages.len(), 2);
 
     assert_eq!(
@@ -4386,7 +4368,7 @@ fn proper_swap_hook() {
 
     //invalid sender
     let info = mock_info(&owner, &[]);
-    let res = execute(deps.as_mut(), mock_env(), info.clone(), swap_msg.clone()).unwrap_err();
+    let res = execute(deps.as_mut(), mock_env(), info, swap_msg.clone()).unwrap_err();
     assert_eq!(res, StdError::generic_err("unauthorized"));
 
     // no balance for hub
@@ -4551,6 +4533,7 @@ fn sample_delegation(addr: String, amount: Coin) -> FullDelegation {
 // sample MIR claim msg
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
+#[allow(clippy::upper_case_acronyms)]
 pub enum MIRMsg {
     MIRClaim {},
 }

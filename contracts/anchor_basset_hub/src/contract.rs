@@ -182,12 +182,11 @@ pub fn execute_redelegate_proxy(
     if sender_contract_addr != validators_registry_contract {
         return Err(StdError::generic_err("unauthorized"));
     }
-    let mut messages: Vec<CosmosMsg> = vec![];
-    messages.push(cosmwasm_std::CosmosMsg::Staking(StakingMsg::Redelegate {
+    let messages: Vec<CosmosMsg> = vec![cosmwasm_std::CosmosMsg::Staking(StakingMsg::Redelegate {
         src_validator,
         dst_validator,
         amount,
-    }));
+    })];
 
     let res = Response::new().add_messages(messages);
 
@@ -312,24 +311,19 @@ pub fn execute_update_global(
 fn withdraw_all_rewards(deps: &DepsMut, delegator: String) -> StdResult<Vec<CosmosMsg>> {
     let mut messages: Vec<CosmosMsg> = vec![];
 
-    let delegations = deps.querier.query_all_delegations(delegator);
+    let delegations = deps.querier.query_all_delegations(delegator)?;
 
-    match delegations {
-        Ok(delegations) => {
-            if delegations.is_empty() {
-                Ok(messages)
-            } else {
-                for delegation in delegations {
-                    let msg: CosmosMsg =
-                        CosmosMsg::Distribution(DistributionMsg::WithdrawDelegatorReward {
-                            validator: delegation.validator,
-                        });
-                    messages.push(msg);
-                }
-                Ok(messages)
-            }
+    if delegations.is_empty() {
+        Ok(messages)
+    } else {
+        for delegation in delegations {
+            let msg: CosmosMsg =
+                CosmosMsg::Distribution(DistributionMsg::WithdrawDelegatorReward {
+                    validator: delegation.validator,
+                });
+            messages.push(msg);
         }
-        Err(_) => Ok(messages),
+        Ok(messages)
     }
 }
 
@@ -389,6 +383,7 @@ pub fn slashing(deps: &mut DepsMut, env: Env, _info: MessageInfo) -> StdResult<(
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn claim_airdrop(
     deps: DepsMut,
     env: Env,

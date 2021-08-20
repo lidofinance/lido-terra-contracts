@@ -10,6 +10,7 @@ pub struct InstantiateMsg {
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
+#[allow(clippy::upper_case_acronyms)]
 pub enum ExecuteMsg {
     FabricateMIRClaim {
         stage: u8,
@@ -52,6 +53,7 @@ pub enum QueryMsg {
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
+#[allow(clippy::upper_case_acronyms)]
 pub enum MIRAirdropHandleMsg {
     Claim {
         stage: u8,
@@ -62,6 +64,7 @@ pub enum MIRAirdropHandleMsg {
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
+#[allow(clippy::upper_case_acronyms)]
 pub enum ANCAirdropHandleMsg {
     Claim {
         stage: u8,
@@ -72,6 +75,7 @@ pub enum ANCAirdropHandleMsg {
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
+#[allow(clippy::upper_case_acronyms)]
 pub enum PairHandleMsg {
     Swap {
         belief_price: Option<Decimal>,

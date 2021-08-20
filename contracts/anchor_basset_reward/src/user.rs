@@ -35,7 +35,7 @@ pub fn execute_claim_rewards(
     let config: Config = read_config(deps.storage)?;
 
     let reward_with_decimals =
-        calculate_decimal_rewards(state.global_index, holder.index, holder.balance)?;
+        calculate_decimal_rewards(state.global_index, holder.index, holder.balance);
 
     let all_reward_with_decimals =
         decimal_summation_in_256(reward_with_decimals, holder.pending_rewards);
@@ -102,7 +102,7 @@ pub fn execute_increase_balance(
     let mut holder: Holder = read_holder(deps.storage, &address_raw)?;
 
     // get decimals
-    let rewards = calculate_decimal_rewards(state.global_index, holder.index, holder.balance)?;
+    let rewards = calculate_decimal_rewards(state.global_index, holder.index, holder.balance);
 
     holder.index = state.global_index;
     holder.pending_rewards = decimal_summation_in_256(rewards, holder.pending_rewards);
@@ -149,7 +149,7 @@ pub fn execute_decrease_balance(
         )));
     }
 
-    let rewards = calculate_decimal_rewards(state.global_index, holder.index, holder.balance)?;
+    let rewards = calculate_decimal_rewards(state.global_index, holder.index, holder.balance);
 
     holder.index = state.global_index;
     holder.pending_rewards = decimal_summation_in_256(rewards, holder.pending_rewards);
@@ -175,7 +175,7 @@ pub fn query_accrued_rewards(deps: Deps, address: String) -> StdResult<AccruedRe
 
     let holder: Holder = read_holder(deps.storage, &deps.api.addr_canonicalize(&address)?)?;
     let reward_with_decimals =
-        calculate_decimal_rewards(global_index, holder.index, holder.balance)?;
+        calculate_decimal_rewards(global_index, holder.index, holder.balance);
     let all_reward_with_decimals =
         decimal_summation_in_256(reward_with_decimals, holder.pending_rewards);
 
@@ -215,12 +215,12 @@ fn calculate_decimal_rewards(
     global_index: Decimal,
     user_index: Decimal,
     user_balance: Uint128,
-) -> StdResult<Decimal> {
+) -> Decimal {
     let decimal_balance = Decimal::from_ratio(user_balance, Uint128::new(1));
-    Ok(decimal_multiplication_in_256(
+    decimal_multiplication_in_256(
         decimal_subtraction_in_256(global_index, user_index),
         decimal_balance,
-    ))
+    )
 }
 
 // calculate the reward with decimal
@@ -246,7 +246,7 @@ mod tests {
         let global_index = Decimal::from_ratio(Uint128::new(9), Uint128::new(100));
         let user_index = Decimal::zero();
         let user_balance = Uint128::new(1000);
-        let reward = calculate_decimal_rewards(global_index, user_index, user_balance).unwrap();
+        let reward = calculate_decimal_rewards(global_index, user_index, user_balance);
         assert_eq!(reward.to_string(), "90");
     }
 
@@ -255,9 +255,11 @@ mod tests {
         let global_index = Decimal::from_ratio(Uint128::new(9999999), Uint128::new(100000000));
         let user_index = Decimal::zero();
         let user_balance = Uint128::new(10);
-        let reward = get_decimals(
-            calculate_decimal_rewards(global_index, user_index, user_balance).unwrap(),
-        )
+        let reward = get_decimals(calculate_decimal_rewards(
+            global_index,
+            user_index,
+            user_balance,
+        ))
         .unwrap();
         assert_eq!(reward.to_string(), "0.9999999");
     }
