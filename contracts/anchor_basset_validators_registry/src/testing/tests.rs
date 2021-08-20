@@ -54,7 +54,7 @@ fn add_validator() {
     let msg = ExecuteMsg::AddValidator {
         validator: validator.clone(),
     };
-    let _res = execute(deps.as_mut(), mock_env(), info.clone(), msg);
+    let _res = execute(deps.as_mut(), mock_env(), info, msg);
 
     match _res {
         Ok(_) => {
@@ -101,7 +101,7 @@ fn ownership_tests() {
         hub_contract: None,
         owner: None,
     };
-    let res = execute(deps.as_mut(), mock_env(), info.clone(), msg);
+    let res = execute(deps.as_mut(), mock_env(), info, msg);
     assert_eq!(res.err().unwrap(), StdError::generic_err("unauthorized"));
 }
 
@@ -251,7 +251,7 @@ fn remove_validator() {
     let msg = ExecuteMsg::RemoveValidator {
         address: validator4.address.clone(),
     };
-    let _res = execute(deps.as_mut(), mock_env(), info.clone(), msg.clone());
+    let _res = execute(deps.as_mut(), mock_env(), info.clone(), msg);
     match _res {
         Ok(res) => {
             let reg = registry_read(&deps.storage).load(validator4.address.as_str().as_bytes());
@@ -296,7 +296,7 @@ fn remove_validator() {
                         .unwrap()
                         .0
                     );
-                    assert_eq!(contract_addr.to_string(), hub_contract_address.to_string());
+                    assert_eq!(contract_addr, hub_contract_address.to_string());
                 }
                 _ => panic!("Unexpected message: {:?}", redelegate),
             }
@@ -318,7 +318,7 @@ fn remove_validator() {
                         .unwrap()
                         .0
                     );
-                    assert_eq!(contract_addr.to_string(), hub_contract_address.to_string());
+                    assert_eq!(contract_addr, hub_contract_address.to_string());
                 }
                 _ => panic!("Unexpected message: {:?}", redelegate),
             }
@@ -423,7 +423,7 @@ fn remove_validator() {
                         .unwrap()
                         .0
                     );
-                    assert_eq!(contract_addr.to_string(), hub_contract_address.to_string());
+                    assert_eq!(contract_addr, hub_contract_address.to_string());
                 }
                 _ => panic!("Unexpected message: {:?}", redelegate),
             }
@@ -445,7 +445,7 @@ fn remove_validator() {
                         .unwrap()
                         .0
                     );
-                    assert_eq!(contract_addr.to_string(), hub_contract_address.to_string());
+                    assert_eq!(contract_addr, hub_contract_address.to_string());
                 }
                 _ => panic!("Unexpected message: {:?}", redelegate),
             }
@@ -536,7 +536,7 @@ fn remove_validator() {
                         .unwrap()
                         .0
                     );
-                    assert_eq!(contract_addr.to_string(), hub_contract_address.to_string());
+                    assert_eq!(contract_addr, hub_contract_address.to_string());
                 }
                 _ => panic!("Unexpected message: {:?}", redelegate),
             }
@@ -612,15 +612,15 @@ fn test_calculate_delegations() {
         default_validator_with_delegations!(0),
     ];
     let expected_delegations: Vec<Uint128> = vec![
-        Uint128::from(4 as u128),
-        Uint128::from(3 as u128),
-        Uint128::from(3 as u128),
+        Uint128::from(4u128),
+        Uint128::from(3u128),
+        Uint128::from(3u128),
     ];
 
     // sort validators for the right delegations
     validators.sort_by(|v1, v2| v1.total_delegated.cmp(&v2.total_delegated));
 
-    let buffered_balance = Uint128::from(10 as u128);
+    let buffered_balance = Uint128::from(10u128);
     let (remained_balance, delegations) =
         calculate_delegations(buffered_balance, validators.as_slice()).unwrap();
 
@@ -651,15 +651,15 @@ fn test_calculate_undelegations() {
         default_validator_with_delegations!(10),
     ];
     let expected_undelegations: Vec<Uint128> = vec![
-        Uint128::from(93 as u128),
-        Uint128::from(3 as u128),
-        Uint128::from(4 as u128),
+        Uint128::from(93u128),
+        Uint128::from(3u128),
+        Uint128::from(4u128),
     ];
 
     // sort validators for the right delegations
     validators.sort_by(|v1, v2| v2.total_delegated.cmp(&v1.total_delegated));
 
-    let undelegate_amount = Uint128::from(100 as u128);
+    let undelegate_amount = Uint128::from(100u128);
     let undelegations = calculate_undelegations(undelegate_amount, validators.as_slice()).unwrap();
 
     assert_eq!(
@@ -680,15 +680,15 @@ fn test_calculate_undelegations() {
         default_validator_with_delegations!(10),
     ];
     let expected_undelegations: Vec<Uint128> = vec![
-        Uint128::from(3 as u128),
-        Uint128::from(3 as u128),
-        Uint128::from(4 as u128),
+        Uint128::from(3u128),
+        Uint128::from(3u128),
+        Uint128::from(4u128),
     ];
 
     // sort validators for the right delegations
     validators.sort_by(|v1, v2| v2.total_delegated.cmp(&v1.total_delegated));
 
-    let undelegate_amount = Uint128::from(10 as u128);
+    let undelegate_amount = Uint128::from(10u128);
     let undelegations = calculate_undelegations(undelegate_amount, validators.as_slice()).unwrap();
 
     assert_eq!(
@@ -711,7 +711,7 @@ fn test_calculate_undelegations() {
     // sort validators for the right delegations
     validators.sort_by(|v1, v2| v2.total_delegated.cmp(&v1.total_delegated));
 
-    let undelegate_amount = Uint128::from(1000 as u128);
+    let undelegate_amount = Uint128::from(1000u128);
     if let Some(e) = calculate_undelegations(undelegate_amount, validators.as_slice()).err() {
         assert_eq!(
             e,

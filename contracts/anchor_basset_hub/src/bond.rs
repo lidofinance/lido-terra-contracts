@@ -36,7 +36,7 @@ pub fn execute_bond(mut deps: DepsMut, env: Env, info: MessageInfo) -> Result<Re
             StdError::generic_err(format!("No {} assets are provided to bond", coin_denom))
         })?;
     // check slashing
-    slashing(&mut deps, env.clone(), info.clone())?;
+    slashing(&mut deps, env, info.clone())?;
 
     let state = STATE.load(deps.storage)?;
     let sender = info.sender.clone();
@@ -146,7 +146,7 @@ pub fn execute_bond_stluna(mut deps: DepsMut, env: Env, info: MessageInfo) -> St
         })?;
 
     // check slashing
-    slashing(&mut deps, env.clone(), info.clone())?;
+    slashing(&mut deps, env, info.clone())?;
 
     let state = STATE.load(deps.storage)?;
     let sender = info.sender.clone();
@@ -255,7 +255,7 @@ pub fn execute_bond_rewards(mut deps: DepsMut, env: Env, info: MessageInfo) -> S
         })?;
 
     // check slashing
-    slashing(&mut deps, env.clone(), info.clone())?;
+    slashing(&mut deps, env, info.clone())?;
 
     let total_supply = query_total_stluna_issued(deps.as_ref())?;
 

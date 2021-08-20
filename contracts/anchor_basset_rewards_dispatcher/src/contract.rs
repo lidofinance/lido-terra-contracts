@@ -70,6 +70,7 @@ pub fn execute(
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn execute_update_config(
     deps: DepsMut,
     _env: Env,
@@ -275,7 +276,8 @@ pub(crate) fn get_swap_info(
     );
 
     if total_stluna_rewards_available.gt(&stluna_share_of_total_rewards) {
-        let stluna_rewards_to_sell = total_stluna_rewards_available - stluna_share_of_total_rewards;
+        let stluna_rewards_to_sell =
+            total_stluna_rewards_available.checked_sub(stluna_share_of_total_rewards)?;
 
         Ok((
             Coin::new(
@@ -285,7 +287,8 @@ pub(crate) fn get_swap_info(
             config.bluna_reward_denom,
         ))
     } else {
-        let stluna_rewards_to_buy = stluna_share_of_total_rewards - total_stluna_rewards_available;
+        let stluna_rewards_to_buy =
+            stluna_share_of_total_rewards.checked_sub(total_stluna_rewards_available)?;
         let bluna_rewards_to_sell = stluna_rewards_to_buy.mul(stluna_2_bluna_rewards_xchg_rate);
 
         Ok((
@@ -317,13 +320,13 @@ pub fn execute_dispatch_rewards(
         .querier
         .query_balance(contr_addr.clone(), config.stluna_reward_denom.as_str())?;
     let lido_stluna_fee = compute_lido_fee(stluna_rewards.amount, config.lido_fee_rate)?;
-    stluna_rewards.amount = stluna_rewards.amount - lido_stluna_fee;
+    stluna_rewards.amount -= lido_stluna_fee;
 
     let mut bluna_rewards = deps
         .querier
-        .query_balance(contr_addr.clone(), config.bluna_reward_denom.as_str())?;
+        .query_balance(contr_addr, config.bluna_reward_denom.as_str())?;
     let lido_bluna_fee = compute_lido_fee(bluna_rewards.amount, config.lido_fee_rate)?;
-    bluna_rewards.amount = bluna_rewards.amount - lido_bluna_fee;
+    bluna_rewards.amount -= lido_bluna_fee;
 
     let mut lido_fees: Vec<Coin> = vec![];
     if !lido_stluna_fee.is_zero() {
