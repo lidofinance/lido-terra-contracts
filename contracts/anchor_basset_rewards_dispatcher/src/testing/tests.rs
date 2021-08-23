@@ -99,7 +99,7 @@ fn test_dispatch_rewards() {
 
     for attr in res.attributes {
         if attr.key == "stluna_rewards" {
-            assert_eq!("190uluna", attr.value)
+            assert_eq!("188uluna", attr.value)
         }
         if attr.key == "bluna_rewards" {
             assert_eq!("282uusd", attr.value)
