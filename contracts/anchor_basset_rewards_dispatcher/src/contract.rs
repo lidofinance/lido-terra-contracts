@@ -381,6 +381,7 @@ pub fn execute_dispatch_rewards(
 
     let mut messages: Vec<CosmosMsg<TerraMsgWrapper>> = vec![];
     if !stluna_rewards.amount.is_zero() {
+        stluna_rewards = deduct_tax(&deps.querier, stluna_rewards)?;
         messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
             contract_addr: hub_addr.to_string(),
             msg: to_binary(&BondRewards {}).unwrap(),
@@ -400,7 +401,7 @@ pub fn execute_dispatch_rewards(
         )
     }
     if !bluna_rewards.amount.is_zero() {
-        bluna_rewards = deduct_tax(&deps.querier, bluna_rewards.clone())?;
+        bluna_rewards = deduct_tax(&deps.querier, bluna_rewards)?;
         messages.push(
             BankMsg::Send {
                 to_address: bluna_reward_addr.to_string(),
