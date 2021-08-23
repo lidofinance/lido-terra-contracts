@@ -84,8 +84,8 @@ fn test_dispatch_rewards() {
     let mut deps = mock_dependencies(
         20,
         &[
-            Coin::new(20, "uluna"),
-            Coin::new(30, "uusd"),
+            Coin::new(200, "uluna"),
+            Coin::new(300, "uusd"),
             Coin::new(20, "usdr"),
         ],
     );
@@ -108,19 +108,19 @@ fn test_dispatch_rewards() {
             assert_eq!("uluna", log.value)
         }
         if log.key == "stluna_rewards_amount" {
-            assert_eq!("19", log.value)
+            assert_eq!("190", log.value)
         }
         if log.key == "bluna_rewards_denom" {
             assert_eq!("uusd", log.value)
         }
         if log.key == "bluna_rewards_amount" {
-            assert_eq!("28", log.value)
+            assert_eq!("282", log.value)
         }
-        if log.key == "lido_stluna_fee" {
-            assert_eq!("1", log.value)
+        if log.key == "lido_stluna_fee_amount" {
+            assert_eq!("9", log.value)
         }
-        if log.key == "lido_bluna_fee" {
-            assert_eq!("2", log.value)
+        if log.key == "lido_bluna_fee_amount" {
+            assert_eq!("14", log.value)
         }
     }
 }
