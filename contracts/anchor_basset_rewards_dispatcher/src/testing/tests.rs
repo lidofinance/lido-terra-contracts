@@ -108,7 +108,7 @@ fn test_dispatch_rewards() {
             assert_eq!("uluna", log.value)
         }
         if log.key == "stluna_rewards_amount" {
-            assert_eq!("190", log.value)
+            assert_eq!("188", log.value)
         }
         if log.key == "bluna_rewards_denom" {
             assert_eq!("uusd", log.value)
