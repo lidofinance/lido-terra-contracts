@@ -30,7 +30,7 @@ cosmwasm-std = { version = "0.16.0", features = ["staking"] }
 cosmwasm-storage = { version = "0.16.0", features = ["iterator"] }
 cw-storage-plus = { version = "0.8.0", features = ["iterator"]}
 schemars = "0.8.1"
-cw20-legacy = "0.2.0"
+cw20-legacy = { version = "0.2.0", features = ["library"]}
 serde = { version = "1.0.103", default-features = false, features = ["derive"] }
 snafu = { version = "0.6.3" }
 basset = { path = "../../packages/basset", default-features = false, version = "0.1.0"}
