@@ -84,8 +84,8 @@ fn test_dispatch_rewards() {
     let mut deps = mock_dependencies(
         20,
         &[
-            Coin::new(20, "uluna"),
-            Coin::new(30, "uusd"),
+            Coin::new(200, "uluna"),
+            Coin::new(300, "uusd"),
             Coin::new(20, "usdr"),
         ],
     );
@@ -108,19 +108,19 @@ fn test_dispatch_rewards() {
             assert_eq!("uluna", log.value)
         }
         if log.key == "stluna_rewards_amount" {
-            assert_eq!("19", log.value)
+            assert_eq!("188", log.value)
         }
         if log.key == "bluna_rewards_denom" {
             assert_eq!("uusd", log.value)
         }
         if log.key == "bluna_rewards_amount" {
-            assert_eq!("28", log.value)
+            assert_eq!("282", log.value)
         }
-        if log.key == "lido_stluna_fee" {
-            assert_eq!("1", log.value)
+        if log.key == "lido_stluna_fee_amount" {
+            assert_eq!("9", log.value)
         }
-        if log.key == "lido_bluna_fee" {
-            assert_eq!("2", log.value)
+        if log.key == "lido_bluna_fee_amount" {
+            assert_eq!("14", log.value)
         }
     }
 }
@@ -216,6 +216,8 @@ fn test_update_config() {
         bluna_reward_contract: None,
         stluna_reward_denom: None,
         bluna_reward_denom: None,
+        lido_fee_address: None,
+        lido_fee_rate: None,
     };
     let env = mock_env(&invalid_owner, &[]);
     let res = handle(&mut deps, env, update_config_msg);
@@ -229,6 +231,8 @@ fn test_update_config() {
         bluna_reward_contract: None,
         stluna_reward_denom: None,
         bluna_reward_denom: None,
+        lido_fee_address: None,
+        lido_fee_rate: None,
     };
     let env = mock_env(&owner, &[]);
     let res = handle(&mut deps, env, update_config_msg);
@@ -245,6 +249,8 @@ fn test_update_config() {
         bluna_reward_contract: None,
         stluna_reward_denom: None,
         bluna_reward_denom: None,
+        lido_fee_address: None,
+        lido_fee_rate: None,
     };
     let env = mock_env(&new_owner, &[]);
     let res = handle(&mut deps, env, update_config_msg);
@@ -265,6 +271,8 @@ fn test_update_config() {
         bluna_reward_contract: Some(HumanAddr::from("some_address")),
         stluna_reward_denom: None,
         bluna_reward_denom: None,
+        lido_fee_address: None,
+        lido_fee_rate: None,
     };
     let env = mock_env(&new_owner, &[]);
     let res = handle(&mut deps, env, update_config_msg);
@@ -285,6 +293,8 @@ fn test_update_config() {
         bluna_reward_contract: None,
         stluna_reward_denom: Some(String::from("new_denom")),
         bluna_reward_denom: None,
+        lido_fee_address: None,
+        lido_fee_rate: None,
     };
     let env = mock_env(&new_owner, &[]);
     let res = handle(&mut deps, env, update_config_msg);
@@ -300,6 +310,8 @@ fn test_update_config() {
         bluna_reward_contract: None,
         stluna_reward_denom: None,
         bluna_reward_denom: Some(String::from("new_denom")),
+        lido_fee_address: None,
+        lido_fee_rate: None,
     };
     let env = mock_env(&new_owner, &[]);
     let res = handle(&mut deps, env, update_config_msg);
@@ -307,4 +319,43 @@ fn test_update_config() {
 
     let config = read_config(&deps.storage).unwrap();
     assert_eq!(String::from("new_denom"), config.bluna_reward_denom);
+
+    // change lido_fee_address
+    let update_config_msg = HandleMsg::UpdateConfig {
+        owner: None,
+        hub_contract: None,
+        bluna_reward_contract: None,
+        stluna_reward_denom: None,
+        bluna_reward_denom: None,
+        lido_fee_address: Some(HumanAddr::from("some_address")),
+        lido_fee_rate: None,
+    };
+    let env = mock_env(&new_owner, &[]);
+    let res = handle(&mut deps, env, update_config_msg);
+    assert!(res.is_ok());
+
+    let config = read_config(&deps.storage).unwrap();
+    assert_eq!(
+        deps.api
+            .canonical_address(&HumanAddr::from("some_address"))
+            .unwrap(),
+        config.lido_fee_address
+    );
+
+    // change lido_fee_rate
+    let update_config_msg = HandleMsg::UpdateConfig {
+        owner: None,
+        hub_contract: None,
+        bluna_reward_contract: None,
+        stluna_reward_denom: None,
+        bluna_reward_denom: None,
+        lido_fee_address: None,
+        lido_fee_rate: Some(Decimal::one()),
+    };
+    let env = mock_env(&new_owner, &[]);
+    let res = handle(&mut deps, env, update_config_msg);
+    assert!(res.is_ok());
+
+    let config = read_config(&deps.storage).unwrap();
+    assert_eq!(Decimal::one(), config.lido_fee_rate);
 }

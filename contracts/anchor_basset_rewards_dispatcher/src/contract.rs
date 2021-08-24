@@ -1,6 +1,6 @@
 use cosmwasm_std::{
     log, to_binary, Api, BankMsg, Binary, Coin, CosmosMsg, Decimal, Env, Extern, HandleResponse,
-    HumanAddr, InitResponse, Querier, StdError, StdResult, Storage, Uint128, WasmMsg,
+    HumanAddr, InitResponse, LogAttribute, Querier, StdError, StdResult, Storage, Uint128, WasmMsg,
 };
 
 use crate::msg::{HandleMsg, InitMsg, QueryMsg};
@@ -48,6 +48,8 @@ pub fn handle<S: Storage, A: Api, Q: Querier>(
             bluna_reward_contract,
             stluna_reward_denom,
             bluna_reward_denom,
+            lido_fee_address,
+            lido_fee_rate,
         } => handle_update_config(
             deps,
             env,
@@ -56,10 +58,13 @@ pub fn handle<S: Storage, A: Api, Q: Querier>(
             bluna_reward_contract,
             stluna_reward_denom,
             bluna_reward_denom,
+            lido_fee_address,
+            lido_fee_rate,
         ),
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn handle_update_config<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
     env: Env,
@@ -68,6 +73,8 @@ pub fn handle_update_config<S: Storage, A: Api, Q: Querier>(
     bluna_reward_contract: Option<HumanAddr>,
     stluna_reward_denom: Option<String>,
     bluna_reward_denom: Option<String>,
+    lido_fee_address: Option<HumanAddr>,
+    lido_fee_rate: Option<Decimal>,
 ) -> StdResult<HandleResponse<TerraMsgWrapper>> {
     let conf = read_config(&deps.storage)?;
     let sender_raw = deps.api.canonical_address(&env.message.sender)?;
@@ -112,6 +119,22 @@ pub fn handle_update_config<S: Storage, A: Api, Q: Querier>(
     if let Some(b) = bluna_reward_denom {
         update_config(&mut deps.storage).update(|mut last_config| {
             last_config.bluna_reward_denom = b;
+            Ok(last_config)
+        })?;
+    }
+
+    if let Some(r) = lido_fee_rate {
+        update_config(&mut deps.storage).update(|mut last_config| {
+            last_config.lido_fee_rate = r;
+            Ok(last_config)
+        })?;
+    }
+
+    if let Some(a) = lido_fee_address {
+        let address_raw = deps.api.canonical_address(&a)?;
+
+        update_config(&mut deps.storage).update(|mut last_config| {
+            last_config.lido_fee_address = address_raw;
             Ok(last_config)
         })?;
     }
@@ -326,26 +349,41 @@ pub fn handle_dispatch_rewards<S: Storage, A: Api, Q: Querier>(
     let lido_bluna_fee = compute_lido_fee(bluna_rewards.amount, config.lido_fee_rate)?;
     bluna_rewards.amount = (bluna_rewards.amount - lido_bluna_fee)?;
 
+    let mut fee_logs: Vec<LogAttribute> = vec![];
+
     let mut lido_fees: Vec<Coin> = vec![];
     if !lido_stluna_fee.is_zero() {
-        lido_fees.push(Coin {
-            amount: lido_stluna_fee,
-            denom: stluna_rewards.denom.clone(),
-        })
+        let stluna_fee = deduct_tax(
+            &deps,
+            Coin {
+                amount: lido_stluna_fee,
+                denom: stluna_rewards.denom.clone(),
+            },
+        )?;
+        lido_fees.push(stluna_fee.clone());
+        fee_logs.push(log("lido_stluna_fee_amount", stluna_fee.amount));
+        fee_logs.push(log("lido_stluna_fee_denom", stluna_fee.denom));
     }
     if !lido_bluna_fee.is_zero() {
-        lido_fees.push(Coin {
-            amount: lido_bluna_fee,
-            denom: bluna_rewards.denom.clone(),
-        })
+        let bluna_fee = deduct_tax(
+            &deps,
+            Coin {
+                amount: lido_bluna_fee,
+                denom: bluna_rewards.denom.clone(),
+            },
+        )?;
+        lido_fees.push(bluna_fee.clone());
+        fee_logs.push(log("lido_bluna_fee_amount", bluna_fee.amount));
+        fee_logs.push(log("lido_bluna_fee_denom", bluna_fee.denom));
     }
 
     let mut messages: Vec<CosmosMsg<TerraMsgWrapper>> = vec![];
     if !stluna_rewards.amount.is_zero() {
+        stluna_rewards = deduct_tax(&deps, stluna_rewards)?;
         messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
             contract_addr: hub_addr,
             msg: to_binary(&BondRewards {}).unwrap(),
-            send: vec![deduct_tax(&deps, stluna_rewards.clone())?],
+            send: vec![stluna_rewards.clone()],
         }));
     }
     if !lido_fees.is_empty() {
@@ -359,11 +397,12 @@ pub fn handle_dispatch_rewards<S: Storage, A: Api, Q: Querier>(
         )
     }
     if !bluna_rewards.amount.is_zero() {
+        bluna_rewards = deduct_tax(&deps, bluna_rewards)?;
         messages.push(
             BankMsg::Send {
                 from_address: contr_addr,
                 to_address: bluna_reward_addr.clone(),
-                amount: vec![deduct_tax(&deps, bluna_rewards.clone())?],
+                amount: vec![bluna_rewards.clone()],
             }
             .into(),
         )
@@ -374,18 +413,19 @@ pub fn handle_dispatch_rewards<S: Storage, A: Api, Q: Querier>(
         send: vec![],
     }));
 
+    let mut logs = vec![
+        log("action", "claim_reward"),
+        log("bluna_reward_addr", bluna_reward_addr),
+        log("stluna_rewards_denom", stluna_rewards.denom),
+        log("stluna_rewards_amount", stluna_rewards.amount),
+        log("bluna_rewards_denom", bluna_rewards.denom),
+        log("bluna_rewards_amount", bluna_rewards.amount),
+    ];
+    logs.extend_from_slice(&fee_logs);
+
     Ok(HandleResponse {
         messages,
-        log: vec![
-            log("action", "claim_reward"),
-            log("bluna_reward_addr", bluna_reward_addr),
-            log("stluna_rewards_denom", stluna_rewards.denom),
-            log("stluna_rewards_amount", stluna_rewards.amount),
-            log("bluna_rewards_denom", bluna_rewards.denom),
-            log("bluna_rewards_amount", bluna_rewards.amount),
-            log("lido_stluna_fee", lido_stluna_fee),
-            log("lido_bluna_fee", lido_bluna_fee),
-        ],
+        log: logs,
         data: None,
     })
 }
