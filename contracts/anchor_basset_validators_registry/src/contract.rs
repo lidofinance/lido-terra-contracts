@@ -180,7 +180,13 @@ pub fn query<S: Storage, A: Api, Q: Querier>(
             validators.sort_by(|v1, v2| v1.total_delegated.cmp(&v2.total_delegated));
             to_binary(&validators)
         }
+        QueryMsg::Config {} => to_binary(&query_config(deps)?),
     }
+}
+
+fn query_config<S: Storage, A: Api, Q: Querier>(deps: &Extern<S, A, Q>) -> StdResult<Config> {
+    let config = config_read(&deps.storage).load()?;
+    Ok(config)
 }
 
 fn query_validators<S: Storage, A: Api, Q: Querier>(
