@@ -85,11 +85,11 @@ pub(crate) fn execute_unbond(
 
     // Send Burn message to token contract
     let config = CONFIG.load(deps.storage)?;
-    let token_address = deps.api.addr_humanize(
-        &config
-            .bluna_token_contract
-            .expect("the token contract must have been registered"),
-    )?;
+    let token_address =
+        deps.api
+            .addr_humanize(&config.bluna_token_contract.ok_or_else(|| {
+                StdError::generic_err("the token contract must have been registered")
+            })?)?;
 
     let burn_msg = Cw20ExecuteMsg::Burn { amount };
     messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
@@ -432,11 +432,11 @@ pub(crate) fn execute_unbond_stluna(
 
     // Send Burn message to token contract
     let config = CONFIG.load(deps.storage)?;
-    let token_address = deps.api.addr_humanize(
-        &config
-            .stluna_token_contract
-            .expect("the token contract must have been registered"),
-    )?;
+    let token_address =
+        deps.api
+            .addr_humanize(&config.stluna_token_contract.ok_or_else(|| {
+                StdError::generic_err("the token contract must have been registered")
+            })?)?;
 
     let burn_msg = Cw20ExecuteMsg::Burn { amount };
     messages.push(CosmosMsg::Wasm(WasmMsg::Execute {

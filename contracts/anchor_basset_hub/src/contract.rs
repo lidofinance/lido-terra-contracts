@@ -205,41 +205,41 @@ pub fn receive_cw20(
     info: MessageInfo,
     cw20_msg: Cw20ReceiveMsg,
 ) -> StdResult<Response> {
-    let contract_addr = info.sender.clone();
+    let contract_addr = deps.api.addr_canonicalize(&info.sender.as_str())?;
+
+    // only token contract can execute this message
+    let conf = CONFIG.load(deps.storage)?;
+
+    let bluna_contract_addr = if let Some(b) = conf.bluna_token_contract {
+        b
+    } else {
+        return Err(StdError::generic_err(
+            "the bLuna token contract must have been registered",
+        ));
+    };
+
+    let stluna_contract_addr = if let Some(st) = conf.stluna_token_contract {
+        st
+    } else {
+        return Err(StdError::generic_err(
+            "the stLuna token contract must have been registered",
+        ));
+    };
 
     match from_binary(&cw20_msg.msg)? {
         Cw20HookMsg::Unbond {} => {
-            // only token contract can execute this message
-            let conf = CONFIG.load(deps.storage)?;
-            if deps.api.addr_canonicalize(&contract_addr.as_str())?
-                == conf
-                    .bluna_token_contract
-                    .expect("the token contract must have been registered")
-            {
+            if contract_addr == bluna_contract_addr {
                 execute_unbond(deps, env, info, cw20_msg.amount, cw20_msg.sender)
-            } else if deps.api.addr_canonicalize(&contract_addr.as_str())?
-                == conf
-                    .stluna_token_contract
-                    .expect("the token contract must have been registered")
-            {
+            } else if contract_addr == stluna_contract_addr {
                 execute_unbond_stluna(deps, env, info, cw20_msg.amount, cw20_msg.sender)
             } else {
                 Err(StdError::generic_err("unauthorized"))
             }
         }
         Cw20HookMsg::Convert {} => {
-            let conf = CONFIG.load(deps.storage)?;
-            if deps.api.addr_canonicalize(&contract_addr.as_str())?
-                == conf
-                    .bluna_token_contract
-                    .expect("the token contract must have been registered")
-            {
+            if contract_addr == bluna_contract_addr {
                 convert_bluna_stluna(deps, env, cw20_msg.amount, cw20_msg.sender)
-            } else if deps.api.addr_canonicalize(&contract_addr.as_str())?
-                == conf
-                    .stluna_token_contract
-                    .expect("the token contract must have been registered")
-            {
+            } else if contract_addr == stluna_contract_addr {
                 convert_stluna_bluna(deps, env, cw20_msg.amount, cw20_msg.sender)
             } else {
                 Err(StdError::generic_err("unauthorized"))
@@ -259,16 +259,18 @@ pub fn execute_update_global(
     let mut messages: Vec<CosmosMsg> = vec![];
 
     let config = CONFIG.load(deps.storage)?;
-    let reward_addr = deps.api.addr_humanize(
-        &config
-            .reward_dispatcher_contract
-            .expect("the reward contract must have been registered"),
-    )?;
+    let reward_addr =
+        deps.api
+            .addr_humanize(&config.reward_dispatcher_contract.ok_or_else(|| {
+                StdError::generic_err("the reward contract must have been registered")
+            })?)?;
 
     if airdrop_hooks.is_some() {
-        let registry_addr = deps
-            .api
-            .addr_humanize(&config.airdrop_registry_contract.unwrap())?;
+        let registry_addr =
+            deps.api
+                .addr_humanize(&config.airdrop_registry_contract.ok_or_else(|| {
+                    StdError::generic_err("the airdrop registry contract must have been registered")
+                })?)?;
         for msg in airdrop_hooks.unwrap() {
             messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
                 contract_addr: registry_addr.to_string(),
@@ -800,7 +802,7 @@ pub(crate) fn query_total_bluna_issued(deps: Deps) -> StdResult<Uint128> {
         &CONFIG
             .load(deps.storage)?
             .bluna_token_contract
-            .expect("token contract must have been registered"),
+            .ok_or_else(|| StdError::generic_err("token contract must have been registered"))?,
     )?;
     let token_info: TokenInfo = deps.querier.query(&QueryRequest::Wasm(WasmQuery::Raw {
         contract_addr: token_address.to_string(),
@@ -814,7 +816,7 @@ pub(crate) fn query_total_stluna_issued(deps: Deps) -> StdResult<Uint128> {
         &CONFIG
             .load(deps.storage)?
             .stluna_token_contract
-            .expect("token contract must have been registered"),
+            .ok_or_else(|| StdError::generic_err("token contract must have been registered"))?,
     )?;
     let token_info: TokenInfo = deps.querier.query(&QueryRequest::Wasm(WasmQuery::Raw {
         contract_addr: token_address.to_string(),

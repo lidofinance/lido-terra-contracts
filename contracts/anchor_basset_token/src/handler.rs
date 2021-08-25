@@ -33,8 +33,7 @@ pub fn execute_transfer(
             msg: to_binary(&DecreaseBalance {
                 address: sender.to_string(),
                 amount,
-            })
-            .unwrap(),
+            })?,
             funds: vec![],
         })),
         SubMsg::new(CosmosMsg::Wasm(WasmMsg::Execute {
@@ -42,8 +41,7 @@ pub fn execute_transfer(
             msg: to_binary(&IncreaseBalance {
                 address: rcpt_addr.to_string(),
                 amount,
-            })
-            .unwrap(),
+            })?,
             funds: vec![],
         })),
     ];
@@ -67,8 +65,7 @@ pub fn execute_burn(
         msg: to_binary(&DecreaseBalance {
             address: sender.to_string(),
             amount,
-        })
-        .unwrap(),
+        })?,
         funds: vec![],
     }))];
     Ok(Response::new()
@@ -92,8 +89,7 @@ pub fn execute_mint(
             msg: to_binary(&IncreaseBalance {
                 address: recipient,
                 amount,
-            })
-            .unwrap(),
+            })?,
             funds: vec![],
         }))])
         .add_attributes(res.attributes))
@@ -118,8 +114,7 @@ pub fn execute_send(
                 msg: to_binary(&DecreaseBalance {
                     address: sender.to_string(),
                     amount,
-                })
-                .unwrap(),
+                })?,
                 funds: vec![],
             })),
             SubMsg::new(CosmosMsg::Wasm(WasmMsg::Execute {
@@ -127,8 +122,7 @@ pub fn execute_send(
                 msg: to_binary(&IncreaseBalance {
                     address: contract,
                     amount,
-                })
-                .unwrap(),
+                })?,
                 funds: vec![],
             })),
         ],
@@ -160,8 +154,7 @@ pub fn execute_transfer_from(
             msg: to_binary(&DecreaseBalance {
                 address: valid_owner.to_string(),
                 amount,
-            })
-            .unwrap(),
+            })?,
             funds: vec![],
         })),
         SubMsg::new(CosmosMsg::Wasm(WasmMsg::Execute {
@@ -169,8 +162,7 @@ pub fn execute_transfer_from(
             msg: to_binary(&IncreaseBalance {
                 address: recipient,
                 amount,
-            })
-            .unwrap(),
+            })?,
             funds: vec![],
         })),
     ];
@@ -196,8 +188,7 @@ pub fn execute_burn_from(
         msg: to_binary(&DecreaseBalance {
             address: valid_owner.to_string(),
             amount,
-        })
-        .unwrap(),
+        })?,
         funds: vec![],
     }))];
     Ok(Response::new()
@@ -226,8 +217,7 @@ pub fn execute_send_from(
                 msg: to_binary(&DecreaseBalance {
                     address: valid_owner.to_string(),
                     amount,
-                })
-                .unwrap(),
+                })?,
                 funds: vec![],
             })),
             SubMsg::new(CosmosMsg::Wasm(WasmMsg::Execute {
@@ -235,8 +225,7 @@ pub fn execute_send_from(
                 msg: to_binary(&IncreaseBalance {
                     address: contract,
                     amount,
-                })
-                .unwrap(),
+                })?,
                 funds: vec![],
             })),
         ],

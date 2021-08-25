@@ -107,11 +107,11 @@ pub fn execute_bond(mut deps: DepsMut, env: Env, info: MessageInfo) -> Result<Re
     };
 
     let config = CONFIG.load(deps.storage)?;
-    let token_address = deps.api.addr_humanize(
-        &config
-            .bluna_token_contract
-            .expect("the token contract must have been registered"),
-    )?;
+    let token_address =
+        deps.api
+            .addr_humanize(&config.bluna_token_contract.ok_or_else(|| {
+                StdError::generic_err("the token contract must have been registered")
+            })?)?;
 
     external_call_msgs.push(CosmosMsg::Wasm(WasmMsg::Execute {
         contract_addr: token_address.to_string(),
@@ -206,11 +206,11 @@ pub fn execute_bond_stluna(mut deps: DepsMut, env: Env, info: MessageInfo) -> St
     };
 
     let config = CONFIG.load(deps.storage)?;
-    let token_address = deps.api.addr_humanize(
-        &config
-            .stluna_token_contract
-            .expect("the token contract must have been registered"),
-    )?;
+    let token_address =
+        deps.api
+            .addr_humanize(&config.stluna_token_contract.ok_or_else(|| {
+                StdError::generic_err("the token contract must have been registered")
+            })?)?;
 
     external_call_msgs.push(CosmosMsg::Wasm(WasmMsg::Execute {
         contract_addr: token_address.to_string(),
@@ -224,11 +224,11 @@ pub fn execute_bond_stluna(mut deps: DepsMut, env: Env, info: MessageInfo) -> St
 
 pub fn execute_bond_rewards(mut deps: DepsMut, env: Env, info: MessageInfo) -> StdResult<Response> {
     let config = CONFIG.load(deps.storage)?;
-    let reward_dispatcher_addr = deps.api.addr_humanize(
-        &config
-            .reward_dispatcher_contract
-            .expect("the reward dispatcher contract must have been registered"),
-    )?;
+    let reward_dispatcher_addr =
+        deps.api
+            .addr_humanize(&config.reward_dispatcher_contract.ok_or_else(|| {
+                StdError::generic_err("the reward dispatcher contract must have been registered")
+            })?)?;
     if info.sender != reward_dispatcher_addr {
         return Err(StdError::generic_err("unauthorized"));
     }
