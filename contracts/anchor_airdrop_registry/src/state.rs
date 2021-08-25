@@ -53,7 +53,7 @@ pub fn remove_airdrop_info(storage: &mut dyn Storage, airdrop_token: String) -> 
 }
 
 pub fn read_airdrop_info(storage: &dyn Storage, airdrop_token: String) -> StdResult<AirdropInfo> {
-    let key = to_vec(&airdrop_token).unwrap();
+    let key = to_vec(&airdrop_token)?;
     AIRDROP_INFO.load(storage, &key)
 }
 
@@ -67,20 +67,26 @@ pub fn read_all_airdrop_infos(
     let limit = limit.unwrap_or(DEFAULT_LIMIT).min(MAX_LIMIT) as usize;
     let start = calc_range_start(start_after).map(Bound::exclusive);
 
-    let infos: Vec<AirdropInfoElem> = AIRDROP_INFO
+    let infos: StdResult<Vec<AirdropInfoElem>> = AIRDROP_INFO
         .range(storage, start, None, Order::Ascending)
         .take(limit)
         .map(|item| {
-            let (k, v) = item.unwrap();
-            let key: String = from_slice(&k).unwrap();
-            AirdropInfoElem {
+            let (k, v) = match item {
+                Ok(p) => p,
+                Err(e) => return Err(e),
+            };
+            let key: String = match from_slice(&k) {
+                Ok(s) => s,
+                Err(e) => return Err(e),
+            };
+            Ok(AirdropInfoElem {
                 airdrop_token: key,
                 info: v,
-            }
+            })
         })
         .collect();
 
-    Ok(infos)
+    infos
 }
 
 fn calc_range_start(start_after: Option<String>) -> Option<Vec<u8>> {

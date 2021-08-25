@@ -80,7 +80,7 @@ fn execute_fabricate_mir_claim(
 
     let mut messages: Vec<SubMsg> = vec![];
 
-    let airdrop_info = read_airdrop_info(deps.storage, "MIR".to_string()).unwrap();
+    let airdrop_info = read_airdrop_info(deps.storage, "MIR".to_string())?;
     messages.push(SubMsg::new(CosmosMsg::Wasm(WasmMsg::Execute {
         contract_addr: config.hub_contract,
         msg: to_binary(&HubHandleMsg::ClaimAirdrop {
@@ -307,7 +307,7 @@ fn query_airdrop_infos(
     limit: Option<u32>,
 ) -> StdResult<AirdropInfoResponse> {
     if let Some(air_token) = airdrop_token {
-        let info = read_airdrop_info(deps.storage, air_token.clone()).unwrap();
+        let info = read_airdrop_info(deps.storage, air_token.clone())?;
 
         Ok(AirdropInfoResponse {
             airdrop_info: vec![AirdropInfoElem {

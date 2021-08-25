@@ -26,7 +26,7 @@ pub fn execute_claim_rewards(
     let holder_addr = info.sender;
     let holder_addr_raw = deps.api.addr_canonicalize(holder_addr.as_str())?;
     let recipient = match recipient {
-        Some(value) => deps.api.addr_validate(value.as_str()).unwrap(),
+        Some(value) => deps.api.addr_validate(value.as_str())?,
         None => holder_addr.clone(),
     };
 
