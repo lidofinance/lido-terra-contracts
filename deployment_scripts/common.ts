@@ -94,7 +94,7 @@ export async function migrateContract(terraClient: LCDClient, wallet: Wallet, co
   const migrateTxResult = await terraClient.tx.broadcast(migrateTx);
   if (isTxError(migrateTxResult)) {
     throw new Error(
-      `instantiate failed. code: ${migrateTxResult.code}, codespace: ${migrateTxResult.codespace}, raw_log: ${migrateTxResult.raw_log}`
+      `migration failed. code: ${migrateTxResult.code}, codespace: ${migrateTxResult.codespace}, raw_log: ${migrateTxResult.raw_log}`
     );
   }
 }

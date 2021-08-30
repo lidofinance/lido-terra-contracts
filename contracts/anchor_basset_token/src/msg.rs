@@ -11,3 +11,6 @@ pub struct TokenInitMsg {
     pub mint: Option<MinterResponse>,
     pub hub_contract: String,
 }
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct MigrateMsg {}
