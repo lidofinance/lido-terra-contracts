@@ -9,7 +9,7 @@ use cw20_legacy::contract::query as cw20_query;
 use cw20_legacy::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
 
 use crate::handler::*;
-use crate::msg::TokenInitMsg;
+use crate::msg::{MigrateMsg, TokenInitMsg};
 use crate::state::store_hub_contract;
 use cw20::MinterResponse;
 use cw20_legacy::ContractError;
@@ -91,4 +91,9 @@ pub fn execute(
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     cw20_query(deps, _env, msg)
+}
+
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn migrate(_deps: DepsMut, _env: Env, _msg: MigrateMsg) -> StdResult<Response> {
+    Ok(Response::default())
 }
