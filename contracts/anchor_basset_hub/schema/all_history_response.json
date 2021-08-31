@@ -24,18 +24,27 @@
     "UnbondHistory": {
       "type": "object",
       "required": [
-        "amount",
-        "applied_exchange_rate",
+        "bluna_amount",
+        "stluna_amount",
+        "bluna_applied_exchange_rate",
+        "stluna_applied_exchange_rate",
         "batch_id",
         "released",
         "time",
-        "withdraw_rate"
+        "bluna_withdraw_rate",
+        "stluna_withdraw_rate"
       ],
       "properties": {
-        "amount": {
+        "bluna_amount": {
           "$ref": "#/definitions/Uint128"
         },
-        "applied_exchange_rate": {
+        "stluna_amount": {
+          "$ref": "#/definitions/Uint128"
+        },
+        "bluna_applied_exchange_rate": {
+          "$ref": "#/definitions/Decimal"
+        },
+        "stluna_applied_exchange_rate": {
           "$ref": "#/definitions/Decimal"
         },
         "batch_id": {
@@ -51,7 +60,10 @@
           "format": "uint64",
           "minimum": 0.0
         },
-        "withdraw_rate": {
+        "bluna_withdraw_rate": {
+          "$ref": "#/definitions/Decimal"
+        },
+        "stluna_withdraw_rate": {
           "$ref": "#/definitions/Decimal"
         }
       }
