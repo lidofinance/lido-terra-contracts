@@ -66,7 +66,7 @@ pub(crate) fn execute_unbond(
     state.update_bluna_exchange_rate(total_supply, current_batch.requested_bluna_with_fee);
 
     let current_time = env.block.time.nanos();
-    let passed_time = current_time - state.last_unbonded_time;
+    let passed_time = nano_to_second(current_time - state.last_unbonded_time);
 
     let mut messages: Vec<CosmosMsg> = vec![];
 
@@ -120,7 +120,7 @@ pub fn execute_withdraw_unbonded(
     let unbonding_period = params.unbonding_period;
     let coin_denom = params.underlying_coin_denom;
 
-    let historical_time = env.block.time.nanos() - unbonding_period;
+    let historical_time = env.block.time.seconds() - unbonding_period;
 
     // query hub balance for process withdraw rate.
     let hub_balance = deps
@@ -413,7 +413,7 @@ pub(crate) fn execute_unbond_stluna(
     )?;
 
     let current_time = env.block.time.nanos();
-    let passed_time = current_time - state.last_unbonded_time;
+    let passed_time = nano_to_second(current_time - state.last_unbonded_time);
 
     let mut messages: Vec<CosmosMsg> = vec![];
 
@@ -493,7 +493,7 @@ fn process_undelegations(
     // Store history for withdraw unbonded
     let history = UnbondHistory {
         batch_id: current_batch.id,
-        time: env.block.time.nanos(),
+        time: env.block.time.seconds(),
         stluna_amount: current_batch.requested_stluna,
         stluna_applied_exchange_rate: state.stluna_exchange_rate,
         stluna_withdraw_rate: state.stluna_exchange_rate,
@@ -515,4 +515,8 @@ fn process_undelegations(
     state.last_unbonded_time = env.block.time.nanos();
 
     Ok(undelegated_msgs)
+}
+
+pub(crate) fn nano_to_second(time: u64) -> u64 {
+    time / 1_000_000_000
 }

@@ -363,8 +363,10 @@ pub fn execute_dispatch_rewards(
                 denom: stluna_rewards.denom.clone(),
             },
         )?;
-        lido_fees.push(stluna_fee.clone());
-        fees_attrs.push(attr("lido_stluna_fee", stluna_fee.to_string()));
+        if !stluna_fee.amount.is_zero() {
+            lido_fees.push(stluna_fee.clone());
+            fees_attrs.push(attr("lido_stluna_fee", stluna_fee.to_string()));
+        }
     }
     if !lido_bluna_fee_amount.is_zero() {
         let bluna_fee = deduct_tax(
@@ -374,8 +376,10 @@ pub fn execute_dispatch_rewards(
                 denom: bluna_rewards.denom.clone(),
             },
         )?;
-        lido_fees.push(bluna_fee.clone());
-        fees_attrs.push(attr("lido_bluna_fee", bluna_fee.to_string()));
+        if !bluna_fee.amount.is_zero() {
+            lido_fees.push(bluna_fee.clone());
+            fees_attrs.push(attr("lido_bluna_fee", bluna_fee.to_string()));
+        }
     }
 
     let mut messages: Vec<CosmosMsg<TerraMsgWrapper>> = vec![];

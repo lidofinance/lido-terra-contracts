@@ -684,15 +684,14 @@ fn burn_message(contract: String, amount: Uint128) -> StdResult<CosmosMsg> {
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
+pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         QueryMsg::Config {} => to_binary(&query_config(deps)?),
         QueryMsg::State {} => to_binary(&query_state(deps)?),
         QueryMsg::CurrentBatch {} => to_binary(&query_current_batch(deps)?),
-        QueryMsg::WithdrawableUnbonded {
-            address,
-            block_time,
-        } => to_binary(&query_withdrawable_unbonded(deps, address, block_time)?),
+        QueryMsg::WithdrawableUnbonded { address } => {
+            to_binary(&query_withdrawable_unbonded(deps, address, env)?)
+        }
         QueryMsg::Parameters {} => to_binary(&query_params(deps)?),
         QueryMsg::UnbondRequests { address } => to_binary(&query_unbond_requests(deps, address)?),
         QueryMsg::AllHistory { start_from, limit } => {
@@ -781,10 +780,10 @@ fn query_current_batch(deps: Deps) -> StdResult<CurrentBatchResponse> {
 fn query_withdrawable_unbonded(
     deps: Deps,
     address: String,
-    block_time: u64,
+    env: Env,
 ) -> StdResult<WithdrawableUnbondedResponse> {
     let params = PARAMETERS.load(deps.storage)?;
-    let historical_time = block_time - params.unbonding_period;
+    let historical_time = env.block.time.seconds() - params.unbonding_period;
     let all_requests = query_get_finished_amount(deps.storage, address, historical_time)?;
 
     let withdrawable = WithdrawableUnbondedResponse {
