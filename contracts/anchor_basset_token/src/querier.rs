@@ -22,7 +22,7 @@ pub fn query_reward_contract(deps: &DepsMut) -> StdResult<Addr> {
     let rewards_dispatcher_config: RewardsDispatcherConfig =
         deps.querier.query(&QueryRequest::Wasm(WasmQuery::Raw {
             contract_addr: rewards_dispatcher_address.to_string(),
-            key: Binary::from(to_length_prefixed(b"config")),
+            key: Binary::from(b"config"),
         }))?;
 
     let bluna_reward_address = deps

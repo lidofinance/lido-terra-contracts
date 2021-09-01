@@ -10,7 +10,7 @@ use cw20_base::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
 
 use crate::handler::*;
 use crate::msg::TokenInitMsg;
-use crate::state::store_hub_contract;
+use crate::state::HUB_CONTRACT;
 use cw20::MinterResponse;
 use cw20_base::ContractError;
 
@@ -21,7 +21,7 @@ pub fn instantiate(
     info: MessageInfo,
     msg: TokenInitMsg,
 ) -> Result<Response, ContractError> {
-    store_hub_contract(
+    HUB_CONTRACT.save(
         deps.storage,
         &deps.api.addr_canonicalize(&msg.hub_contract)?,
     )?;

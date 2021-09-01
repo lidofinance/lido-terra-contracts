@@ -43,10 +43,10 @@ pub(crate) fn execute_unbond(
     let amount_with_fee: Uint128;
     if state.bluna_exchange_rate < threshold {
         let max_peg_fee = amount * recovery_fee;
-        let required_peg_fee =
-            (total_supply + current_batch.requested_bluna_with_fee) - state.total_bond_bluna_amount;
+        let required_peg_fee = (total_supply + current_batch.requested_bluna_with_fee)
+            .checked_sub(state.total_bond_bluna_amount)?;
         let peg_fee = Uint128::min(max_peg_fee, required_peg_fee);
-        amount_with_fee = amount - peg_fee;
+        amount_with_fee = amount.checked_sub(peg_fee)?;
     } else {
         amount_with_fee = amount;
     }
@@ -145,7 +145,7 @@ pub fn execute_withdraw_unbonded(
     remove_unbond_wait_list(deps.storage, deprecated_batches, sender_human.to_string())?;
 
     // Update previous balance used for calculation in next Luna batch release
-    let prev_balance = hub_balance - withdraw_amount;
+    let prev_balance = hub_balance.checked_sub(withdraw_amount)?;
     STATE.update(deps.storage, |mut last_state| -> StdResult<_> {
         last_state.prev_hub_balance = prev_balance;
         Ok(last_state)
@@ -483,8 +483,12 @@ fn process_undelegations(
         delegator.to_string(),
     )?;
 
-    state.total_bond_stluna_amount -= stluna_undelegation_amount;
-    state.total_bond_bluna_amount -= bluna_undelegation_amount;
+    state.total_bond_stluna_amount = state
+        .total_bond_stluna_amount
+        .checked_sub(stluna_undelegation_amount)?;
+    state.total_bond_bluna_amount = state
+        .total_bond_bluna_amount
+        .checked_sub(bluna_undelegation_amount)?;
 
     // Store history for withdraw unbonded
     let history = UnbondHistory {

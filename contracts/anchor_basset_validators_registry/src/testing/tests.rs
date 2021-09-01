@@ -1,7 +1,7 @@
 use crate::common::{calculate_delegations, calculate_undelegations};
 use crate::contract::{execute, instantiate};
 use crate::msg::{ExecuteMsg, InstantiateMsg};
-use crate::registry::{config_read, registry_read, Validator};
+use crate::registry::{Validator, CONFIG, REGISTRY};
 use crate::testing::mock_querier::{mock_dependencies, WasmMockQuerier};
 use basset::hub::ExecuteMsg::{RedelegateProxy, UpdateGlobalIndex};
 use cosmwasm_std::testing::{mock_env, mock_info};
@@ -30,7 +30,7 @@ fn proper_instantiate() {
     assert_eq!(0, res.messages.len());
 
     assert_eq!(
-        config_read(&deps.storage).load().unwrap().hub_contract,
+        CONFIG.load(&deps.storage).unwrap().hub_contract,
         deps.api.addr_canonicalize(&hub_address).unwrap()
     )
 }
@@ -58,8 +58,8 @@ fn add_validator() {
 
     match _res {
         Ok(_) => {
-            let v = registry_read(&deps.storage)
-                .load(validator.address.as_str().as_bytes())
+            let v = REGISTRY
+                .load(&deps.storage, validator.address.as_str().as_bytes())
                 .unwrap();
             assert_eq!(validator, v);
         }
@@ -123,7 +123,7 @@ fn update_config() {
     };
     let res = execute(deps.as_mut(), mock_env(), info.clone(), msg);
     assert!(res.is_ok());
-    let config = config_read(&deps.storage).load().unwrap();
+    let config = CONFIG.load(&deps.storage).unwrap();
     assert_eq!(
         deps.api.addr_canonicalize(&new_hub_address).unwrap(),
         config.hub_contract
@@ -136,7 +136,7 @@ fn update_config() {
     };
     let res = execute(deps.as_mut(), mock_env(), info, msg);
     assert!(res.is_ok());
-    let config = config_read(&deps.storage).load().unwrap();
+    let config = CONFIG.load(&deps.storage).unwrap();
     assert_eq!(
         deps.api.addr_canonicalize(&new_owner).unwrap(),
         config.owner
@@ -254,7 +254,7 @@ fn remove_validator() {
     let _res = execute(deps.as_mut(), mock_env(), info.clone(), msg);
     match _res {
         Ok(res) => {
-            let reg = registry_read(&deps.storage).load(validator4.address.as_str().as_bytes());
+            let reg = REGISTRY.load(&deps.storage, validator4.address.as_str().as_bytes());
             assert!(reg.is_err(), "Validator was not removed");
 
             let redelegate = &res.messages[0];
@@ -403,7 +403,7 @@ fn remove_validator() {
     let _res = execute(deps.as_mut(), mock_env(), info.clone(), msg);
     match _res {
         Ok(res) => {
-            let reg = registry_read(&deps.storage).load(validator3.address.as_str().as_bytes());
+            let reg = REGISTRY.load(&deps.storage, validator3.address.as_str().as_bytes());
             assert!(reg.is_err(), "Validator was not removed");
 
             let redelegate = &res.messages[0];
@@ -516,7 +516,7 @@ fn remove_validator() {
     let _res = execute(deps.as_mut(), mock_env(), info.clone(), msg);
     match _res {
         Ok(res) => {
-            let reg = registry_read(&deps.storage).load(validator2.address.as_str().as_bytes());
+            let reg = REGISTRY.load(&deps.storage, validator2.address.as_str().as_bytes());
             assert!(reg.is_err(), "Validator was not removed");
 
             let redelegate = &res.messages[0];

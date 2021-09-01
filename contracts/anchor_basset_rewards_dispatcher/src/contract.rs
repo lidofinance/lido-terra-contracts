@@ -7,7 +7,7 @@ use cosmwasm_std::{
 };
 
 use crate::msg::{ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg};
-use crate::state::{read_config, store_config, update_config, Config};
+use crate::state::{Config, CONFIG};
 use basset::hub::ExecuteMsg::{BondRewards, UpdateGlobalIndex};
 use basset::{compute_lido_fee, deduct_tax};
 use std::ops::Mul;
@@ -30,7 +30,7 @@ pub fn instantiate(
         lido_fee_rate: msg.lido_fee_rate,
     };
 
-    store_config(deps.storage, &conf)?;
+    CONFIG.save(deps.storage, &conf)?;
 
     Ok(Response::default())
 }
@@ -90,7 +90,7 @@ pub fn execute_update_config(
     lido_fee_address: Option<String>,
     lido_fee_rate: Option<Decimal>,
 ) -> StdResult<Response<TerraMsgWrapper>> {
-    let conf = read_config(deps.storage)?;
+    let conf = CONFIG.load(deps.storage)?;
     let sender_raw = deps.api.addr_canonicalize(&info.sender.as_str())?;
     if sender_raw != conf.owner {
         return Err(StdError::generic_err("unauthorized"));
@@ -99,7 +99,7 @@ pub fn execute_update_config(
     if let Some(o) = owner {
         let owner_raw = deps.api.addr_canonicalize(&o)?;
 
-        update_config(deps.storage).update(|mut last_config| -> StdResult<_> {
+        CONFIG.update(deps.storage, |mut last_config| -> StdResult<_> {
             last_config.owner = owner_raw;
             Ok(last_config)
         })?;
@@ -108,7 +108,7 @@ pub fn execute_update_config(
     if let Some(h) = hub_contract {
         let hub_raw = deps.api.addr_canonicalize(&h)?;
 
-        update_config(deps.storage).update(|mut last_config| -> StdResult<_> {
+        CONFIG.update(deps.storage, |mut last_config| -> StdResult<_> {
             last_config.hub_contract = hub_raw;
             Ok(last_config)
         })?;
@@ -117,28 +117,28 @@ pub fn execute_update_config(
     if let Some(b) = bluna_reward_contract {
         let bluna_raw = deps.api.addr_canonicalize(&b)?;
 
-        update_config(deps.storage).update(|mut last_config| -> StdResult<_> {
+        CONFIG.update(deps.storage, |mut last_config| -> StdResult<_> {
             last_config.bluna_reward_contract = bluna_raw;
             Ok(last_config)
         })?;
     }
 
     if let Some(s) = stluna_reward_denom {
-        update_config(deps.storage).update(|mut last_config| -> StdResult<_> {
+        CONFIG.update(deps.storage, |mut last_config| -> StdResult<_> {
             last_config.stluna_reward_denom = s;
             Ok(last_config)
         })?;
     }
 
     if let Some(b) = bluna_reward_denom {
-        update_config(deps.storage).update(|mut last_config| -> StdResult<_> {
+        CONFIG.update(deps.storage, |mut last_config| -> StdResult<_> {
             last_config.bluna_reward_denom = b;
             Ok(last_config)
         })?;
     }
 
     if let Some(r) = lido_fee_rate {
-        update_config(deps.storage).update(|mut last_config| -> StdResult<_> {
+        CONFIG.update(deps.storage, |mut last_config| -> StdResult<_> {
             last_config.lido_fee_rate = r;
             Ok(last_config)
         })?;
@@ -147,7 +147,7 @@ pub fn execute_update_config(
     if let Some(a) = lido_fee_address {
         let address_raw = deps.api.addr_canonicalize(&a)?;
 
-        update_config(deps.storage).update(|mut last_config| -> StdResult<_> {
+        CONFIG.update(deps.storage, |mut last_config| -> StdResult<_> {
             last_config.lido_fee_address = address_raw;
             Ok(last_config)
         })?;
@@ -163,7 +163,7 @@ pub fn execute_swap(
     bluna_total_mint_amount: Uint128,
     stluna_total_mint_amount: Uint128,
 ) -> StdResult<Response<TerraMsgWrapper>> {
-    let config = read_config(deps.storage)?;
+    let config = CONFIG.load(deps.storage)?;
     let hub_addr = deps.api.addr_humanize(&config.hub_contract)?;
 
     if info.sender != hub_addr {
@@ -195,8 +195,7 @@ pub fn execute_swap(
         total_bluna_rewards_available,
         bluna_2_stluna_rewards_xchg_rate,
         stluna_2_bluna_rewards_xchg_rate,
-    )
-    .unwrap();
+    )?;
 
     if !offer_coin.amount.is_zero() {
         msgs.push(create_swap_msg(offer_coin.clone(), ask_denom.clone()));
@@ -331,7 +330,7 @@ pub fn execute_dispatch_rewards(
     env: Env,
     info: MessageInfo,
 ) -> StdResult<Response<TerraMsgWrapper>> {
-    let config = read_config(deps.storage)?;
+    let config = CONFIG.load(deps.storage)?;
 
     let hub_addr = deps.api.addr_humanize(&config.hub_contract)?;
     if info.sender != hub_addr {
@@ -345,13 +344,13 @@ pub fn execute_dispatch_rewards(
         .querier
         .query_balance(contr_addr.clone(), config.stluna_reward_denom.as_str())?;
     let lido_stluna_fee_amount = compute_lido_fee(stluna_rewards.amount, config.lido_fee_rate)?;
-    stluna_rewards.amount -= lido_stluna_fee_amount;
+    stluna_rewards.amount = stluna_rewards.amount.checked_sub(lido_stluna_fee_amount)?;
 
     let mut bluna_rewards = deps
         .querier
         .query_balance(contr_addr, config.bluna_reward_denom.as_str())?;
     let lido_bluna_fee_amount = compute_lido_fee(bluna_rewards.amount, config.lido_fee_rate)?;
-    bluna_rewards.amount -= lido_bluna_fee_amount;
+    bluna_rewards.amount = bluna_rewards.amount.checked_sub(lido_bluna_fee_amount)?;
 
     let mut fees_attrs: Vec<Attribute> = vec![];
 
@@ -431,7 +430,7 @@ pub fn execute_dispatch_rewards(
 }
 
 fn query_config(deps: Deps) -> StdResult<Config> {
-    let config = read_config(deps.storage)?;
+    let config = CONFIG.load(deps.storage)?;
     Ok(config)
 }
 
