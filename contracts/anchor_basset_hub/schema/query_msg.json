@@ -47,17 +47,11 @@
         "withdrawable_unbonded": {
           "type": "object",
           "required": [
-            "address",
-            "block_time"
+            "address"
           ],
           "properties": {
             "address": {
               "type": "string"
-            },
-            "block_time": {
-              "type": "integer",
-              "format": "uint64",
-              "minimum": 0.0
             }
           }
         }

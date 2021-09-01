@@ -2256,7 +2256,7 @@ pub fn proper_withdraw_unbonded() {
     let res: WithdrawableUnbondedResponse = from_binary(&query_with).unwrap();
     assert_eq!(res.withdrawable, Uint128::from(20u64));
 
-    let success_res = execute(deps.as_mut(), env.clone(), info, wdraw_unbonded_msg).unwrap();
+    let success_res = execute(deps.as_mut(), env, info, wdraw_unbonded_msg).unwrap();
 
     assert_eq!(success_res.messages.len(), 1);
 
@@ -2470,7 +2470,7 @@ pub fn proper_withdraw_unbonded_stluna() {
     let res: WithdrawableUnbondedResponse = from_binary(&query_with).unwrap();
     assert_eq!(res.withdrawable, Uint128::from(40u64));
 
-    let success_res = execute(deps.as_mut(), env.clone(), info, wdraw_unbonded_msg).unwrap();
+    let success_res = execute(deps.as_mut(), env, info, wdraw_unbonded_msg).unwrap();
 
     assert_eq!(success_res.messages.len(), 1);
 
@@ -2672,7 +2672,7 @@ pub fn proper_withdraw_unbonded_both_tokens() {
     assert_eq!(res.withdrawable, Uint128::from(300u64));
 
     let wdraw_unbonded_msg = ExecuteMsg::WithdrawUnbonded {};
-    let success_res = execute(deps.as_mut(), env.clone(), info, wdraw_unbonded_msg).unwrap();
+    let success_res = execute(deps.as_mut(), env, info, wdraw_unbonded_msg).unwrap();
 
     assert_eq!(success_res.messages.len(), 1);
 
@@ -2854,7 +2854,7 @@ pub fn proper_withdraw_unbonded_respect_slashing() {
     let res: WithdrawableUnbondedResponse = from_binary(&query_with).unwrap();
     assert_eq!(res.withdrawable, Uint128::from(1000u64));
 
-    let success_res = execute(deps.as_mut(), env.clone(), info, wdraw_unbonded_msg).unwrap();
+    let success_res = execute(deps.as_mut(), env, info, wdraw_unbonded_msg).unwrap();
 
     assert_eq!(success_res.messages.len(), 1);
 
@@ -3014,7 +3014,7 @@ pub fn proper_withdraw_unbonded_respect_slashing_stluna() {
     let res: WithdrawableUnbondedResponse = from_binary(&query_with).unwrap();
     assert_eq!(res.withdrawable, Uint128::from(1000u64));
 
-    let success_res = execute(deps.as_mut(), env.clone(), info, wdraw_unbonded_msg).unwrap();
+    let success_res = execute(deps.as_mut(), env, info, wdraw_unbonded_msg).unwrap();
 
     assert_eq!(success_res.messages.len(), 1);
 
@@ -3196,7 +3196,7 @@ pub fn proper_withdraw_unbonded_respect_inactivity_slashing() {
     let res: WithdrawableUnbondedResponse = from_binary(&query_with).unwrap();
     assert_eq!(res.withdrawable, Uint128::from(1000u64));
 
-    let success_res = execute(deps.as_mut(), env.clone(), info, wdraw_unbonded_msg).unwrap();
+    let success_res = execute(deps.as_mut(), env, info, wdraw_unbonded_msg).unwrap();
 
     assert_eq!(success_res.messages.len(), 1);
 
@@ -3391,7 +3391,7 @@ pub fn proper_withdraw_unbonded_respect_inactivity_slashing_stluna() {
     let res: WithdrawableUnbondedResponse = from_binary(&query_with).unwrap();
     assert_eq!(res.withdrawable, Uint128::from(1000u64));
 
-    let success_res = execute(deps.as_mut(), env.clone(), info, wdraw_unbonded_msg).unwrap();
+    let success_res = execute(deps.as_mut(), env, info, wdraw_unbonded_msg).unwrap();
 
     assert_eq!(success_res.messages.len(), 1);
 
@@ -3557,7 +3557,7 @@ pub fn proper_withdraw_unbond_with_dummies() {
 
     env.block.time = env.block.time.plus_seconds(120);
     let wdraw_unbonded_msg = ExecuteMsg::WithdrawUnbonded {};
-    let success_res = execute(deps.as_mut(), env.clone(), info, wdraw_unbonded_msg).unwrap();
+    let success_res = execute(deps.as_mut(), env, info, wdraw_unbonded_msg).unwrap();
 
     assert_eq!(success_res.messages.len(), 1);
 
@@ -3729,7 +3729,7 @@ pub fn proper_withdraw_unbond_with_dummies_stluna() {
 
     env.block.time = env.block.time.plus_seconds(120);
     let wdraw_unbonded_msg = ExecuteMsg::WithdrawUnbonded {};
-    let success_res = execute(deps.as_mut(), env.clone(), info, wdraw_unbonded_msg).unwrap();
+    let success_res = execute(deps.as_mut(), env, info, wdraw_unbonded_msg).unwrap();
 
     assert_eq!(success_res.messages.len(), 1);
 
