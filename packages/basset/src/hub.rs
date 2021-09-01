@@ -280,7 +280,6 @@ pub enum QueryMsg {
     CurrentBatch {},
     WithdrawableUnbonded {
         address: String,
-        block_time: u64,
     },
     Parameters {},
     UnbondRequests {

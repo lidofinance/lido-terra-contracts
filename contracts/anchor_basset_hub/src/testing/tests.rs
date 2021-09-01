@@ -2212,7 +2212,6 @@ pub fn proper_withdraw_unbonded() {
     //this query should be zero since the undelegated period is not passed
     let withdrawable = WithdrawableUnbonded {
         address: bob.clone(),
-        block_time: env.block.time.nanos(),
     };
     let query_with = query(deps.as_ref(), mock_env(), withdrawable).unwrap();
     let res: WithdrawableUnbondedResponse = from_binary(&query_with).unwrap();
@@ -2252,9 +2251,8 @@ pub fn proper_withdraw_unbonded() {
     //check with query
     let withdrawable = WithdrawableUnbonded {
         address: bob.clone(),
-        block_time: env.block.time.nanos(),
     };
-    let query_with = query(deps.as_ref(), mock_env(), withdrawable).unwrap();
+    let query_with = query(deps.as_ref(), env.clone(), withdrawable).unwrap();
     let res: WithdrawableUnbondedResponse = from_binary(&query_with).unwrap();
     assert_eq!(res.withdrawable, Uint128::from(20u64));
 
@@ -2275,7 +2273,6 @@ pub fn proper_withdraw_unbonded() {
     //it should be removed
     let withdrawable = WithdrawableUnbonded {
         address: bob.clone(),
-        block_time: env.block.time.nanos(),
     };
     let query_with: WithdrawableUnbondedResponse =
         from_binary(&query(deps.as_ref(), mock_env(), withdrawable).unwrap()).unwrap();
@@ -2429,7 +2426,6 @@ pub fn proper_withdraw_unbonded_stluna() {
     //this query should be zero since the undelegated period is not passed
     let withdrawable = WithdrawableUnbonded {
         address: bob.clone(),
-        block_time: env.block.time.nanos(),
     };
     let query_with = query(deps.as_ref(), mock_env(), withdrawable).unwrap();
     let res: WithdrawableUnbondedResponse = from_binary(&query_with).unwrap();
@@ -2469,9 +2465,8 @@ pub fn proper_withdraw_unbonded_stluna() {
     //check with query
     let withdrawable = WithdrawableUnbonded {
         address: bob.clone(),
-        block_time: env.block.time.nanos(),
     };
-    let query_with = query(deps.as_ref(), mock_env(), withdrawable).unwrap();
+    let query_with = query(deps.as_ref(), env.clone(), withdrawable).unwrap();
     let res: WithdrawableUnbondedResponse = from_binary(&query_with).unwrap();
     assert_eq!(res.withdrawable, Uint128::from(40u64));
 
@@ -2492,7 +2487,6 @@ pub fn proper_withdraw_unbonded_stluna() {
     //it should be removed
     let withdrawable = WithdrawableUnbonded {
         address: bob.clone(),
-        block_time: env.block.time.nanos(),
     };
     let query_with: WithdrawableUnbondedResponse =
         from_binary(&query(deps.as_ref(), mock_env(), withdrawable).unwrap()).unwrap();
@@ -2631,7 +2625,6 @@ pub fn proper_withdraw_unbonded_both_tokens() {
     //this query should be zero since the undelegated period is not passed
     let withdrawable = WithdrawableUnbonded {
         address: bob.clone(),
-        block_time: env.block.time.nanos(),
     };
     let query_with = query(deps.as_ref(), mock_env(), withdrawable).unwrap();
     let res: WithdrawableUnbondedResponse = from_binary(&query_with).unwrap();
@@ -2673,9 +2666,8 @@ pub fn proper_withdraw_unbonded_both_tokens() {
     //check with query
     let withdrawable = WithdrawableUnbonded {
         address: bob.clone(),
-        block_time: env.block.time.nanos(),
     };
-    let query_with = query(deps.as_ref(), mock_env(), withdrawable).unwrap();
+    let query_with = query(deps.as_ref(), env.clone(), withdrawable).unwrap();
     let res: WithdrawableUnbondedResponse = from_binary(&query_with).unwrap();
     assert_eq!(res.withdrawable, Uint128::from(300u64));
 
@@ -2697,7 +2689,6 @@ pub fn proper_withdraw_unbonded_both_tokens() {
     //it should be removed
     let withdrawable = WithdrawableUnbonded {
         address: bob.clone(),
-        block_time: env.block.time.nanos(),
     };
     let query_with: WithdrawableUnbondedResponse =
         from_binary(&query(deps.as_ref(), mock_env(), withdrawable).unwrap()).unwrap();
@@ -2826,7 +2817,6 @@ pub fn proper_withdraw_unbonded_respect_slashing() {
     //this query should be zero since the undelegated period is not passed
     let withdrawable = WithdrawableUnbonded {
         address: bob.clone(),
-        block_time: env.block.time.nanos(),
     };
     let query_with = query(deps.as_ref(), mock_env(), withdrawable).unwrap();
     let res: WithdrawableUnbondedResponse = from_binary(&query_with).unwrap();
@@ -2859,9 +2849,8 @@ pub fn proper_withdraw_unbonded_respect_slashing() {
     //this query does not reflect the actual withdrawable
     let withdrawable = WithdrawableUnbonded {
         address: bob.clone(),
-        block_time: env.block.time.nanos(),
     };
-    let query_with = query(deps.as_ref(), mock_env(), withdrawable).unwrap();
+    let query_with = query(deps.as_ref(), env.clone(), withdrawable).unwrap();
     let res: WithdrawableUnbondedResponse = from_binary(&query_with).unwrap();
     assert_eq!(res.withdrawable, Uint128::from(1000u64));
 
@@ -2880,10 +2869,7 @@ pub fn proper_withdraw_unbonded_respect_slashing() {
     }
 
     // there should not be any result
-    let withdrawable = WithdrawableUnbonded {
-        address: bob,
-        block_time: env.block.time.nanos(),
-    };
+    let withdrawable = WithdrawableUnbonded { address: bob };
     let query_with: WithdrawableUnbondedResponse =
         from_binary(&query(deps.as_ref(), mock_env(), withdrawable).unwrap()).unwrap();
     assert_eq!(query_with.withdrawable, Uint128::from(0u64));
@@ -2991,7 +2977,6 @@ pub fn proper_withdraw_unbonded_respect_slashing_stluna() {
     //this query should be zero since the undelegated period is not passed
     let withdrawable = WithdrawableUnbonded {
         address: bob.clone(),
-        block_time: env.block.time.nanos(),
     };
     let query_with = query(deps.as_ref(), mock_env(), withdrawable).unwrap();
     let res: WithdrawableUnbondedResponse = from_binary(&query_with).unwrap();
@@ -3024,9 +3009,8 @@ pub fn proper_withdraw_unbonded_respect_slashing_stluna() {
     //this query does not reflect the actual withdrawable
     let withdrawable = WithdrawableUnbonded {
         address: bob.clone(),
-        block_time: env.block.time.nanos(),
     };
-    let query_with = query(deps.as_ref(), mock_env(), withdrawable).unwrap();
+    let query_with = query(deps.as_ref(), env.clone(), withdrawable).unwrap();
     let res: WithdrawableUnbondedResponse = from_binary(&query_with).unwrap();
     assert_eq!(res.withdrawable, Uint128::from(1000u64));
 
@@ -3045,10 +3029,7 @@ pub fn proper_withdraw_unbonded_respect_slashing_stluna() {
     }
 
     // there should not be any result
-    let withdrawable = WithdrawableUnbonded {
-        address: bob,
-        block_time: env.block.time.nanos(),
-    };
+    let withdrawable = WithdrawableUnbonded { address: bob };
     let query_with: WithdrawableUnbondedResponse =
         from_binary(&query(deps.as_ref(), mock_env(), withdrawable).unwrap()).unwrap();
     assert_eq!(query_with.withdrawable, Uint128::from(0u64));
@@ -3179,7 +3160,6 @@ pub fn proper_withdraw_unbonded_respect_inactivity_slashing() {
     //this query should be zero since the undelegated period is not passed
     let withdrawable = WithdrawableUnbonded {
         address: bob.clone(),
-        block_time: env.block.time.nanos(),
     };
     let query_with = query(deps.as_ref(), mock_env(), withdrawable).unwrap();
     let res: WithdrawableUnbondedResponse = from_binary(&query_with).unwrap();
@@ -3211,9 +3191,8 @@ pub fn proper_withdraw_unbonded_respect_inactivity_slashing() {
     //this query does not reflect the actual withdrawable
     let withdrawable = WithdrawableUnbonded {
         address: bob.clone(),
-        block_time: env.block.time.nanos(),
     };
-    let query_with = query(deps.as_ref(), mock_env(), withdrawable).unwrap();
+    let query_with = query(deps.as_ref(), env.clone(), withdrawable).unwrap();
     let res: WithdrawableUnbondedResponse = from_binary(&query_with).unwrap();
     assert_eq!(res.withdrawable, Uint128::from(1000u64));
 
@@ -3232,10 +3211,7 @@ pub fn proper_withdraw_unbonded_respect_inactivity_slashing() {
     }
 
     // there should not be any result
-    let withdrawable = WithdrawableUnbonded {
-        address: bob,
-        block_time: env.block.time.nanos(),
-    };
+    let withdrawable = WithdrawableUnbonded { address: bob };
     let query_with: WithdrawableUnbondedResponse =
         from_binary(&query(deps.as_ref(), mock_env(), withdrawable).unwrap()).unwrap();
     assert_eq!(query_with.withdrawable, Uint128::from(0u64));
@@ -3379,7 +3355,6 @@ pub fn proper_withdraw_unbonded_respect_inactivity_slashing_stluna() {
     //this query should be zero since the undelegated period is not passed
     let withdrawable = WithdrawableUnbonded {
         address: bob.clone(),
-        block_time: env.block.time.nanos(),
     };
     let query_with = query(deps.as_ref(), mock_env(), withdrawable).unwrap();
     let res: WithdrawableUnbondedResponse = from_binary(&query_with).unwrap();
@@ -3411,9 +3386,8 @@ pub fn proper_withdraw_unbonded_respect_inactivity_slashing_stluna() {
     //this query does not reflect the actual withdrawable
     let withdrawable = WithdrawableUnbonded {
         address: bob.clone(),
-        block_time: env.block.time.nanos(),
     };
-    let query_with = query(deps.as_ref(), mock_env(), withdrawable).unwrap();
+    let query_with = query(deps.as_ref(), env.clone(), withdrawable).unwrap();
     let res: WithdrawableUnbondedResponse = from_binary(&query_with).unwrap();
     assert_eq!(res.withdrawable, Uint128::from(1000u64));
 
@@ -3432,10 +3406,7 @@ pub fn proper_withdraw_unbonded_respect_inactivity_slashing_stluna() {
     }
 
     // there should not be any result
-    let withdrawable = WithdrawableUnbonded {
-        address: bob,
-        block_time: env.block.time.nanos(),
-    };
+    let withdrawable = WithdrawableUnbonded { address: bob };
     let query_with: WithdrawableUnbondedResponse =
         from_binary(&query(deps.as_ref(), mock_env(), withdrawable).unwrap()).unwrap();
     assert_eq!(query_with.withdrawable, Uint128::from(0u64));
@@ -3618,10 +3589,7 @@ pub fn proper_withdraw_unbond_with_dummies() {
     }
 
     // there should not be any result
-    let withdrawable = WithdrawableUnbonded {
-        address: bob,
-        block_time: env.block.time.nanos(),
-    };
+    let withdrawable = WithdrawableUnbonded { address: bob };
     let query_with: WithdrawableUnbondedResponse =
         from_binary(&query(deps.as_ref(), mock_env(), withdrawable).unwrap()).unwrap();
     assert_eq!(query_with.withdrawable, Uint128::from(0u64));
@@ -3793,10 +3761,7 @@ pub fn proper_withdraw_unbond_with_dummies_stluna() {
     }
 
     // there should not be any result
-    let withdrawable = WithdrawableUnbonded {
-        address: bob,
-        block_time: env.block.time.nanos(),
-    };
+    let withdrawable = WithdrawableUnbonded { address: bob };
     let query_with: WithdrawableUnbondedResponse =
         from_binary(&query(deps.as_ref(), mock_env(), withdrawable).unwrap()).unwrap();
     assert_eq!(query_with.withdrawable, Uint128::from(0u64));
