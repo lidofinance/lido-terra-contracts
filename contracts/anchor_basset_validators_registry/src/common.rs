@@ -3,14 +3,14 @@ use cosmwasm_std::{StdError, StdResult, Uint128};
 use std::ops::Sub;
 
 pub fn calculate_delegations(
-    mut amoint_to_delegate: Uint128,
+    mut amount_to_delegate: Uint128,
     validators: &[Validator],
 ) -> StdResult<(Uint128, Vec<Uint128>)> {
     if validators.is_empty() {
         return Err(StdError::generic_err("Empty validators set"));
     }
     let total_delegated: u128 = validators.iter().map(|v| v.total_delegated.u128()).sum();
-    let total_coins_to_distribute = Uint128::from(total_delegated) + amoint_to_delegate;
+    let total_coins_to_distribute = Uint128::from(total_delegated) + amount_to_delegate;
     let coins_per_validator = total_coins_to_distribute.u128() / validators.len() as u128;
     let remaining_coins = total_coins_to_distribute.u128() % validators.len() as u128;
 
@@ -26,16 +26,16 @@ pub fn calculate_delegations(
         }
         let mut to_delegate =
             Uint128::from(coins_per_validator + extra_coin).sub(validator.total_delegated);
-        if to_delegate > amoint_to_delegate {
-            to_delegate = amoint_to_delegate
+        if to_delegate > amount_to_delegate {
+            to_delegate = amount_to_delegate
         }
         delegations[index] = to_delegate;
-        amoint_to_delegate = amoint_to_delegate.sub(to_delegate);
-        if amoint_to_delegate.is_zero() {
+        amount_to_delegate = amount_to_delegate.checked_sub(to_delegate)?;
+        if amount_to_delegate.is_zero() {
             break;
         }
     }
-    Ok((amoint_to_delegate, delegations))
+    Ok((amount_to_delegate, delegations))
 }
 
 pub fn calculate_undelegations(
@@ -72,7 +72,7 @@ pub fn calculate_undelegations(
             to_undelegate = undelegation_amount
         }
         undelegations[index] = to_undelegate;
-        undelegation_amount = undelegation_amount.sub(to_undelegate);
+        undelegation_amount = undelegation_amount.checked_sub(to_undelegate)?;
         if undelegation_amount.is_zero() {
             break;
         }

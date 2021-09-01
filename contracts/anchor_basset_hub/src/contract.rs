@@ -292,13 +292,13 @@ pub fn execute_update_global(
 
     messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
         contract_addr: reward_addr.to_string(),
-        msg: to_binary(&swap_msg).unwrap(),
+        msg: to_binary(&swap_msg)?,
         funds: vec![],
     }));
 
     messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
         contract_addr: reward_addr.to_string(),
-        msg: to_binary(&DispatchRewards {}).unwrap(),
+        msg: to_binary(&DispatchRewards {})?,
         funds: vec![],
     }));
 
@@ -405,7 +405,12 @@ pub fn claim_airdrop(
 
     let sender_raw = deps.api.addr_canonicalize(&info.sender.as_str())?;
 
-    let airdrop_reg_raw = conf.airdrop_registry_contract.unwrap();
+    let airdrop_reg_raw = if let Some(airdrop) = conf.airdrop_registry_contract {
+        airdrop
+    } else {
+        return Err(StdError::generic_err("airdrop contract must be registered"));
+    };
+
     let airdrop_reg = deps.api.addr_humanize(&airdrop_reg_raw)?;
 
     if airdrop_reg_raw != sender_raw {
@@ -538,7 +543,7 @@ fn convert_stluna_bluna(
         let required_peg_fee = (total_bluna_supply + bluna_to_mint + requested_bluna_with_fee)
             - (state.total_bond_bluna_amount + denom_equiv);
         let peg_fee = Uint128::min(max_peg_fee, required_peg_fee);
-        bluna_mint_amount_with_fee = bluna_to_mint - peg_fee;
+        bluna_mint_amount_with_fee = bluna_to_mint.checked_sub(peg_fee)?;
     }
 
     STATE.update(deps.storage, |mut prev_state| -> StdResult<_> {
@@ -706,40 +711,35 @@ fn query_config(deps: Deps) -> StdResult<ConfigResponse> {
     if config.reward_dispatcher_contract.is_some() {
         reward = Some(
             deps.api
-                .addr_humanize(&config.reward_dispatcher_contract.unwrap())
-                .unwrap()
+                .addr_humanize(&config.reward_dispatcher_contract.unwrap())?
                 .to_string(),
         );
     }
     if config.bluna_token_contract.is_some() {
         bluna_token = Some(
             deps.api
-                .addr_humanize(&config.bluna_token_contract.unwrap())
-                .unwrap()
+                .addr_humanize(&config.bluna_token_contract.unwrap())?
                 .to_string(),
         );
     }
     if config.stluna_token_contract.is_some() {
         stluna_token = Some(
             deps.api
-                .addr_humanize(&config.stluna_token_contract.unwrap())
-                .unwrap()
+                .addr_humanize(&config.stluna_token_contract.unwrap())?
                 .to_string(),
         );
     }
     if config.validators_registry_contract.is_some() {
         validators_contract = Some(
             deps.api
-                .addr_humanize(&config.validators_registry_contract.unwrap())
-                .unwrap()
+                .addr_humanize(&config.validators_registry_contract.unwrap())?
                 .to_string(),
         );
     }
     if config.airdrop_registry_contract.is_some() {
         airdrop = Some(
             deps.api
-                .addr_humanize(&config.airdrop_registry_contract.unwrap())
-                .unwrap()
+                .addr_humanize(&config.airdrop_registry_contract.unwrap())?
                 .to_string(),
         );
     }
@@ -806,7 +806,7 @@ pub(crate) fn query_total_bluna_issued(deps: Deps) -> StdResult<Uint128> {
     )?;
     let token_info: TokenInfo = deps.querier.query(&QueryRequest::Wasm(WasmQuery::Raw {
         contract_addr: token_address.to_string(),
-        key: Binary::from("\u{0}\ntoken_info".as_bytes()),
+        key: Binary::from(to_length_prefixed("token_info".as_bytes())),
     }))?;
     Ok(token_info.total_supply)
 }
@@ -894,22 +894,29 @@ pub fn migrate(deps: DepsMut, _env: Env, msg: MigrateMsg) -> StdResult<Response>
     //migrate whitelisted validators
     //we must add them to validators_registry_contract
     let whitelisted_validators = read_validators(deps.storage)?;
-    let mut messages: Vec<CosmosMsg> = whitelisted_validators
+    let mut messages: Vec<CosmosMsg> = vec![];
+
+    let add_validators_messsages: StdResult<Vec<CosmosMsg>> = whitelisted_validators
         .iter()
         .map(|validator_address| {
-            CosmosMsg::Wasm(WasmMsg::Execute {
+            Ok(CosmosMsg::Wasm(WasmMsg::Execute {
                 contract_addr: msg.validators_registry_contract.clone(),
-                msg: to_binary(&AddValidator {
+                msg: if let Ok(m) = to_binary(&AddValidator {
                     validator: Validator {
                         total_delegated: Default::default(),
                         address: validator_address.clone(),
                     },
-                })
-                .unwrap(),
+                }) {
+                    m
+                } else {
+                    return Err(StdError::generic_err("failed to binary encode message"));
+                },
                 funds: vec![],
-            })
+            }))
         })
         .collect();
+    messages.extend_from_slice(&add_validators_messsages?);
+
     remove_whitelisted_validators_store(deps.storage)?;
 
     let msg: CosmosMsg = CosmosMsg::Distribution(DistributionMsg::SetWithdrawAddress {

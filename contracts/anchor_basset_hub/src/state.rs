@@ -86,14 +86,11 @@ pub fn get_unbond_requests(storage: &dyn Storage, sender_addr: String) -> StdRes
     let mut requests: UnbondRequest = vec![];
     let res: ReadonlyBucket<UnbondWaitEntity> =
         ReadonlyBucket::multilevel(storage, &[PREFIX_WAIT_MAP, &vec]);
-    let _un: Vec<_> = res
-        .range(None, None, Order::Ascending)
-        .map(|item| {
-            let (k, value) = item.unwrap();
-            let user_batch: u64 = from_slice(&k).unwrap();
-            requests.push((user_batch, value.bluna_amount, value.stluna_amount))
-        })
-        .collect();
+    for item in res.range(None, None, Order::Ascending) {
+        let (k, value) = item?;
+        let user_batch: u64 = from_slice(&k)?;
+        requests.push((user_batch, value.bluna_amount, value.stluna_amount))
+    }
     Ok(requests)
 }
 
@@ -102,19 +99,16 @@ pub fn get_unbond_batches(storage: &dyn Storage, sender_addr: String) -> StdResu
     let mut deprecated_batches: Vec<u64> = vec![];
     let res: ReadonlyBucket<UnbondWaitEntity> =
         ReadonlyBucket::multilevel(storage, &[PREFIX_WAIT_MAP, &vec]);
-    let _un: Vec<_> = res
-        .range(None, None, Order::Ascending)
-        .map(|item| {
-            let (k, _) = item.unwrap();
-            let user_batch: u64 = from_slice(&k).unwrap();
-            let history = read_unbond_history(storage, user_batch);
-            if let Ok(h) = history {
-                if h.released {
-                    deprecated_batches.push(user_batch);
-                }
+    for item in res.range(None, None, Order::Ascending) {
+        let (k, _) = item?;
+        let user_batch: u64 = from_slice(&k)?;
+        let history = read_unbond_history(storage, user_batch);
+        if let Ok(h) = history {
+            if h.released {
+                deprecated_batches.push(user_batch);
             }
-        })
-        .collect();
+        }
+    }
     Ok(deprecated_batches)
 }
 
@@ -127,20 +121,17 @@ pub fn get_finished_amount(storage: &dyn Storage, sender_addr: String) -> StdRes
     let mut withdrawable_amount: Uint128 = Uint128::zero();
     let res: ReadonlyBucket<UnbondWaitEntity> =
         ReadonlyBucket::multilevel(storage, &[PREFIX_WAIT_MAP, &vec]);
-    let _un: Vec<_> = res
-        .range(None, None, Order::Ascending)
-        .map(|item| {
-            let (k, v) = item.unwrap();
-            let user_batch: u64 = from_slice(&k).unwrap();
-            let history = read_unbond_history(storage, user_batch);
-            if let Ok(h) = history {
-                if h.released {
-                    withdrawable_amount += v.stluna_amount * h.stluna_withdraw_rate
-                        + v.bluna_amount * h.bluna_withdraw_rate;
-                }
+    for item in res.range(None, None, Order::Ascending) {
+        let (k, v) = item?;
+        let user_batch: u64 = from_slice(&k)?;
+        let history = read_unbond_history(storage, user_batch);
+        if let Ok(h) = history {
+            if h.released {
+                withdrawable_amount += v.stluna_amount * h.stluna_withdraw_rate
+                    + v.bluna_amount * h.bluna_withdraw_rate;
             }
-        })
-        .collect();
+        }
+    }
     Ok(withdrawable_amount)
 }
 
@@ -154,20 +145,17 @@ pub fn query_get_finished_amount(
     let mut withdrawable_amount: Uint128 = Uint128::zero();
     let res: ReadonlyBucket<UnbondWaitEntity> =
         ReadonlyBucket::multilevel(storage, &[PREFIX_WAIT_MAP, &vec]);
-    let _un: Vec<_> = res
-        .range(None, None, Order::Ascending)
-        .map(|item| {
-            let (k, v) = item.unwrap();
-            let user_batch: u64 = from_slice(&k).unwrap();
-            let history = read_unbond_history(storage, user_batch);
-            if let Ok(h) = history {
-                if h.time < block_time {
-                    withdrawable_amount += v.stluna_amount * h.stluna_withdraw_rate
-                        + v.bluna_amount * h.bluna_withdraw_rate;
-                }
+    for item in res.range(None, None, Order::Ascending) {
+        let (k, v) = item?;
+        let user_batch: u64 = from_slice(&k)?;
+        let history = read_unbond_history(storage, user_batch);
+        if let Ok(h) = history {
+            if h.time < block_time {
+                withdrawable_amount += v.stluna_amount * h.stluna_withdraw_rate
+                    + v.bluna_amount * h.bluna_withdraw_rate;
             }
-        })
-        .collect();
+        }
+    }
     Ok(withdrawable_amount)
 }
 
@@ -210,14 +198,15 @@ pub fn all_unbond_history(
     let vec = convert(start);
 
     let lim = limit.unwrap_or(DEFAULT_LIMIT).min(MAX_LIMIT) as usize;
-    let res = ReadonlyPrefixedStorage::new(storage, UNBOND_HISTORY_MAP)
-        .range(vec.as_deref(), None, Order::Ascending)
-        .take(lim)
-        .map(|item| {
-            let history: UnbondHistory = from_slice(&item.1).unwrap();
-            Ok(history)
-        })
-        .collect();
+    let res: StdResult<Vec<UnbondHistory>> =
+        ReadonlyPrefixedStorage::new(storage, UNBOND_HISTORY_MAP)
+            .range(vec.as_deref(), None, Order::Ascending)
+            .take(lim)
+            .map(|item| {
+                let history: StdResult<UnbondHistory> = from_slice(&item.1);
+                history
+            })
+            .collect();
     res
 }
 
@@ -231,15 +220,15 @@ fn convert(start_after: Option<u64>) -> Option<Vec<u8>> {
 
 pub fn read_validators(storage: &dyn Storage) -> StdResult<Vec<String>> {
     let res = ReadonlyPrefixedStorage::new(storage, VALIDATORS);
-    let validators: Vec<String> = res
+    let validators: StdResult<Vec<String>> = res
         .range(None, None, Order::Ascending)
         .map(|item| {
             let (key, _) = item;
-            let sender: String = from_slice(&key).unwrap();
+            let sender: StdResult<String> = from_slice(&key);
             sender
         })
         .collect();
-    Ok(validators)
+    validators
 }
 
 pub fn remove_whitelisted_validators_store(storage: &mut dyn Storage) -> StdResult<()> {

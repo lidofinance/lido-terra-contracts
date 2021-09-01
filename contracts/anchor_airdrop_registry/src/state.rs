@@ -5,9 +5,6 @@ use basset::airdrop::{AirdropInfo, AirdropInfoElem};
 use cosmwasm_std::{from_slice, to_vec, CanonicalAddr, Order, StdResult, Storage};
 use cw_storage_plus::{Bound, Item, Map};
 
-pub static KEY_CONFIG: &[u8] = b"config";
-pub static PREFIX_AIRODROP_INFO: &[u8] = b"airdrop_info";
-
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct Config {
     pub owner: CanonicalAddr,
@@ -65,7 +62,7 @@ pub fn read_all_airdrop_infos(
     limit: Option<u32>,
 ) -> StdResult<Vec<AirdropInfoElem>> {
     let limit = limit.unwrap_or(DEFAULT_LIMIT).min(MAX_LIMIT) as usize;
-    let start = calc_range_start(start_after).map(Bound::exclusive);
+    let start = calc_range_start(start_after)?.map(Bound::exclusive);
 
     let infos: StdResult<Vec<AirdropInfoElem>> = AIRDROP_INFO
         .range(storage, start, None, Order::Ascending)
@@ -89,10 +86,11 @@ pub fn read_all_airdrop_infos(
     infos
 }
 
-fn calc_range_start(start_after: Option<String>) -> Option<Vec<u8>> {
-    start_after.map(|air| {
-        let mut v = to_vec(&air).unwrap();
+fn calc_range_start(start_after: Option<String>) -> StdResult<Option<Vec<u8>>> {
+    if let Some(air) = start_after {
+        let mut v = to_vec(&air)?;
         v.push(1);
-        v
-    })
+        return Ok(Some(v));
+    }
+    Ok(None)
 }

@@ -8,9 +8,7 @@ use cosmwasm_std::{
 
 use crate::common::calculate_delegations;
 use crate::msg::{ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg};
-use crate::registry::{
-    config, config_read, registry, registry_read, store_config, Config, Validator,
-};
+use crate::registry::{Config, Validator, CONFIG, REGISTRY};
 use basset::hub::ExecuteMsg::{RedelegateProxy, UpdateGlobalIndex};
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -20,13 +18,16 @@ pub fn instantiate(
     info: MessageInfo,
     msg: InstantiateMsg,
 ) -> StdResult<Response> {
-    config(deps.storage).save(&Config {
-        owner: deps.api.addr_canonicalize(&info.sender.as_str())?,
-        hub_contract: deps.api.addr_canonicalize(&msg.hub_contract.as_str())?,
-    })?;
+    CONFIG.save(
+        deps.storage,
+        &Config {
+            owner: deps.api.addr_canonicalize(&info.sender.as_str())?,
+            hub_contract: deps.api.addr_canonicalize(&msg.hub_contract.as_str())?,
+        },
+    )?;
 
     for v in msg.registry {
-        registry(deps.storage).save(v.address.as_str().as_bytes(), &v)?;
+        REGISTRY.save(deps.storage, v.address.as_str().as_bytes(), &v)?;
     }
 
     Ok(Response::default())
@@ -54,7 +55,7 @@ pub fn execute_update_config(
     hub_contract: Option<String>,
 ) -> StdResult<Response> {
     // only owner must be able to send this message.
-    let config = config_read(deps.storage).load()?;
+    let config = CONFIG.load(deps.storage)?;
     let owner_address = deps.api.addr_humanize(&config.owner)?;
     if info.sender != owner_address {
         return Err(StdError::generic_err("unauthorized"));
@@ -63,7 +64,7 @@ pub fn execute_update_config(
     if let Some(o) = owner {
         let owner_raw = deps.api.addr_canonicalize(&o)?;
 
-        store_config(deps.storage).update(|mut last_config| -> StdResult<_> {
+        CONFIG.update(deps.storage, |mut last_config| -> StdResult<_> {
             last_config.owner = owner_raw;
             Ok(last_config)
         })?;
@@ -72,7 +73,7 @@ pub fn execute_update_config(
     if let Some(hub) = hub_contract {
         let hub_raw = deps.api.addr_canonicalize(&hub)?;
 
-        store_config(deps.storage).update(|mut last_config| -> StdResult<_> {
+        CONFIG.update(deps.storage, |mut last_config| -> StdResult<_> {
             last_config.hub_contract = hub_raw;
             Ok(last_config)
         })?;
@@ -87,14 +88,18 @@ pub fn add_validator(
     info: MessageInfo,
     validator: Validator,
 ) -> StdResult<Response> {
-    let config = config_read(deps.storage).load()?;
+    let config = CONFIG.load(deps.storage)?;
     let owner_address = deps.api.addr_humanize(&config.owner)?;
     let hub_address = deps.api.addr_humanize(&config.hub_contract)?;
     if info.sender != owner_address && info.sender != hub_address {
         return Err(StdError::generic_err("unauthorized"));
     }
 
-    registry(deps.storage).save(validator.address.as_str().as_bytes(), &validator)?;
+    REGISTRY.save(
+        deps.storage,
+        validator.address.as_str().as_bytes(),
+        &validator,
+    )?;
     Ok(Response::default())
 }
 
@@ -104,14 +109,14 @@ pub fn remove_validator(
     info: MessageInfo,
     validator_address: String,
 ) -> StdResult<Response> {
-    let config = config_read(deps.storage).load()?;
+    let config = CONFIG.load(deps.storage)?;
     let owner_address = deps.api.addr_humanize(&config.owner)?;
     if info.sender != owner_address {
         return Err(StdError::generic_err("unauthorized"));
     }
 
-    let validators_number = registry(deps.storage)
-        .range(None, None, cosmwasm_std::Order::Ascending)
+    let validators_number = REGISTRY
+        .range(deps.storage, None, None, cosmwasm_std::Order::Ascending)
         .count();
 
     if validators_number == 1 {
@@ -120,9 +125,9 @@ pub fn remove_validator(
         ));
     }
 
-    registry(deps.storage).remove(validator_address.as_str().as_bytes());
+    REGISTRY.remove(deps.storage, validator_address.as_str().as_bytes());
 
-    let config = config_read(deps.storage).load()?;
+    let config = CONFIG.load(deps.storage)?;
     let hub_address = deps.api.addr_humanize(&config.hub_contract)?;
 
     let query = deps
@@ -183,19 +188,18 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
 }
 
 fn query_config(deps: Deps) -> StdResult<Config> {
-    let config = config_read(deps.storage).load()?;
+    let config = CONFIG.load(deps.storage)?;
     Ok(config)
 }
 
 fn query_validators(deps: Deps) -> StdResult<Vec<Validator>> {
-    let config = config_read(deps.storage).load()?;
+    let config = CONFIG.load(deps.storage)?;
     let hub_address = deps.api.addr_humanize(&config.hub_contract)?;
 
     let delegations = deps.querier.query_all_delegations(&hub_address)?;
 
     let mut validators: Vec<Validator> = vec![];
-    let registry = registry_read(deps.storage);
-    for item in registry.range(None, None, cosmwasm_std::Order::Ascending) {
+    for item in REGISTRY.range(deps.storage, None, None, cosmwasm_std::Order::Ascending) {
         let mut validator = Validator {
             total_delegated: Default::default(),
             address: item?.1.address,

@@ -22,7 +22,7 @@ use cosmwasm_std::{coins, Api, Coin, Decimal, StdError, Uint128};
 
 use crate::contract::{execute, get_swap_info, instantiate};
 use crate::msg::{ExecuteMsg, InstantiateMsg};
-use crate::state::read_config;
+use crate::state::CONFIG;
 use crate::testing::mock_querier::{
     mock_dependencies, MOCK_BLUNA_REWARD_CONTRACT_ADDR, MOCK_HUB_CONTRACT_ADDR,
     MOCK_LIDO_FEE_ADDRESS,
@@ -124,7 +124,7 @@ fn test_get_swap_info() {
     let res = instantiate(deps.as_mut(), mock_env(), info, msg).unwrap();
     assert_eq!(0, res.messages.len());
 
-    let config = read_config(&deps.storage).unwrap();
+    let config = CONFIG.load(&deps.storage).unwrap();
 
     let stluna_total_bond_amount = Uint128::from(2u64);
     let bluna_total_bond_amount = Uint128::from(2u64);
@@ -232,7 +232,7 @@ fn test_update_config() {
     let res = execute(deps.as_mut(), mock_env(), info, update_config_msg);
     assert!(res.is_ok());
 
-    let config = read_config(&deps.storage).unwrap();
+    let config = CONFIG.load(&deps.storage).unwrap();
     let new_owner_raw = deps.api.addr_canonicalize(&new_owner).unwrap();
     assert_eq!(new_owner_raw, config.owner);
 
@@ -250,7 +250,7 @@ fn test_update_config() {
     let res = execute(deps.as_mut(), mock_env(), info, update_config_msg);
     assert!(res.is_ok());
 
-    let config = read_config(&deps.storage).unwrap();
+    let config = CONFIG.load(&deps.storage).unwrap();
     assert_eq!(
         deps.api
             .addr_canonicalize(&String::from("some_address"))
@@ -272,7 +272,7 @@ fn test_update_config() {
     let res = execute(deps.as_mut(), mock_env(), info, update_config_msg);
     assert!(res.is_ok());
 
-    let config = read_config(&deps.storage).unwrap();
+    let config = CONFIG.load(&deps.storage).unwrap();
     assert_eq!(
         deps.api
             .addr_canonicalize(&String::from("some_address"))
@@ -294,7 +294,7 @@ fn test_update_config() {
     let res = execute(deps.as_mut(), mock_env(), info, update_config_msg);
     assert!(res.is_ok());
 
-    let config = read_config(&deps.storage).unwrap();
+    let config = CONFIG.load(&deps.storage).unwrap();
     assert_eq!(String::from("new_denom"), config.stluna_reward_denom);
 
     // change bluna_reward_denom
@@ -311,7 +311,7 @@ fn test_update_config() {
     let res = execute(deps.as_mut(), mock_env(), info, update_config_msg);
     assert!(res.is_ok());
 
-    let config = read_config(&deps.storage).unwrap();
+    let config = CONFIG.load(&deps.storage).unwrap();
     assert_eq!(String::from("new_denom"), config.bluna_reward_denom);
 
     // change lido_fee_address
@@ -328,7 +328,7 @@ fn test_update_config() {
     let res = execute(deps.as_mut(), mock_env(), info, update_config_msg);
     assert!(res.is_ok());
 
-    let config = read_config(&deps.storage).unwrap();
+    let config = CONFIG.load(&deps.storage).unwrap();
     assert_eq!(
         deps.api
             .addr_canonicalize(&String::from("some_address"))
@@ -350,6 +350,6 @@ fn test_update_config() {
     let res = execute(deps.as_mut(), mock_env(), info, update_config_msg);
     assert!(res.is_ok());
 
-    let config = read_config(&deps.storage).unwrap();
+    let config = CONFIG.load(&deps.storage).unwrap();
     assert_eq!(Decimal::one(), config.lido_fee_rate);
 }

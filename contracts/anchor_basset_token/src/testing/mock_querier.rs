@@ -89,7 +89,7 @@ impl WasmMockQuerier {
                         unimplemented!()
                     }
                 } else if contract_addr == MOCK_REWARDS_DISPATCHER_CONTRACT_ADDR {
-                    let prefix_config = to_length_prefixed(b"config").to_vec();
+                    let prefix_config = b"config".to_vec();
                     let api: MockApi = MockApi::default();
                     if key.as_slice().to_vec() == prefix_config {
                         let config = RewardsDispatcherConfig {

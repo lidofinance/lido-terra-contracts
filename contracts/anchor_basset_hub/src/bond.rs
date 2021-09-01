@@ -54,7 +54,7 @@ pub fn execute_bond(mut deps: DepsMut, env: Env, info: MessageInfo) -> Result<Re
             (total_supply + mint_amount + current_batch.requested_bluna_with_fee)
                 - (state.total_bond_bluna_amount + payment.amount);
         let peg_fee = Uint128::min(max_peg_fee, required_peg_fee);
-        mint_amount_with_fee = mint_amount - peg_fee;
+        mint_amount_with_fee = mint_amount.checked_sub(peg_fee)?;
     }
 
     // total supply should be updated for exchange rate calculation.
