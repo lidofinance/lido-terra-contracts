@@ -63,8 +63,8 @@ pub(crate) fn execute_unbond(
     // Update exchange rate
     state.update_exchange_rate(total_supply, current_batch.requested_with_fee);
 
-    let current_time = env.block.time.nanos();
-    let passed_time = nano_to_second(current_time - state.last_unbonded_time);
+    let current_time = env.block.time.seconds();
+    let passed_time = current_time - state.last_unbonded_time;
 
     let mut messages: Vec<SubMsg> = vec![];
 
@@ -112,7 +112,7 @@ pub(crate) fn execute_unbond(
         current_batch.requested_with_fee = Uint128::zero();
 
         // state.last_unbonded_time must be updated to the current block time
-        state.last_unbonded_time = env.block.time.nanos();
+        state.last_unbonded_time = env.block.time.seconds();
     }
 
     // Store the new requested_with_fee or id in the current batch
@@ -365,8 +365,4 @@ fn pick_validator(
         iteration_index += 1;
     }
     Ok(messages)
-}
-
-pub(crate) fn nano_to_second(time: u64) -> u64 {
-    time / 1_000_000_000
 }

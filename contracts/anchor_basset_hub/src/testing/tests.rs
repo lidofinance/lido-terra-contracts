@@ -212,10 +212,10 @@ fn proper_initialization() {
     let expected_result = StateResponse {
         exchange_rate: Decimal::one(),
         total_bond_amount: owner_info.funds[0].amount,
-        last_index_modification: mock_env().block.time.nanos(),
+        last_index_modification: mock_env().block.time.seconds(),
         prev_hub_balance: Default::default(),
         actual_unbonded_amount: Default::default(),
-        last_unbonded_time: mock_env().block.time.nanos(),
+        last_unbonded_time: mock_env().block.time.seconds(),
         last_processed_batch: 0u64,
     };
     assert_eq!(query_state, expected_result);
@@ -657,7 +657,7 @@ pub fn proper_update_global_index() {
         from_binary(&query(deps.as_ref(), mock_env(), last_index_query).unwrap()).unwrap();
     assert_eq!(
         &last_modification.last_index_modification,
-        &mock_env().block.time.nanos()
+        &mock_env().block.time.seconds()
     );
 
     let withdraw = &res.messages[0].msg;
@@ -1013,7 +1013,7 @@ pub fn proper_unbond() {
         from_binary(&query(deps.as_ref(), mock_env(), state).unwrap()).unwrap();
     assert_eq!(
         query_state.last_unbonded_time,
-        mock_env().block.time.nanos()
+        mock_env().block.time.seconds()
     );
     assert_eq!(query_state.total_bond_amount, Uint128::new(1000010));
 
@@ -1131,7 +1131,10 @@ pub fn proper_unbond() {
     let query_state: StateResponse =
         from_binary(&query(deps.as_ref(), mock_env(), state).unwrap()).unwrap();
 
-    assert_eq!(query_state.last_unbonded_time, token_env.block.time.nanos());
+    assert_eq!(
+        query_state.last_unbonded_time,
+        token_env.block.time.seconds()
+    );
     assert_eq!(query_state.total_bond_amount, Uint128::new(2));
 
     // the last request (2) gets combined and processed with the previous requests (1, 5)
