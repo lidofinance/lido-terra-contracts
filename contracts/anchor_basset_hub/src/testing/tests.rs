@@ -230,9 +230,9 @@ fn proper_initialization() {
         stluna_exchange_rate: Decimal::one(),
         total_bond_bluna_amount: Uint128::zero(),
         total_bond_stluna_amount: Uint128::zero(),
-        last_index_modification: env.block.time.nanos(),
+        last_index_modification: env.block.time.seconds(),
         prev_hub_balance: Default::default(),
-        last_unbonded_time: env.block.time.nanos(),
+        last_unbonded_time: env.block.time.seconds(),
         last_processed_batch: 0u64,
     };
     assert_eq!(query_state, expected_result);
@@ -742,7 +742,7 @@ pub fn proper_update_global_index() {
         from_binary(&query(deps.as_ref(), mock_env(), last_index_query).unwrap()).unwrap();
     assert_eq!(
         &last_modification.last_index_modification,
-        &env.block.time.nanos()
+        &env.block.time.seconds()
     );
 
     let withdraw = &res.messages[0];
@@ -1100,7 +1100,7 @@ pub fn proper_unbond() {
         from_binary(&query(deps.as_ref(), mock_env(), state).unwrap()).unwrap();
     assert_eq!(
         query_state.last_unbonded_time,
-        mock_env().block.time.nanos()
+        mock_env().block.time.seconds()
     );
     assert_eq!(query_state.total_bond_bluna_amount, Uint128::from(10u64));
 
@@ -1215,7 +1215,7 @@ pub fn proper_unbond() {
     let state = State {};
     let query_state: StateResponse =
         from_binary(&query(deps.as_ref(), mock_env(), state).unwrap()).unwrap();
-    assert_eq!(query_state.last_unbonded_time, env.block.time.nanos());
+    assert_eq!(query_state.last_unbonded_time, env.block.time.seconds());
     assert_eq!(query_state.total_bond_bluna_amount, Uint128::from(2u64));
 
     // the last request (2) gets combined and processed with the previous requests (1, 5)
@@ -1399,7 +1399,7 @@ pub fn proper_unbond_stluna() {
         from_binary(&query(deps.as_ref(), mock_env(), state).unwrap()).unwrap();
     assert_eq!(
         query_state.last_unbonded_time,
-        mock_env().block.time.nanos()
+        mock_env().block.time.seconds()
     );
     assert_eq!(query_state.total_bond_stluna_amount, Uint128::from(10u64));
 
@@ -1516,7 +1516,7 @@ pub fn proper_unbond_stluna() {
     let state = State {};
     let query_state: StateResponse =
         from_binary(&query(deps.as_ref(), mock_env(), state).unwrap()).unwrap();
-    assert_eq!(query_state.last_unbonded_time, env.block.time.nanos());
+    assert_eq!(query_state.last_unbonded_time, env.block.time.seconds());
     assert_eq!(query_state.total_bond_bluna_amount, Uint128::from(0u64));
     assert_eq!(query_state.total_bond_stluna_amount, Uint128::from(2u64));
 

@@ -58,8 +58,8 @@ pub fn instantiate(
     let state = State {
         bluna_exchange_rate: Decimal::one(),
         stluna_exchange_rate: Decimal::one(),
-        last_index_modification: env.block.time.nanos(),
-        last_unbonded_time: env.block.time.nanos(),
+        last_index_modification: env.block.time.seconds(),
+        last_unbonded_time: env.block.time.seconds(),
         last_processed_batch: 0u64,
         ..Default::default()
     };
@@ -304,7 +304,7 @@ pub fn execute_update_global(
 
     //update state last modified
     STATE.update(deps.storage, |mut last_state| -> StdResult<_> {
-        last_state.last_index_modification = env.block.time.nanos();
+        last_state.last_index_modification = env.block.time.seconds();
         Ok(last_state)
     })?;
 

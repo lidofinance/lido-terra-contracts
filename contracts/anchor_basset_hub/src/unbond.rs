@@ -65,8 +65,8 @@ pub(crate) fn execute_unbond(
     // Update exchange rate
     state.update_bluna_exchange_rate(total_supply, current_batch.requested_bluna_with_fee);
 
-    let current_time = env.block.time.nanos();
-    let passed_time = nano_to_second(current_time - state.last_unbonded_time);
+    let current_time = env.block.time.seconds();
+    let passed_time = current_time - state.last_unbonded_time;
 
     let mut messages: Vec<CosmosMsg> = vec![];
 
@@ -412,8 +412,8 @@ pub(crate) fn execute_unbond_stluna(
         UnbondType::StLuna,
     )?;
 
-    let current_time = env.block.time.nanos();
-    let passed_time = nano_to_second(current_time - state.last_unbonded_time);
+    let current_time = env.block.time.seconds();
+    let passed_time = current_time - state.last_unbonded_time;
 
     let mut messages: Vec<CosmosMsg> = vec![];
 
@@ -512,11 +512,7 @@ fn process_undelegations(
     current_batch.requested_bluna_with_fee = Uint128::zero();
 
     // state.last_unbonded_time must be updated to the current block time
-    state.last_unbonded_time = env.block.time.nanos();
+    state.last_unbonded_time = env.block.time.seconds();
 
     Ok(undelegated_msgs)
-}
-
-pub(crate) fn nano_to_second(time: u64) -> u64 {
-    time / 1_000_000_000
 }
