@@ -268,11 +268,11 @@ pub(crate) fn get_exchange_rates(
 ) -> StdResult<(Decimal, Decimal)> {
     let terra_querier = TerraQuerier::new(&deps.querier);
     let a_2_b_xchg_rates = terra_querier
-        .query_exchange_rates(denom_b.to_string(), vec![denom_a.to_string()])?
+        .query_exchange_rates(denom_a.to_string(), vec![denom_b.to_string()])?
         .exchange_rates;
 
     let b_2_a_xchg_rates = terra_querier
-        .query_exchange_rates(denom_a.to_string(), vec![denom_b.to_string()])?
+        .query_exchange_rates(denom_b.to_string(), vec![denom_a.to_string()])?
         .exchange_rates;
 
     Ok((
