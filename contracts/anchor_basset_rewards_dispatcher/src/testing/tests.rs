@@ -53,27 +53,115 @@ fn proper_initialization() {
 
 #[test]
 fn test_swap_to_reward_denom() {
-    let mut deps = mock_dependencies(&[
-        Coin::new(20, "uluna"),
-        Coin::new(20, "uusd"),
-        Coin::new(20, "usdr"),
-    ]);
+    struct TestCase {
+        rewards_balance: Vec<Coin>,
+        stluna_total_minted: Uint128,
+        bluna_total_minted: Uint128,
+        expected_total_stluna_rewards_available: String,
+        expected_total_bluna_rewards_available: String,
+        expected_offer_coin_denom: String,
+        expected_offer_coin_amount: String,
+        expected_ask_denom: String,
+    }
 
-    let msg = default_init();
-    let info = mock_info("creator", &[]);
+    let test_cases: Vec<TestCase> = vec![
+        TestCase {
+            rewards_balance: vec![
+                Coin::new(200, "uluna"),
+                Coin::new(300, "uusd"),
+                Coin::new(500, "usdr"),
+            ],
+            stluna_total_minted: Uint128::from(1u128),
+            bluna_total_minted: Uint128::from(2u128),
+            expected_total_stluna_rewards_available: "200".to_string(),
+            expected_total_bluna_rewards_available: "1300".to_string(),
+            expected_offer_coin_denom: "uluna".to_string(),
+            expected_offer_coin_amount: "120".to_string(),
+            expected_ask_denom: "uusd".to_string(),
+        },
+        TestCase {
+            rewards_balance: vec![
+                Coin::new(200, "uluna"),
+                Coin::new(300, "uusd"),
+                Coin::new(500, "usdr"),
+            ],
+            stluna_total_minted: Uint128::from(2u128),
+            bluna_total_minted: Uint128::from(2u128),
+            expected_total_stluna_rewards_available: "200".to_string(),
+            expected_total_bluna_rewards_available: "1300".to_string(),
+            expected_offer_coin_denom: "uluna".to_string(),
+            expected_offer_coin_amount: "80".to_string(),
+            expected_ask_denom: "uusd".to_string(),
+        },
+        TestCase {
+            rewards_balance: vec![
+                Coin::new(200, "uluna"),
+                Coin::new(300, "uusd"),
+                Coin::new(500, "usdr"),
+            ],
+            stluna_total_minted: Uint128::from(2u128),
+            bluna_total_minted: Uint128::from(1u128),
+            expected_total_stluna_rewards_available: "200".to_string(),
+            expected_total_bluna_rewards_available: "1300".to_string(),
+            expected_offer_coin_denom: "uluna".to_string(),
+            expected_offer_coin_amount: "40".to_string(),
+            expected_ask_denom: "uusd".to_string(),
+        },
+        TestCase {
+            rewards_balance: vec![
+                Coin::new(0, "uluna"),
+                Coin::new(300, "uusd"),
+                Coin::new(500, "usdr"),
+            ],
+            stluna_total_minted: Uint128::from(2u128),
+            bluna_total_minted: Uint128::from(2u128),
+            expected_total_stluna_rewards_available: "0".to_string(),
+            expected_total_bluna_rewards_available: "1300".to_string(),
+            expected_offer_coin_denom: "uusd".to_string(),
+            expected_offer_coin_amount: "640".to_string(),
+            expected_ask_denom: "uluna".to_string(),
+        },
+    ];
 
-    // we can just call .unwrap() to assert this was a success
-    let res = instantiate(deps.as_mut(), mock_env(), info, msg).unwrap();
-    assert_eq!(0, res.messages.len());
+    for test_case in test_cases {
+        let mut deps = mock_dependencies(&test_case.rewards_balance);
 
-    let info = mock_info(String::from(MOCK_HUB_CONTRACT_ADDR).as_str(), &[]);
-    let msg = ExecuteMsg::SwapToRewardDenom {
-        stluna_total_mint_amount: Uint128::from(2u64),
-        bluna_total_mint_amount: Uint128::from(2u64),
-    };
+        let msg = default_init();
+        let info = mock_info("creator", &[]);
 
-    let res = execute(deps.as_mut(), mock_env(), info, msg).unwrap();
-    assert_eq!(2, res.messages.len());
+        // we can just call .unwrap() to assert this was a success
+        let res = instantiate(deps.as_mut(), mock_env(), info, msg).unwrap();
+        assert_eq!(0, res.messages.len());
+
+        let info = mock_info(String::from(MOCK_HUB_CONTRACT_ADDR).as_str(), &[]);
+        let msg = ExecuteMsg::SwapToRewardDenom {
+            stluna_total_mint_amount: test_case.stluna_total_minted,
+            bluna_total_mint_amount: test_case.bluna_total_minted,
+        };
+
+        let res = execute(deps.as_mut(), mock_env(), info, msg).unwrap();
+
+        for attr in res.attributes {
+            if attr.key == *"total_stluna_rewards_available" {
+                assert_eq!(
+                    attr.value,
+                    test_case.expected_total_stluna_rewards_available
+                )
+            }
+            if attr.key == *"total_bluna_rewards_available" {
+                assert_eq!(attr.value, test_case.expected_total_bluna_rewards_available)
+            }
+            if attr.key == *"offer_coin_denom" {
+                assert_eq!(attr.value, test_case.expected_offer_coin_denom)
+            }
+            if attr.key == *"offer_coin_amount" {
+                assert_eq!(attr.value, test_case.expected_offer_coin_amount)
+            }
+            if attr.key == *"ask_denom" {
+                assert_eq!(attr.value, test_case.expected_ask_denom)
+            }
+        }
+    }
 }
 
 #[test]

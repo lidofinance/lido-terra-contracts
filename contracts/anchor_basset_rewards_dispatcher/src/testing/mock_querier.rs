@@ -73,14 +73,30 @@ impl WasmMockQuerier {
                             base_denom,
                             quote_denoms,
                         } => {
-                            if base_denom == luna_denom || base_denom == usd_denom {
+                            if base_denom == luna_denom {
                                 let mut exchange_rates: Vec<ExchangeRateItem> = Vec::new();
                                 for quote_denom in quote_denoms {
                                     exchange_rates.push(ExchangeRateItem {
                                         quote_denom: quote_denom.clone(),
                                         exchange_rate: Decimal::from_ratio(
+                                            Uint128::from(32u64), // 1uluna = 32uusd
                                             Uint128::from(1u64),
-                                            Uint128::from(1u64),
+                                        ),
+                                    })
+                                }
+                                let res = ExchangeRatesResponse {
+                                    base_denom: base_denom.to_string(),
+                                    exchange_rates,
+                                };
+                                QuerierResult::Ok(ContractResult::from(to_binary(&res)))
+                            } else if base_denom == usd_denom {
+                                let mut exchange_rates: Vec<ExchangeRateItem> = Vec::new();
+                                for quote_denom in quote_denoms {
+                                    exchange_rates.push(ExchangeRateItem {
+                                        quote_denom: quote_denom.clone(),
+                                        exchange_rate: Decimal::from_ratio(
+                                            Uint128::from(1u64), //1uusd = 0.03125uluna
+                                            Uint128::from(32u64),
                                         ),
                                     })
                                 }
@@ -96,9 +112,23 @@ impl WasmMockQuerier {
                         TerraQuery::Swap {
                             offer_coin,
                             ask_denom,
-                        } => QuerierResult::Ok(ContractResult::from(to_binary(&SwapResponse {
-                            receive: Coin::new(offer_coin.amount.u128(), ask_denom),
-                        }))),
+                        } => {
+                            if offer_coin.denom == "usdr" && ask_denom == "uusd" {
+                                QuerierResult::Ok(ContractResult::from(to_binary(&SwapResponse {
+                                    receive: Coin::new(offer_coin.amount.u128() * 2, ask_denom), // 1uusd = 2usdr
+                                })))
+                            } else if offer_coin.denom == "uluna" && ask_denom == "uusd" {
+                                QuerierResult::Ok(ContractResult::from(to_binary(&SwapResponse {
+                                    receive: Coin::new(offer_coin.amount.u128() * 32, ask_denom), //1uluna = 32uusd
+                                })))
+                            } else if offer_coin.denom == "uusd" && ask_denom == "uluna" {
+                                QuerierResult::Ok(ContractResult::from(to_binary(&SwapResponse {
+                                    receive: Coin::new(offer_coin.amount.u128() / 32, ask_denom), //1uusd = 0.03125uluna
+                                })))
+                            } else {
+                                panic!("unknown denom")
+                            }
+                        }
                         _ => panic!("DO NOT ENTER HERE"),
                     }
                 } else {
