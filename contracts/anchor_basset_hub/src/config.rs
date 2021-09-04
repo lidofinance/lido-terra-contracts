@@ -1,28 +1,30 @@
-use crate::state::{read_config, store_config, store_parameters, Parameters};
+use crate::state::{CONFIG, PARAMETERS};
+use basset::hub::Parameters;
 use cosmwasm_std::{
-    log, Api, CosmosMsg, Decimal, Env, Extern, HandleResponse, HumanAddr, Querier, StakingMsg,
-    StdError, StdResult, Storage,
+    attr, CosmosMsg, Decimal, DepsMut, DistributionMsg, Env, MessageInfo, Response, StdError,
+    StdResult,
 };
 
 /// Update general parameters
 /// Only creator/owner is allowed to execute
 #[allow(clippy::too_many_arguments)]
-pub fn handle_update_params<S: Storage, A: Api, Q: Querier>(
-    deps: &mut Extern<S, A, Q>,
-    env: Env,
+pub fn execute_update_params(
+    deps: DepsMut,
+    _env: Env,
+    info: MessageInfo,
     epoch_period: Option<u64>,
     unbonding_period: Option<u64>,
     peg_recovery_fee: Option<Decimal>,
     er_threshold: Option<Decimal>,
-) -> StdResult<HandleResponse> {
+) -> StdResult<Response> {
     // only owner can send this message.
-    let config = read_config(&deps.storage).load()?;
-    let sender_raw = deps.api.canonical_address(&env.message.sender)?;
+    let config = CONFIG.load(deps.storage)?;
+    let sender_raw = deps.api.addr_canonicalize(&info.sender.to_string())?;
     if sender_raw != config.creator {
-        return Err(StdError::unauthorized());
+        return Err(StdError::generic_err("unauthorized"));
     }
 
-    let params: Parameters = store_parameters(&mut deps.storage).load()?;
+    let params: Parameters = PARAMETERS.load(deps.storage)?;
 
     let new_params = Parameters {
         epoch_period: epoch_period.unwrap_or(params.epoch_period),
@@ -33,100 +35,93 @@ pub fn handle_update_params<S: Storage, A: Api, Q: Querier>(
         reward_denom: params.reward_denom,
     };
 
-    store_parameters(&mut deps.storage).save(&new_params)?;
+    PARAMETERS.save(deps.storage, &new_params)?;
 
-    let res = HandleResponse {
-        messages: vec![],
-        log: vec![log("action", "update_params")],
-        data: None,
-    };
+    let res = Response::new().add_attributes(vec![attr("action", "update_params")]);
     Ok(res)
 }
 
 #[allow(clippy::too_many_arguments)]
 /// Update the config. Update the owner, reward and token contracts.
 /// Only creator/owner is allowed to execute
-pub fn handle_update_config<S: Storage, A: Api, Q: Querier>(
-    deps: &mut Extern<S, A, Q>,
-    env: Env,
-    owner: Option<HumanAddr>,
-    rewards_dispatcher_contract: Option<HumanAddr>,
-    bluna_token_contract: Option<HumanAddr>,
-    stluna_token_contract: Option<HumanAddr>,
-    airdrop_registry_contract: Option<HumanAddr>,
-    validators_registry_contract: Option<HumanAddr>,
-) -> StdResult<HandleResponse> {
+pub fn execute_update_config(
+    deps: DepsMut,
+    _env: Env,
+    info: MessageInfo,
+    owner: Option<String>,
+    rewards_dispatcher_contract: Option<String>,
+    bluna_token_contract: Option<String>,
+    stluna_token_contract: Option<String>,
+    airdrop_registry_contract: Option<String>,
+    validators_registry_contract: Option<String>,
+) -> StdResult<Response> {
     // only owner must be able to send this message.
-    let conf = read_config(&deps.storage).load()?;
-    let sender_raw = deps.api.canonical_address(&env.message.sender)?;
+    let conf = CONFIG.load(deps.storage)?;
+    let sender_raw = deps.api.addr_canonicalize(&info.sender.to_string())?;
     if sender_raw != conf.creator {
-        return Err(StdError::unauthorized());
+        return Err(StdError::generic_err("unauthorized"));
     }
 
     let mut messages: Vec<CosmosMsg> = vec![];
 
     if let Some(o) = owner {
-        let owner_raw = deps.api.canonical_address(&o)?;
+        let owner_raw = deps.api.addr_canonicalize(&o)?;
 
-        store_config(&mut deps.storage).update(|mut last_config| {
+        CONFIG.update(deps.storage, |mut last_config| -> StdResult<_> {
             last_config.creator = owner_raw;
             Ok(last_config)
         })?;
     }
     if let Some(reward) = rewards_dispatcher_contract {
-        let reward_raw = deps.api.canonical_address(&reward)?;
+        let reward_raw = deps.api.addr_canonicalize(&reward)?;
 
-        store_config(&mut deps.storage).update(|mut last_config| {
+        CONFIG.update(deps.storage, |mut last_config| -> StdResult<_> {
             last_config.reward_dispatcher_contract = Some(reward_raw);
             Ok(last_config)
         })?;
 
         // register the reward contract for automate reward withdrawal.
-        let msg: CosmosMsg = CosmosMsg::Staking(StakingMsg::Withdraw {
-            validator: HumanAddr::default(),
-            recipient: Some(reward),
-        });
+        let msg: CosmosMsg =
+            CosmosMsg::Distribution(DistributionMsg::SetWithdrawAddress { address: reward });
         messages.push(msg);
     }
 
     if let Some(token) = bluna_token_contract {
-        let token_raw = deps.api.canonical_address(&token)?;
+        let token_raw = deps.api.addr_canonicalize(&token)?;
 
-        store_config(&mut deps.storage).update(|mut last_config| {
+        CONFIG.update(deps.storage, |mut last_config| -> StdResult<_> {
             last_config.bluna_token_contract = Some(token_raw);
             Ok(last_config)
         })?;
     }
 
     if let Some(token) = stluna_token_contract {
-        let token_raw = deps.api.canonical_address(&token)?;
+        let token_raw = deps.api.addr_canonicalize(&token)?;
 
-        store_config(&mut deps.storage).update(|mut last_config| {
+        CONFIG.update(deps.storage, |mut last_config| -> StdResult<_> {
             last_config.stluna_token_contract = Some(token_raw);
             Ok(last_config)
         })?;
     }
 
     if let Some(airdrop) = airdrop_registry_contract {
-        let airdrop_raw = deps.api.canonical_address(&airdrop)?;
-        store_config(&mut deps.storage).update(|mut last_config| {
+        let airdrop_raw = deps.api.addr_canonicalize(&airdrop)?;
+        CONFIG.update(deps.storage, |mut last_config| -> StdResult<_> {
             last_config.airdrop_registry_contract = Some(airdrop_raw);
             Ok(last_config)
         })?;
     }
 
     if let Some(validators_registry) = validators_registry_contract {
-        let validators_raw = deps.api.canonical_address(&validators_registry)?;
-        store_config(&mut deps.storage).update(|mut last_config| {
+        let validators_raw = deps.api.addr_canonicalize(&validators_registry)?;
+        CONFIG.update(deps.storage, |mut last_config| -> StdResult<_> {
             last_config.validators_registry_contract = Some(validators_raw);
             Ok(last_config)
         })?;
     }
 
-    let res = HandleResponse {
-        messages,
-        log: vec![log("action", "update_config")],
-        data: None,
-    };
+    let res = Response::new()
+        .add_messages(messages)
+        .add_attributes(vec![attr("action", "update_config")]);
     Ok(res)
 }

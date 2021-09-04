@@ -1,42 +1,29 @@
+use basset::hub::Config;
 use cosmwasm_std::{
-    from_binary, Api, Binary, CanonicalAddr, Extern, HumanAddr, Querier, QueryRequest, StdResult,
-    Storage, WasmQuery,
+    Addr, Binary, CanonicalAddr, Deps, QueryRequest, StdError, StdResult, WasmQuery,
 };
 use cosmwasm_storage::to_length_prefixed;
-use hub_querier::Config;
 
-pub fn query_token_contract<S: Storage, A: Api, Q: Querier>(
-    deps: &Extern<S, A, Q>,
-    contract_addr: HumanAddr,
-) -> StdResult<CanonicalAddr> {
-    let res: Binary = deps
-        .querier
-        .query(&QueryRequest::Wasm(WasmQuery::Raw {
-            contract_addr,
-            key: Binary::from(to_length_prefixed(b"config")),
-        }))
-        .unwrap();
+pub fn query_token_contract(deps: Deps, contract_addr: Addr) -> StdResult<CanonicalAddr> {
+    let conf: Config = deps.querier.query(&QueryRequest::Wasm(WasmQuery::Raw {
+        contract_addr: contract_addr.to_string(),
+        key: Binary::from(to_length_prefixed(b"config")),
+    }))?;
 
-    let conf: Config = from_binary(&res)?;
-    Ok(conf
-        .bluna_token_contract
-        .expect("the token contract must have been registered"))
+    conf.bluna_token_contract
+        .ok_or_else(|| StdError::generic_err("the bLuna token contract must have been registered"))
 }
 
-pub fn query_rewards_dispatcher_contract<S: Storage, A: Api, Q: Querier>(
-    deps: &Extern<S, A, Q>,
-    contract_addr: HumanAddr,
+pub fn query_rewards_dispatcher_contract(
+    deps: Deps,
+    contract_addr: Addr,
 ) -> StdResult<CanonicalAddr> {
-    let res: Binary = deps
-        .querier
-        .query(&QueryRequest::Wasm(WasmQuery::Raw {
-            contract_addr,
-            key: Binary::from(to_length_prefixed(b"config")),
-        }))
-        .unwrap();
+    let conf: Config = deps.querier.query(&QueryRequest::Wasm(WasmQuery::Raw {
+        contract_addr: contract_addr.to_string(),
+        key: Binary::from(to_length_prefixed(b"config")),
+    }))?;
 
-    let conf: Config = from_binary(&res)?;
-    Ok(conf
-        .reward_dispatcher_contract
-        .expect("the rewards dispatcher contract must have been registered"))
+    conf.reward_dispatcher_contract.ok_or_else(|| {
+        StdError::generic_err("the rewards dispatcher contract must have been registered")
+    })
 }

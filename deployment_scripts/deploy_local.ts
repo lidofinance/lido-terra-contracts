@@ -52,7 +52,7 @@ async function main(): Promise<void> {
 
   await executeContract(terra, test1, hubAddress, {
     update_config: {bluna_token_contract: blunaTokenAddress, stluna_token_contract: stlunaTokenAddress,
-      reward_contract: rewardsDispatcherAddress,
+      rewards_dispatcher_contract: rewardsDispatcherAddress,
       validators_registry_contract: validatorsRegistryAddress}}, new Coins({}))
 
   console.log()
@@ -63,6 +63,21 @@ async function main(): Promise<void> {
   console.log(`VALIDATORS_REGISTRY_CONTRACT = ${validatorsRegistryAddress}"`)
   console.log(`BLUNA_TOKEN_CONTRACT = ${blunaTokenAddress}`)
   console.log(`STLUNA_TOKEN_CONTRACT = ${stlunaTokenAddress}`)
+
+  //just a few simple tests to make sure the contracts are not failing
+  //for more accurate tests we must use integration-tests repo
+  await executeContract(terra, test1, hubAddress, {bond_for_st_luna: {}}, new Coins({uluna: 1000000}))
+  await executeContract(terra, test1, hubAddress, {bond: {}}, new Coins({uluna: 1000000}))
+
+  await executeContract(terra, test1, hubAddress, {bond_for_st_luna: {}}, new Coins({uluna: 1000000}))
+  await executeContract(terra, test1, hubAddress, {bond: {}}, new Coins({uluna: 1000000}))
+
+  await executeContract(terra, test1, stlunaTokenAddress, {send: {contract: hubAddress, amount: "1000000",
+      msg: Buffer.from(JSON.stringify({"unbond": {}})).toString('base64')}}, new Coins({}))
+
+  await executeContract(terra, test1, blunaTokenAddress, {send: {contract: hubAddress, amount: "1000000",
+      msg: Buffer.from(JSON.stringify({"unbond": {}})).toString('base64')}}, new Coins({}))
+
 }
 
 main().catch(console.log);

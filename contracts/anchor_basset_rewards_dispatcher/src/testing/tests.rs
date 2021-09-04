@@ -5,7 +5,7 @@
 //! You can easily convert unit tests to integration tests as follows:
 //! 1. Copy them over verbatim
 //! 2. Then change
-//!      let mut deps = mock_dependencies(20, &[]);
+//!      let mut deps = mock_dependencies(&[]);
 //!    to
 //!      let mut deps = mock_instance(WASM, &[]);
 //! 3. If you access raw storage, where ever you see something like:
@@ -15,135 +15,213 @@
 //!          let data = store.get(CONFIG_KEY).expect("no data stored");
 //!          //...
 //!      });
-//! 4. Anywhere you see query(&deps, ...) you must replace it with query(&mut deps, ...)
+//! 4. Anywhere you see query(&deps, ...) you must replace it with query(deps.as_mut(), ...)
 
-use cosmwasm_std::testing::mock_env;
-use cosmwasm_std::{coins, Api, Coin, Decimal, HumanAddr, StdError, Uint128};
+use cosmwasm_std::testing::{mock_env, mock_info};
+use cosmwasm_std::{coins, Api, Coin, Decimal, StdError, Uint128};
 
-use crate::contract::{get_swap_info, handle, init};
-use crate::msg::{HandleMsg, InitMsg};
-use crate::state::read_config;
+use crate::contract::{execute, get_swap_info, instantiate};
+use crate::msg::{ExecuteMsg, InstantiateMsg};
+use crate::state::CONFIG;
 use crate::testing::mock_querier::{
     mock_dependencies, MOCK_BLUNA_REWARD_CONTRACT_ADDR, MOCK_HUB_CONTRACT_ADDR,
     MOCK_LIDO_FEE_ADDRESS,
 };
 
-fn default_init() -> InitMsg {
-    InitMsg {
-        hub_contract: HumanAddr::from(MOCK_HUB_CONTRACT_ADDR),
-        bluna_reward_contract: HumanAddr::from(MOCK_BLUNA_REWARD_CONTRACT_ADDR),
+fn default_init() -> InstantiateMsg {
+    InstantiateMsg {
+        hub_contract: String::from(MOCK_HUB_CONTRACT_ADDR),
+        bluna_reward_contract: String::from(MOCK_BLUNA_REWARD_CONTRACT_ADDR),
         bluna_reward_denom: "uusd".to_string(),
         stluna_reward_denom: "uluna".to_string(),
-        lido_fee_address: HumanAddr::from(MOCK_LIDO_FEE_ADDRESS),
-        lido_fee_rate: Decimal::from_ratio(Uint128(5), Uint128(100)),
+        lido_fee_address: String::from(MOCK_LIDO_FEE_ADDRESS),
+        lido_fee_rate: Decimal::from_ratio(Uint128::from(5u64), Uint128::from(100u64)),
     }
 }
 
 #[test]
 fn proper_initialization() {
-    let mut deps = mock_dependencies(20, &[]);
+    let mut deps = mock_dependencies(&[]);
 
     let msg = default_init();
-    let env = mock_env("creator", &coins(1000, "earth"));
+    let info = mock_info("creator", &coins(1000, "earth"));
 
     // we can just call .unwrap() to assert this was a success
-    let res = init(&mut deps, env, msg).unwrap();
+    let res = instantiate(deps.as_mut(), mock_env(), info, msg).unwrap();
     assert_eq!(0, res.messages.len());
 }
 
 #[test]
 fn test_swap_to_reward_denom() {
-    let mut deps = mock_dependencies(
-        20,
-        &[
-            Coin::new(20, "uluna"),
-            Coin::new(20, "uusd"),
-            Coin::new(20, "usdr"),
-        ],
-    );
+    struct TestCase {
+        rewards_balance: Vec<Coin>,
+        stluna_total_minted: Uint128,
+        bluna_total_minted: Uint128,
+        expected_total_stluna_rewards_available: String,
+        expected_total_bluna_rewards_available: String,
+        expected_offer_coin_denom: String,
+        expected_offer_coin_amount: String,
+        expected_ask_denom: String,
+    }
 
-    let msg = default_init();
-    let env = mock_env("creator", &[]);
+    let test_cases: Vec<TestCase> = vec![
+        TestCase {
+            rewards_balance: vec![
+                Coin::new(200, "uluna"),
+                Coin::new(300, "uusd"),
+                Coin::new(500, "usdr"),
+            ],
+            stluna_total_minted: Uint128::from(1u128),
+            bluna_total_minted: Uint128::from(2u128),
+            expected_total_stluna_rewards_available: "200".to_string(),
+            expected_total_bluna_rewards_available: "1300".to_string(),
+            expected_offer_coin_denom: "uluna".to_string(),
+            expected_offer_coin_amount: "120".to_string(),
+            expected_ask_denom: "uusd".to_string(),
+        },
+        TestCase {
+            rewards_balance: vec![
+                Coin::new(200, "uluna"),
+                Coin::new(300, "uusd"),
+                Coin::new(500, "usdr"),
+            ],
+            stluna_total_minted: Uint128::from(2u128),
+            bluna_total_minted: Uint128::from(2u128),
+            expected_total_stluna_rewards_available: "200".to_string(),
+            expected_total_bluna_rewards_available: "1300".to_string(),
+            expected_offer_coin_denom: "uluna".to_string(),
+            expected_offer_coin_amount: "80".to_string(),
+            expected_ask_denom: "uusd".to_string(),
+        },
+        TestCase {
+            rewards_balance: vec![
+                Coin::new(200, "uluna"),
+                Coin::new(300, "uusd"),
+                Coin::new(500, "usdr"),
+            ],
+            stluna_total_minted: Uint128::from(2u128),
+            bluna_total_minted: Uint128::from(1u128),
+            expected_total_stluna_rewards_available: "200".to_string(),
+            expected_total_bluna_rewards_available: "1300".to_string(),
+            expected_offer_coin_denom: "uluna".to_string(),
+            expected_offer_coin_amount: "40".to_string(),
+            expected_ask_denom: "uusd".to_string(),
+        },
+        TestCase {
+            rewards_balance: vec![
+                Coin::new(0, "uluna"),
+                Coin::new(300, "uusd"),
+                Coin::new(500, "usdr"),
+            ],
+            stluna_total_minted: Uint128::from(2u128),
+            bluna_total_minted: Uint128::from(2u128),
+            expected_total_stluna_rewards_available: "0".to_string(),
+            expected_total_bluna_rewards_available: "1300".to_string(),
+            expected_offer_coin_denom: "uusd".to_string(),
+            expected_offer_coin_amount: "640".to_string(),
+            expected_ask_denom: "uluna".to_string(),
+        },
+    ];
 
-    // we can just call .unwrap() to assert this was a success
-    let res = init(&mut deps, env, msg).unwrap();
-    assert_eq!(0, res.messages.len());
+    for test_case in test_cases {
+        let mut deps = mock_dependencies(&test_case.rewards_balance);
 
-    let env = mock_env(HumanAddr::from(MOCK_HUB_CONTRACT_ADDR), &[]);
-    let msg = HandleMsg::SwapToRewardDenom {
-        stluna_total_mint_amount: Uint128(2),
-        bluna_total_mint_amount: Uint128(2),
-    };
+        let msg = default_init();
+        let info = mock_info("creator", &[]);
 
-    let res = handle(&mut deps, env, msg).unwrap();
-    assert_eq!(2, res.messages.len());
+        // we can just call .unwrap() to assert this was a success
+        let res = instantiate(deps.as_mut(), mock_env(), info, msg).unwrap();
+        assert_eq!(0, res.messages.len());
+
+        let info = mock_info(String::from(MOCK_HUB_CONTRACT_ADDR).as_str(), &[]);
+        let msg = ExecuteMsg::SwapToRewardDenom {
+            stluna_total_mint_amount: test_case.stluna_total_minted,
+            bluna_total_mint_amount: test_case.bluna_total_minted,
+        };
+
+        let res = execute(deps.as_mut(), mock_env(), info, msg).unwrap();
+
+        for attr in res.attributes {
+            if attr.key == *"total_stluna_rewards_available" {
+                assert_eq!(
+                    attr.value,
+                    test_case.expected_total_stluna_rewards_available
+                )
+            }
+            if attr.key == *"total_bluna_rewards_available" {
+                assert_eq!(attr.value, test_case.expected_total_bluna_rewards_available)
+            }
+            if attr.key == *"offer_coin_denom" {
+                assert_eq!(attr.value, test_case.expected_offer_coin_denom)
+            }
+            if attr.key == *"offer_coin_amount" {
+                assert_eq!(attr.value, test_case.expected_offer_coin_amount)
+            }
+            if attr.key == *"ask_denom" {
+                assert_eq!(attr.value, test_case.expected_ask_denom)
+            }
+        }
+    }
 }
 
 #[test]
 fn test_dispatch_rewards() {
-    let mut deps = mock_dependencies(
-        20,
-        &[
-            Coin::new(200, "uluna"),
-            Coin::new(300, "uusd"),
-            Coin::new(20, "usdr"),
-        ],
-    );
+    let mut deps = mock_dependencies(&[
+        Coin::new(200, "uluna"),
+        Coin::new(300, "uusd"),
+        Coin::new(20, "usdr"),
+    ]);
 
     let msg = default_init();
-    let env = mock_env("creator", &[]);
+    let info = mock_info("creator", &[]);
 
     // we can just call .unwrap() to assert this was a success
-    let res = init(&mut deps, env, msg).unwrap();
+    let res = instantiate(deps.as_mut(), mock_env(), info, msg).unwrap();
     assert_eq!(0, res.messages.len());
 
-    let env = mock_env(HumanAddr::from(MOCK_HUB_CONTRACT_ADDR), &[]);
-    let msg = HandleMsg::DispatchRewards {};
+    let info = mock_info(String::from(MOCK_HUB_CONTRACT_ADDR).as_str(), &[]);
+    let msg = ExecuteMsg::DispatchRewards {};
 
-    let res = handle(&mut deps, env, msg).unwrap();
+    let res = execute(deps.as_mut(), mock_env(), info, msg).unwrap();
     assert_eq!(4, res.messages.len());
 
-    for log in res.log {
-        if log.key == "stluna_rewards_denom" {
-            assert_eq!("uluna", log.value)
+    for attr in res.attributes {
+        if attr.key == "stluna_rewards" {
+            assert_eq!("188uluna", attr.value)
         }
-        if log.key == "stluna_rewards_amount" {
-            assert_eq!("188", log.value)
+        if attr.key == "bluna_rewards" {
+            assert_eq!("282uusd", attr.value)
         }
-        if log.key == "bluna_rewards_denom" {
-            assert_eq!("uusd", log.value)
+        if attr.key == "lido_stluna_fee" {
+            assert_eq!("9uluna", attr.value)
         }
-        if log.key == "bluna_rewards_amount" {
-            assert_eq!("282", log.value)
-        }
-        if log.key == "lido_stluna_fee_amount" {
-            assert_eq!("9", log.value)
-        }
-        if log.key == "lido_bluna_fee_amount" {
-            assert_eq!("14", log.value)
+        if attr.key == "lido_bluna_fee" {
+            assert_eq!("14uusd", attr.value)
         }
     }
 }
 
 #[test]
 fn test_get_swap_info() {
-    let mut deps = mock_dependencies(20, &[]);
+    let mut deps = mock_dependencies(&[]);
 
     let msg = default_init();
-    let env = mock_env("creator", &coins(1000, "earth"));
+    let info = mock_info("creator", &coins(1000, "earth"));
 
     // we can just call .unwrap() to assert this was a success
-    let res = init(&mut deps, env, msg).unwrap();
+    let res = instantiate(deps.as_mut(), mock_env(), info, msg).unwrap();
     assert_eq!(0, res.messages.len());
 
-    let config = read_config(&deps.storage).unwrap();
+    let config = CONFIG.load(&deps.storage).unwrap();
 
-    let stluna_total_bond_amount = Uint128(2);
-    let bluna_total_bond_amount = Uint128(2);
-    let total_stluna_rewards_available = Uint128(20);
-    let total_bluna_rewards_available = Uint128(20);
-    let bluna_2_stluna_rewards_xchg_rate = Decimal::from_ratio(Uint128(1), Uint128(1));
-    let stluna_2_bluna_rewards_xchg_rate = Decimal::from_ratio(Uint128(1), Uint128(1));
+    let stluna_total_bond_amount = Uint128::from(2u64);
+    let bluna_total_bond_amount = Uint128::from(2u64);
+    let total_stluna_rewards_available = Uint128::from(20u64);
+    let total_bluna_rewards_available = Uint128::from(20u64);
+    let bluna_2_stluna_rewards_xchg_rate =
+        Decimal::from_ratio(Uint128::from(1u64), Uint128::from(1u64));
+    let stluna_2_bluna_rewards_xchg_rate =
+        Decimal::from_ratio(Uint128::from(1u64), Uint128::from(1u64));
     let (offer_coin, _) = get_swap_info(
         config.clone(),
         stluna_total_bond_amount,
@@ -155,14 +233,16 @@ fn test_get_swap_info() {
     )
     .unwrap();
     assert_eq!(offer_coin.denom, config.bluna_reward_denom);
-    assert_eq!(offer_coin.amount, Uint128(0));
+    assert_eq!(offer_coin.amount, Uint128::zero());
 
-    let stluna_total_bond_amount = Uint128(2);
-    let bluna_total_bond_amount = Uint128(2);
-    let total_stluna_rewards_available = Uint128(20);
-    let total_bluna_rewards_available = Uint128(20);
-    let bluna_2_stluna_rewards_xchg_rate = Decimal::from_ratio(Uint128(15), Uint128(10));
-    let stluna_2_bluna_rewards_xchg_rate = Decimal::from_ratio(Uint128(10), Uint128(15));
+    let stluna_total_bond_amount = Uint128::from(2u64);
+    let bluna_total_bond_amount = Uint128::from(2u64);
+    let total_stluna_rewards_available = Uint128::from(20u64);
+    let total_bluna_rewards_available = Uint128::from(20u64);
+    let bluna_2_stluna_rewards_xchg_rate =
+        Decimal::from_ratio(Uint128::from(15u64), Uint128::from(10u64));
+    let stluna_2_bluna_rewards_xchg_rate =
+        Decimal::from_ratio(Uint128::from(10u64), Uint128::from(15u64));
     let (offer_coin, _) = get_swap_info(
         config.clone(),
         stluna_total_bond_amount,
@@ -174,14 +254,16 @@ fn test_get_swap_info() {
     )
     .unwrap();
     assert_eq!(offer_coin.denom, config.bluna_reward_denom);
-    assert_eq!(offer_coin.amount, Uint128(3));
+    assert_eq!(offer_coin.amount, Uint128::from(3u64));
 
-    let stluna_total_bond_amount = Uint128(2);
-    let bluna_total_bond_amount = Uint128(2);
-    let total_stluna_rewards_available = Uint128(20);
-    let total_bluna_rewards_available = Uint128(20);
-    let bluna_2_stluna_rewards_xchg_rate = Decimal::from_ratio(Uint128(75), Uint128(100));
-    let stluna_2_bluna_rewards_xchg_rate = Decimal::from_ratio(Uint128(100), Uint128(75));
+    let stluna_total_bond_amount = Uint128::from(2u64);
+    let bluna_total_bond_amount = Uint128::from(2u64);
+    let total_stluna_rewards_available = Uint128::from(20u64);
+    let total_bluna_rewards_available = Uint128::from(20u64);
+    let bluna_2_stluna_rewards_xchg_rate =
+        Decimal::from_ratio(Uint128::from(75u64), Uint128::from(100u64));
+    let stluna_2_bluna_rewards_xchg_rate =
+        Decimal::from_ratio(Uint128::from(100u64), Uint128::from(75u64));
     let (offer_coin, _) = get_swap_info(
         config.clone(),
         stluna_total_bond_amount,
@@ -193,25 +275,25 @@ fn test_get_swap_info() {
     )
     .unwrap();
     assert_eq!(offer_coin.denom, config.stluna_reward_denom);
-    assert_eq!(offer_coin.amount, Uint128(3));
+    assert_eq!(offer_coin.amount, Uint128::from(3u64));
 }
 
 #[test]
 fn test_update_config() {
-    let mut deps = mock_dependencies(20, &[]);
+    let mut deps = mock_dependencies(&[]);
 
-    let owner = HumanAddr::from("creator");
+    let owner = String::from("creator");
     let msg = default_init();
-    let env = mock_env(&owner, &coins(1000, "earth"));
+    let info = mock_info(&owner, &coins(1000, "earth"));
 
     // we can just call .unwrap() to assert this was a success
-    let res = init(&mut deps, env, msg).unwrap();
+    let res = instantiate(deps.as_mut(), mock_env(), info, msg).unwrap();
     assert_eq!(0, res.messages.len());
 
     //check call from invalid owner
-    let invalid_owner = HumanAddr::from("invalid_owner");
-    let update_config_msg = HandleMsg::UpdateConfig {
-        owner: Some(HumanAddr::from("some_addr")),
+    let invalid_owner = String::from("invalid_owner");
+    let update_config_msg = ExecuteMsg::UpdateConfig {
+        owner: Some(String::from("some_addr")),
         hub_contract: None,
         bluna_reward_contract: None,
         stluna_reward_denom: None,
@@ -219,13 +301,13 @@ fn test_update_config() {
         lido_fee_address: None,
         lido_fee_rate: None,
     };
-    let env = mock_env(&invalid_owner, &[]);
-    let res = handle(&mut deps, env, update_config_msg);
-    assert_eq!(res.unwrap_err(), StdError::unauthorized());
+    let info = mock_info(&invalid_owner, &[]);
+    let res = execute(deps.as_mut(), mock_env(), info, update_config_msg);
+    assert_eq!(res.unwrap_err(), StdError::generic_err("unauthorized"));
 
     // change owner
-    let new_owner = HumanAddr::from("new_owner");
-    let update_config_msg = HandleMsg::UpdateConfig {
+    let new_owner = String::from("new_owner");
+    let update_config_msg = ExecuteMsg::UpdateConfig {
         owner: Some(new_owner.clone()),
         hub_contract: None,
         bluna_reward_contract: None,
@@ -234,60 +316,60 @@ fn test_update_config() {
         lido_fee_address: None,
         lido_fee_rate: None,
     };
-    let env = mock_env(&owner, &[]);
-    let res = handle(&mut deps, env, update_config_msg);
+    let info = mock_info(&owner, &[]);
+    let res = execute(deps.as_mut(), mock_env(), info, update_config_msg);
     assert!(res.is_ok());
 
-    let config = read_config(&deps.storage).unwrap();
-    let new_owner_raw = deps.api.canonical_address(&new_owner).unwrap();
+    let config = CONFIG.load(&deps.storage).unwrap();
+    let new_owner_raw = deps.api.addr_canonicalize(&new_owner).unwrap();
     assert_eq!(new_owner_raw, config.owner);
 
     // change hub_contract
-    let update_config_msg = HandleMsg::UpdateConfig {
+    let update_config_msg = ExecuteMsg::UpdateConfig {
         owner: None,
-        hub_contract: Some(HumanAddr::from("some_address")),
+        hub_contract: Some(String::from("some_address")),
         bluna_reward_contract: None,
         stluna_reward_denom: None,
         bluna_reward_denom: None,
         lido_fee_address: None,
         lido_fee_rate: None,
     };
-    let env = mock_env(&new_owner, &[]);
-    let res = handle(&mut deps, env, update_config_msg);
+    let info = mock_info(&new_owner, &[]);
+    let res = execute(deps.as_mut(), mock_env(), info, update_config_msg);
     assert!(res.is_ok());
 
-    let config = read_config(&deps.storage).unwrap();
+    let config = CONFIG.load(&deps.storage).unwrap();
     assert_eq!(
         deps.api
-            .canonical_address(&HumanAddr::from("some_address"))
+            .addr_canonicalize(&String::from("some_address"))
             .unwrap(),
         config.hub_contract
     );
 
     // change bluna_reward_contract
-    let update_config_msg = HandleMsg::UpdateConfig {
+    let update_config_msg = ExecuteMsg::UpdateConfig {
         owner: None,
         hub_contract: None,
-        bluna_reward_contract: Some(HumanAddr::from("some_address")),
+        bluna_reward_contract: Some(String::from("some_address")),
         stluna_reward_denom: None,
         bluna_reward_denom: None,
         lido_fee_address: None,
         lido_fee_rate: None,
     };
-    let env = mock_env(&new_owner, &[]);
-    let res = handle(&mut deps, env, update_config_msg);
+    let info = mock_info(&new_owner, &[]);
+    let res = execute(deps.as_mut(), mock_env(), info, update_config_msg);
     assert!(res.is_ok());
 
-    let config = read_config(&deps.storage).unwrap();
+    let config = CONFIG.load(&deps.storage).unwrap();
     assert_eq!(
         deps.api
-            .canonical_address(&HumanAddr::from("some_address"))
+            .addr_canonicalize(&String::from("some_address"))
             .unwrap(),
         config.bluna_reward_contract
     );
 
     // change stluna_reward_denom
-    let update_config_msg = HandleMsg::UpdateConfig {
+    let update_config_msg = ExecuteMsg::UpdateConfig {
         owner: None,
         hub_contract: None,
         bluna_reward_contract: None,
@@ -296,15 +378,15 @@ fn test_update_config() {
         lido_fee_address: None,
         lido_fee_rate: None,
     };
-    let env = mock_env(&new_owner, &[]);
-    let res = handle(&mut deps, env, update_config_msg);
+    let info = mock_info(&new_owner, &[]);
+    let res = execute(deps.as_mut(), mock_env(), info, update_config_msg);
     assert!(res.is_ok());
 
-    let config = read_config(&deps.storage).unwrap();
+    let config = CONFIG.load(&deps.storage).unwrap();
     assert_eq!(String::from("new_denom"), config.stluna_reward_denom);
 
     // change bluna_reward_denom
-    let update_config_msg = HandleMsg::UpdateConfig {
+    let update_config_msg = ExecuteMsg::UpdateConfig {
         owner: None,
         hub_contract: None,
         bluna_reward_contract: None,
@@ -313,37 +395,37 @@ fn test_update_config() {
         lido_fee_address: None,
         lido_fee_rate: None,
     };
-    let env = mock_env(&new_owner, &[]);
-    let res = handle(&mut deps, env, update_config_msg);
+    let info = mock_info(&new_owner, &[]);
+    let res = execute(deps.as_mut(), mock_env(), info, update_config_msg);
     assert!(res.is_ok());
 
-    let config = read_config(&deps.storage).unwrap();
+    let config = CONFIG.load(&deps.storage).unwrap();
     assert_eq!(String::from("new_denom"), config.bluna_reward_denom);
 
     // change lido_fee_address
-    let update_config_msg = HandleMsg::UpdateConfig {
+    let update_config_msg = ExecuteMsg::UpdateConfig {
         owner: None,
         hub_contract: None,
         bluna_reward_contract: None,
         stluna_reward_denom: None,
         bluna_reward_denom: None,
-        lido_fee_address: Some(HumanAddr::from("some_address")),
+        lido_fee_address: Some(String::from("some_address")),
         lido_fee_rate: None,
     };
-    let env = mock_env(&new_owner, &[]);
-    let res = handle(&mut deps, env, update_config_msg);
+    let info = mock_info(&new_owner, &[]);
+    let res = execute(deps.as_mut(), mock_env(), info, update_config_msg);
     assert!(res.is_ok());
 
-    let config = read_config(&deps.storage).unwrap();
+    let config = CONFIG.load(&deps.storage).unwrap();
     assert_eq!(
         deps.api
-            .canonical_address(&HumanAddr::from("some_address"))
+            .addr_canonicalize(&String::from("some_address"))
             .unwrap(),
         config.lido_fee_address
     );
 
     // change lido_fee_rate
-    let update_config_msg = HandleMsg::UpdateConfig {
+    let update_config_msg = ExecuteMsg::UpdateConfig {
         owner: None,
         hub_contract: None,
         bluna_reward_contract: None,
@@ -352,10 +434,10 @@ fn test_update_config() {
         lido_fee_address: None,
         lido_fee_rate: Some(Decimal::one()),
     };
-    let env = mock_env(&new_owner, &[]);
-    let res = handle(&mut deps, env, update_config_msg);
+    let info = mock_info(&new_owner, &[]);
+    let res = execute(deps.as_mut(), mock_env(), info, update_config_msg);
     assert!(res.is_ok());
 
-    let config = read_config(&deps.storage).unwrap();
+    let config = CONFIG.load(&deps.storage).unwrap();
     assert_eq!(Decimal::one(), config.lido_fee_rate);
 }

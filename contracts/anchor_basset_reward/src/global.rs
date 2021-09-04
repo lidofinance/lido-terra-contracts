@@ -1,71 +1,82 @@
-use crate::state::{read_config, read_state, store_state, Config, State};
+use crate::state::{read_config, read_state, store_state, State};
 
 use crate::math::decimal_summation_in_256;
+
 use crate::querier::query_rewards_dispatcher_contract;
 use cosmwasm_std::{
-    log, Api, CosmosMsg, Decimal, Env, Extern, HandleResponse, Querier, StdError, StdResult,
-    Storage,
+    attr, Decimal, DepsMut, Env, MessageInfo, Response, StdError, StdResult, SubMsg,
 };
-use terra_cosmwasm::{create_swap_msg, TerraMsgWrapper};
+use terra_cosmwasm::{create_swap_msg, ExchangeRatesResponse, TerraMsgWrapper, TerraQuerier};
 
 /// Swap all native tokens to reward_denom
 /// Only hub_contract is allowed to execute
-pub fn handle_swap<S: Storage, A: Api, Q: Querier>(
-    deps: &mut Extern<S, A, Q>,
+#[allow(clippy::if_same_then_else)]
+pub fn execute_swap(
+    deps: DepsMut,
     env: Env,
-) -> StdResult<HandleResponse<TerraMsgWrapper>> {
-    let config = read_config(&deps.storage)?;
-    let hub_addr = deps.api.human_address(&config.hub_contract)?;
+    info: MessageInfo,
+) -> StdResult<Response<TerraMsgWrapper>> {
+    let config = read_config(deps.storage)?;
+    let hub_addr = deps.api.addr_humanize(&config.hub_contract)?;
     let owner_addr = deps
         .api
-        .human_address(&query_rewards_dispatcher_contract(&deps, hub_addr)?)?;
+        .addr_humanize(&query_rewards_dispatcher_contract(deps.as_ref(), hub_addr)?)?;
 
-    if env.message.sender != owner_addr {
-        return Err(StdError::unauthorized());
+    if info.sender != owner_addr {
+        return Err(StdError::generic_err("unauthorized"));
     }
 
     let contr_addr = env.contract.address;
-    let balance = deps.querier.query_all_balances(contr_addr.clone())?;
-    let mut msgs: Vec<CosmosMsg<TerraMsgWrapper>> = Vec::new();
+    let balance = deps.querier.query_all_balances(contr_addr)?;
+    let mut messages: Vec<SubMsg<TerraMsgWrapper>> = Vec::new();
 
     let reward_denom = config.reward_denom;
 
-    for coin in balance {
-        if coin.denom == reward_denom {
-            continue;
-        }
+    let mut is_listed = true;
 
-        msgs.push(create_swap_msg(
-            contr_addr.clone(),
-            coin,
-            reward_denom.to_string(),
-        ));
+    let denoms: Vec<String> = balance.iter().map(|item| item.denom.clone()).collect();
+
+    if query_exchange_rates(&deps, reward_denom.clone(), denoms).is_err() {
+        is_listed = false;
     }
 
-    let res = HandleResponse {
-        messages: msgs,
-        log: vec![log("action", "swap")],
-        data: None,
-    };
+    for coin in balance {
+        if coin.denom == reward_denom.clone() {
+            continue;
+        }
+        if is_listed {
+            messages.push(SubMsg::new(create_swap_msg(coin, reward_denom.to_string())));
+        } else if query_exchange_rates(&deps, reward_denom.clone(), vec![coin.denom.clone()])
+            .is_ok()
+        {
+            messages.push(SubMsg::new(create_swap_msg(coin, reward_denom.to_string())));
+        }
+    }
+
+    let res = Response::new()
+        .add_submessages(messages)
+        .add_attributes(vec![attr("action", "swap")]);
+
     Ok(res)
 }
 
 /// Increase global_index according to claimed rewards amount
 /// Only hub_contract is allowed to execute
-pub fn handle_update_global_index<S: Storage, A: Api, Q: Querier>(
-    deps: &mut Extern<S, A, Q>,
+pub fn execute_update_global_index(
+    deps: DepsMut,
     env: Env,
-) -> StdResult<HandleResponse<TerraMsgWrapper>> {
-    let config: Config = read_config(&deps.storage)?;
-    let mut state: State = read_state(&deps.storage)?;
+    info: MessageInfo,
+) -> StdResult<Response<TerraMsgWrapper>> {
+    let mut state: State = read_state(deps.storage)?;
 
-    // Permission check
-    let hub_addr = deps.api.human_address(&config.hub_contract)?;
+    let config = read_config(deps.storage)?;
+    let hub_addr = deps.api.addr_humanize(&config.hub_contract)?;
     let owner_addr = deps
         .api
-        .human_address(&query_rewards_dispatcher_contract(&deps, hub_addr)?)?;
-    if owner_addr != env.message.sender {
-        return Err(StdError::unauthorized());
+        .addr_humanize(&query_rewards_dispatcher_contract(deps.as_ref(), hub_addr)?)?;
+
+    if info.sender != owner_addr {
+        return Err(StdError::generic_err("unauthorized"));
     }
 
     // Zero staking balance check
@@ -73,18 +84,17 @@ pub fn handle_update_global_index<S: Storage, A: Api, Q: Querier>(
         return Err(StdError::generic_err("No asset is bonded by Hub"));
     }
 
-    let reward_denom = read_config(&deps.storage)?.reward_denom;
+    let reward_denom = read_config(deps.storage)?.reward_denom;
 
     // Load the reward contract balance
     let balance = deps
         .querier
-        .query_balance(env.contract.address, reward_denom.as_str())
-        .unwrap();
+        .query_balance(env.contract.address, reward_denom.as_str())?;
 
     let previous_balance = state.prev_reward_balance;
 
     // claimed_rewards = current_balance - prev_balance;
-    let claimed_rewards = (balance.amount - previous_balance)?;
+    let claimed_rewards = balance.amount.checked_sub(previous_balance)?;
 
     state.prev_reward_balance = balance.amount;
 
@@ -93,16 +103,23 @@ pub fn handle_update_global_index<S: Storage, A: Api, Q: Querier>(
         state.global_index,
         Decimal::from_ratio(claimed_rewards, state.total_balance),
     );
-    store_state(&mut deps.storage, &state)?;
+    store_state(deps.storage, &state)?;
 
-    let res = HandleResponse {
-        messages: vec![],
-        log: vec![
-            log("action", "update_global_index"),
-            log("claimed_rewards", claimed_rewards),
-        ],
-        data: None,
-    };
+    let attributes = vec![
+        attr("action", "update_global_index"),
+        attr("claimed_rewards", claimed_rewards),
+    ];
+    let res = Response::new().add_attributes(attributes);
 
+    Ok(res)
+}
+
+pub fn query_exchange_rates(
+    deps: &DepsMut,
+    base_denom: String,
+    quote_denoms: Vec<String>,
+) -> StdResult<ExchangeRatesResponse> {
+    let querier = TerraQuerier::new(&deps.querier);
+    let res: ExchangeRatesResponse = querier.query_exchange_rates(base_denom, quote_denoms)?;
     Ok(res)
 }

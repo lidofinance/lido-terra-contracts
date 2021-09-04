@@ -1,27 +1,26 @@
 use crate::registry::Validator;
-use cosmwasm_std::HumanAddr;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct InitMsg {
+pub struct InstantiateMsg {
     pub registry: Vec<Validator>,
-    pub hub_contract: HumanAddr,
+    pub hub_contract: String,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
-pub enum HandleMsg {
+pub enum ExecuteMsg {
     /// Adds a validator to the registry
     AddValidator { validator: Validator },
 
     /// Remove a validator from the registry
-    RemoveValidator { address: HumanAddr },
+    RemoveValidator { address: String },
 
     /// Update config
     UpdateConfig {
-        owner: Option<HumanAddr>,
-        hub_contract: Option<HumanAddr>,
+        owner: Option<String>,
+        hub_contract: Option<String>,
     },
 }
 
@@ -32,3 +31,6 @@ pub enum QueryMsg {
     GetValidatorsForDelegation {},
     Config {},
 }
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct MigrateMsg {}

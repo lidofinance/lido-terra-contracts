@@ -38,6 +38,11 @@ async function main(): Promise<void> {
   await executeContract(terra, test1, hubAddress, {
     update_config: {token_contract: blunaTokenAddress, reward_contract: rewardAddress}}, new Coins({}))
 
+  
+  await executeContract(terra, test1, hubAddress, {bond: {validator: "terravaloper1dcegyrekltswvyy0xy69ydgxn9x8x32zdy3ua5"}}, new Coins({uluna: 1000000}))
+  await executeContract(terra, test1, blunaTokenAddress, {send: {contract: hubAddress, amount: "1000000",
+      msg: Buffer.from(JSON.stringify({"unbond": {}})).toString('base64')}}, new Coins({}))
+
   console.log()
   console.log("Starting migration process...")
 
@@ -64,13 +69,21 @@ async function main(): Promise<void> {
       name: "stluna", symbol: "STLUNA",
       mint: {minter: hubAddress, cap: null}}, new Coins({}))
 
+  console.log("Migrating hub...")
   await migrateContract(terra, test1, hubAddress, newHubCodeId, {
     reward_dispatcher_contract: rewardsDispatcherAddress,
     validators_registry_contract: validatorsRegistryAddress,
     stluna_token_contract: stlunaTokenAddress
   })
+  console.log("Done")
+
+  console.log("Migrating rewards...")
   await migrateContract(terra, test1, rewardAddress, newRewardCodeId, {})
+  console.log("Done")
+
+  console.log("Migrating bLuna token...")
   await migrateContract(terra, test1, blunaTokenAddress, newBlunaTokenCodeId, {})
+  console.log("Done")
 
   console.log()
 

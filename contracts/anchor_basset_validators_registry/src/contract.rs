@@ -1,112 +1,122 @@
+#[cfg(not(feature = "library"))]
+use cosmwasm_std::entry_point;
+
 use cosmwasm_std::{
-    to_binary, Api, Binary, Coin, CosmosMsg, Env, Extern, HandleResponse, HumanAddr, InitResponse,
-    Querier, StdError, StdResult, Storage, Uint128, WasmMsg,
+    to_binary, Binary, Coin, CosmosMsg, Deps, DepsMut, Env, MessageInfo, Response, StdError,
+    StdResult, Uint128, WasmMsg,
 };
 
 use crate::common::calculate_delegations;
-use crate::msg::{HandleMsg, InitMsg, QueryMsg};
-use crate::registry::{
-    config, config_read, registry, registry_read, store_config, Config, Validator,
-};
-use hub_querier::HandleMsg::{RedelegateProxy, UpdateGlobalIndex};
+use crate::msg::{ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg};
+use crate::registry::{Config, Validator, CONFIG, REGISTRY};
+use basset::hub::ExecuteMsg::{RedelegateProxy, UpdateGlobalIndex};
 
-pub fn init<S: Storage, A: Api, Q: Querier>(
-    deps: &mut Extern<S, A, Q>,
-    env: Env,
-    msg: InitMsg,
-) -> StdResult<InitResponse> {
-    config(&mut deps.storage).save(&Config {
-        owner: deps.api.canonical_address(&env.message.sender)?,
-        hub_contract: deps.api.canonical_address(&msg.hub_contract)?,
-    })?;
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn instantiate(
+    deps: DepsMut,
+    _env: Env,
+    info: MessageInfo,
+    msg: InstantiateMsg,
+) -> StdResult<Response> {
+    CONFIG.save(
+        deps.storage,
+        &Config {
+            owner: deps.api.addr_canonicalize(&info.sender.as_str())?,
+            hub_contract: deps.api.addr_canonicalize(&msg.hub_contract.as_str())?,
+        },
+    )?;
 
     for v in msg.registry {
-        registry(&mut deps.storage).save(v.address.as_str().as_bytes(), &v)?;
+        REGISTRY.save(deps.storage, v.address.as_str().as_bytes(), &v)?;
     }
 
-    Ok(InitResponse::default())
+    Ok(Response::default())
 }
 
-pub fn handle<S: Storage, A: Api, Q: Querier>(
-    deps: &mut Extern<S, A, Q>,
-    env: Env,
-    msg: HandleMsg,
-) -> StdResult<HandleResponse> {
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> StdResult<Response> {
     match msg {
-        HandleMsg::AddValidator { validator } => add_validator(deps, env, validator),
-        HandleMsg::RemoveValidator { address } => remove_validator(deps, env, address),
-        HandleMsg::UpdateConfig {
+        ExecuteMsg::AddValidator { validator } => add_validator(deps, env, info, validator),
+        ExecuteMsg::RemoveValidator { address } => remove_validator(deps, env, info, address),
+        ExecuteMsg::UpdateConfig {
             owner,
             hub_contract,
-        } => handle_update_config(deps, env, owner, hub_contract),
+        } => execute_update_config(deps, env, info, owner, hub_contract),
     }
 }
 
 /// Update the config. Update the owner and hub contract address.
 /// Only creator/owner is allowed to execute
-pub fn handle_update_config<S: Storage, A: Api, Q: Querier>(
-    deps: &mut Extern<S, A, Q>,
-    env: Env,
-    owner: Option<HumanAddr>,
-    hub_contract: Option<HumanAddr>,
-) -> StdResult<HandleResponse> {
+pub fn execute_update_config(
+    deps: DepsMut,
+    _env: Env,
+    info: MessageInfo,
+    owner: Option<String>,
+    hub_contract: Option<String>,
+) -> StdResult<Response> {
     // only owner must be able to send this message.
-    let config = config_read(&deps.storage).load()?;
-    let owner_address = deps.api.human_address(&config.owner)?;
-    if env.message.sender != owner_address {
-        return Err(StdError::unauthorized());
+    let config = CONFIG.load(deps.storage)?;
+    let owner_address = deps.api.addr_humanize(&config.owner)?;
+    if info.sender != owner_address {
+        return Err(StdError::generic_err("unauthorized"));
     }
 
     if let Some(o) = owner {
-        let owner_raw = deps.api.canonical_address(&o)?;
+        let owner_raw = deps.api.addr_canonicalize(&o)?;
 
-        store_config(&mut deps.storage).update(|mut last_config| {
+        CONFIG.update(deps.storage, |mut last_config| -> StdResult<_> {
             last_config.owner = owner_raw;
             Ok(last_config)
         })?;
     }
 
     if let Some(hub) = hub_contract {
-        let hub_raw = deps.api.canonical_address(&hub)?;
+        let hub_raw = deps.api.addr_canonicalize(&hub)?;
 
-        store_config(&mut deps.storage).update(|mut last_config| {
+        CONFIG.update(deps.storage, |mut last_config| -> StdResult<_> {
             last_config.hub_contract = hub_raw;
             Ok(last_config)
         })?;
     }
 
-    Ok(HandleResponse::default())
+    Ok(Response::default())
 }
 
-pub fn add_validator<S: Storage, A: Api, Q: Querier>(
-    deps: &mut Extern<S, A, Q>,
-    env: Env,
+pub fn add_validator(
+    deps: DepsMut,
+    _env: Env,
+    info: MessageInfo,
     validator: Validator,
-) -> StdResult<HandleResponse> {
-    let config = config_read(&deps.storage).load()?;
-    let owner_address = deps.api.human_address(&config.owner)?;
-    let hub_address = deps.api.human_address(&config.hub_contract)?;
-    if env.message.sender != owner_address && env.message.sender != hub_address {
-        return Err(StdError::unauthorized());
+) -> StdResult<Response> {
+    let config = CONFIG.load(deps.storage)?;
+    let owner_address = deps.api.addr_humanize(&config.owner)?;
+    let hub_address = deps.api.addr_humanize(&config.hub_contract)?;
+    if info.sender != owner_address && info.sender != hub_address {
+        return Err(StdError::generic_err("unauthorized"));
     }
 
-    registry(&mut deps.storage).save(validator.address.as_str().as_bytes(), &validator)?;
-    Ok(HandleResponse::default())
+    REGISTRY.save(
+        deps.storage,
+        validator.address.as_str().as_bytes(),
+        &validator,
+    )?;
+    Ok(Response::default())
 }
 
-pub fn remove_validator<S: Storage, A: Api, Q: Querier>(
-    deps: &mut Extern<S, A, Q>,
-    env: Env,
-    validator_address: HumanAddr,
-) -> StdResult<HandleResponse> {
-    let config = config_read(&deps.storage).load()?;
-    let owner_address = deps.api.human_address(&config.owner)?;
-    if env.message.sender != owner_address {
-        return Err(StdError::unauthorized());
+pub fn remove_validator(
+    deps: DepsMut,
+    _env: Env,
+    info: MessageInfo,
+    validator_address: String,
+) -> StdResult<Response> {
+    let config = CONFIG.load(deps.storage)?;
+    let owner_address = deps.api.addr_humanize(&config.owner)?;
+    if info.sender != owner_address {
+        return Err(StdError::generic_err("unauthorized"));
     }
 
-    let validators_number = registry(&mut deps.storage)
-        .range(None, None, cosmwasm_std::Order::Ascending)
+    let validators_number = REGISTRY
+        .range(deps.storage, None, None, cosmwasm_std::Order::Ascending)
         .count();
 
     if validators_number == 1 {
@@ -115,10 +125,10 @@ pub fn remove_validator<S: Storage, A: Api, Q: Querier>(
         ));
     }
 
-    registry(&mut deps.storage).remove(validator_address.as_str().as_bytes());
+    REGISTRY.remove(deps.storage, validator_address.as_str().as_bytes());
 
-    let config = config_read(&deps.storage).load()?;
-    let hub_address = deps.api.human_address(&config.hub_contract)?;
+    let config = CONFIG.load(deps.storage)?;
+    let hub_address = deps.api.addr_humanize(&config.hub_contract)?;
 
     let query = deps
         .querier
@@ -127,7 +137,7 @@ pub fn remove_validator<S: Storage, A: Api, Q: Querier>(
     let mut messages: Vec<CosmosMsg> = vec![];
     if let Ok(q) = query {
         let delegated_amount = q;
-        let mut validators = query_validators(deps)?;
+        let mut validators = query_validators(deps.as_ref())?;
         validators.sort_by(|v1, v2| v1.total_delegated.cmp(&v2.total_delegated));
 
         if let Some(delegation) = delegated_amount {
@@ -144,9 +154,9 @@ pub fn remove_validator<S: Storage, A: Api, Q: Querier>(
                     amount: Coin::new(delegations[i].u128(), delegation.amount.denom.as_str()),
                 };
                 messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
-                    contract_addr: hub_address.clone(),
+                    contract_addr: hub_address.clone().into_string(),
                     msg: to_binary(&regelegate_msg)?,
-                    send: vec![],
+                    funds: vec![],
                 }));
             }
 
@@ -154,26 +164,19 @@ pub fn remove_validator<S: Storage, A: Api, Q: Querier>(
                 airdrop_hooks: None,
             };
             messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: hub_address,
+                contract_addr: hub_address.into_string(),
                 msg: to_binary(&msg)?,
-                send: vec![],
+                funds: vec![],
             }));
         }
     }
 
-    let res = HandleResponse {
-        messages,
-        data: None,
-        log: vec![],
-    };
-
+    let res = Response::new().add_messages(messages);
     Ok(res)
 }
 
-pub fn query<S: Storage, A: Api, Q: Querier>(
-    deps: &Extern<S, A, Q>,
-    msg: QueryMsg,
-) -> StdResult<Binary> {
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         QueryMsg::GetValidatorsForDelegation {} => {
             let mut validators = query_validators(deps)?;
@@ -184,22 +187,19 @@ pub fn query<S: Storage, A: Api, Q: Querier>(
     }
 }
 
-fn query_config<S: Storage, A: Api, Q: Querier>(deps: &Extern<S, A, Q>) -> StdResult<Config> {
-    let config = config_read(&deps.storage).load()?;
+fn query_config(deps: Deps) -> StdResult<Config> {
+    let config = CONFIG.load(deps.storage)?;
     Ok(config)
 }
 
-fn query_validators<S: Storage, A: Api, Q: Querier>(
-    deps: &Extern<S, A, Q>,
-) -> StdResult<Vec<Validator>> {
-    let config = config_read(&deps.storage).load()?;
-    let hub_address = deps.api.human_address(&config.hub_contract)?;
+fn query_validators(deps: Deps) -> StdResult<Vec<Validator>> {
+    let config = CONFIG.load(deps.storage)?;
+    let hub_address = deps.api.addr_humanize(&config.hub_contract)?;
 
     let delegations = deps.querier.query_all_delegations(&hub_address)?;
 
     let mut validators: Vec<Validator> = vec![];
-    let registry = registry_read(&deps.storage);
-    for item in registry.range(None, None, cosmwasm_std::Order::Ascending) {
+    for item in REGISTRY.range(deps.storage, None, None, cosmwasm_std::Order::Ascending) {
         let mut validator = Validator {
             total_delegated: Default::default(),
             address: item?.1.address,
@@ -222,4 +222,9 @@ fn query_validators<S: Storage, A: Api, Q: Querier>(
         validators.push(validator);
     }
     Ok(validators)
+}
+
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn migrate(_deps: DepsMut, _env: Env, _msg: MigrateMsg) -> StdResult<Response> {
+    Ok(Response::default())
 }

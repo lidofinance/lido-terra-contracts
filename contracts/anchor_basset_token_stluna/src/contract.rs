@@ -1,27 +1,36 @@
-use cosmwasm_std::{
-    Api, Binary, Env, Extern, HandleResponse, InitResponse, Querier, StdResult, Storage,
-};
+#[cfg(not(feature = "library"))]
+use cosmwasm_std::entry_point;
 
-use cw20_base::allowances::{handle_decrease_allowance, handle_increase_allowance};
-use cw20_base::contract::init as cw20_init;
+use cosmwasm_std::{Binary, Deps, DepsMut, Env, MessageInfo, Response, StdResult};
+
+use cw20_base::allowances::{execute_decrease_allowance, execute_increase_allowance};
+use cw20_base::contract::instantiate as cw20_init;
 use cw20_base::contract::query as cw20_query;
-use cw20_base::msg::{HandleMsg, InitMsg, QueryMsg};
+use cw20_base::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
 
 use crate::handler::*;
 use crate::msg::TokenInitMsg;
-use crate::state::store_hub_contract;
-// use anchor_basset_token::msg::HandleMsg;
+use crate::state::HUB_CONTRACT;
 use cw20::MinterResponse;
+use cw20_base::ContractError;
 
-pub fn init<S: Storage, A: Api, Q: Querier>(
-    deps: &mut Extern<S, A, Q>,
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn instantiate(
+    deps: DepsMut,
     env: Env,
+    info: MessageInfo,
     msg: TokenInitMsg,
-) -> StdResult<InitResponse> {
+) -> Result<Response, ContractError> {
+    HUB_CONTRACT.save(
+        deps.storage,
+        &deps.api.addr_canonicalize(&msg.hub_contract)?,
+    )?;
+
     cw20_init(
         deps,
         env,
-        InitMsg {
+        info,
+        InstantiateMsg {
             name: msg.name,
             symbol: msg.symbol,
             decimals: msg.decimals,
@@ -30,59 +39,65 @@ pub fn init<S: Storage, A: Api, Q: Querier>(
                 minter: msg.hub_contract.clone(),
                 cap: None,
             }),
+            marketing: msg.marketing,
         },
     )?;
 
-    store_hub_contract(
-        &mut deps.storage,
-        &deps.api.canonical_address(&msg.hub_contract)?,
-    )?;
-
-    Ok(InitResponse::default())
+    Ok(Response::default())
 }
 
-pub fn handle<S: Storage, A: Api, Q: Querier>(
-    deps: &mut Extern<S, A, Q>,
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn execute(
+    deps: DepsMut,
     env: Env,
-    msg: HandleMsg,
-) -> StdResult<HandleResponse> {
+    info: MessageInfo,
+    msg: ExecuteMsg,
+) -> Result<Response, ContractError> {
     match msg {
-        HandleMsg::Transfer { recipient, amount } => handle_transfer(deps, env, recipient, amount),
-        HandleMsg::Burn { amount } => handle_burn(deps, env, amount),
-        HandleMsg::Send {
+        ExecuteMsg::Transfer { recipient, amount } => {
+            execute_transfer(deps, env, info, recipient, amount)
+        }
+        ExecuteMsg::Burn { amount } => execute_burn(deps, env, info, amount),
+        ExecuteMsg::Send {
             contract,
             amount,
             msg,
-        } => handle_send(deps, env, contract, amount, msg),
-        HandleMsg::Mint { recipient, amount } => handle_mint(deps, env, recipient, amount),
-        HandleMsg::IncreaseAllowance {
+        } => execute_send(deps, env, info, contract, amount, msg),
+        ExecuteMsg::Mint { recipient, amount } => execute_mint(deps, env, info, recipient, amount),
+        ExecuteMsg::IncreaseAllowance {
             spender,
             amount,
             expires,
-        } => handle_increase_allowance(deps, env, spender, amount, expires),
-        HandleMsg::DecreaseAllowance {
+        } => execute_increase_allowance(deps, env, info, spender, amount, expires),
+        ExecuteMsg::DecreaseAllowance {
             spender,
             amount,
             expires,
-        } => handle_decrease_allowance(deps, env, spender, amount, expires),
-        HandleMsg::TransferFrom {
+        } => execute_decrease_allowance(deps, env, info, spender, amount, expires),
+        ExecuteMsg::TransferFrom {
             owner,
             recipient,
             amount,
-        } => handle_transfer_from(deps, env, owner, recipient, amount),
-        HandleMsg::BurnFrom { owner, amount } => handle_burn_from(deps, env, owner, amount),
-        HandleMsg::SendFrom {
+        } => execute_transfer_from(deps, env, info, owner, recipient, amount),
+        ExecuteMsg::BurnFrom { owner, amount } => execute_burn_from(deps, env, info, owner, amount),
+        ExecuteMsg::SendFrom {
             owner,
             contract,
             amount,
             msg,
-        } => handle_send_from(deps, env, owner, contract, amount, msg),
+        } => execute_send_from(deps, env, info, owner, contract, amount, msg),
+        ExecuteMsg::UpdateMarketing {
+            project,
+            /// A longer description of the token and it's utility. Designed for tooltips or such
+            description,
+            /// The address (if any) who can update this data structure
+            marketing,
+        } => execute_update_marketing(deps, env, info, project, description, marketing),
+        ExecuteMsg::UploadLogo(logo) => execute_upload_logo(deps, env, info, logo),
     }
 }
 
-pub fn query<S: Storage, A: Api, Q: Querier>(
-    deps: &Extern<S, A, Q>,
-    msg: QueryMsg,
-) -> StdResult<Binary> {
-    cw20_query(deps, msg)
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
+    cw20_query(deps, env, msg)
 }

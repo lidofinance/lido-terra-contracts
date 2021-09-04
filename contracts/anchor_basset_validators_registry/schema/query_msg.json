@@ -11,7 +11,20 @@
         "get_validators_for_delegation": {
           "type": "object"
         }
-      }
+      },
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "required": [
+        "config"
+      ],
+      "properties": {
+        "config": {
+          "type": "object"
+        }
+      },
+      "additionalProperties": false
     }
   ]
 }
