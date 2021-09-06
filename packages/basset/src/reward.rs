@@ -90,4 +90,3 @@ pub struct HolderResponse {
 pub struct HoldersResponse {
     pub holders: Vec<HolderResponse>,
 }
-
