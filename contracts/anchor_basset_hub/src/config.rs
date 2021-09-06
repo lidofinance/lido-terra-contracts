@@ -155,8 +155,6 @@ pub fn execute_deregister_validator(
 ) -> StdResult<Response> {
     let token = CONFIG.load(deps.storage)?;
 
-    let validator_addr = deps.api.addr_validate(validator.as_str())?;
-
     let sender_raw = deps.api.addr_canonicalize(info.sender.as_str())?;
     if token.creator != sender_raw {
         return Err(StdError::generic_err("unauthorized"));
@@ -169,7 +167,7 @@ pub fn execute_deregister_validator(
         ));
     }
 
-    remove_white_validators(deps.storage, validator_addr.to_string())?;
+    remove_white_validators(deps.storage, validator.to_string())?;
 
     let query = deps
         .querier
