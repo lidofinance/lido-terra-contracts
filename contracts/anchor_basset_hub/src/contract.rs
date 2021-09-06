@@ -21,7 +21,7 @@ use crate::bond::execute_bond;
 use basset::hub::ExecuteMsg::SwapHook;
 use basset::hub::{
     AllHistoryResponse, Config, ConfigResponse, CurrentBatchResponse, Cw20HookMsg, ExecuteMsg,
-    InstantiateMsg, MigrateMsg, QueryMsg, State, StateResponse, UnbondRequestsResponse,
+    InstantiateMsg, QueryMsg, State, StateResponse, UnbondRequestsResponse,
     WhitelistedValidatorsResponse, WithdrawableUnbondedResponse,
 };
 use basset::reward::ExecuteMsg::{SwapToRewardDenom, UpdateGlobalIndex};
@@ -566,9 +566,4 @@ fn query_unbond_requests_limitation(
     let requests = all_unbond_history(deps.storage, start, limit)?;
     let res = AllHistoryResponse { history: requests };
     Ok(res)
-}
-
-#[cfg_attr(not(feature = "library"), entry_point)]
-pub fn migrate(_deps: DepsMut, _env: Env, _msg: MigrateMsg) -> StdResult<Response> {
-    Ok(Response::default())
 }

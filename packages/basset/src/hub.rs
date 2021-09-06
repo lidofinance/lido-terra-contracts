@@ -209,6 +209,3 @@ pub struct UnbondRequestsResponse {
 pub struct AllHistoryResponse {
     pub history: Vec<UnbondHistory>,
 }
-
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct MigrateMsg {}
