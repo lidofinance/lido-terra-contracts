@@ -4,7 +4,7 @@ use crate::state::{is_valid_validator, CONFIG, CURRENT_BATCH, PARAMETERS, STATE}
 use basset::hub::State;
 use cosmwasm_std::{
     attr, to_binary, CosmosMsg, DepsMut, Env, MessageInfo, Response, StakingMsg, StdError,
-    StdResult, SubMsg, Uint128, WasmMsg,
+    StdResult, Uint128, WasmMsg,
 };
 use cw20::Cw20ExecuteMsg;
 
@@ -76,12 +76,12 @@ pub fn execute_bond(
         Ok(prev_state)
     })?;
 
-    let mut messages: Vec<SubMsg> = vec![
+    let mut messages: Vec<CosmosMsg> = vec![
         // send the delegate message
-        SubMsg::new(CosmosMsg::Staking(StakingMsg::Delegate {
+        CosmosMsg::Staking(StakingMsg::Delegate {
             validator,
             amount: payment.clone(),
-        })),
+        }),
     ];
 
     // issue the basset token for sender
@@ -100,18 +100,16 @@ pub fn execute_bond(
         )?
         .to_string();
 
-    messages.push(SubMsg::new(CosmosMsg::Wasm(WasmMsg::Execute {
+    messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
         contract_addr: token_address,
         msg: to_binary(&mint_msg)?,
         funds: vec![],
-    })));
+    }));
 
-    Ok(Response::new()
-        .add_submessages(messages)
-        .add_attributes(vec![
-            attr("action", "mint"),
-            attr("from", sender),
-            attr("bonded", payment.amount),
-            attr("minted", mint_amount_with_fee),
-        ]))
+    Ok(Response::new().add_messages(messages).add_attributes(vec![
+        attr("action", "mint"),
+        attr("from", sender),
+        attr("bonded", payment.amount),
+        attr("minted", mint_amount_with_fee),
+    ]))
 }

@@ -25,9 +25,7 @@ use basset::hub::{
     WhitelistedValidatorsResponse, WithdrawableUnbondedResponse,
 };
 use basset::reward::ExecuteMsg::{SwapToRewardDenom, UpdateGlobalIndex};
-use cosmwasm_storage::to_length_prefixed;
-use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg};
-use cw20_legacy::state::TokenInfo;
+use cw20::{BalanceResponse, Cw20ExecuteMsg, Cw20QueryMsg, Cw20ReceiveMsg, TokenInfoResponse};
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
@@ -387,18 +385,15 @@ pub fn swap_hook(
         return Err(StdError::generic_err("unauthorized"));
     }
 
-    let airdrop_token_balance: Uint128 = deps
-        .querier
-        .query(&QueryRequest::Wasm(WasmQuery::Raw {
+    let airdrop_token_balance: BalanceResponse =
+        deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
             contract_addr: airdrop_token_contract.to_string(),
-            key: Binary::from(concat(
-                &to_length_prefixed(b"balance").to_vec(),
-                (deps.api.addr_canonicalize(env.contract.address.as_str())?).as_slice(),
-            )),
-        }))
-        .unwrap_or_else(|_| Uint128::zero());
+            msg: to_binary(&Cw20QueryMsg::Balance {
+                address: env.contract.address.to_string(),
+            })?,
+        }))?;
 
-    if airdrop_token_balance == Uint128::new(0) {
+    if airdrop_token_balance.balance == Uint128::new(0) {
         return Err(StdError::generic_err(format!(
             "There is no balance for {} in airdrop token contract {}",
             &env.contract.address, &airdrop_token_contract
@@ -408,7 +403,7 @@ pub fn swap_hook(
         contract_addr: airdrop_token_contract.to_string(),
         msg: to_binary(&Cw20ExecuteMsg::Send {
             contract: airdrop_swap_contract,
-            amount: airdrop_token_balance,
+            amount: airdrop_token_balance.balance,
             msg: swap_msg,
         })?,
         funds: vec![],
@@ -419,7 +414,7 @@ pub fn swap_hook(
         .add_attributes(vec![
             attr("action", "swap_airdrop_token"),
             attr("token_contract", airdrop_token_contract),
-            attr("swap_amount", airdrop_token_balance),
+            attr("swap_amount", airdrop_token_balance.balance),
         ]))
 }
 
@@ -548,10 +543,12 @@ pub(crate) fn query_total_issued(deps: Deps) -> StdResult<Uint128> {
                 .expect("token contract must have been registered"),
         )?
         .to_string();
-    let token_info: TokenInfo = deps.querier.query(&QueryRequest::Wasm(WasmQuery::Raw {
-        contract_addr: token_address,
-        key: Binary::from("\u{0}\ntoken_info".as_bytes()),
-    }))?;
+    let token_info: TokenInfoResponse =
+        deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
+            contract_addr: token_address,
+            msg: to_binary(&Cw20QueryMsg::TokenInfo {})?,
+        }))?;
+
     Ok(token_info.total_supply)
 }
 
@@ -574,11 +571,4 @@ fn query_unbond_requests_limitation(
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn migrate(_deps: DepsMut, _env: Env, _msg: MigrateMsg) -> StdResult<Response> {
     Ok(Response::default())
-}
-
-#[inline]
-fn concat(namespace: &[u8], key: &[u8]) -> Vec<u8> {
-    let mut k = namespace.to_vec();
-    k.extend_from_slice(key);
-    k
 }

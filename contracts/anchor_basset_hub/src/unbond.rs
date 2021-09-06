@@ -6,7 +6,7 @@ use crate::state::{
 use basset::hub::{State, UnbondHistory};
 use cosmwasm_std::{
     attr, coin, coins, to_binary, BankMsg, CosmosMsg, Decimal, Deps, DepsMut, Env, MessageInfo,
-    Response, StakingMsg, StdError, StdResult, Storage, SubMsg, Uint128, WasmMsg,
+    Response, StakingMsg, StdError, StdResult, Storage, Uint128, WasmMsg,
 };
 use cw20::Cw20ExecuteMsg;
 use rand::{Rng, SeedableRng, XorShiftRng};
@@ -66,7 +66,7 @@ pub(crate) fn execute_unbond(
     let current_time = env.block.time.seconds();
     let passed_time = current_time - state.last_unbonded_time;
 
-    let mut messages: Vec<SubMsg> = vec![];
+    let mut messages: Vec<CosmosMsg> = vec![];
 
     // If the epoch period is passed, the undelegate message would be sent.
     if passed_time > epoch_period {
@@ -130,20 +130,18 @@ pub(crate) fn execute_unbond(
     )?;
 
     let burn_msg = Cw20ExecuteMsg::Burn { amount };
-    messages.push(SubMsg::new(CosmosMsg::Wasm(WasmMsg::Execute {
+    messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
         contract_addr: token_address.to_string(),
         msg: to_binary(&burn_msg)?,
         funds: vec![],
-    })));
+    }));
 
-    Ok(Response::new()
-        .add_submessages(messages)
-        .add_attributes(vec![
-            attr("action", "burn"),
-            attr("from", sender),
-            attr("burnt_amount", amount),
-            attr("unbonded_amount", amount_with_fee),
-        ]))
+    Ok(Response::new().add_messages(messages).add_attributes(vec![
+        attr("action", "burn"),
+        attr("from", sender),
+        attr("burnt_amount", amount),
+        attr("unbonded_amount", amount_with_fee),
+    ]))
 }
 
 pub fn execute_withdraw_unbonded(
@@ -203,7 +201,7 @@ pub fn execute_withdraw_unbonded(
             attr("from", contract_address),
             attr("amount", withdraw_amount),
         ])
-        .add_submessage(SubMsg::new(bank_msg)))
+        .add_message(bank_msg))
 }
 
 /// This is designed for an accurate unbonded amount calculation.
@@ -323,12 +321,12 @@ fn pick_validator(
     claim: Uint128,
     delegator: String,
     block_height: u64,
-) -> StdResult<Vec<SubMsg>> {
+) -> StdResult<Vec<CosmosMsg>> {
     //read params
     let params = PARAMETERS.load(deps.storage)?;
     let coin_denom = params.underlying_coin_denom;
 
-    let mut messages: Vec<SubMsg> = vec![];
+    let mut messages: Vec<CosmosMsg> = vec![];
     let mut claimed = claim;
 
     let all_delegations = deps
@@ -360,7 +358,7 @@ fn pick_validator(
                 validator: delegation.validator,
                 amount: coin(undelegated_amount.u128(), &*coin_denom),
             });
-            messages.push(SubMsg::new(msgs));
+            messages.push(msgs);
         }
         iteration_index += 1;
     }

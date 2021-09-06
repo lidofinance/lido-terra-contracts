@@ -5,7 +5,7 @@ use crate::state::{
 use basset::hub::{Config, ExecuteMsg};
 use cosmwasm_std::{
     attr, to_binary, Addr, CosmosMsg, Decimal, DepsMut, DistributionMsg, Env, MessageInfo,
-    Response, StakingMsg, StdError, StdResult, SubMsg, WasmMsg,
+    Response, StakingMsg, StdError, StdResult, WasmMsg,
 };
 
 use rand::{Rng, SeedableRng, XorShiftRng};
@@ -63,7 +63,7 @@ pub fn execute_update_config(
         return Err(StdError::generic_err("unauthorized"));
     }
 
-    let mut messages: Vec<SubMsg> = vec![];
+    let mut messages: Vec<CosmosMsg> = vec![];
 
     if let Some(o) = owner {
         let owner_raw = deps.api.addr_canonicalize(o.as_str())?;
@@ -82,9 +82,9 @@ pub fn execute_update_config(
         })?;
 
         // register the reward contract for automate reward withdrawal.
-        messages.push(SubMsg::new(CosmosMsg::Distribution(
+        messages.push(CosmosMsg::Distribution(
             DistributionMsg::SetWithdrawAddress { address: reward },
-        )));
+        ));
     }
 
     if let Some(token) = token_contract {
@@ -105,7 +105,7 @@ pub fn execute_update_config(
     }
 
     Ok(Response::new()
-        .add_submessages(messages)
+        .add_messages(messages)
         .add_attributes(vec![attr("action", "update_config")]))
 }
 
@@ -176,7 +176,7 @@ pub fn execute_deregister_validator(
         .query_delegation(env.contract.address.clone(), validator.clone());
 
     let mut replaced_val = Addr::unchecked("");
-    let mut messages: Vec<SubMsg> = vec![];
+    let mut messages: Vec<CosmosMsg> = vec![];
 
     if let Ok(q) = query {
         let delegated_amount = q;
@@ -189,28 +189,26 @@ pub fn execute_deregister_validator(
         replaced_val = Addr::unchecked(validators.get(random_index).unwrap().as_str());
 
         if let Some(delegation) = delegated_amount {
-            messages.push(SubMsg::new(CosmosMsg::Staking(StakingMsg::Redelegate {
+            messages.push(CosmosMsg::Staking(StakingMsg::Redelegate {
                 src_validator: validator.to_string(),
                 dst_validator: replaced_val.to_string(),
                 amount: delegation.amount,
-            })));
+            }));
 
             let msg = ExecuteMsg::UpdateGlobalIndex {
                 airdrop_hooks: None,
             };
-            messages.push(SubMsg::new(CosmosMsg::Wasm(WasmMsg::Execute {
+            messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
                 contract_addr: env.contract.address.to_string(),
                 msg: to_binary(&msg)?,
                 funds: vec![],
-            })));
+            }));
         }
     }
 
-    Ok(Response::new()
-        .add_submessages(messages)
-        .add_attributes(vec![
-            attr("action", "de_register_validator"),
-            attr("validator", validator),
-            attr("new-validator", replaced_val),
-        ]))
+    Ok(Response::new().add_messages(messages).add_attributes(vec![
+        attr("action", "de_register_validator"),
+        attr("validator", validator),
+        attr("new-validator", replaced_val),
+    ]))
 }

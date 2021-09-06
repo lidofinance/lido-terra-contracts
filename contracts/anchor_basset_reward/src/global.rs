@@ -3,7 +3,7 @@ use crate::state::{read_config, read_state, store_state, Config, State};
 use crate::math::decimal_summation_in_256;
 
 use cosmwasm_std::{
-    attr, Decimal, DepsMut, Env, MessageInfo, Response, StdError, StdResult, SubMsg,
+    attr, CosmosMsg, Decimal, DepsMut, Env, MessageInfo, Response, StdError, StdResult,
 };
 use terra_cosmwasm::{create_swap_msg, ExchangeRatesResponse, TerraMsgWrapper, TerraQuerier};
 /// Swap all native tokens to reward_denom
@@ -23,7 +23,7 @@ pub fn execute_swap(
 
     let contr_addr = env.contract.address;
     let balance = deps.querier.query_all_balances(contr_addr)?;
-    let mut messages: Vec<SubMsg<TerraMsgWrapper>> = Vec::new();
+    let mut messages: Vec<CosmosMsg<TerraMsgWrapper>> = Vec::new();
 
     let reward_denom = config.reward_denom;
 
@@ -40,16 +40,16 @@ pub fn execute_swap(
             continue;
         }
         if is_listed {
-            messages.push(SubMsg::new(create_swap_msg(coin, reward_denom.to_string())));
+            messages.push(create_swap_msg(coin, reward_denom.to_string()));
         } else if query_exchange_rates(&deps, reward_denom.clone(), vec![coin.denom.clone()])
             .is_ok()
         {
-            messages.push(SubMsg::new(create_swap_msg(coin, reward_denom.to_string())));
+            messages.push(create_swap_msg(coin, reward_denom.to_string()));
         }
     }
 
     let res = Response::new()
-        .add_submessages(messages)
+        .add_messages(messages)
         .add_attributes(vec![attr("action", "swap")]);
 
     Ok(res)
