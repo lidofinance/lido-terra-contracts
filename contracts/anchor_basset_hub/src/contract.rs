@@ -8,7 +8,6 @@ use cosmwasm_std::{
 };
 
 use crate::config::{execute_update_config, execute_update_params};
-use crate::math::decimal_division;
 use crate::state::{
     all_unbond_history, get_unbond_requests, migrate_unbond_history, migrate_unbond_wait_lists,
     query_get_finished_amount, read_validators, remove_whitelisted_validators_store, CONFIG,
@@ -16,22 +15,21 @@ use crate::state::{
 };
 use crate::unbond::{execute_unbond, execute_unbond_stluna, execute_withdraw_unbonded};
 
-use crate::bond::execute_bond_stluna;
-use crate::bond::{execute_bond, execute_bond_rewards};
+use crate::bond::execute_bond;
+use crate::convert::{convert_bluna_stluna, convert_stluna_bluna};
 use anchor_basset_rewards_dispatcher::msg::ExecuteMsg::{DispatchRewards, SwapToRewardDenom};
 use anchor_basset_validators_registry::msg::ExecuteMsg::AddValidator;
 use anchor_basset_validators_registry::registry::Validator;
 use basset::hub::ExecuteMsg::SwapHook;
 use basset::hub::{
-    AllHistoryResponse, Config, ConfigResponse, CurrentBatch, CurrentBatchResponse, InstantiateMsg,
-    MigrateMsg, Parameters, QueryMsg, State, StateResponse, UnbondRequestsResponse,
+    AllHistoryResponse, BondType, Config, ConfigResponse, CurrentBatch, CurrentBatchResponse,
+    InstantiateMsg, MigrateMsg, Parameters, QueryMsg, State, StateResponse, UnbondRequestsResponse,
     WithdrawableUnbondedResponse,
 };
 use basset::hub::{Cw20HookMsg, ExecuteMsg};
 use cosmwasm_storage::to_length_prefixed;
 use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg};
 use cw20_base::state::TokenInfo;
-use std::ops::Mul;
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
@@ -93,9 +91,9 @@ pub fn instantiate(
 pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> StdResult<Response> {
     match msg {
         ExecuteMsg::Receive(msg) => receive_cw20(deps, env, info, msg),
-        ExecuteMsg::Bond {} => execute_bond(deps, env, info),
-        ExecuteMsg::BondForStLuna {} => execute_bond_stluna(deps, env, info),
-        ExecuteMsg::BondRewards {} => execute_bond_rewards(deps, env, info),
+        ExecuteMsg::Bond {} => execute_bond(deps, env, info, BondType::BLuna),
+        ExecuteMsg::BondForStLuna {} => execute_bond(deps, env, info, BondType::StLuna),
+        ExecuteMsg::BondRewards {} => execute_bond(deps, env, info, BondType::BondRewards),
         ExecuteMsg::UpdateGlobalIndex { airdrop_hooks } => {
             execute_update_global(deps, env, info, airdrop_hooks)
         }
@@ -337,57 +335,55 @@ fn withdraw_all_rewards(deps: &DepsMut, delegator: String) -> StdResult<Vec<Cosm
 /// Check whether slashing has happened
 /// This is used for checking slashing while bonding or unbonding
 pub fn slashing(deps: &mut DepsMut, env: Env, _info: MessageInfo) -> StdResult<()> {
+    // Check the actual bonded amount
+    let delegations = deps.querier.query_all_delegations(env.contract.address)?;
+    if delegations.is_empty() {
+        return Ok(());
+    }
+
     //read params
     let params = PARAMETERS.load(deps.storage)?;
     let coin_denom = params.underlying_coin_denom;
 
-    let state = STATE.load(deps.storage)?;
+    let mut actual_total_bonded = Uint128::zero();
+    for delegation in &delegations {
+        if delegation.amount.denom == coin_denom {
+            actual_total_bonded += delegation.amount.amount;
+        }
+    }
 
+    let state = STATE.load(deps.storage)?;
     // Check the amount that contract thinks is bonded
     let state_total_bonded = state.total_bond_bluna_amount + state.total_bond_stluna_amount;
     if state_total_bonded.is_zero() {
         return Ok(());
     }
 
-    let bluna_bond_ratio = Decimal::from_ratio(state.total_bond_bluna_amount, state_total_bonded);
-    let stluna_bond_ratio = Decimal::from_ratio(state.total_bond_stluna_amount, state_total_bonded);
-
-    // Check the actual bonded amount
-    let delegations = deps.querier.query_all_delegations(env.contract.address)?;
-    if delegations.is_empty() {
-        Ok(())
-    } else {
-        let mut actual_total_bonded = Uint128::zero();
-        for delegation in &delegations {
-            if delegation.amount.denom == coin_denom {
-                actual_total_bonded += delegation.amount.amount;
-            }
-        }
-
-        // Need total issued for updating the exchange rate
-        let bluna_total_issued = query_total_bluna_issued(deps.as_ref())?;
-        let stluna_total_issued = query_total_stluna_issued(deps.as_ref())?;
-        let current_batch = CURRENT_BATCH.load(deps.storage)?;
-        let current_requested_bluna_with_fee = current_batch.requested_bluna_with_fee;
-        let current_requested_stluna = current_batch.requested_stluna;
-
-        // Slashing happens if the expected amount is less than stored amount
-        if state_total_bonded.u128() > actual_total_bonded.u128() {
-            STATE.update(deps.storage, |mut state| -> StdResult<_> {
-                state.total_bond_bluna_amount = actual_total_bonded * bluna_bond_ratio;
-                state.total_bond_stluna_amount = actual_total_bonded * stluna_bond_ratio;
-
-                state.update_bluna_exchange_rate(
-                    bluna_total_issued,
-                    current_requested_bluna_with_fee,
-                );
-                state.update_stluna_exchange_rate(stluna_total_issued, current_requested_stluna);
-                Ok(state)
-            })?;
-        }
-
-        Ok(())
+    // Slashing happens if the expected amount is less than stored amount
+    if state_total_bonded.u128() <= actual_total_bonded.u128() {
+        return Ok(());
     }
+
+    let bluna_bond_ratio = Decimal::from_ratio(state.total_bond_bluna_amount, state_total_bonded);
+
+    // Need total issued for updating the exchange rate
+    let bluna_total_issued = query_total_bluna_issued(deps.as_ref())?;
+    let stluna_total_issued = query_total_stluna_issued(deps.as_ref())?;
+    let current_batch = CURRENT_BATCH.load(deps.storage)?;
+    let current_requested_bluna_with_fee = current_batch.requested_bluna_with_fee;
+    let current_requested_stluna = current_batch.requested_stluna;
+
+    STATE.update(deps.storage, |mut state| -> StdResult<_> {
+        state.total_bond_bluna_amount = actual_total_bonded * bluna_bond_ratio;
+        state.total_bond_stluna_amount =
+            actual_total_bonded.checked_sub(state.total_bond_bluna_amount)?;
+
+        state.update_bluna_exchange_rate(bluna_total_issued, current_requested_bluna_with_fee);
+        state.update_stluna_exchange_rate(stluna_total_issued, current_requested_stluna);
+        Ok(state)
+    })?;
+
+    Ok(())
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -503,184 +499,6 @@ pub fn execute_slashing(mut deps: DepsMut, env: Env, info: MessageInfo) -> StdRe
             state.stluna_exchange_rate.to_string(),
         ),
     ]))
-}
-
-fn convert_stluna_bluna(
-    deps: DepsMut,
-    _env: Env,
-    stluna_amount: Uint128,
-    sender: String,
-) -> StdResult<Response> {
-    let conf = CONFIG.load(deps.storage)?;
-    let state = STATE.load(deps.storage)?;
-    let params = PARAMETERS.load(deps.storage)?;
-    let threshold = params.er_threshold;
-    let recovery_fee = params.peg_recovery_fee;
-
-    let stluna_contract = deps.api.addr_humanize(
-        &conf
-            .stluna_token_contract
-            .ok_or_else(|| StdError::generic_err("stluna contract must be registred"))?,
-    )?;
-    let bluna_contract = deps.api.addr_humanize(
-        &conf
-            .bluna_token_contract
-            .ok_or_else(|| StdError::generic_err("bluna contract must be registred"))?,
-    )?;
-
-    let denom_equiv = state.stluna_exchange_rate.mul(stluna_amount);
-
-    let bluna_to_mint = decimal_division(denom_equiv, state.bluna_exchange_rate);
-    let current_batch = CURRENT_BATCH.load(deps.storage)?;
-    let requested_bluna_with_fee = current_batch.requested_bluna_with_fee;
-    let requested_stluna = current_batch.requested_stluna;
-
-    let total_bluna_supply = query_total_bluna_issued(deps.as_ref())?;
-    let total_stluna_supply = query_total_stluna_issued(deps.as_ref())?;
-    let mut bluna_mint_amount_with_fee = bluna_to_mint;
-    if state.bluna_exchange_rate < threshold {
-        let max_peg_fee = bluna_to_mint * recovery_fee;
-        let required_peg_fee = (total_bluna_supply + bluna_to_mint + requested_bluna_with_fee)
-            - (state.total_bond_bluna_amount + denom_equiv);
-        let peg_fee = Uint128::min(max_peg_fee, required_peg_fee);
-        bluna_mint_amount_with_fee = bluna_to_mint.checked_sub(peg_fee)?;
-    }
-
-    STATE.update(deps.storage, |mut prev_state| -> StdResult<_> {
-        prev_state.total_bond_bluna_amount += denom_equiv;
-        prev_state.total_bond_stluna_amount = prev_state.total_bond_stluna_amount.checked_sub(denom_equiv)
-            .map_err(|_| {
-                StdError::generic_err(format!(
-                    "Decrease amount cannot exceed total stluna bond amount: {}. Trying to reduce: {}",
-                    prev_state.total_bond_stluna_amount, denom_equiv,
-                ))
-            })?;
-        prev_state.update_bluna_exchange_rate(
-            total_bluna_supply + bluna_to_mint,
-            requested_bluna_with_fee,
-        );
-        prev_state
-            .update_stluna_exchange_rate(total_stluna_supply .checked_sub(stluna_amount).map_err(|_| {
-                StdError::generic_err(format!(
-                    "Decrease amount cannot exceed total stluna supply: {}. Trying to reduce: {}",
-                    total_stluna_supply, stluna_amount,
-                ))
-            })?, requested_stluna);
-        Ok(prev_state)
-    })?;
-
-    let messages: Vec<CosmosMsg> = vec![
-        mint_message(
-            bluna_contract.to_string(),
-            sender.clone(),
-            bluna_mint_amount_with_fee,
-        )?,
-        burn_message(stluna_contract.to_string(), stluna_amount)?,
-    ];
-
-    let res = Response::new().add_messages(messages).add_attributes(vec![
-        attr("action", "convert_stluna"),
-        attr("from", sender),
-        attr("bluna_exchange_rate", state.bluna_exchange_rate.to_string()),
-        attr(
-            "stluna_exchange_rate",
-            state.stluna_exchange_rate.to_string(),
-        ),
-        attr("stluna_amount", stluna_amount),
-        attr("bluna_amount", bluna_to_mint),
-    ]);
-    Ok(res)
-}
-
-fn convert_bluna_stluna(
-    deps: DepsMut,
-    _env: Env,
-    bluna_amount: Uint128,
-    sender: String,
-) -> StdResult<Response> {
-    let conf = CONFIG.load(deps.storage)?;
-    let state = STATE.load(deps.storage)?;
-
-    let stluna_contract = deps.api.addr_humanize(
-        &conf
-            .stluna_token_contract
-            .ok_or_else(|| StdError::generic_err("stluna contract must be registred"))?,
-    )?;
-    let bluna_contract = deps.api.addr_humanize(
-        &conf
-            .bluna_token_contract
-            .ok_or_else(|| StdError::generic_err("bluna contract must be registred"))?,
-    )?;
-
-    let denom_equiv = state.bluna_exchange_rate.mul(bluna_amount);
-
-    let stluna_to_mint = decimal_division(denom_equiv, state.stluna_exchange_rate);
-    let current_batch = CURRENT_BATCH.load(deps.storage)?;
-    let requested_bluna_with_fee = current_batch.requested_bluna_with_fee;
-    let requested_stluna_with_fee = current_batch.requested_stluna;
-
-    let total_bluna_supply = query_total_bluna_issued(deps.as_ref())?;
-    let total_stluna_supply = query_total_stluna_issued(deps.as_ref())?;
-    STATE.update(deps.storage, |mut prev_state| -> StdResult<_> {
-        prev_state.total_bond_bluna_amount = prev_state.total_bond_bluna_amount.checked_sub(denom_equiv)
-            .map_err(|_| {
-                StdError::generic_err(format!(
-                    "Decrease amount cannot exceed total bluna bond amount: {}. Trying to reduce: {}",
-                    prev_state.total_bond_bluna_amount, denom_equiv,
-                ))
-            })?;
-        prev_state.total_bond_stluna_amount += denom_equiv;
-        prev_state.update_bluna_exchange_rate(
-            total_bluna_supply.checked_sub(bluna_amount).map_err(|_| {
-                StdError::generic_err(format!(
-                    "Decrease amount cannot exceed total bluna supply: {}. Trying to reduce: {}",
-                    total_bluna_supply, bluna_amount,
-                ))
-            })?,
-            requested_bluna_with_fee,
-        );
-        prev_state.update_stluna_exchange_rate(
-            total_stluna_supply + stluna_to_mint,
-            requested_stluna_with_fee,
-        );
-        Ok(prev_state)
-    })?;
-
-    let messages: Vec<CosmosMsg> = vec![
-        mint_message(stluna_contract.to_string(), sender.clone(), stluna_to_mint)?,
-        burn_message(bluna_contract.to_string(), bluna_amount)?,
-    ];
-
-    let res = Response::new().add_messages(messages).add_attributes(vec![
-        attr("action", "convert_stluna"),
-        attr("from", sender),
-        attr("bluna_exchange_rate", state.bluna_exchange_rate.to_string()),
-        attr(
-            "stluna_exchange_rate",
-            state.stluna_exchange_rate.to_string(),
-        ),
-        attr("bluna_amount", bluna_amount),
-        attr("stluna_amount", stluna_to_mint),
-    ]);
-    Ok(res)
-}
-
-fn mint_message(contract: String, recipient: String, amount: Uint128) -> StdResult<CosmosMsg> {
-    let mint_msg = Cw20ExecuteMsg::Mint { recipient, amount };
-    Ok(CosmosMsg::Wasm(WasmMsg::Execute {
-        contract_addr: contract,
-        msg: to_binary(&mint_msg)?,
-        funds: vec![],
-    }))
-}
-
-fn burn_message(contract: String, amount: Uint128) -> StdResult<CosmosMsg> {
-    let burn_msg = Cw20ExecuteMsg::Burn { amount };
-    Ok(CosmosMsg::Wasm(WasmMsg::Execute {
-        contract_addr: contract,
-        msg: to_binary(&burn_msg)?,
-        funds: vec![],
-    }))
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
