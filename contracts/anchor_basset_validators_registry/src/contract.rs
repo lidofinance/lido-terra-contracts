@@ -142,6 +142,14 @@ pub fn remove_validator(
 
         let mut redelegations: Vec<(String, Coin)> = vec![];
         if let Some(delegation) = delegated_amount {
+            // Terra core returns zero if there is another active redelegation
+            // That means we cannot start a new redelegation, so we only remove a validator from
+            // the registry.
+            // We'll do a redelegation manually later by sending RedelegateProxy to the hub
+            if delegation.can_redelegate.amount < delegation.amount.amount {
+                return StdResult::Ok(Response::new());
+            }
+
             let (_, delegations) =
                 calculate_delegations(delegation.amount.amount, validators.as_slice())?;
 
@@ -156,7 +164,7 @@ pub fn remove_validator(
             }
 
             let regelegate_msg = RedelegateProxy {
-                src_validator: validator_address.clone(),
+                src_validator: validator_address,
                 redelegations,
             };
             messages.push(CosmosMsg::Wasm(WasmMsg::Execute {

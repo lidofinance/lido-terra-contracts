@@ -4635,3 +4635,84 @@ fn test_receive_cw20() {
         );
     }
 }
+
+#[test]
+fn proper_redelegate_proxy() {
+    let mut deps = dependencies(&[]);
+
+    set_validator_mock(&mut deps.querier);
+
+    let addr1 = String::from("addr1000");
+
+    let owner = String::from("owner1");
+    let token_contract = String::from("token");
+    let stluna_token_contract = String::from("stluna_token");
+    let reward_contract = String::from("reward");
+    let validators_registry = String::from("validators_registry");
+
+    initialize(
+        deps.borrow_mut(),
+        owner.clone(),
+        reward_contract,
+        token_contract,
+        stluna_token_contract,
+    );
+
+    let redelegate_proxy_msg = ExecuteMsg::RedelegateProxy {
+        src_validator: String::from("src_validator"),
+        redelegations: vec![(String::from("dst_validator"), Coin::new(100, "uluna"))],
+    };
+
+    //invalid sender
+    let info = mock_info(&addr1, &[]);
+    let res = execute(
+        deps.as_mut(),
+        mock_env(),
+        info,
+        redelegate_proxy_msg.clone(),
+    )
+    .unwrap_err();
+    assert_eq!(res, StdError::generic_err("unauthorized"));
+
+    // check that validators_registry can send such messages
+    let info = mock_info(&validators_registry, &[]);
+    let res = execute(
+        deps.as_mut(),
+        mock_env(),
+        info,
+        redelegate_proxy_msg.clone(),
+    )
+    .unwrap();
+
+    let redelegate = &res.messages[0];
+    match redelegate.msg.clone() {
+        CosmosMsg::Staking(StakingMsg::Redelegate {
+            src_validator,
+            dst_validator,
+            amount,
+        }) => {
+            assert_eq!(src_validator, String::from("src_validator"));
+            assert_eq!(dst_validator, String::from("dst_validator"));
+            assert_eq!(amount, Coin::new(100, "uluna"));
+        }
+        _ => panic!("Unexpected message: {:?}", redelegate),
+    }
+
+    // check that creator can send such messages
+    let info = mock_info(&owner, &[]);
+    let res = execute(deps.as_mut(), mock_env(), info, redelegate_proxy_msg).unwrap();
+
+    let redelegate = &res.messages[0];
+    match redelegate.msg.clone() {
+        CosmosMsg::Staking(StakingMsg::Redelegate {
+            src_validator,
+            dst_validator,
+            amount,
+        }) => {
+            assert_eq!(src_validator, String::from("src_validator"));
+            assert_eq!(dst_validator, String::from("dst_validator"));
+            assert_eq!(amount, Coin::new(100, "uluna"));
+        }
+        _ => panic!("Unexpected message: {:?}", redelegate),
+    }
+}

@@ -267,7 +267,7 @@ fn remove_validator() {
                     assert_eq!(
                         *msg.0,
                         to_binary(&RedelegateProxy {
-                            src_validator: validator4.address.clone(),
+                            src_validator: validator4.address,
                             redelegations: vec![
                                 (validator1.clone().address, coin(27, "uluna")),
                                 (validator2.clone().address, coin(17, "uluna")),
@@ -375,7 +375,7 @@ fn remove_validator() {
                     assert_eq!(
                         *msg.0,
                         to_binary(&RedelegateProxy {
-                            src_validator: validator3.address.clone(),
+                            src_validator: validator3.address,
                             redelegations: vec![
                                 (validator1.clone().address, coin(18, "uluna")),
                                 (validator2.clone().address, coin(18, "uluna"))
@@ -468,7 +468,7 @@ fn remove_validator() {
                     assert_eq!(
                         *msg.0,
                         to_binary(&RedelegateProxy {
-                            src_validator: validator2.address,
+                            src_validator: validator2.address.clone(),
                             redelegations: vec![(validator1.clone().address, coin(55, "uluna"))],
                         })
                         .unwrap()
@@ -512,7 +512,7 @@ fn remove_validator() {
     set_delegation_query(
         &mut deps.querier,
         &[sample_delegation(
-            hub_contract_address,
+            hub_contract_address.clone(),
             validator1.address.clone(),
             Coin {
                 denom: "uluna".to_string(),
@@ -522,13 +522,74 @@ fn remove_validator() {
         &validators,
     );
     let msg = ExecuteMsg::RemoveValidator {
-        address: validator1.address,
+        address: validator1.address.clone(),
     };
     let res = execute(deps.as_mut(), mock_env(), info, msg);
     assert_eq!(
         res.expect_err("The last validator was removed from registry"),
         StdError::generic_err("Cannot remove the last validator in the registry",)
     );
+
+    // try to remove a validator with an active redelegation
+    let validators = [
+        CosmosValidator {
+            address: validator1.address.clone(),
+            commission: Default::default(),
+            max_commission: Default::default(),
+            max_change_rate: Default::default(),
+        },
+        CosmosValidator {
+            address: validator2.address.clone(),
+            commission: Default::default(),
+            max_commission: Default::default(),
+            max_change_rate: Default::default(),
+        },
+    ];
+    set_delegation_query(
+        &mut deps.querier,
+        &[
+            FullDelegation {
+                validator: validator1.address.clone(),
+                delegator: hub_contract_address.clone(),
+                amount: Coin {
+                    denom: "uluna".to_string(),
+                    amount: Uint128::from(110u64),
+                },
+                can_redelegate: Coin {
+                    denom: "uluna".to_string(),
+                    amount: Uint128::from(0u64),
+                },
+                accumulated_rewards: vec![Coin {
+                    denom: "uluna".to_string(),
+                    amount: Uint128::from(110u64),
+                }],
+            },
+            sample_delegation(
+                hub_contract_address.clone(),
+                validator2.address.clone(),
+                Coin {
+                    denom: "uluna".to_string(),
+                    amount: Uint128::from(110u64),
+                },
+            ),
+        ],
+        &validators,
+    );
+
+    let msg = InstantiateMsg {
+        registry: vec![validator1.clone(), validator2],
+        hub_contract: hub_contract_address.to_string(),
+    };
+
+    let mut deps = mock_dependencies(&coins(2, "token"));
+    let info = mock_info("creator", &coins(2, "token"));
+    let _res = instantiate(deps.as_mut(), mock_env(), info.clone(), msg).unwrap();
+
+    let msg = ExecuteMsg::RemoveValidator {
+        address: validator1.address,
+    };
+    let res = execute(deps.as_mut(), mock_env(), info, msg).unwrap();
+    assert_eq!(res.messages.len(), 0);
 }
 
 #[macro_export]
