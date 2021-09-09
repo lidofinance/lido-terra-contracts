@@ -40,6 +40,7 @@ use crate::state::{read_unbond_wait_list, CONFIG, STATE};
 use anchor_basset_rewards_dispatcher::msg::ExecuteMsg::{DispatchRewards, SwapToRewardDenom};
 use basset::airdrop::PairHandleMsg;
 
+use crate::testing::mock_querier::VALIDATORS_REGISTRY;
 use basset::airdrop::ExecuteMsg::{FabricateANCClaim, FabricateMIRClaim};
 use basset::hub::Cw20HookMsg::Unbond;
 use basset::hub::ExecuteMsg::{CheckSlashing, Receive, UpdateConfig, UpdateParams};
@@ -109,7 +110,7 @@ pub fn initialize<S: Storage, A: Api, Q: Querier>(
         bluna_token_contract: Some(bluna_token_contract),
         stluna_token_contract: Some(stluna_token_contract),
         airdrop_registry_contract: Some(String::from("airdrop_registry")),
-        validators_registry_contract: Some(String::from("validators_registry")),
+        validators_registry_contract: Some(String::from(VALIDATORS_REGISTRY)),
     };
     let res = execute(deps.as_mut(), mock_env(), owner_info, register_msg).unwrap();
     assert_eq!(1, res.messages.len());
@@ -4387,16 +4388,8 @@ fn proper_swap_hook() {
         mock_env(),
         contract_info.clone(),
         swap_msg.clone(),
-    )
-    .unwrap_err();
-    assert_eq!(
-        res,
-        StdError::generic_err(format!(
-            "There is no balance for {} in airdrop token contract {}",
-            &mock_env().contract.address.to_string(),
-            &String::from("airdrop_token")
-        ))
     );
+    assert!(res.is_err());
 
     deps.querier.with_token_balances(&[(
         &String::from("airdrop_token"),
