@@ -268,8 +268,11 @@ fn remove_validator() {
                         *msg.0,
                         to_binary(&RedelegateProxy {
                             src_validator: validator4.address.clone(),
-                            dst_validator: validator1.clone().address,
-                            amount: coin(27, "uluna"),
+                            redelegations: vec![
+                                (validator1.clone().address, coin(27, "uluna")),
+                                (validator2.clone().address, coin(17, "uluna")),
+                                (validator3.clone().address, coin(6, "uluna"))
+                            ]
                         })
                         .unwrap()
                         .0
@@ -279,51 +282,7 @@ fn remove_validator() {
                 _ => panic!("Unexpected message: {:?}", redelegate),
             }
 
-            let redelegate = &res.messages[1];
-            match redelegate.msg.clone() {
-                CosmosMsg::Wasm(WasmMsg::Execute {
-                    contract_addr,
-                    msg,
-                    funds: _,
-                }) => {
-                    assert_eq!(
-                        *msg.0,
-                        to_binary(&RedelegateProxy {
-                            src_validator: validator4.address.clone(),
-                            dst_validator: validator2.clone().address,
-                            amount: coin(17, "uluna"),
-                        })
-                        .unwrap()
-                        .0
-                    );
-                    assert_eq!(contract_addr, hub_contract_address.to_string());
-                }
-                _ => panic!("Unexpected message: {:?}", redelegate),
-            }
-
-            let redelegate = &res.messages[2];
-            match redelegate.msg.clone() {
-                CosmosMsg::Wasm(WasmMsg::Execute {
-                    contract_addr,
-                    msg,
-                    funds: _,
-                }) => {
-                    assert_eq!(
-                        *msg.0,
-                        to_binary(&RedelegateProxy {
-                            src_validator: validator4.address,
-                            dst_validator: validator3.clone().address,
-                            amount: coin(6, "uluna"),
-                        })
-                        .unwrap()
-                        .0
-                    );
-                    assert_eq!(contract_addr, hub_contract_address.to_string());
-                }
-                _ => panic!("Unexpected message: {:?}", redelegate),
-            }
-
-            let update_global_index = &res.messages[3];
+            let update_global_index = &res.messages[1];
             match update_global_index.msg.clone() {
                 CosmosMsg::Wasm(WasmMsg::Execute {
                     contract_addr,
@@ -417,8 +376,10 @@ fn remove_validator() {
                         *msg.0,
                         to_binary(&RedelegateProxy {
                             src_validator: validator3.address.clone(),
-                            dst_validator: validator1.clone().address,
-                            amount: coin(18, "uluna"),
+                            redelegations: vec![
+                                (validator1.clone().address, coin(18, "uluna")),
+                                (validator2.clone().address, coin(18, "uluna"))
+                            ]
                         })
                         .unwrap()
                         .0
@@ -428,29 +389,7 @@ fn remove_validator() {
                 _ => panic!("Unexpected message: {:?}", redelegate),
             }
 
-            let redelegate = &res.messages[1];
-            match redelegate.msg.clone() {
-                CosmosMsg::Wasm(WasmMsg::Execute {
-                    contract_addr,
-                    msg,
-                    funds: _,
-                }) => {
-                    assert_eq!(
-                        *msg.0,
-                        to_binary(&RedelegateProxy {
-                            src_validator: validator3.address,
-                            dst_validator: validator2.clone().address,
-                            amount: coin(18, "uluna"),
-                        })
-                        .unwrap()
-                        .0
-                    );
-                    assert_eq!(contract_addr, hub_contract_address.to_string());
-                }
-                _ => panic!("Unexpected message: {:?}", redelegate),
-            }
-
-            let update_global_index = &res.messages[2];
+            let update_global_index = &res.messages[1];
             match update_global_index.msg.clone() {
                 CosmosMsg::Wasm(WasmMsg::Execute {
                     contract_addr,
@@ -530,8 +469,7 @@ fn remove_validator() {
                         *msg.0,
                         to_binary(&RedelegateProxy {
                             src_validator: validator2.address,
-                            dst_validator: validator1.clone().address,
-                            amount: coin(55, "uluna"),
+                            redelegations: vec![(validator1.clone().address, coin(55, "uluna"))],
                         })
                         .unwrap()
                         .0

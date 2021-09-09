@@ -168,8 +168,7 @@ pub enum ExecuteMsg {
     RedelegateProxy {
         // delegator is automatically set to address of the calling contract
         src_validator: String,
-        dst_validator: String,
-        amount: Coin,
+        redelegations: Vec<(String, Coin)>, //(dst_validator, amount)
     },
 }
 

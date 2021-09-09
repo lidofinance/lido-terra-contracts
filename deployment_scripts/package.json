@@ -1,5 +1,5 @@
 {
   "dependencies": {
-    "@terra-money/terra.js": "^2.0.2"
+    "@terra-money/terra.js": "^2.0.5"
   }
 }

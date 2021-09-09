@@ -2,10 +2,10 @@
 # yarn lockfile v1
 
 
-"@terra-money/terra.js@^2.0.2":
-  version "2.0.2"
-  resolved "https://registry.yarnpkg.com/@terra-money/terra.js/-/terra.js-2.0.2.tgz#e93e2c32c7a700c4edaa82e91b00bd01cdf482ee"
-  integrity sha512-sFYqzoipuN85Qn0/pBYoc6RaNC0n5KUCwy4bi27Io4HqyuZ6QHdrjNjoAk5f77uAU8S2ugz+Uq8XgB3EeOiIFA==
+"@terra-money/terra.js@^2.0.5":
+  version "2.0.5"
+  resolved "https://registry.yarnpkg.com/@terra-money/terra.js/-/terra.js-2.0.5.tgz#90ccd7c506325b98726a3814dd5d67768a46da81"
+  integrity sha512-68usU9jDOftaWdevyEH6NHL+cEFQT7NoERbD47zWlU1on8xf+ltsq8M28o0l7RWkMvyFXmACI8DhYb07wr9LfQ==
   dependencies:
     axios "^0.21.1"
     bech32 "^2.0.0"
