@@ -212,11 +212,8 @@ pub fn execute_swap(
             "bluna_2_stluna_rewards_xchg_rate",
             bluna_2_stluna_rewards_xchg_rate.to_string(),
         ),
-        attr(
-            "total_stluna_rewards_available",
-            total_luna_rewards_available,
-        ),
-        attr("total_bluna_rewards_available", total_ust_rewards_available),
+        attr("total_luna_rewards_available", total_luna_rewards_available),
+        attr("total_ust_rewards_available", total_ust_rewards_available),
         attr("offer_coin_denom", offer_coin.denom),
         attr("offer_coin_amount", offer_coin.amount),
         attr("ask_denom", ask_denom),

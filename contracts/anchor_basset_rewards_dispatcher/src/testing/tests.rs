@@ -57,8 +57,8 @@ fn test_swap_to_reward_denom() {
         rewards_balance: Vec<Coin>,
         stluna_total_minted: Uint128,
         bluna_total_minted: Uint128,
-        expected_total_stluna_rewards_available: String,
-        expected_total_bluna_rewards_available: String,
+        expected_total_luna_rewards_available: String,
+        expected_total_ust_rewards_available: String,
         expected_offer_coin_denom: String,
         expected_offer_coin_amount: String,
         expected_ask_denom: String,
@@ -73,8 +73,8 @@ fn test_swap_to_reward_denom() {
             ],
             stluna_total_minted: Uint128::from(1u128),
             bluna_total_minted: Uint128::from(2u128),
-            expected_total_stluna_rewards_available: "200".to_string(),
-            expected_total_bluna_rewards_available: "1300".to_string(),
+            expected_total_luna_rewards_available: "200".to_string(),
+            expected_total_ust_rewards_available: "1300".to_string(),
             expected_offer_coin_denom: "uluna".to_string(),
             expected_offer_coin_amount: "120".to_string(),
             expected_ask_denom: "uusd".to_string(),
@@ -87,8 +87,8 @@ fn test_swap_to_reward_denom() {
             ],
             stluna_total_minted: Uint128::from(2u128),
             bluna_total_minted: Uint128::from(2u128),
-            expected_total_stluna_rewards_available: "200".to_string(),
-            expected_total_bluna_rewards_available: "1300".to_string(),
+            expected_total_luna_rewards_available: "200".to_string(),
+            expected_total_ust_rewards_available: "1300".to_string(),
             expected_offer_coin_denom: "uluna".to_string(),
             expected_offer_coin_amount: "80".to_string(),
             expected_ask_denom: "uusd".to_string(),
@@ -101,8 +101,8 @@ fn test_swap_to_reward_denom() {
             ],
             stluna_total_minted: Uint128::from(2u128),
             bluna_total_minted: Uint128::from(1u128),
-            expected_total_stluna_rewards_available: "200".to_string(),
-            expected_total_bluna_rewards_available: "1300".to_string(),
+            expected_total_luna_rewards_available: "200".to_string(),
+            expected_total_ust_rewards_available: "1300".to_string(),
             expected_offer_coin_denom: "uluna".to_string(),
             expected_offer_coin_amount: "40".to_string(),
             expected_ask_denom: "uusd".to_string(),
@@ -115,8 +115,8 @@ fn test_swap_to_reward_denom() {
             ],
             stluna_total_minted: Uint128::from(2u128),
             bluna_total_minted: Uint128::from(2u128),
-            expected_total_stluna_rewards_available: "0".to_string(),
-            expected_total_bluna_rewards_available: "1300".to_string(),
+            expected_total_luna_rewards_available: "0".to_string(),
+            expected_total_ust_rewards_available: "1300".to_string(),
             expected_offer_coin_denom: "uusd".to_string(),
             expected_offer_coin_amount: "640".to_string(),
             expected_ask_denom: "uluna".to_string(),
@@ -142,14 +142,11 @@ fn test_swap_to_reward_denom() {
         let res = execute(deps.as_mut(), mock_env(), info, msg).unwrap();
 
         for attr in res.attributes {
-            if attr.key == *"total_stluna_rewards_available" {
-                assert_eq!(
-                    attr.value,
-                    test_case.expected_total_stluna_rewards_available
-                )
+            if attr.key == *"total_luna_rewards_available" {
+                assert_eq!(attr.value, test_case.expected_total_luna_rewards_available)
             }
-            if attr.key == *"total_bluna_rewards_available" {
-                assert_eq!(attr.value, test_case.expected_total_bluna_rewards_available)
+            if attr.key == *"total_ust_rewards_available" {
+                assert_eq!(attr.value, test_case.expected_total_ust_rewards_available)
             }
             if attr.key == *"offer_coin_denom" {
                 assert_eq!(attr.value, test_case.expected_offer_coin_denom)
@@ -216,8 +213,8 @@ fn test_get_swap_info() {
 
     let stluna_total_bond_amount = Uint128::from(2u64);
     let bluna_total_bond_amount = Uint128::from(2u64);
-    let total_stluna_rewards_available = Uint128::from(20u64);
-    let total_bluna_rewards_available = Uint128::from(20u64);
+    let total_luna_rewards_available = Uint128::from(20u64);
+    let total_ust_rewards_available = Uint128::from(20u64);
     let bluna_2_stluna_rewards_xchg_rate =
         Decimal::from_ratio(Uint128::from(1u64), Uint128::from(1u64));
     let stluna_2_bluna_rewards_xchg_rate =
@@ -226,8 +223,8 @@ fn test_get_swap_info() {
         config.clone(),
         stluna_total_bond_amount,
         bluna_total_bond_amount,
-        total_stluna_rewards_available,
-        total_bluna_rewards_available,
+        total_luna_rewards_available,
+        total_ust_rewards_available,
         bluna_2_stluna_rewards_xchg_rate,
         stluna_2_bluna_rewards_xchg_rate,
     )
@@ -237,8 +234,8 @@ fn test_get_swap_info() {
 
     let stluna_total_bond_amount = Uint128::from(2u64);
     let bluna_total_bond_amount = Uint128::from(2u64);
-    let total_stluna_rewards_available = Uint128::from(20u64);
-    let total_bluna_rewards_available = Uint128::from(20u64);
+    let total_luna_rewards_available = Uint128::from(20u64);
+    let total_ust_rewards_available = Uint128::from(20u64);
     let bluna_2_stluna_rewards_xchg_rate =
         Decimal::from_ratio(Uint128::from(15u64), Uint128::from(10u64));
     let stluna_2_bluna_rewards_xchg_rate =
@@ -247,8 +244,8 @@ fn test_get_swap_info() {
         config.clone(),
         stluna_total_bond_amount,
         bluna_total_bond_amount,
-        total_stluna_rewards_available,
-        total_bluna_rewards_available,
+        total_luna_rewards_available,
+        total_ust_rewards_available,
         bluna_2_stluna_rewards_xchg_rate,
         stluna_2_bluna_rewards_xchg_rate,
     )
@@ -258,8 +255,8 @@ fn test_get_swap_info() {
 
     let stluna_total_bond_amount = Uint128::from(2u64);
     let bluna_total_bond_amount = Uint128::from(2u64);
-    let total_stluna_rewards_available = Uint128::from(20u64);
-    let total_bluna_rewards_available = Uint128::from(20u64);
+    let total_luna_rewards_available = Uint128::from(20u64);
+    let total_ust_rewards_available = Uint128::from(20u64);
     let bluna_2_stluna_rewards_xchg_rate =
         Decimal::from_ratio(Uint128::from(75u64), Uint128::from(100u64));
     let stluna_2_bluna_rewards_xchg_rate =
@@ -268,8 +265,8 @@ fn test_get_swap_info() {
         config.clone(),
         stluna_total_bond_amount,
         bluna_total_bond_amount,
-        total_stluna_rewards_available,
-        total_bluna_rewards_available,
+        total_luna_rewards_available,
+        total_ust_rewards_available,
         bluna_2_stluna_rewards_xchg_rate,
         stluna_2_bluna_rewards_xchg_rate,
     )
