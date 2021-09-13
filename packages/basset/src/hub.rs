@@ -3,6 +3,13 @@ use cw20::Cw20ReceiveMsg;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
+#[derive(PartialEq)]
+pub enum BondType {
+    BLuna,
+    StLuna,
+    BondRewards,
+}
+
 pub type UnbondRequest = Vec<(u64, Uint128, Uint128)>;
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

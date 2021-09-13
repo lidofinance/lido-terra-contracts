@@ -16,15 +16,14 @@ use crate::state::{
 };
 use crate::unbond::{execute_unbond, execute_unbond_stluna, execute_withdraw_unbonded};
 
-use crate::bond::execute_bond_stluna;
-use crate::bond::{execute_bond, execute_bond_rewards};
+use crate::bond::execute_bond;
 use anchor_basset_rewards_dispatcher::msg::ExecuteMsg::{DispatchRewards, SwapToRewardDenom};
 use anchor_basset_validators_registry::msg::ExecuteMsg::AddValidator;
 use anchor_basset_validators_registry::registry::Validator;
 use basset::hub::ExecuteMsg::SwapHook;
 use basset::hub::{
-    AllHistoryResponse, Config, ConfigResponse, CurrentBatch, CurrentBatchResponse, InstantiateMsg,
-    MigrateMsg, Parameters, QueryMsg, State, StateResponse, UnbondRequestsResponse,
+    AllHistoryResponse, BondType, Config, ConfigResponse, CurrentBatch, CurrentBatchResponse,
+    InstantiateMsg, MigrateMsg, Parameters, QueryMsg, State, StateResponse, UnbondRequestsResponse,
     WithdrawableUnbondedResponse,
 };
 use basset::hub::{Cw20HookMsg, ExecuteMsg};
@@ -93,9 +92,9 @@ pub fn instantiate(
 pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> StdResult<Response> {
     match msg {
         ExecuteMsg::Receive(msg) => receive_cw20(deps, env, info, msg),
-        ExecuteMsg::Bond {} => execute_bond(deps, env, info),
-        ExecuteMsg::BondForStLuna {} => execute_bond_stluna(deps, env, info),
-        ExecuteMsg::BondRewards {} => execute_bond_rewards(deps, env, info),
+        ExecuteMsg::Bond {} => execute_bond(deps, env, info, BondType::BLuna),
+        ExecuteMsg::BondForStLuna {} => execute_bond(deps, env, info, BondType::StLuna),
+        ExecuteMsg::BondRewards {} => execute_bond(deps, env, info, BondType::BondRewards),
         ExecuteMsg::UpdateGlobalIndex { airdrop_hooks } => {
             execute_update_global(deps, env, info, airdrop_hooks)
         }

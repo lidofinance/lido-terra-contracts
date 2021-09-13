@@ -1980,12 +1980,14 @@ pub fn proper_slashing_stluna() {
     let res = execute(deps.as_mut(), mock_env(), info.clone(), second_bond).unwrap();
     assert_eq!(2, res.messages.len());
 
-    // expected exchange rate must be more than 0.9
-    let expected_er = Decimal::from_ratio(Uint128::from(1900u64), Uint128::from(2111u64));
+    let expected_er = "0.9";
     let ex_rate = State {};
     let query_exchange_rate: StateResponse =
         from_binary(&query(deps.as_ref(), mock_env(), ex_rate).unwrap()).unwrap();
-    assert_eq!(query_exchange_rate.stluna_exchange_rate, expected_er);
+    assert_eq!(
+        query_exchange_rate.stluna_exchange_rate.to_string(),
+        expected_er
+    );
 
     let delegate = &res.messages[0];
     match delegate.msg.clone() {
@@ -2077,7 +2079,10 @@ pub fn proper_slashing_stluna() {
     let ex_rate = State {};
     let query_exchange_rate: StateResponse =
         from_binary(&query(deps.as_ref(), mock_env(), ex_rate).unwrap()).unwrap();
-    assert_eq!(query_exchange_rate.stluna_exchange_rate, expected_er);
+    assert_eq!(
+        query_exchange_rate.stluna_exchange_rate.to_string(),
+        expected_er
+    );
 
     env.block.time = env.block.time.plus_seconds(90);
     //check withdrawUnbonded message
@@ -2088,7 +2093,10 @@ pub fn proper_slashing_stluna() {
     let ex_rate = State {};
     let query_exchange_rate: StateResponse =
         from_binary(&query(deps.as_ref(), mock_env(), ex_rate).unwrap()).unwrap();
-    assert_eq!(query_exchange_rate.stluna_exchange_rate, expected_er);
+    assert_eq!(
+        query_exchange_rate.stluna_exchange_rate.to_string(),
+        expected_er
+    );
 
     let sent_message = &wdraw_unbonded_res.messages[0];
     match sent_message.msg.clone() {
