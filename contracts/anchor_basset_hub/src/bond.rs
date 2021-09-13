@@ -21,19 +21,16 @@ pub fn execute_bond(
     let coin_denom = params.underlying_coin_denom;
     let threshold = params.er_threshold;
     let recovery_fee = params.peg_recovery_fee;
+    let config = CONFIG.load(deps.storage)?;
 
-    if bond_type == BondType::BondRewards {
-        let config = CONFIG.load(deps.storage)?;
-        let reward_dispatcher_addr =
-            deps.api
-                .addr_humanize(&config.reward_dispatcher_contract.ok_or_else(|| {
-                    StdError::generic_err(
-                        "the reward dispatcher contract must have been registered",
-                    )
-                })?)?;
-        if info.sender != reward_dispatcher_addr {
-            return Err(StdError::generic_err("unauthorized"));
-        }
+    let reward_dispatcher_addr =
+        deps.api
+            .addr_humanize(&config.reward_dispatcher_contract.ok_or_else(|| {
+                StdError::generic_err("the reward dispatcher contract must have been registered")
+            })?)?;
+
+    if bond_type == BondType::BondRewards && info.sender != reward_dispatcher_addr {
+        return Err(StdError::generic_err("unauthorized"));
     }
 
     // current batch requested fee is need for accurate exchange rate computation.
@@ -114,7 +111,6 @@ pub fn execute_bond(
         }
     })?;
 
-    let config = CONFIG.load(deps.storage)?;
     let validators_registry_contract = if let Some(v) = config.validators_registry_contract {
         v
     } else {
@@ -165,7 +161,6 @@ pub fn execute_bond(
         amount: mint_amount,
     };
 
-    let config = CONFIG.load(deps.storage)?;
     let token_address = match bond_type {
         BondType::BLuna => deps
             .api
