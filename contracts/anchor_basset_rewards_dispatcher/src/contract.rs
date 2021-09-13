@@ -181,7 +181,7 @@ pub fn execute_swap(
             config.bluna_reward_denom.clone(),
         )?;
 
-    let (stluna_2_bluna_rewards_xchg_rate, bluna_2_stluna_rewards_xchg_rate) = get_exchange_rates(
+    let (luna_2_ust_rewards_xchg_rate, ust_2_luna_rewards_xchg_rate) = get_exchange_rates(
         &deps,
         config.stluna_reward_denom.as_str(),
         config.bluna_reward_denom.as_str(),
@@ -193,8 +193,8 @@ pub fn execute_swap(
         bluna_total_mint_amount,
         total_luna_rewards_available,
         total_ust_rewards_available,
-        bluna_2_stluna_rewards_xchg_rate,
-        stluna_2_bluna_rewards_xchg_rate,
+        ust_2_luna_rewards_xchg_rate,
+        luna_2_ust_rewards_xchg_rate,
     )?;
 
     if !offer_coin.amount.is_zero() {
@@ -205,12 +205,12 @@ pub fn execute_swap(
         attr("action", "swap"),
         attr("initial_balance", format!("{:?}", balance)),
         attr(
-            "stluna_2_bluna_rewards_xchg_rate",
-            stluna_2_bluna_rewards_xchg_rate.to_string(),
+            "luna_2_ust_rewards_xchg_rate",
+            luna_2_ust_rewards_xchg_rate.to_string(),
         ),
         attr(
-            "bluna_2_stluna_rewards_xchg_rate",
-            bluna_2_stluna_rewards_xchg_rate.to_string(),
+            "ust_2_luna_rewards_xchg_rate",
+            ust_2_luna_rewards_xchg_rate.to_string(),
         ),
         attr("total_luna_rewards_available", total_luna_rewards_available),
         attr("total_ust_rewards_available", total_ust_rewards_available),
