@@ -172,7 +172,7 @@ pub fn execute_swap(
 
     let contr_addr = env.contract.address;
     let balance = deps.querier.query_all_balances(contr_addr.clone())?;
-    let (total_stluna_rewards_available, total_bluna_rewards_available, mut msgs) =
+    let (total_luna_rewards_available, total_ust_rewards_available, mut msgs) =
         convert_to_target_denoms(
             &deps,
             contr_addr.to_string(),
@@ -191,8 +191,8 @@ pub fn execute_swap(
         config,
         stluna_total_mint_amount,
         bluna_total_mint_amount,
-        total_stluna_rewards_available,
-        total_bluna_rewards_available,
+        total_luna_rewards_available,
+        total_ust_rewards_available,
         bluna_2_stluna_rewards_xchg_rate,
         stluna_2_bluna_rewards_xchg_rate,
     )?;
@@ -214,12 +214,9 @@ pub fn execute_swap(
         ),
         attr(
             "total_stluna_rewards_available",
-            total_stluna_rewards_available,
+            total_luna_rewards_available,
         ),
-        attr(
-            "total_bluna_rewards_available",
-            total_bluna_rewards_available,
-        ),
+        attr("total_bluna_rewards_available", total_ust_rewards_available),
         attr("offer_coin_denom", offer_coin.denom),
         attr("offer_coin_amount", offer_coin.amount),
         attr("ask_denom", ask_denom),
