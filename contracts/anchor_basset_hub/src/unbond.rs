@@ -269,79 +269,80 @@ fn process_withdraw_rate(
 ) -> StdResult<()> {
     let mut state = STATE.load(deps.storage)?;
 
-    let balance_change = SignedInt::from_subtraction(hub_balance, state.prev_hub_balance);
-    let actual_unbonded_amount = balance_change.0;
-
     let last_processed_batch = state.last_processed_batch;
 
     let (stluna_total_unbonded_amount, bluna_total_unbonded_amount, batch_count) =
         calculate_newly_added_unbonded_amount(deps.storage, last_processed_batch, historical_time);
 
+    if batch_count < 1 {
+        return Ok(());
+    }
+
+    let balance_change = SignedInt::from_subtraction(hub_balance, state.prev_hub_balance);
+    let actual_unbonded_amount = balance_change.0;
+
     let mut bluna_unbond_ratio = Decimal256::zero();
-    let mut stluna_unbond_ratio = Decimal256::zero();
     if stluna_total_unbonded_amount + bluna_total_unbonded_amount > Uint256::zero() {
-        stluna_unbond_ratio = Decimal256::from_ratio(
+        let stluna_unbond_ratio = Decimal256::from_ratio(
             stluna_total_unbonded_amount.0,
             (stluna_total_unbonded_amount + bluna_total_unbonded_amount).0,
         );
         bluna_unbond_ratio = Decimal256::one() - stluna_unbond_ratio;
     }
 
-    if batch_count >= 1 {
-        // Use signed integer in case of some rogue transfers.
-        let bluna_slashed_amount = SignedInt::from_subtraction(
-            bluna_total_unbonded_amount,
-            Uint256::from(actual_unbonded_amount) * bluna_unbond_ratio,
-        );
-        let stluna_slashed_amount = SignedInt::from_subtraction(
-            stluna_total_unbonded_amount,
-            Uint256::from(actual_unbonded_amount) * stluna_unbond_ratio,
-        );
+    let bluna_actual_unbonded_amount = Uint256::from(actual_unbonded_amount) * bluna_unbond_ratio;
+    // Use signed integer in case of some rogue transfers.
+    let bluna_slashed_amount =
+        SignedInt::from_subtraction(bluna_total_unbonded_amount, bluna_actual_unbonded_amount);
+    let stluna_slashed_amount = SignedInt::from_subtraction(
+        stluna_total_unbonded_amount,
+        Uint256::from(actual_unbonded_amount) - bluna_actual_unbonded_amount,
+    );
 
-        // Iterate again to calculate the withdraw rate for each unprocessed history
-        let mut iterator = last_processed_batch + 1;
-        loop {
-            let history: UnbondHistory;
-            match read_unbond_history(deps.storage, iterator) {
-                Ok(h) => {
-                    if h.time > historical_time {
-                        break;
-                    }
-                    if !h.released {
-                        history = h
-                    } else {
-                        break;
-                    }
+    // Iterate again to calculate the withdraw rate for each unprocessed history
+    let mut iterator = last_processed_batch + 1;
+    loop {
+        let history: UnbondHistory;
+        match read_unbond_history(deps.storage, iterator) {
+            Ok(h) => {
+                if h.time > historical_time {
+                    break;
                 }
-                Err(_) => {
+                if !h.released {
+                    history = h
+                } else {
                     break;
                 }
             }
-
-            // Calculate the new withdraw rate
-            let stluna_new_withdraw_rate = calculate_new_withdraw_rate(
-                history.stluna_amount,
-                history.stluna_withdraw_rate,
-                stluna_total_unbonded_amount,
-                stluna_slashed_amount,
-            );
-            let bluna_new_withdraw_rate = calculate_new_withdraw_rate(
-                history.bluna_amount,
-                history.bluna_withdraw_rate,
-                bluna_total_unbonded_amount,
-                bluna_slashed_amount,
-            );
-
-            let mut history_for_i = history;
-            // store the history and mark it as released
-            history_for_i.bluna_withdraw_rate = bluna_new_withdraw_rate;
-            history_for_i.stluna_withdraw_rate = stluna_new_withdraw_rate;
-            history_for_i.released = true;
-            store_unbond_history(deps.storage, iterator, history_for_i)?;
-            state.last_processed_batch = iterator;
-            iterator += 1;
+            Err(_) => {
+                break;
+            }
         }
+
+        // Calculate the new withdraw rate
+        let stluna_new_withdraw_rate = calculate_new_withdraw_rate(
+            history.stluna_amount,
+            history.stluna_withdraw_rate,
+            stluna_total_unbonded_amount,
+            stluna_slashed_amount,
+        );
+        let bluna_new_withdraw_rate = calculate_new_withdraw_rate(
+            history.bluna_amount,
+            history.bluna_withdraw_rate,
+            bluna_total_unbonded_amount,
+            bluna_slashed_amount,
+        );
+
+        let mut history_for_i = history;
+        // store the history and mark it as released
+        history_for_i.bluna_withdraw_rate = bluna_new_withdraw_rate;
+        history_for_i.stluna_withdraw_rate = stluna_new_withdraw_rate;
+        history_for_i.released = true;
+        store_unbond_history(deps.storage, iterator, history_for_i)?;
+        state.last_processed_batch = iterator;
+        iterator += 1;
     }
+
     STATE.save(deps.storage, &state)?;
 
     Ok(())

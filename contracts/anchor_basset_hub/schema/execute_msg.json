@@ -279,16 +279,25 @@
         "redelegate_proxy": {
           "type": "object",
           "required": [
-            "amount",
-            "dst_validator",
+            "redelegations",
             "src_validator"
           ],
           "properties": {
-            "amount": {
-              "$ref": "#/definitions/Coin"
-            },
-            "dst_validator": {
-              "type": "string"
+            "redelegations": {
+              "type": "array",
+              "items": {
+                "type": "array",
+                "items": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "$ref": "#/definitions/Coin"
+                  }
+                ],
+                "maxItems": 2,
+                "minItems": 2
+              }
             },
             "src_validator": {
               "type": "string"
