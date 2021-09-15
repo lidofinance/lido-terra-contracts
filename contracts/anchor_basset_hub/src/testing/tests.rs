@@ -4378,16 +4378,8 @@ fn proper_swap_hook() {
         mock_env(),
         contract_info.clone(),
         swap_msg.clone(),
-    )
-    .unwrap_err();
-    assert_eq!(
-        res,
-        StdError::generic_err(format!(
-            "There is no balance for {} in airdrop token contract {}",
-            &mock_env().contract.address.to_string(),
-            &String::from("airdrop_token")
-        ))
     );
+    assert!(res.is_err());
 
     deps.querier.with_token_balances(&[(
         &String::from("airdrop_token"),
