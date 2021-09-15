@@ -2680,7 +2680,7 @@ pub fn proper_withdraw_unbonded_both_tokens() {
     match sent_message.msg.clone() {
         CosmosMsg::Bank(BankMsg::Send { to_address, amount }) => {
             assert_eq!(to_address, bob);
-            assert_eq!(amount[0].amount, Uint128::from(298u64)) // not 300 because of decimal
+            assert_eq!(amount[0].amount, Uint128::from(300u64))
         }
 
         _ => panic!("Unexpected message: {:?}", sent_message),
@@ -2711,7 +2711,7 @@ pub fn proper_withdraw_unbonded_both_tokens() {
     let state = State {};
     let state_query: StateResponse =
         from_binary(&query(deps.as_ref(), mock_env(), state).unwrap()).unwrap();
-    assert_eq!(state_query.prev_hub_balance, Uint128::from(2u64));
+    assert_eq!(state_query.prev_hub_balance, Uint128::from(0u64));
     assert_eq!(state_query.bluna_exchange_rate, Decimal::one());
     assert_eq!(state_query.stluna_exchange_rate.to_string(), "2");
 }
