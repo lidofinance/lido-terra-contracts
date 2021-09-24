@@ -4,7 +4,7 @@ use cosmwasm_std::{Coin, Decimal, Uint128};
 
 #[test]
 fn test_deduct_tax() {
-    let mut deps = mock_dependencies(20, &[]);
+    let mut deps = mock_dependencies(&[]);
 
     deps.querier.with_tax(
         Decimal::percent(1),
@@ -13,19 +13,19 @@ fn test_deduct_tax() {
 
     // cap to 1000000
     assert_eq!(
-        deduct_tax(&deps, Coin::new(10000000000u128, "uusd")).unwrap(),
+        deduct_tax(&deps.as_mut().querier, Coin::new(10000000000u128, "uusd")).unwrap(),
         Coin {
             denom: "uusd".to_string(),
-            amount: Uint128(9999000000u128)
+            amount: Uint128::new(9999000000u128)
         }
     );
 
     // normal tax
     assert_eq!(
-        deduct_tax(&deps, Coin::new(50000000u128, "uusd")).unwrap(),
+        deduct_tax(&deps.as_mut().querier, Coin::new(50000000u128, "uusd")).unwrap(),
         Coin {
             denom: "uusd".to_string(),
-            amount: Uint128(49504950u128)
+            amount: Uint128::new(49504950u128)
         }
     );
 }

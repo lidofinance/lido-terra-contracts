@@ -9,13 +9,8 @@
     "validators": {
       "type": "array",
       "items": {
-        "$ref": "#/definitions/HumanAddr"
+        "type": "string"
       }
-    }
-  },
-  "definitions": {
-    "HumanAddr": {
-      "type": "string"
     }
   }
 }

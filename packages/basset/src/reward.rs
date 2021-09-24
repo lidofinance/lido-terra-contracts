@@ -1,17 +1,17 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use cosmwasm_std::{Decimal, HumanAddr, Uint128};
+use cosmwasm_std::{Decimal, Uint128};
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct InitMsg {
-    pub hub_contract: HumanAddr,
+pub struct InstantiateMsg {
+    pub hub_contract: String,
     pub reward_denom: String,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
-pub enum HandleMsg {
+pub enum ExecuteMsg {
     ////////////////////
     /// Owner's operations
     ///////////////////
@@ -29,18 +29,18 @@ pub enum HandleMsg {
     /// Increase user staking balance
     /// Withdraw rewards to pending rewards
     /// Set current reward index to global index
-    IncreaseBalance { address: HumanAddr, amount: Uint128 },
+    IncreaseBalance { address: String, amount: Uint128 },
     /// Decrease user staking balance
     /// Withdraw rewards to pending rewards
     /// Set current reward index to global index
-    DecreaseBalance { address: HumanAddr, amount: Uint128 },
+    DecreaseBalance { address: String, amount: Uint128 },
 
     ////////////////////
     /// User's operations
     ///////////////////
 
     /// return the accrued reward in uusd to the user.
-    ClaimRewards { recipient: Option<HumanAddr> },
+    ClaimRewards { recipient: Option<String> },
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -49,20 +49,20 @@ pub enum QueryMsg {
     Config {},
     State {},
     AccruedRewards {
-        address: HumanAddr,
+        address: String,
     },
     Holder {
-        address: HumanAddr,
+        address: String,
     },
     Holders {
-        start_after: Option<HumanAddr>,
+        start_after: Option<String>,
         limit: Option<u32>,
     },
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct ConfigResponse {
-    pub hub_contract: HumanAddr,
+    pub hub_contract: String,
     pub reward_denom: String,
 }
 
@@ -80,7 +80,7 @@ pub struct AccruedRewardsResponse {
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct HolderResponse {
-    pub address: HumanAddr,
+    pub address: String,
     pub balance: Uint128,
     pub index: Decimal,
     pub pending_rewards: Decimal,
@@ -90,6 +90,3 @@ pub struct HolderResponse {
 pub struct HoldersResponse {
     pub holders: Vec<HolderResponse>,
 }
-
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct MigrateMsg {}

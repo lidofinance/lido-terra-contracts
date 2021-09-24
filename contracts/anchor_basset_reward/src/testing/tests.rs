@@ -5,7 +5,7 @@
 //! You can easily convert unit tests to integration tests as follows:
 //! 1. Copy them over verbatim
 //! 2. Then change
-//!      let mut deps = mock_dependencies(20, &[]);
+//!      let mut deps = mock_dependencies(&[]);
 //!    to
 //!      let mut deps = mock_instance(WASM, &[]);
 //! 3. If you access raw storage, where ever you see something like:
@@ -15,61 +15,62 @@
 //!          let data = store.get(CONFIG_KEY).expect("no data stored");
 //!          //...
 //!      });
-//! 4. Anywhere you see query(&deps, ...) you must replace it with query(&mut deps, ...)
+//! 4. Anywhere you see query(deps.as_ref(), mock_env(),...) you must replace it with query(&mut deps, ...)
 
-use cosmwasm_std::testing::{mock_env, MOCK_CONTRACT_ADDR};
+use cosmwasm_std::testing::{mock_env, mock_info};
 use cosmwasm_std::{
-    from_binary, Api, BankMsg, Coin, CosmosMsg, Decimal, HumanAddr, StdError, Uint128,
+    from_binary, Api, BankMsg, Coin, CosmosMsg, Decimal, StdError, SubMsg, Uint128,
 };
 use terra_cosmwasm::create_swap_msg;
 
-use crate::contract::{handle, init, query};
+use crate::contract::{execute, instantiate, query};
 use crate::math::{decimal_multiplication_in_256, decimal_subtraction_in_256};
 use crate::state::{store_holder, store_state, Holder, State};
 use crate::testing::mock_querier::{
     mock_dependencies, MOCK_HUB_CONTRACT_ADDR, MOCK_TOKEN_CONTRACT_ADDR,
 };
-use reward_querier::{
-    ConfigResponse, HandleMsg, HolderResponse, HoldersResponse, InitMsg, QueryMsg, StateResponse,
+use basset::reward::{
+    ConfigResponse, ExecuteMsg, HolderResponse, HoldersResponse, InstantiateMsg, QueryMsg,
+    StateResponse,
 };
 use std::str::FromStr;
 
 const DEFAULT_REWARD_DENOM: &str = "uusd";
 
-fn default_init() -> InitMsg {
-    InitMsg {
-        hub_contract: HumanAddr::from(MOCK_HUB_CONTRACT_ADDR),
+fn default_init() -> InstantiateMsg {
+    InstantiateMsg {
+        hub_contract: String::from(MOCK_HUB_CONTRACT_ADDR),
         reward_denom: DEFAULT_REWARD_DENOM.to_string(),
     }
 }
 
 #[test]
 fn proper_init() {
-    let mut deps = mock_dependencies(20, &[]);
+    let mut deps = mock_dependencies(&[]);
     let init_msg = default_init();
 
-    let env = mock_env("addr0000", &[]);
+    let info = mock_info("addr0000", &[]);
 
-    let res = init(&mut deps, env, init_msg).unwrap();
+    let res = instantiate(deps.as_mut(), mock_env(), info, init_msg).unwrap();
     assert_eq!(0, res.messages.len());
 
-    let res = query(&deps, QueryMsg::Config {}).unwrap();
+    let res = query(deps.as_ref(), mock_env(), QueryMsg::Config {}).unwrap();
     let config_response: ConfigResponse = from_binary(&res).unwrap();
     assert_eq!(
         config_response,
         ConfigResponse {
-            hub_contract: HumanAddr::from(MOCK_HUB_CONTRACT_ADDR),
+            hub_contract: String::from(MOCK_HUB_CONTRACT_ADDR),
             reward_denom: DEFAULT_REWARD_DENOM.to_string(),
         }
     );
 
-    let res = query(&deps, QueryMsg::State {}).unwrap();
+    let res = query(deps.as_ref(), mock_env(), QueryMsg::State {}).unwrap();
     let state_response: StateResponse = from_binary(&res).unwrap();
     assert_eq!(
         state_response,
         StateResponse {
             global_index: Decimal::zero(),
-            total_balance: Uint128(0u128),
+            total_balance: Uint128::new(0u128),
             prev_reward_balance: Uint128::zero()
         }
     );
@@ -77,100 +78,91 @@ fn proper_init() {
 
 #[test]
 pub fn swap_to_reward_denom() {
-    let mut deps = mock_dependencies(
-        20,
-        &[
-            Coin {
-                denom: "uusd".to_string(),
-                amount: Uint128(100u128),
-            },
-            Coin {
-                denom: "ukrw".to_string(),
-                amount: Uint128(1000u128),
-            },
-            Coin {
-                denom: "usdr".to_string(),
-                amount: Uint128(50u128),
-            },
-            Coin {
-                denom: "mnt".to_string(),
-                amount: Uint128(50u128),
-            },
-            Coin {
-                denom: "uinr".to_string(),
-                amount: Uint128(50u128),
-            },
-        ],
-    );
+    let mut deps = mock_dependencies(&[
+        Coin {
+            denom: "uusd".to_string(),
+            amount: Uint128::new(100u128),
+        },
+        Coin {
+            denom: "ukrw".to_string(),
+            amount: Uint128::new(1000u128),
+        },
+        Coin {
+            denom: "usdr".to_string(),
+            amount: Uint128::new(50u128),
+        },
+        Coin {
+            denom: "mnt".to_string(),
+            amount: Uint128::new(50u128),
+        },
+        Coin {
+            denom: "uinr".to_string(),
+            amount: Uint128::new(50u128),
+        },
+    ]);
 
     let init_msg = default_init();
-    let env = mock_env("addr0000", &[]);
+    let info = mock_info("addr0000", &[]);
 
-    init(&mut deps, env, init_msg).unwrap();
+    instantiate(deps.as_mut(), mock_env(), info, init_msg).unwrap();
 
-    let env = mock_env(HumanAddr::from(MOCK_HUB_CONTRACT_ADDR), &[]);
-    let msg = HandleMsg::SwapToRewardDenom {};
+    let info = mock_info(String::from(MOCK_HUB_CONTRACT_ADDR).as_str(), &[]);
+    let msg = ExecuteMsg::SwapToRewardDenom {};
 
-    let res = handle(&mut deps, env, msg).unwrap();
+    let res = execute(deps.as_mut(), mock_env(), info, msg).unwrap();
     assert_eq!(
         res.messages,
         vec![
-            create_swap_msg(
-                HumanAddr::from(MOCK_CONTRACT_ADDR),
+            SubMsg::new(create_swap_msg(
                 Coin {
                     denom: "ukrw".to_string(),
-                    amount: Uint128(1000u128),
+                    amount: Uint128::new(1000u128),
                 },
                 DEFAULT_REWARD_DENOM.to_string()
-            ),
-            create_swap_msg(
-                HumanAddr::from(MOCK_CONTRACT_ADDR),
+            )),
+            SubMsg::new(create_swap_msg(
                 Coin {
                     denom: "usdr".to_string(),
-                    amount: Uint128(50u128)
+                    amount: Uint128::new(50u128)
                 },
                 DEFAULT_REWARD_DENOM.to_string()
-            ),
-            create_swap_msg(
-                HumanAddr::from(MOCK_CONTRACT_ADDR),
+            )),
+            SubMsg::new(create_swap_msg(
                 Coin {
                     denom: "uinr".to_string(),
-                    amount: Uint128(50u128)
+                    amount: Uint128::new(50u128)
                 },
                 DEFAULT_REWARD_DENOM.to_string()
-            ),
+            )),
         ]
     );
 }
 
 #[test]
 fn update_global_index() {
-    let mut deps = mock_dependencies(
-        20,
-        &[Coin {
-            denom: "uusd".to_string(),
-            amount: Uint128(100u128),
-        }],
-    );
+    let mut deps = mock_dependencies(&[Coin {
+        denom: "uusd".to_string(),
+        amount: Uint128::new(100u128),
+    }]);
 
     let init_msg = default_init();
-    let env = mock_env("addr0000", &[]);
+    let info = mock_info("addr0000", &[]);
 
-    init(&mut deps, env, init_msg).unwrap();
+    instantiate(deps.as_mut(), mock_env(), info, init_msg).unwrap();
 
-    let msg = HandleMsg::UpdateGlobalIndex {};
+    let msg = ExecuteMsg::UpdateGlobalIndex {};
 
     // Failed unauthorized try
-    let env = mock_env("addr0000", &[]);
-    let res = handle(&mut deps, env, msg.clone());
+    let info = mock_info("addr0000", &[]);
+    let res = execute(deps.as_mut(), mock_env(), info, msg.clone());
     match res {
-        Err(StdError::Unauthorized { .. }) => {}
+        Err(_e) => {}
         _ => panic!("DO NOT ENTER HERE"),
     }
 
     // Failed zero staking balance
-    let env = mock_env(MOCK_HUB_CONTRACT_ADDR, &[]);
-    let res = handle(&mut deps, env.clone(), msg.clone());
+    let info = mock_info(MOCK_HUB_CONTRACT_ADDR, &[]);
+    let res = execute(deps.as_mut(), mock_env(), info.clone(), msg.clone());
     match res {
         Err(StdError::GenericErr { msg, .. }) => assert_eq!(msg, "No asset is bonded by Hub"),
         _ => panic!("DO NOT ENTER HERE"),
@@ -188,9 +180,9 @@ fn update_global_index() {
 
     // claimed_rewards = 100, total_balance = 100
     // global_index == 1
-    handle(&mut deps, env, msg).unwrap();
+    execute(deps.as_mut(), mock_env(), info, msg).unwrap();
 
-    let res = query(&deps, QueryMsg::State {}).unwrap();
+    let res = query(deps.as_ref(), mock_env(), QueryMsg::State {}).unwrap();
     let state_response: StateResponse = from_binary(&res).unwrap();
     assert_eq!(
         state_response,
@@ -204,38 +196,36 @@ fn update_global_index() {
 
 #[test]
 fn increase_balance() {
-    let mut deps = mock_dependencies(
-        20,
-        &[Coin {
-            denom: "uusd".to_string(),
-            amount: Uint128(100u128),
-        }],
-    );
+    let mut deps = mock_dependencies(&[Coin {
+        denom: "uusd".to_string(),
+        amount: Uint128::new(100u128),
+    }]);
 
     let init_msg = default_init();
-    let env = mock_env("addr0000", &[]);
+    let info = mock_info("addr0000", &[]);
 
-    init(&mut deps, env, init_msg).unwrap();
+    instantiate(deps.as_mut(), mock_env(), info, init_msg).unwrap();
 
-    let msg = HandleMsg::IncreaseBalance {
-        address: HumanAddr::from("addr0000"),
+    let msg = ExecuteMsg::IncreaseBalance {
+        address: String::from("addr0000"),
         amount: Uint128::from(100u128),
     };
 
-    let env = mock_env("addr0000", &[]);
-    let res = handle(&mut deps, env, msg.clone());
+    let info = mock_info("addr0000", &[]);
+    let res = execute(deps.as_mut(), mock_env(), info, msg.clone());
     match res {
-        Err(StdError::Unauthorized { .. }) => {}
+        Err(_e) => {}
         _ => panic!("DO NOT ENTER HERE"),
     };
 
-    let env = mock_env(MOCK_TOKEN_CONTRACT_ADDR, &[]);
-    handle(&mut deps, env, msg).unwrap();
+    let info = mock_info(MOCK_TOKEN_CONTRACT_ADDR, &[]);
+    execute(deps.as_mut(), mock_env(), info, msg).unwrap();
 
     let res = query(
-        &deps,
+        deps.as_ref(),
+        mock_env(),
         QueryMsg::Holder {
-            address: HumanAddr::from("addr0000"),
+            address: String::from("addr0000"),
         },
     )
     .unwrap();
@@ -243,7 +233,7 @@ fn increase_balance() {
     assert_eq!(
         holder_response,
         HolderResponse {
-            address: HumanAddr::from("addr0000"),
+            address: String::from("addr0000"),
             balance: Uint128::from(100u128),
             index: Decimal::zero(),
             pending_rewards: Decimal::zero(),
@@ -252,21 +242,22 @@ fn increase_balance() {
 
     // claimed_rewards = 100, total_balance = 100
     // global_index == 1
-    let env = mock_env(MOCK_HUB_CONTRACT_ADDR, &[]);
-    let msg = HandleMsg::UpdateGlobalIndex {};
-    handle(&mut deps, env, msg).unwrap();
+    let info = mock_info(MOCK_HUB_CONTRACT_ADDR, &[]);
+    let msg = ExecuteMsg::UpdateGlobalIndex {};
+    execute(deps.as_mut(), mock_env(), info, msg).unwrap();
 
-    let env = mock_env(MOCK_TOKEN_CONTRACT_ADDR, &[]);
-    let msg = HandleMsg::IncreaseBalance {
-        address: HumanAddr::from("addr0000"),
+    let info = mock_info(MOCK_TOKEN_CONTRACT_ADDR, &[]);
+    let msg = ExecuteMsg::IncreaseBalance {
+        address: String::from("addr0000"),
         amount: Uint128::from(100u128),
     };
-    handle(&mut deps, env, msg).unwrap();
+    execute(deps.as_mut(), mock_env(), info, msg).unwrap();
 
     let res = query(
-        &deps,
+        deps.as_ref(),
+        mock_env(),
         QueryMsg::Holder {
-            address: HumanAddr::from("addr0000"),
+            address: String::from("addr0000"),
         },
     )
     .unwrap();
@@ -274,7 +265,7 @@ fn increase_balance() {
     assert_eq!(
         holder_response,
         HolderResponse {
-            address: HumanAddr::from("addr0000"),
+            address: String::from("addr0000"),
             balance: Uint128::from(200u128),
             index: Decimal::one(),
             pending_rewards: Decimal::from_str("100").unwrap(),
@@ -284,38 +275,36 @@ fn increase_balance() {
 
 #[test]
 fn increase_balance_with_decimals() {
-    let mut deps = mock_dependencies(
-        20,
-        &[Coin {
-            denom: "uusd".to_string(),
-            amount: Uint128(100000u128),
-        }],
-    );
+    let mut deps = mock_dependencies(&[Coin {
+        denom: "uusd".to_string(),
+        amount: Uint128::new(100000u128),
+    }]);
 
     let init_msg = default_init();
-    let env = mock_env("addr0000", &[]);
+    let info = mock_info("addr0000", &[]);
 
-    init(&mut deps, env, init_msg).unwrap();
+    instantiate(deps.as_mut(), mock_env(), info, init_msg).unwrap();
 
-    let msg = HandleMsg::IncreaseBalance {
-        address: HumanAddr::from("addr0000"),
+    let msg = ExecuteMsg::IncreaseBalance {
+        address: String::from("addr0000"),
         amount: Uint128::from(11u128),
     };
 
-    let env = mock_env("addr0000", &[]);
-    let res = handle(&mut deps, env, msg.clone());
+    let info = mock_info("addr0000", &[]);
+    let res = execute(deps.as_mut(), mock_env(), info, msg.clone());
     match res {
-        Err(StdError::Unauthorized { .. }) => {}
+        Err(_e) => {}
         _ => panic!("DO NOT ENTER HERE"),
     };
 
-    let env = mock_env(MOCK_TOKEN_CONTRACT_ADDR, &[]);
-    handle(&mut deps, env, msg).unwrap();
+    let info = mock_info(MOCK_TOKEN_CONTRACT_ADDR, &[]);
+    execute(deps.as_mut(), mock_env(), info, msg).unwrap();
 
     let res = query(
-        &deps,
+        deps.as_ref(),
+        mock_env(),
         QueryMsg::Holder {
-            address: HumanAddr::from("addr0000"),
+            address: String::from("addr0000"),
         },
     )
     .unwrap();
@@ -323,7 +312,7 @@ fn increase_balance_with_decimals() {
     assert_eq!(
         holder_response,
         HolderResponse {
-            address: HumanAddr::from("addr0000"),
+            address: String::from("addr0000"),
             balance: Uint128::from(11u128),
             index: Decimal::zero(),
             pending_rewards: Decimal::zero(),
@@ -332,27 +321,28 @@ fn increase_balance_with_decimals() {
 
     // claimed_rewards = 100000 , total_balance = 11
     // global_index == 9077.727272727272727272
-    let env = mock_env(MOCK_HUB_CONTRACT_ADDR, &[]);
-    let msg = HandleMsg::UpdateGlobalIndex {};
-    handle(&mut deps, env, msg).unwrap();
+    let info = mock_info(MOCK_HUB_CONTRACT_ADDR, &[]);
+    let msg = ExecuteMsg::UpdateGlobalIndex {};
+    execute(deps.as_mut(), mock_env(), info, msg).unwrap();
 
-    let env = mock_env(MOCK_TOKEN_CONTRACT_ADDR, &[]);
-    let msg = HandleMsg::IncreaseBalance {
-        address: HumanAddr::from("addr0000"),
+    let info = mock_info(MOCK_TOKEN_CONTRACT_ADDR, &[]);
+    let msg = ExecuteMsg::IncreaseBalance {
+        address: String::from("addr0000"),
         amount: Uint128::from(10u128),
     };
-    handle(&mut deps, env, msg).unwrap();
+    execute(deps.as_mut(), mock_env(), info, msg).unwrap();
 
     let res = query(
-        &deps,
+        deps.as_ref(),
+        mock_env(),
         QueryMsg::Holder {
-            address: HumanAddr::from("addr0000"),
+            address: String::from("addr0000"),
         },
     )
     .unwrap();
     let holder_response: HolderResponse = from_binary(&res).unwrap();
     let index = decimal_multiplication_in_256(
-        Decimal::from_ratio(Uint128(100000), Uint128(11)),
+        Decimal::from_ratio(Uint128::new(100000), Uint128::new(11)),
         Decimal::one(),
     );
     let user_pend_reward = decimal_multiplication_in_256(
@@ -362,7 +352,7 @@ fn increase_balance_with_decimals() {
     assert_eq!(
         holder_response,
         HolderResponse {
-            address: HumanAddr::from("addr0000"),
+            address: String::from("addr0000"),
             balance: Uint128::from(21u128),
             index,
             pending_rewards: user_pend_reward,
@@ -372,35 +362,32 @@ fn increase_balance_with_decimals() {
 
 #[test]
 fn decrease_balance() {
-    let mut deps = mock_dependencies(
-        20,
-        &[Coin {
-            denom: "uusd".to_string(),
-            amount: Uint128(100u128),
-        }],
-    );
+    let mut deps = mock_dependencies(&[Coin {
+        denom: "uusd".to_string(),
+        amount: Uint128::new(100u128),
+    }]);
 
     let init_msg = default_init();
-    let env = mock_env("addr0000", &[]);
+    let info = mock_info("addr0000", &[]);
 
-    init(&mut deps, env, init_msg).unwrap();
+    instantiate(deps.as_mut(), mock_env(), info, init_msg).unwrap();
 
-    let msg = HandleMsg::DecreaseBalance {
-        address: HumanAddr::from("addr0000"),
+    let msg = ExecuteMsg::DecreaseBalance {
+        address: String::from("addr0000"),
         amount: Uint128::from(100u128),
     };
 
     // Failed unautorized
-    let env = mock_env("addr0000", &[]);
-    let res = handle(&mut deps, env, msg.clone());
+    let info = mock_info("addr0000", &[]);
+    let res = execute(deps.as_mut(), mock_env(), info, msg.clone());
     match res {
-        Err(StdError::Unauthorized { .. }) => {}
+        Err(_e) => {}
         _ => panic!("DO NOT ENTER HERE"),
     };
 
     // Failed underflow
-    let env = mock_env(MOCK_TOKEN_CONTRACT_ADDR, &[]);
-    let res = handle(&mut deps, env, msg);
+    let info = mock_info(MOCK_TOKEN_CONTRACT_ADDR, &[]);
+    let res = execute(deps.as_mut(), mock_env(), info, msg);
     match res {
         Err(StdError::GenericErr { msg, .. }) => {
             assert_eq!(msg, "Decrease amount cannot exceed user balance: 0")
@@ -409,31 +396,32 @@ fn decrease_balance() {
     };
 
     // Increase balance first
-    let msg = HandleMsg::IncreaseBalance {
-        address: HumanAddr::from("addr0000"),
+    let msg = ExecuteMsg::IncreaseBalance {
+        address: String::from("addr0000"),
         amount: Uint128::from(100u128),
     };
 
-    let env = mock_env(MOCK_TOKEN_CONTRACT_ADDR, &[]);
-    handle(&mut deps, env, msg).unwrap();
+    let info = mock_info(MOCK_TOKEN_CONTRACT_ADDR, &[]);
+    execute(deps.as_mut(), mock_env(), info, msg).unwrap();
 
     // claimed_rewards = 100, total_balance = 100
     // global_index == 1
-    let env = mock_env(MOCK_HUB_CONTRACT_ADDR, &[]);
-    let msg = HandleMsg::UpdateGlobalIndex {};
-    handle(&mut deps, env, msg).unwrap();
+    let info = mock_info(MOCK_HUB_CONTRACT_ADDR, &[]);
+    let msg = ExecuteMsg::UpdateGlobalIndex {};
+    execute(deps.as_mut(), mock_env(), info, msg).unwrap();
 
-    let env = mock_env(MOCK_TOKEN_CONTRACT_ADDR, &[]);
-    let msg = HandleMsg::DecreaseBalance {
-        address: HumanAddr::from("addr0000"),
+    let info = mock_info(MOCK_TOKEN_CONTRACT_ADDR, &[]);
+    let msg = ExecuteMsg::DecreaseBalance {
+        address: String::from("addr0000"),
         amount: Uint128::from(100u128),
     };
-    handle(&mut deps, env, msg).unwrap();
+    execute(deps.as_mut(), mock_env(), info, msg).unwrap();
 
     let res = query(
-        &deps,
+        deps.as_ref(),
+        mock_env(),
         QueryMsg::Holder {
-            address: HumanAddr::from("addr0000"),
+            address: String::from("addr0000"),
         },
     )
     .unwrap();
@@ -441,7 +429,7 @@ fn decrease_balance() {
     assert_eq!(
         holder_response,
         HolderResponse {
-            address: HumanAddr::from("addr0000"),
+            address: String::from("addr0000"),
             balance: Uint128::zero(),
             index: Decimal::one(),
             pending_rewards: Decimal::from_str("100").unwrap(),
@@ -451,31 +439,29 @@ fn decrease_balance() {
 
 #[test]
 fn claim_rewards() {
-    let mut deps = mock_dependencies(
-        20,
-        &[Coin {
-            denom: "uusd".to_string(),
-            amount: Uint128(100u128),
-        }],
-    );
+    let mut deps = mock_dependencies(&[Coin {
+        denom: "uusd".to_string(),
+        amount: Uint128::new(100u128),
+    }]);
 
     let init_msg = default_init();
-    let env = mock_env("addr0000", &[]);
+    let info = mock_info("addr0000", &[]);
 
-    init(&mut deps, env, init_msg).unwrap();
+    instantiate(deps.as_mut(), mock_env(), info, init_msg).unwrap();
 
-    let msg = HandleMsg::IncreaseBalance {
-        address: HumanAddr::from("addr0000"),
+    let msg = ExecuteMsg::IncreaseBalance {
+        address: String::from("addr0000"),
         amount: Uint128::from(100u128),
     };
 
-    let env = mock_env(MOCK_TOKEN_CONTRACT_ADDR, &[]);
-    handle(&mut deps, env, msg).unwrap();
+    let info = mock_info(MOCK_TOKEN_CONTRACT_ADDR, &[]);
+    execute(deps.as_mut(), mock_env(), info, msg).unwrap();
 
     let res = query(
-        &deps,
+        deps.as_ref(),
+        mock_env(),
         QueryMsg::Holder {
-            address: HumanAddr::from("addr0000"),
+            address: String::from("addr0000"),
         },
     )
     .unwrap();
@@ -483,7 +469,7 @@ fn claim_rewards() {
     assert_eq!(
         holder_response,
         HolderResponse {
-            address: HumanAddr::from("addr0000"),
+            address: String::from("addr0000"),
             balance: Uint128::from(100u128),
             index: Decimal::zero(),
             pending_rewards: Decimal::zero(),
@@ -492,77 +478,73 @@ fn claim_rewards() {
 
     // claimed_rewards = 100, total_balance = 100
     // global_index == 1
-    let env = mock_env(MOCK_HUB_CONTRACT_ADDR, &[]);
-    let msg = HandleMsg::UpdateGlobalIndex {};
-    handle(&mut deps, env, msg).unwrap();
+    let info = mock_info(MOCK_HUB_CONTRACT_ADDR, &[]);
+    let msg = ExecuteMsg::UpdateGlobalIndex {};
+    execute(deps.as_mut(), mock_env(), info, msg).unwrap();
 
-    let msg = HandleMsg::ClaimRewards { recipient: None };
-    let env = mock_env("addr0000", &[]);
-    let res = handle(&mut deps, env, msg).unwrap();
+    let msg = ExecuteMsg::ClaimRewards { recipient: None };
+    let info = mock_info("addr0000", &[]);
+    let res = execute(deps.as_mut(), mock_env(), info, msg).unwrap();
     assert_eq!(
         res.messages,
-        vec![CosmosMsg::Bank(BankMsg::Send {
-            from_address: HumanAddr::from(MOCK_CONTRACT_ADDR),
-            to_address: HumanAddr::from("addr0000"),
+        vec![SubMsg::new(CosmosMsg::Bank(BankMsg::Send {
+            to_address: String::from("addr0000"),
             amount: vec![Coin {
                 denom: "uusd".to_string(),
                 amount: Uint128::from(99u128), // 1% tax
             },]
-        })]
+        }))]
     );
 
     // Set recipient
     // claimed_rewards = 100, total_balance = 100
     // global_index == 1
-    let env = mock_env(MOCK_HUB_CONTRACT_ADDR, &[]);
-    let msg = HandleMsg::UpdateGlobalIndex {};
-    handle(&mut deps, env, msg).unwrap();
+    let info = mock_info(MOCK_HUB_CONTRACT_ADDR, &[]);
+    let msg = ExecuteMsg::UpdateGlobalIndex {};
+    execute(deps.as_mut(), mock_env(), info, msg).unwrap();
 
-    let msg = HandleMsg::ClaimRewards {
-        recipient: Some(HumanAddr::from("addr0001")),
+    let msg = ExecuteMsg::ClaimRewards {
+        recipient: Some(String::from("addr0001")),
     };
-    let env = mock_env("addr0000", &[]);
-    let res = handle(&mut deps, env, msg).unwrap();
+    let info = mock_info("addr0000", &[]);
+    let res = execute(deps.as_mut(), mock_env(), info, msg).unwrap();
     assert_eq!(
         res.messages,
-        vec![CosmosMsg::Bank(BankMsg::Send {
-            from_address: HumanAddr::from(MOCK_CONTRACT_ADDR),
-            to_address: HumanAddr::from("addr0001"),
+        vec![SubMsg::new(CosmosMsg::Bank(BankMsg::Send {
+            to_address: String::from("addr0001"),
             amount: vec![Coin {
                 denom: "uusd".to_string(),
                 amount: Uint128::from(99u128), // 1% tax
             },]
-        })]
+        }))]
     );
 }
 
 #[test]
 fn claim_rewards_with_decimals() {
-    let mut deps = mock_dependencies(
-        20,
-        &[Coin {
-            denom: "uusd".to_string(),
-            amount: Uint128(99999u128),
-        }],
-    );
+    let mut deps = mock_dependencies(&[Coin {
+        denom: "uusd".to_string(),
+        amount: Uint128::new(99999u128),
+    }]);
 
     let init_msg = default_init();
-    let env = mock_env("addr0000", &[]);
+    let info = mock_info("addr0000", &[]);
 
-    init(&mut deps, env, init_msg).unwrap();
+    instantiate(deps.as_mut(), mock_env(), info, init_msg).unwrap();
 
-    let msg = HandleMsg::IncreaseBalance {
-        address: HumanAddr::from("addr0000"),
+    let msg = ExecuteMsg::IncreaseBalance {
+        address: String::from("addr0000"),
         amount: Uint128::from(11u128),
     };
 
-    let env = mock_env(MOCK_TOKEN_CONTRACT_ADDR, &[]);
-    handle(&mut deps, env, msg).unwrap();
+    let info = mock_info(MOCK_TOKEN_CONTRACT_ADDR, &[]);
+    execute(deps.as_mut(), mock_env(), info, msg).unwrap();
 
     let res = query(
-        &deps,
+        deps.as_ref(),
+        mock_env(),
         QueryMsg::Holder {
-            address: HumanAddr::from("addr0000"),
+            address: String::from("addr0000"),
         },
     )
     .unwrap();
@@ -570,7 +552,7 @@ fn claim_rewards_with_decimals() {
     assert_eq!(
         holder_response,
         HolderResponse {
-            address: HumanAddr::from("addr0000"),
+            address: String::from("addr0000"),
             balance: Uint128::from(11u128),
             index: Decimal::zero(),
             pending_rewards: Decimal::zero(),
@@ -579,98 +561,96 @@ fn claim_rewards_with_decimals() {
 
     // claimed_rewards = 1000000, total_balance = 11
     // global_index ==
-    let env = mock_env(MOCK_HUB_CONTRACT_ADDR, &[]);
+    let info = mock_info(MOCK_HUB_CONTRACT_ADDR, &[]);
 
-    let msg = HandleMsg::UpdateGlobalIndex {};
-    handle(&mut deps, env, msg).unwrap();
+    let msg = ExecuteMsg::UpdateGlobalIndex {};
+    execute(deps.as_mut(), mock_env(), info, msg).unwrap();
 
-    let msg = HandleMsg::ClaimRewards { recipient: None };
-    let env = mock_env("addr0000", &[]);
-    let res = handle(&mut deps, env, msg).unwrap();
+    let msg = ExecuteMsg::ClaimRewards { recipient: None };
+    let info = mock_info("addr0000", &[]);
+    let res = execute(deps.as_mut(), mock_env(), info, msg).unwrap();
     assert_eq!(
         res.messages,
-        vec![CosmosMsg::Bank(BankMsg::Send {
-            from_address: HumanAddr::from(MOCK_CONTRACT_ADDR),
-            to_address: HumanAddr::from("addr0000"),
+        vec![SubMsg::new(CosmosMsg::Bank(BankMsg::Send {
+            to_address: String::from("addr0000"),
             amount: vec![Coin {
                 denom: "uusd".to_string(),
                 amount: Uint128::from(99007u128), // 1% tax
             },]
-        })]
+        }))]
     );
 
     let res = query(
-        &deps,
+        deps.as_ref(),
+        mock_env(),
         QueryMsg::Holder {
-            address: HumanAddr::from("addr0000"),
+            address: String::from("addr0000"),
         },
     )
     .unwrap();
     let holder_response: HolderResponse = from_binary(&res).unwrap();
     let index = decimal_multiplication_in_256(
-        Decimal::from_ratio(Uint128(99999), Uint128(11)),
+        Decimal::from_ratio(Uint128::new(99999), Uint128::new(11)),
         Decimal::one(),
     );
     assert_eq!(
         holder_response,
         HolderResponse {
-            address: HumanAddr::from("addr0000"),
+            address: String::from("addr0000"),
             balance: Uint128::from(11u128),
             index,
             pending_rewards: Decimal::from_str("0.999999999999999991").unwrap(),
         }
     );
 
-    let res = query(&deps, QueryMsg::State {}).unwrap();
+    let res = query(deps.as_ref(), mock_env(), QueryMsg::State {}).unwrap();
     let state_response: StateResponse = from_binary(&res).unwrap();
     assert_eq!(
         state_response,
         StateResponse {
             global_index: index,
-            total_balance: Uint128(11u128),
-            prev_reward_balance: Uint128(1)
+            total_balance: Uint128::new(11u128),
+            prev_reward_balance: Uint128::new(1)
         }
     );
 }
 
 #[test]
 fn query_holders() {
-    let mut deps = mock_dependencies(
-        20,
-        &[Coin {
-            denom: "uusd".to_string(),
-            amount: Uint128(100u128),
-        }],
-    );
+    let mut deps = mock_dependencies(&[Coin {
+        denom: "uusd".to_string(),
+        amount: Uint128::new(100u128),
+    }]);
 
     let init_msg = default_init();
-    let env = mock_env("addr0000", &[]);
+    let info = mock_info("addr0000", &[]);
 
-    init(&mut deps, env, init_msg).unwrap();
+    instantiate(deps.as_mut(), mock_env(), info, init_msg).unwrap();
 
-    let msg = HandleMsg::IncreaseBalance {
-        address: HumanAddr::from("addr0000"),
+    let msg = ExecuteMsg::IncreaseBalance {
+        address: String::from("addr0000"),
         amount: Uint128::from(100u128),
     };
 
-    let env = mock_env(MOCK_TOKEN_CONTRACT_ADDR, &[]);
-    handle(&mut deps, env.clone(), msg).unwrap();
+    let info = mock_info(MOCK_TOKEN_CONTRACT_ADDR, &[]);
+    execute(deps.as_mut(), mock_env(), info.clone(), msg).unwrap();
 
-    let msg = HandleMsg::IncreaseBalance {
-        address: HumanAddr::from("addr0001"),
+    let msg = ExecuteMsg::IncreaseBalance {
+        address: String::from("addr0001"),
         amount: Uint128::from(200u128),
     };
 
-    handle(&mut deps, env.clone(), msg).unwrap();
-    let msg = HandleMsg::IncreaseBalance {
-        address: HumanAddr::from("addr0002"),
+    execute(deps.as_mut(), mock_env(), info.clone(), msg).unwrap();
+    let msg = ExecuteMsg::IncreaseBalance {
+        address: String::from("addr0002"),
         amount: Uint128::from(300u128),
     };
 
-    handle(&mut deps, env, msg).unwrap();
+    execute(deps.as_mut(), mock_env(), info, msg).unwrap();
 
     let res = query(
-        &deps,
+        deps.as_ref(),
+        mock_env(),
         QueryMsg::Holders {
             start_after: None,
             limit: None,
@@ -683,30 +663,31 @@ fn query_holders() {
         HoldersResponse {
             holders: vec![
                 HolderResponse {
-                    address: HumanAddr::from("addr0000"),
+                    address: String::from("addr0000"),
                     balance: Uint128::from(100u128),
                     index: Decimal::zero(),
                     pending_rewards: Decimal::zero(),
                 },
                 HolderResponse {
-                    address: HumanAddr::from("addr0001"),
+                    address: String::from("addr0001"),
                     balance: Uint128::from(200u128),
                     index: Decimal::zero(),
                     pending_rewards: Decimal::zero(),
                 },
                 HolderResponse {
-                    address: HumanAddr::from("addr0002"),
+                    address: String::from("addr0002"),
                     balance: Uint128::from(300u128),
                     index: Decimal::zero(),
                     pending_rewards: Decimal::zero(),
-                }
+                },
             ],
         }
     );
 
     // Set limit
     let res = query(
-        &deps,
+        deps.as_ref(),
+        mock_env(),
         QueryMsg::Holders {
             start_after: None,
             limit: Some(1),
@@ -718,7 +699,7 @@ fn query_holders() {
         holders_response,
         HoldersResponse {
             holders: vec![HolderResponse {
-                address: HumanAddr::from("addr0000"),
+                address: String::from("addr0000"),
                 balance: Uint128::from(100u128),
                 index: Decimal::zero(),
                 pending_rewards: Decimal::zero(),
@@ -728,9 +709,10 @@ fn query_holders() {
 
     // Set start_after
     let res = query(
-        &deps,
+        deps.as_ref(),
+        mock_env(),
         QueryMsg::Holders {
-            start_after: Some(HumanAddr::from("addr0000")),
+            start_after: Some(String::from("addr0000")),
             limit: None,
         },
     )
@@ -741,13 +723,13 @@ fn query_holders() {
         HoldersResponse {
             holders: vec![
                 HolderResponse {
-                    address: HumanAddr::from("addr0001"),
+                    address: String::from("addr0001"),
                     balance: Uint128::from(200u128),
                     index: Decimal::zero(),
                     pending_rewards: Decimal::zero(),
                 },
                 HolderResponse {
-                    address: HumanAddr::from("addr0002"),
+                    address: String::from("addr0002"),
                     balance: Uint128::from(300u128),
                     index: Decimal::zero(),
                     pending_rewards: Decimal::zero(),
@@ -758,9 +740,10 @@ fn query_holders() {
 
     // Set start_after and limit
     let res = query(
-        &deps,
+        deps.as_ref(),
+        mock_env(),
         QueryMsg::Holders {
-            start_after: Some(HumanAddr::from("addr0000")),
+            start_after: Some(String::from("addr0000")),
             limit: Some(1),
         },
     )
@@ -770,7 +753,7 @@ fn query_holders() {
         holders_response,
         HoldersResponse {
             holders: vec![HolderResponse {
-                address: HumanAddr::from("addr0001"),
+                address: String::from("addr0001"),
                 balance: Uint128::from(200u128),
                 index: Decimal::zero(),
                 pending_rewards: Decimal::zero(),
@@ -781,24 +764,21 @@ fn query_holders() {
 
 #[test]
 fn proper_prev_balance() {
-    let mut deps = mock_dependencies(
-        20,
-        &[Coin {
-            denom: "uusd".to_string(),
-            amount: Uint128(100u128),
-        }],
-    );
+    let mut deps = mock_dependencies(&[Coin {
+        denom: "uusd".to_string(),
+        amount: Uint128::new(100u128),
+    }]);
 
     let init_msg = default_init();
-    let env = mock_env("addr0000", &[]);
+    let info = mock_info("addr0000", &[]);
 
-    init(&mut deps, env, init_msg).unwrap();
+    instantiate(deps.as_mut(), mock_env(), info, init_msg).unwrap();
 
     let amount1 = Uint128::from(8899999999988889u128);
     let amount2 = Uint128::from(14487875351811111u128);
     let amount3 = Uint128::from(1100000000000000u128);
 
-    let rewards = Uint128(677101666827000000u128);
+    let rewards = Uint128::new(677101666827000000u128);
 
     let all_balance = amount1 + amount2 + amount3;
 
@@ -822,7 +802,7 @@ fn proper_prev_balance() {
         &mut deps.storage,
         &deps
             .api
-            .canonical_address(&HumanAddr::from("addr0000"))
+            .addr_canonicalize(&String::from("addr0000"))
             .unwrap(),
         &holder,
     )
@@ -837,7 +817,7 @@ fn proper_prev_balance() {
         &mut deps.storage,
         &deps
             .api
-            .canonical_address(&HumanAddr::from("addr0001"))
+            .addr_canonicalize(&String::from("addr0001"))
             .unwrap(),
         &holder,
     )
@@ -852,39 +832,40 @@ fn proper_prev_balance() {
         &mut deps.storage,
         &deps
             .api
-            .canonical_address(&HumanAddr::from("addr0002"))
+            .addr_canonicalize(&String::from("addr0002"))
             .unwrap(),
         &holder,
     )
     .unwrap();
 
-    let msg = HandleMsg::ClaimRewards { recipient: None };
-    let env = mock_env("addr0000", &[]);
-    let _res = handle(&mut deps, env, msg).unwrap();
+    let msg = ExecuteMsg::ClaimRewards { recipient: None };
+    let info = mock_info("addr0000", &[]);
+    let _res = execute(deps.as_mut(), mock_env(), info, msg).unwrap();
 
-    let msg = HandleMsg::ClaimRewards { recipient: None };
-    let env = mock_env("addr0001", &[]);
-    let _res = handle(&mut deps, env, msg).unwrap();
+    let msg = ExecuteMsg::ClaimRewards { recipient: None };
+    let info = mock_info("addr0001", &[]);
+    let _res = execute(deps.as_mut(), mock_env(), info, msg).unwrap();
 
-    let msg = HandleMsg::ClaimRewards { recipient: None };
-    let env = mock_env("addr0002", &[]);
-    let _res = handle(&mut deps, env, msg).unwrap();
+    let msg = ExecuteMsg::ClaimRewards { recipient: None };
+    let info = mock_info("addr0002", &[]);
+    let _res = execute(deps.as_mut(), mock_env(), info, msg).unwrap();
 
-    let res = query(&deps, QueryMsg::State {}).unwrap();
+    let res = query(deps.as_ref(), mock_env(), QueryMsg::State {}).unwrap();
     let state_response: StateResponse = from_binary(&res).unwrap();
     assert_eq!(
         state_response,
         StateResponse {
             global_index,
             total_balance: all_balance,
-            prev_reward_balance: Uint128(1)
+            prev_reward_balance: Uint128::new(1)
         }
     );
 
     let res = query(
-        &deps,
+        deps.as_ref(),
+        mock_env(),
         QueryMsg::Holder {
-            address: HumanAddr::from("addr0000"),
+            address: String::from("addr0000"),
         },
     )
     .unwrap();
@@ -892,7 +873,7 @@ fn proper_prev_balance() {
     assert_eq!(
         holder_response,
         HolderResponse {
-            address: HumanAddr::from("addr0000"),
+            address: String::from("addr0000"),
             balance: amount1,
             index: global_index,
             pending_rewards: Decimal::from_str("0.212799238975421283").unwrap(),
@@ -900,9 +881,10 @@ fn proper_prev_balance() {
     );
 
     let res = query(
-        &deps,
+        deps.as_ref(),
+        mock_env(),
         QueryMsg::Holder {
-            address: HumanAddr::from("addr0001"),
+            address: String::from("addr0001"),
         },
     )
     .unwrap();
@@ -910,7 +892,7 @@ fn proper_prev_balance() {
     assert_eq!(
         holder_response,
         HolderResponse {
-            address: HumanAddr::from("addr0001"),
+            address: String::from("addr0001"),
             balance: amount2,
             index: global_index,
             pending_rewards: Decimal::from_str("0.078595712259178717").unwrap(),
@@ -918,9 +900,10 @@ fn proper_prev_balance() {
     );
 
     let res = query(
-        &deps,
+        deps.as_ref(),
+        mock_env(),
         QueryMsg::Holder {
-            address: HumanAddr::from("addr0002"),
+            address: String::from("addr0002"),
         },
     )
     .unwrap();
@@ -928,7 +911,7 @@ fn proper_prev_balance() {
     assert_eq!(
         holder_response,
         HolderResponse {
-            address: HumanAddr::from("addr0002"),
+            address: String::from("addr0002"),
             balance: amount3,
             index: global_index,
             pending_rewards: Decimal::from_str("0.701700000000000000").unwrap(),
