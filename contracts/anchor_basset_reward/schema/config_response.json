@@ -8,14 +8,9 @@
   ],
   "properties": {
     "hub_contract": {
-      "$ref": "#/definitions/HumanAddr"
+      "type": "string"
     },
     "reward_denom": {
-      "type": "string"
-    }
-  },
-  "definitions": {
-    "HumanAddr": {
       "type": "string"
     }
   }

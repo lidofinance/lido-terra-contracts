@@ -1,68 +1,69 @@
 use crate::contract::{query_total_issued, slashing};
 use crate::state::{
-    get_finished_amount, get_unbond_batches, read_config, read_current_batch, read_parameters,
-    read_state, read_unbond_history, remove_unbond_wait_list, store_current_batch, store_state,
-    store_unbond_history, store_unbond_wait_list, UnbondHistory,
+    get_finished_amount, get_unbond_batches, read_unbond_history, remove_unbond_wait_list,
+    store_unbond_history, store_unbond_wait_list, CONFIG, CURRENT_BATCH, PARAMETERS, STATE,
 };
+use basset::hub::{State, UnbondHistory};
 use cosmwasm_std::{
-    coin, coins, log, to_binary, Api, BankMsg, CosmosMsg, Decimal, Env, Extern, HandleResponse,
-    HumanAddr, Querier, StakingMsg, StdError, StdResult, Storage, Uint128, WasmMsg,
+    attr, coin, coins, to_binary, BankMsg, CosmosMsg, Decimal, Deps, DepsMut, Env, MessageInfo,
+    Response, StakingMsg, StdError, StdResult, Storage, Uint128, WasmMsg,
 };
-use cw20::Cw20HandleMsg;
+use cw20::Cw20ExecuteMsg;
 use rand::{Rng, SeedableRng, XorShiftRng};
 use signed_integer::SignedInt;
 
 /// This message must be call by receive_cw20
 /// This message will undelegate coin and burn basset token
-pub(crate) fn handle_unbond<S: Storage, A: Api, Q: Querier>(
-    deps: &mut Extern<S, A, Q>,
+pub(crate) fn execute_unbond(
+    mut deps: DepsMut,
     env: Env,
+    _info: MessageInfo,
     amount: Uint128,
-    sender: HumanAddr,
-) -> StdResult<HandleResponse> {
+    sender: String,
+) -> StdResult<Response> {
     // Read params
-    let params = read_parameters(&deps.storage).load()?;
+    let params = PARAMETERS.load(deps.storage)?;
     let epoch_period = params.epoch_period;
     let threshold = params.er_threshold;
     let recovery_fee = params.peg_recovery_fee;
 
-    let mut current_batch = read_current_batch(&deps.storage).load()?;
+    let mut current_batch = CURRENT_BATCH.load(deps.storage)?;
 
     // Check slashing, update state, and calculate the new exchange rate.
-    slashing(deps, env.clone())?;
+    slashing(&mut deps, env.clone())?;
 
-    let mut state = read_state(&deps.storage).load()?;
+    let mut state = STATE.load(deps.storage)?;
 
-    let mut total_supply = query_total_issued(&deps).unwrap_or_default();
+    let mut total_supply = query_total_issued(deps.as_ref()).unwrap_or_default();
 
     // Collect all the requests within a epoch period
     // Apply peg recovery fee
     let amount_with_fee: Uint128;
     if state.exchange_rate < threshold {
         let max_peg_fee = amount * recovery_fee;
-        let required_peg_fee =
-            ((total_supply + current_batch.requested_with_fee) - state.total_bond_amount)?;
+        let required_peg_fee = ((total_supply + current_batch.requested_with_fee)
+            .checked_sub(state.total_bond_amount))?;
         let peg_fee = Uint128::min(max_peg_fee, required_peg_fee);
-        amount_with_fee = (amount - peg_fee)?;
+        amount_with_fee = (amount.checked_sub(peg_fee))?;
     } else {
         amount_with_fee = amount;
     }
     current_batch.requested_with_fee += amount_with_fee;
 
     store_unbond_wait_list(
-        &mut deps.storage,
+        deps.storage,
         current_batch.id,
         sender.clone(),
         amount_with_fee,
     )?;
 
-    total_supply =
-        (total_supply - amount).expect("the requested can not be more than the total supply");
+    total_supply = (total_supply.checked_sub(amount))
+        .expect("the requested can not be more than the total supply");
 
     // Update exchange rate
     state.update_exchange_rate(total_supply, current_batch.requested_with_fee);
 
-    let current_time = env.block.time;
+    let current_time = env.block.time.seconds();
     let passed_time = current_time - state.last_unbonded_time;
 
     let mut messages: Vec<CosmosMsg> = vec![];
@@ -73,7 +74,7 @@ pub(crate) fn handle_unbond<S: Storage, A: Api, Q: Querier>(
         let undelegation_amount = current_batch.requested_with_fee * state.exchange_rate;
 
         // the contract must stop if
-        if undelegation_amount == Uint128(1) {
+        if undelegation_amount == Uint128::new(1) {
             return Err(StdError::generic_err(
                 "Burn amount must be greater than 1 ubluna",
             ));
@@ -84,79 +85,79 @@ pub(crate) fn handle_unbond<S: Storage, A: Api, Q: Querier>(
         let block_height = env.block.height;
 
         // Send undelegated requests to possibly more than one validators
-        let mut undelegated_msgs =
-            pick_validator(deps, undelegation_amount, delegator, block_height)?;
+        let mut undelegated_msgs = pick_validator(
+            deps.as_ref(),
+            undelegation_amount,
+            delegator.to_string(),
+            block_height,
+        )?;
 
         messages.append(&mut undelegated_msgs);
 
-        state.total_bond_amount = (state.total_bond_amount - undelegation_amount)
+        state.total_bond_amount = (state.total_bond_amount.checked_sub(undelegation_amount))
             .expect("undelegation amount can not be more than stored total bonded amount");
 
         // Store history for withdraw unbonded
         let history = UnbondHistory {
             batch_id: current_batch.id,
-            time: env.block.time,
+            time: env.block.time.seconds(),
             amount: current_batch.requested_with_fee,
             applied_exchange_rate: state.exchange_rate,
             withdraw_rate: state.exchange_rate,
             released: false,
         };
-        store_unbond_history(&mut deps.storage, current_batch.id, history)?;
+        store_unbond_history(deps.storage, current_batch.id, history)?;
         // batch info must be updated to new batch
         current_batch.id += 1;
         current_batch.requested_with_fee = Uint128::zero();
 
         // state.last_unbonded_time must be updated to the current block time
-        state.last_unbonded_time = env.block.time;
+        state.last_unbonded_time = env.block.time.seconds();
     }
 
     // Store the new requested_with_fee or id in the current batch
-    store_current_batch(&mut deps.storage).save(&current_batch)?;
+    CURRENT_BATCH.save(deps.storage, &current_batch)?;
 
     // Store state's new exchange rate
-    store_state(&mut deps.storage).save(&state)?;
+    STATE.save(deps.storage, &state)?;
 
     // Send Burn message to token contract
-    let config = read_config(&deps.storage).load()?;
-    let token_address = deps.api.human_address(
+    let config = CONFIG.load(deps.storage)?;
+    let token_address = deps.api.addr_humanize(
         &config
             .token_contract
             .expect("the token contract must have been registered"),
     )?;
 
-    let burn_msg = Cw20HandleMsg::Burn { amount };
+    let burn_msg = Cw20ExecuteMsg::Burn { amount };
     messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
-        contract_addr: token_address,
+        contract_addr: token_address.to_string(),
         msg: to_binary(&burn_msg)?,
-        send: vec![],
+        funds: vec![],
     }));
 
-    let res = HandleResponse {
-        messages,
-        log: vec![
-            log("action", "burn"),
-            log("from", sender),
-            log("burnt_amount", amount),
-            log("unbonded_amount", amount_with_fee),
-        ],
-        data: None,
-    };
-    Ok(res)
+    Ok(Response::new().add_messages(messages).add_attributes(vec![
+        attr("action", "burn"),
+        attr("from", sender),
+        attr("burnt_amount", amount),
+        attr("unbonded_amount", amount_with_fee),
+    ]))
 }
 
-pub fn handle_withdraw_unbonded<S: Storage, A: Api, Q: Querier>(
-    deps: &mut Extern<S, A, Q>,
+pub fn execute_withdraw_unbonded(
+    deps: DepsMut,
     env: Env,
-) -> StdResult<HandleResponse> {
-    let sender_human = env.message.sender.clone();
+    info: MessageInfo,
+) -> StdResult<Response> {
+    let sender_human = info.sender;
     let contract_address = env.contract.address.clone();
 
     // read params
-    let params = read_parameters(&deps.storage).load()?;
+    let params = PARAMETERS.load(deps.storage)?;
     let unbonding_period = params.unbonding_period;
     let coin_denom = params.underlying_coin_denom;
 
-    let historical_time = env.block.time - unbonding_period;
+    let historical_time = env.block.time.seconds() - unbonding_period;
 
     // query hub balance for process withdraw rate.
     let hub_balance = deps
@@ -165,9 +166,9 @@ pub fn handle_withdraw_unbonded<S: Storage, A: Api, Q: Querier>(
         .amount;
 
     // calculate withdraw rate for user requests
-    process_withdraw_rate(deps, historical_time, hub_balance)?;
+    process_withdraw_rate(deps.storage, historical_time, hub_balance)?;
 
-    let withdraw_amount = get_finished_amount(&deps.storage, sender_human.clone()).unwrap();
+    let withdraw_amount = get_finished_amount(deps.storage, sender_human.to_string()).unwrap();
 
     if withdraw_amount.is_zero() {
         return Err(StdError::generic_err(format!(
@@ -177,47 +178,43 @@ pub fn handle_withdraw_unbonded<S: Storage, A: Api, Q: Querier>(
     }
 
     // remove the previous batches for the user
-    let deprecated_batches = get_unbond_batches(&deps.storage, sender_human.clone())?;
-    remove_unbond_wait_list(&mut deps.storage, deprecated_batches, sender_human.clone())?;
+    let deprecated_batches = get_unbond_batches(deps.storage, sender_human.to_string())?;
+    remove_unbond_wait_list(deps.storage, deprecated_batches, sender_human.clone())?;
 
     // Update previous balance used for calculation in next Luna batch release
-    let prev_balance = (hub_balance - withdraw_amount)?;
-    store_state(&mut deps.storage).update(|mut last_state| {
+    let prev_balance = (hub_balance.checked_sub(withdraw_amount))?;
+    STATE.update(deps.storage, |mut last_state| -> StdResult<State> {
         last_state.prev_hub_balance = prev_balance;
         Ok(last_state)
     })?;
 
     // Send the money to the user
-    let msgs = vec![BankMsg::Send {
-        from_address: contract_address.clone(),
-        to_address: sender_human,
+    let bank_msg: CosmosMsg = BankMsg::Send {
+        to_address: sender_human.to_string(),
         amount: coins(withdraw_amount.u128(), &*coin_denom),
     }
-    .into()];
+    .into();
 
-    let res = HandleResponse {
-        messages: msgs,
-        log: vec![
-            log("action", "finish_burn"),
-            log("from", contract_address),
-            log("amount", withdraw_amount),
-        ],
-        data: None,
-    };
-    Ok(res)
+    Ok(Response::new()
+        .add_attributes(vec![
+            attr("action", "finish_burn"),
+            attr("from", contract_address),
+            attr("amount", withdraw_amount),
+        ])
+        .add_message(bank_msg))
 }
 
 /// This is designed for an accurate unbonded amount calculation.
 /// Execute while processing withdraw_unbonded
-fn process_withdraw_rate<S: Storage, A: Api, Q: Querier>(
-    deps: &mut Extern<S, A, Q>,
+fn process_withdraw_rate(
+    storage: &mut dyn Storage,
     historical_time: u64,
     hub_balance: Uint128,
 ) -> StdResult<()> {
     // balance change of the hub contract must be checked.
     let mut total_unbonded_amount = Uint128::zero();
 
-    let mut state = read_state(&deps.storage).load()?;
+    let mut state = STATE.load(storage)?;
 
     let balance_change = SignedInt::from_subtraction(hub_balance, state.prev_hub_balance);
     state.actual_unbonded_amount += balance_change.0;
@@ -230,7 +227,7 @@ fn process_withdraw_rate<S: Storage, A: Api, Q: Querier>(
     let mut i = last_processed_batch + 1;
     loop {
         let history: UnbondHistory;
-        match read_unbond_history(&deps.storage, i) {
+        match read_unbond_history(storage, i) {
             Ok(h) => {
                 if h.time > historical_time {
                     break;
@@ -260,7 +257,7 @@ fn process_withdraw_rate<S: Storage, A: Api, Q: Querier>(
         let mut iterator = last_processed_batch + 1;
         loop {
             let history: UnbondHistory;
-            match read_unbond_history(&deps.storage, iterator) {
+            match read_unbond_history(storage, iterator) {
                 Ok(h) => {
                     if h.time > historical_time {
                         break;
@@ -288,12 +285,12 @@ fn process_withdraw_rate<S: Storage, A: Api, Q: Querier>(
 
             // If slashed amount is negative, there should be summation instead of subtraction.
             if slashed_amount.1 {
-                slashed_amount_of_batch = (slashed_amount_of_batch - Uint128(1))?;
+                slashed_amount_of_batch = (slashed_amount_of_batch.checked_sub(Uint128::new(1)))?;
                 actual_unbonded_amount_of_batch =
                     unbonded_amount_of_batch + slashed_amount_of_batch;
             } else {
                 if slashed_amount.0.u128() != 0u128 {
-                    slashed_amount_of_batch += Uint128(1);
+                    slashed_amount_of_batch += Uint128::new(1);
                 }
                 actual_unbonded_amount_of_batch =
                     SignedInt::from_subtraction(unbonded_amount_of_batch, slashed_amount_of_batch)
@@ -307,26 +304,26 @@ fn process_withdraw_rate<S: Storage, A: Api, Q: Querier>(
             // store the history and mark it as released
             history_for_i.withdraw_rate = new_withdraw_rate;
             history_for_i.released = true;
-            store_unbond_history(&mut deps.storage, iterator, history_for_i)?;
+            store_unbond_history(storage, iterator, history_for_i)?;
             state.last_processed_batch = iterator;
             iterator += 1;
         }
     }
     // Store state.actual_unbonded_amount for future new batches release
     state.actual_unbonded_amount = Uint128::zero();
-    store_state(&mut deps.storage).save(&state)?;
+    STATE.save(storage, &state)?;
 
     Ok(())
 }
 
-fn pick_validator<S: Storage, A: Api, Q: Querier>(
-    deps: &mut Extern<S, A, Q>,
+fn pick_validator(
+    deps: Deps,
     claim: Uint128,
-    delegator: HumanAddr,
+    delegator: String,
     block_height: u64,
 ) -> StdResult<Vec<CosmosMsg>> {
     //read params
-    let params = read_parameters(&deps.storage).load()?;
+    let params = PARAMETERS.load(deps.storage)?;
     let coin_denom = params.underlying_coin_denom;
 
     let mut messages: Vec<CosmosMsg> = vec![];
@@ -336,28 +333,30 @@ fn pick_validator<S: Storage, A: Api, Q: Querier>(
         .querier
         .query_all_delegations(delegator)
         .expect("There must be at least one delegation");
+
     // pick a random validator
     // if it does not have requested amount, undelegate all it has
     // and pick another random validator
     let mut iteration_index = 0;
     let mut deletable_delegations = all_delegations;
-    while claimed.0 > 0 {
+
+    while claimed.u128() > 0 {
         let mut rng = XorShiftRng::seed_from_u64(block_height + iteration_index);
         let random_index = rng.gen_range(0, deletable_delegations.len());
         let delegation = deletable_delegations.remove(random_index);
         let val = delegation.amount.amount;
         let undelegated_amount: Uint128;
-        if val.0 > claimed.0 {
+        if val.u128() > claimed.u128() {
             undelegated_amount = claimed;
             claimed = Uint128::zero();
         } else {
             undelegated_amount = val;
-            claimed = (claimed - val)?;
+            claimed = (claimed.checked_sub(val))?;
         }
-        if undelegated_amount.0 > 0 {
+        if undelegated_amount.u128() > 0 {
             let msgs: CosmosMsg = CosmosMsg::Staking(StakingMsg::Undelegate {
                 validator: delegation.validator,
-                amount: coin(undelegated_amount.0, &*coin_denom),
+                amount: coin(undelegated_amount.u128(), &*coin_denom),
             });
             messages.push(msgs);
         }
