@@ -1,11 +1,11 @@
 // Copyright 2021 Anchor Protocol. Modified by Lido
-// 
+//
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
-// 
+//
 //     http://www.apache.org/licenses/LICENSE-2.0
-// 
+//
 // Unless required by applicable law or agreed to in writing, software
 // distributed under the License is distributed on an "AS IS" BASIS,
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -51,7 +51,7 @@ pub fn instantiate(
     msg: InstantiateMsg,
 ) -> StdResult<Response> {
     let sender = info.sender;
-    let sndr_raw = deps.api.addr_canonicalize(&sender.as_str())?;
+    let sndr_raw = deps.api.addr_canonicalize(sender.as_str())?;
 
     // store config
     let data = Config {
@@ -219,7 +219,7 @@ pub fn receive_cw20(
     info: MessageInfo,
     cw20_msg: Cw20ReceiveMsg,
 ) -> StdResult<Response> {
-    let contract_addr = deps.api.addr_canonicalize(&info.sender.as_str())?;
+    let contract_addr = deps.api.addr_canonicalize(info.sender.as_str())?;
 
     // only token contract can execute this message
     let conf = CONFIG.load(deps.storage)?;
@@ -334,9 +334,7 @@ fn withdraw_all_rewards(deps: &DepsMut, delegator: String) -> StdResult<Vec<Cosm
 
     let delegations = deps.querier.query_all_delegations(delegator)?;
 
-    if delegations.is_empty() {
-        Ok(messages)
-    } else {
+    if !delegations.is_empty() {
         for delegation in delegations {
             let msg: CosmosMsg =
                 CosmosMsg::Distribution(DistributionMsg::WithdrawDelegatorReward {
@@ -344,8 +342,8 @@ fn withdraw_all_rewards(deps: &DepsMut, delegator: String) -> StdResult<Vec<Cosm
                 });
             messages.push(msg);
         }
-        Ok(messages)
     }
+    Ok(messages)
 }
 
 /// Check whether slashing has happened
@@ -415,7 +413,7 @@ pub fn claim_airdrop(
 ) -> StdResult<Response> {
     let conf = CONFIG.load(deps.storage)?;
 
-    let sender_raw = deps.api.addr_canonicalize(&info.sender.as_str())?;
+    let sender_raw = deps.api.addr_canonicalize(info.sender.as_str())?;
 
     let airdrop_reg_raw = if let Some(airdrop) = conf.airdrop_registry_contract {
         airdrop
