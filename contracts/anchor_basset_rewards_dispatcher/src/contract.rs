@@ -3,7 +3,9 @@
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
+//
 //     http://www.apache.org/licenses/LICENSE-2.0
+//
 // Unless required by applicable law or agreed to in writing, software
 // distributed under the License is distributed on an "AS IS" BASIS,
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -33,7 +35,7 @@ pub fn instantiate(
     msg: InstantiateMsg,
 ) -> StdResult<Response> {
     let conf = Config {
-        owner: deps.api.addr_canonicalize(info.sender.as_str())?,
+        owner: deps.api.addr_canonicalize(&info.sender.as_str())?,
         hub_contract: deps.api.addr_canonicalize(&msg.hub_contract)?,
         bluna_reward_contract: deps.api.addr_canonicalize(&msg.bluna_reward_contract)?,
         bluna_reward_denom: msg.bluna_reward_denom,
@@ -103,7 +105,7 @@ pub fn execute_update_config(
     lido_fee_rate: Option<Decimal>,
 ) -> StdResult<Response<TerraMsgWrapper>> {
     let conf = CONFIG.load(deps.storage)?;
-    let sender_raw = deps.api.addr_canonicalize(info.sender.as_str())?;
+    let sender_raw = deps.api.addr_canonicalize(&info.sender.as_str())?;
     if sender_raw != conf.owner {
         return Err(StdError::generic_err("unauthorized"));
     }
