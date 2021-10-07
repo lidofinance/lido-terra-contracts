@@ -1,4 +1,4 @@
-// Copyright 2021 Anchor Protocol. Modified by Lido
+// Copyright 2021 Lido
 //
 // Licensedicensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
