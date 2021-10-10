@@ -21,7 +21,7 @@ pub fn instantiate(
     msg: InstantiateMsg,
 ) -> StdResult<Response> {
     let conf = Config {
-        owner: deps.api.addr_canonicalize(&info.sender.as_str())?,
+        owner: deps.api.addr_canonicalize(info.sender.as_str())?,
         hub_contract: deps.api.addr_canonicalize(&msg.hub_contract)?,
         bluna_reward_contract: deps.api.addr_canonicalize(&msg.bluna_reward_contract)?,
         bluna_reward_denom: msg.bluna_reward_denom,
@@ -44,8 +44,8 @@ pub fn execute(
 ) -> StdResult<Response<TerraMsgWrapper>> {
     match msg {
         ExecuteMsg::SwapToRewardDenom {
-            bluna_total_mint_amount,
-            stluna_total_mint_amount,
+            bluna_total_bonded: bluna_total_mint_amount,
+            stluna_total_bonded: stluna_total_mint_amount,
         } => execute_swap(
             deps,
             env,
@@ -91,7 +91,7 @@ pub fn execute_update_config(
     lido_fee_rate: Option<Decimal>,
 ) -> StdResult<Response<TerraMsgWrapper>> {
     let conf = CONFIG.load(deps.storage)?;
-    let sender_raw = deps.api.addr_canonicalize(&info.sender.as_str())?;
+    let sender_raw = deps.api.addr_canonicalize(info.sender.as_str())?;
     if sender_raw != conf.owner {
         return Err(StdError::generic_err("unauthorized"));
     }
@@ -160,8 +160,8 @@ pub fn execute_swap(
     deps: DepsMut,
     env: Env,
     info: MessageInfo,
-    bluna_total_mint_amount: Uint128,
-    stluna_total_mint_amount: Uint128,
+    bluna_total_bonded_amount: Uint128,
+    stluna_total_bonded_amount: Uint128,
 ) -> StdResult<Response<TerraMsgWrapper>> {
     let config = CONFIG.load(deps.storage)?;
     let hub_addr = deps.api.addr_humanize(&config.hub_contract)?;
@@ -189,8 +189,8 @@ pub fn execute_swap(
 
     let (offer_coin, ask_denom) = get_swap_info(
         config,
-        stluna_total_mint_amount,
-        bluna_total_mint_amount,
+        stluna_total_bonded_amount,
+        bluna_total_bonded_amount,
         total_luna_rewards_available,
         total_ust_rewards_available,
         ust_2_luna_rewards_xchg_rate,
@@ -277,8 +277,8 @@ pub(crate) fn get_exchange_rates(
 
 pub(crate) fn get_swap_info(
     config: Config,
-    stluna_total_mint_amount: Uint128,
-    bluna_total_mint_amount: Uint128,
+    stluna_total_bonded_amount: Uint128,
+    bluna_total_bonded_amount: Uint128,
     total_stluna_rewards_available: Uint128,
     total_bluna_rewards_available: Uint128,
     bluna_2_stluna_rewards_xchg_rate: Decimal,
@@ -289,8 +289,8 @@ pub(crate) fn get_swap_info(
         + total_bluna_rewards_available.mul(bluna_2_stluna_rewards_xchg_rate);
 
     let stluna_share_of_total_rewards = total_rewards_in_stluna_rewards.multiply_ratio(
-        stluna_total_mint_amount,
-        stluna_total_mint_amount + bluna_total_mint_amount,
+        stluna_total_bonded_amount,
+        stluna_total_bonded_amount + bluna_total_bonded_amount,
     );
 
     if total_stluna_rewards_available.gt(&stluna_share_of_total_rewards) {

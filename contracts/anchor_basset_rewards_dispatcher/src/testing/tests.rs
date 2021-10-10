@@ -55,8 +55,8 @@ fn proper_initialization() {
 fn test_swap_to_reward_denom() {
     struct TestCase {
         rewards_balance: Vec<Coin>,
-        stluna_total_minted: Uint128,
-        bluna_total_minted: Uint128,
+        stluna_total_bonded: Uint128,
+        bluna_total_bonded: Uint128,
         expected_total_luna_rewards_available: String,
         expected_total_ust_rewards_available: String,
         expected_offer_coin_denom: String,
@@ -71,8 +71,8 @@ fn test_swap_to_reward_denom() {
                 Coin::new(300, "uusd"),
                 Coin::new(500, "usdr"),
             ],
-            stluna_total_minted: Uint128::from(1u128),
-            bluna_total_minted: Uint128::from(2u128),
+            stluna_total_bonded: Uint128::from(1u128),
+            bluna_total_bonded: Uint128::from(2u128),
             expected_total_luna_rewards_available: "200".to_string(),
             expected_total_ust_rewards_available: "1300".to_string(),
             expected_offer_coin_denom: "uluna".to_string(),
@@ -85,8 +85,8 @@ fn test_swap_to_reward_denom() {
                 Coin::new(300, "uusd"),
                 Coin::new(500, "usdr"),
             ],
-            stluna_total_minted: Uint128::from(2u128),
-            bluna_total_minted: Uint128::from(2u128),
+            stluna_total_bonded: Uint128::from(2u128),
+            bluna_total_bonded: Uint128::from(2u128),
             expected_total_luna_rewards_available: "200".to_string(),
             expected_total_ust_rewards_available: "1300".to_string(),
             expected_offer_coin_denom: "uluna".to_string(),
@@ -99,8 +99,8 @@ fn test_swap_to_reward_denom() {
                 Coin::new(300, "uusd"),
                 Coin::new(500, "usdr"),
             ],
-            stluna_total_minted: Uint128::from(2u128),
-            bluna_total_minted: Uint128::from(1u128),
+            stluna_total_bonded: Uint128::from(2u128),
+            bluna_total_bonded: Uint128::from(1u128),
             expected_total_luna_rewards_available: "200".to_string(),
             expected_total_ust_rewards_available: "1300".to_string(),
             expected_offer_coin_denom: "uluna".to_string(),
@@ -113,8 +113,8 @@ fn test_swap_to_reward_denom() {
                 Coin::new(300, "uusd"),
                 Coin::new(500, "usdr"),
             ],
-            stluna_total_minted: Uint128::from(2u128),
-            bluna_total_minted: Uint128::from(2u128),
+            stluna_total_bonded: Uint128::from(2u128),
+            bluna_total_bonded: Uint128::from(2u128),
             expected_total_luna_rewards_available: "0".to_string(),
             expected_total_ust_rewards_available: "1300".to_string(),
             expected_offer_coin_denom: "uusd".to_string(),
@@ -135,8 +135,8 @@ fn test_swap_to_reward_denom() {
 
         let info = mock_info(String::from(MOCK_HUB_CONTRACT_ADDR).as_str(), &[]);
         let msg = ExecuteMsg::SwapToRewardDenom {
-            stluna_total_mint_amount: test_case.stluna_total_minted,
-            bluna_total_mint_amount: test_case.bluna_total_minted,
+            stluna_total_bonded: test_case.stluna_total_bonded,
+            bluna_total_bonded: test_case.bluna_total_bonded,
         };
 
         let res = execute(deps.as_mut(), mock_env(), info, msg).unwrap();

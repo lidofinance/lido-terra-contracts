@@ -284,10 +284,12 @@ pub fn execute_update_global(
     let mut withdraw_msgs = withdraw_all_rewards(&deps, env.contract.address.to_string())?;
     messages.append(&mut withdraw_msgs);
 
+    let state = STATE.load(deps.storage)?;
+
     // Send Swap message to reward contract
     let swap_msg = SwapToRewardDenom {
-        stluna_total_mint_amount: query_total_stluna_issued(deps.as_ref())?,
-        bluna_total_mint_amount: query_total_bluna_issued(deps.as_ref())?,
+        stluna_total_bonded: state.total_bond_stluna_amount,
+        bluna_total_bonded: state.total_bond_bluna_amount,
     };
 
     messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
