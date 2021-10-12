@@ -19,10 +19,11 @@ use crate::state::{
 };
 use anchor_basset_validators_registry::common::calculate_undelegations;
 use anchor_basset_validators_registry::registry::Validator;
+use basset::deduct_tax;
 use basset::hub::{CurrentBatch, State, UnbondHistory, UnbondType};
 use cosmwasm_bignumber::{Decimal256, Uint256};
 use cosmwasm_std::{
-    attr, coin, coins, to_binary, BankMsg, CosmosMsg, Decimal, DepsMut, Env, MessageInfo, Response,
+    attr, coin, to_binary, BankMsg, Coin, CosmosMsg, Decimal, DepsMut, Env, MessageInfo, Response,
     StakingMsg, StdError, StdResult, Storage, Uint128, WasmMsg,
 };
 use cw20::Cw20ExecuteMsg;
@@ -168,7 +169,13 @@ pub fn execute_withdraw_unbonded(
     // Send the money to the user
     let msgs: Vec<CosmosMsg> = vec![BankMsg::Send {
         to_address: sender_human.to_string(),
-        amount: coins(withdraw_amount.u128(), &*coin_denom),
+        amount: vec![deduct_tax(
+            &deps.querier,
+            Coin {
+                amount: withdraw_amount,
+                denom: coin_denom,
+            },
+        )?],
     }
     .into()];
 
