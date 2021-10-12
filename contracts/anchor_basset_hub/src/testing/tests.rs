@@ -1247,7 +1247,10 @@ pub fn proper_unbond() {
         from_binary(&query(deps.as_ref(), mock_env(), all_batches).unwrap()).unwrap();
     assert_eq!(res.history[0].bluna_amount, Uint128::from(8u64));
     assert_eq!(res.history[0].bluna_applied_exchange_rate, Decimal::one());
-    assert_eq!(res.history[0].released, false);
+    assert!(
+        !res.history[0].released,
+        "res.history[0].released is not false"
+    );
     assert_eq!(res.history[0].batch_id, 1);
 }
 
@@ -1549,7 +1552,10 @@ pub fn proper_unbond_stluna() {
         from_binary(&query(deps.as_ref(), mock_env(), all_batches).unwrap()).unwrap();
     assert_eq!(res.history[0].stluna_amount, Uint128::from(8u64));
     assert_eq!(res.history[0].stluna_applied_exchange_rate, Decimal::one());
-    assert_eq!(res.history[0].released, false);
+    assert!(
+        !res.history[0].released,
+        "res.history[0].released is not false"
+    );
     assert_eq!(res.history[0].batch_id, 1);
 }
 
@@ -2211,7 +2217,7 @@ pub fn proper_withdraw_unbonded() {
     );
 
     // trigger undelegation message
-    assert_eq!(true, wdraw_unbonded_res.is_err());
+    assert!(wdraw_unbonded_res.is_err(), "withdraw unbounded error");
     assert_eq!(
         wdraw_unbonded_res.unwrap_err(),
         StdError::generic_err("No withdrawable uluna assets are available yet")
@@ -2416,7 +2422,7 @@ pub fn proper_withdraw_unbonded_stluna() {
     );
 
     // trigger undelegation message
-    assert_eq!(true, wdraw_unbonded_res.is_err());
+    assert!(wdraw_unbonded_res.is_err(), "unbounded error");
     assert_eq!(
         wdraw_unbonded_res.unwrap_err(),
         StdError::generic_err("No withdrawable uluna assets are available yet")
@@ -2817,7 +2823,7 @@ pub fn proper_withdraw_unbonded_respect_slashing() {
         info.clone(),
         wdraw_unbonded_msg.clone(),
     );
-    assert_eq!(true, wdraw_unbonded_res.is_err());
+    assert!(wdraw_unbonded_res.is_err(), "unbounded error");
     assert_eq!(
         wdraw_unbonded_res.unwrap_err(),
         StdError::generic_err("No withdrawable uluna assets are available yet")
@@ -2977,7 +2983,7 @@ pub fn proper_withdraw_unbonded_respect_slashing_stluna() {
         info.clone(),
         wdraw_unbonded_msg.clone(),
     );
-    assert_eq!(true, wdraw_unbonded_res.is_err());
+    assert!(wdraw_unbonded_res.is_err(), "unbounded error");
     assert_eq!(
         wdraw_unbonded_res.unwrap_err(),
         StdError::generic_err("No withdrawable uluna assets are available yet")
@@ -3143,7 +3149,7 @@ pub fn proper_withdraw_unbonded_respect_inactivity_slashing() {
         info.clone(),
         wdraw_unbonded_msg.clone(),
     );
-    assert_eq!(true, wdraw_unbonded_res.is_err());
+    assert!(wdraw_unbonded_res.is_err(), "unbounded error");
     assert_eq!(
         wdraw_unbonded_res.unwrap_err(),
         StdError::generic_err("No withdrawable uluna assets are available yet")
@@ -3176,7 +3182,10 @@ pub fn proper_withdraw_unbonded_respect_inactivity_slashing() {
         from_binary(&query(deps.as_ref(), mock_env(), all_batches).unwrap()).unwrap();
     assert_eq!(res.history[0].bluna_amount, Uint128::from(1000u64));
     assert_eq!(res.history[0].bluna_withdraw_rate.to_string(), "1");
-    assert_eq!(res.history[0].released, false);
+    assert!(
+        !res.history[0].released,
+        "res.history[0].released is not false"
+    );
     assert_eq!(res.history[0].batch_id, 1);
 
     //this query should be zero since the undelegated period is not passed
@@ -3247,7 +3256,10 @@ pub fn proper_withdraw_unbonded_respect_inactivity_slashing() {
     assert_eq!(res.history[0].bluna_amount, Uint128::from(1000u64));
     assert_eq!(res.history[0].bluna_applied_exchange_rate.to_string(), "1");
     assert_eq!(res.history[0].bluna_withdraw_rate.to_string(), "0.899");
-    assert_eq!(res.history[0].released, true);
+    assert!(
+        res.history[0].released,
+        "res.history[0].released is not true"
+    );
     assert_eq!(res.history[0].batch_id, 1);
 }
 
@@ -3338,7 +3350,7 @@ pub fn proper_withdraw_unbonded_respect_inactivity_slashing_stluna() {
         info.clone(),
         wdraw_unbonded_msg.clone(),
     );
-    assert_eq!(true, wdraw_unbonded_res.is_err());
+    assert!(wdraw_unbonded_res.is_err(), "unbounded error");
     assert_eq!(
         wdraw_unbonded_res.unwrap_err(),
         StdError::generic_err("No withdrawable uluna assets are available yet")
@@ -3371,7 +3383,10 @@ pub fn proper_withdraw_unbonded_respect_inactivity_slashing_stluna() {
         from_binary(&query(deps.as_ref(), mock_env(), all_batches).unwrap()).unwrap();
     assert_eq!(res.history[0].stluna_amount, Uint128::from(1000u64));
     assert_eq!(res.history[0].stluna_withdraw_rate.to_string(), "1");
-    assert_eq!(res.history[0].released, false);
+    assert!(
+        !res.history[0].released,
+        "res.history[0].released is not true"
+    );
     assert_eq!(res.history[0].batch_id, 1);
 
     //this query should be zero since the undelegated period is not passed
@@ -3442,7 +3457,10 @@ pub fn proper_withdraw_unbonded_respect_inactivity_slashing_stluna() {
     assert_eq!(res.history[0].stluna_amount, Uint128::from(1000u64));
     assert_eq!(res.history[0].stluna_applied_exchange_rate.to_string(), "1");
     assert_eq!(res.history[0].stluna_withdraw_rate.to_string(), "0.899");
-    assert_eq!(res.history[0].released, true);
+    assert!(
+        res.history[0].released,
+        "res.history[0].released is not true"
+    );
     assert_eq!(res.history[0].batch_id, 1);
 }
 
@@ -3591,11 +3609,17 @@ pub fn proper_withdraw_unbond_with_dummies() {
         from_binary(&query(deps.as_ref(), mock_env(), all_batches).unwrap()).unwrap();
     assert_eq!(res.history[0].bluna_amount, Uint128::from(1000u64));
     assert_eq!(res.history[0].bluna_withdraw_rate.to_string(), "1.164");
-    assert_eq!(res.history[0].released, true);
+    assert!(
+        res.history[0].released,
+        "res.history[0].released is not true"
+    );
     assert_eq!(res.history[0].batch_id, 1);
     assert_eq!(res.history[1].bluna_amount, Uint128::from(1000u64));
     assert_eq!(res.history[1].bluna_withdraw_rate.to_string(), "1.033");
-    assert_eq!(res.history[1].released, true);
+    assert!(
+        res.history[1].released,
+        "res.history[1].released is not true"
+    );
     assert_eq!(res.history[1].batch_id, 2);
 
     let expected = (res.history[0].bluna_withdraw_rate * res.history[0].bluna_amount)
@@ -3763,11 +3787,17 @@ pub fn proper_withdraw_unbond_with_dummies_stluna() {
         from_binary(&query(deps.as_ref(), mock_env(), all_batches).unwrap()).unwrap();
     assert_eq!(res.history[0].stluna_amount, Uint128::from(1000u64));
     assert_eq!(res.history[0].stluna_withdraw_rate.to_string(), "1.164");
-    assert_eq!(res.history[0].released, true);
+    assert!(
+        res.history[0].released,
+        "res.history[0].released is not true"
+    );
     assert_eq!(res.history[0].batch_id, 1);
     assert_eq!(res.history[1].stluna_amount, Uint128::from(1000u64));
     assert_eq!(res.history[1].stluna_withdraw_rate.to_string(), "1.033");
-    assert_eq!(res.history[1].released, true);
+    assert!(
+        res.history[1].released,
+        "res.history[1].released is not true"
+    );
     assert_eq!(res.history[1].batch_id, 2);
 
     let expected = (res.history[0].stluna_withdraw_rate * res.history[0].stluna_amount)
@@ -4084,7 +4114,7 @@ pub fn proper_recovery_fee() {
         res.history[0].bluna_withdraw_rate,
         Decimal::from_ratio(Uint128::from(161869u64), bonded_with_fee + bonded_with_fee)
     );
-    assert_eq!(res.history[0].released, true);
+    assert!(res.history[0].released, "history[0].released is not true");
     assert_eq!(res.history[0].batch_id, 1);
 }
 
