@@ -83,7 +83,6 @@ pub(crate) fn execute_unbond(
     let passed_time = current_time - state.last_unbonded_time;
 
     let mut messages: Vec<CosmosMsg> = vec![];
-
     // If the epoch period is passed, the undelegate message would be sent.
     if passed_time > epoch_period {
         let mut undelegate_msgs =

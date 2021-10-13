@@ -113,12 +113,14 @@ pub fn get_unbond_batches(
     sender_addr: String,
     limit: Option<u64>,
 ) -> StdResult<Vec<u64>> {
-    let end_range = convert(limit);
     let vec = to_vec(&sender_addr)?;
     let mut deprecated_batches: Vec<u64> = vec![];
     let res: ReadonlyBucket<UnbondWaitEntity> =
         ReadonlyBucket::multilevel(storage, &[PREFIX_WAIT_MAP, &vec]);
-    for item in res.range(None, end_range.as_deref(), Order::Ascending) {
+    for item in res
+        .range(None, None, Order::Ascending)
+        .take(limit.unwrap_or(DEFAULT_UNBONDWAITENTITYREQUESTS) as usize)
+    {
         let (k, _) = item?;
         let user_batch: u64 = from_slice(&k)?;
         let history = read_unbond_history(storage, user_batch);
@@ -140,12 +142,14 @@ pub fn get_finished_amount(
     sender_addr: String,
     limit: Option<u64>,
 ) -> StdResult<Uint128> {
-    let end_range = convert(limit);
     let vec = to_vec(&sender_addr)?;
     let mut withdrawable_amount: Uint128 = Uint128::zero();
     let res: ReadonlyBucket<UnbondWaitEntity> =
         ReadonlyBucket::multilevel(storage, &[PREFIX_WAIT_MAP, &vec]);
-    for item in res.range(None, end_range.as_deref(), Order::Ascending) {
+    for item in res
+        .range(None, None, Order::Ascending)
+        .take(limit.unwrap_or(DEFAULT_UNBONDWAITENTITYREQUESTS) as usize)
+    {
         let (k, v) = item?;
         let user_batch: u64 = from_slice(&k)?;
         let history = read_unbond_history(storage, user_batch);
@@ -159,6 +163,8 @@ pub fn get_finished_amount(
     Ok(withdrawable_amount)
 }
 
+const DEFAULT_UNBONDWAITENTITYREQUESTS: u64 = 1000;
+
 /// Return the finished amount for all batches that has been before the given block time.
 pub fn query_get_finished_amount(
     storage: &dyn Storage,
@@ -166,12 +172,14 @@ pub fn query_get_finished_amount(
     block_time: u64,
     limit: Option<u64>,
 ) -> StdResult<Uint128> {
-    let end_range = convert(limit);
     let vec = to_vec(&sender_addr)?;
     let mut withdrawable_amount: Uint128 = Uint128::zero();
     let res: ReadonlyBucket<UnbondWaitEntity> =
         ReadonlyBucket::multilevel(storage, &[PREFIX_WAIT_MAP, &vec]);
-    for item in res.range(None, end_range.as_deref(), Order::Ascending) {
+    for item in res
+        .range(None, None, Order::Ascending)
+        .take(limit.unwrap_or(DEFAULT_UNBONDWAITENTITYREQUESTS) as usize)
+    {
         let (k, v) = item?;
         let user_batch: u64 = from_slice(&k)?;
         let history = read_unbond_history(storage, user_batch);
