@@ -108,12 +108,17 @@ pub fn get_unbond_requests(storage: &dyn Storage, sender_addr: String) -> StdRes
     Ok(requests)
 }
 
-pub fn get_unbond_batches(storage: &dyn Storage, sender_addr: String) -> StdResult<Vec<u64>> {
+pub fn get_unbond_batches(
+    storage: &dyn Storage,
+    sender_addr: String,
+    limit: Option<u64>,
+) -> StdResult<Vec<u64>> {
+    let end_range = convert(limit);
     let vec = to_vec(&sender_addr)?;
     let mut deprecated_batches: Vec<u64> = vec![];
     let res: ReadonlyBucket<UnbondWaitEntity> =
         ReadonlyBucket::multilevel(storage, &[PREFIX_WAIT_MAP, &vec]);
-    for item in res.range(None, None, Order::Ascending) {
+    for item in res.range(None, end_range.as_deref(), Order::Ascending) {
         let (k, _) = item?;
         let user_batch: u64 = from_slice(&k)?;
         let history = read_unbond_history(storage, user_batch);
@@ -130,12 +135,17 @@ pub fn get_unbond_batches(storage: &dyn Storage, sender_addr: String) -> StdResu
 /// This needs to be called after process withdraw rate function.
 /// If the batch is released, this will return user's requested
 /// amount proportional to withdraw rate.
-pub fn get_finished_amount(storage: &dyn Storage, sender_addr: String) -> StdResult<Uint128> {
+pub fn get_finished_amount(
+    storage: &dyn Storage,
+    sender_addr: String,
+    limit: Option<u64>,
+) -> StdResult<Uint128> {
+    let end_range = convert(limit);
     let vec = to_vec(&sender_addr)?;
     let mut withdrawable_amount: Uint128 = Uint128::zero();
     let res: ReadonlyBucket<UnbondWaitEntity> =
         ReadonlyBucket::multilevel(storage, &[PREFIX_WAIT_MAP, &vec]);
-    for item in res.range(None, None, Order::Ascending) {
+    for item in res.range(None, end_range.as_deref(), Order::Ascending) {
         let (k, v) = item?;
         let user_batch: u64 = from_slice(&k)?;
         let history = read_unbond_history(storage, user_batch);
@@ -154,12 +164,14 @@ pub fn query_get_finished_amount(
     storage: &dyn Storage,
     sender_addr: String,
     block_time: u64,
+    limit: Option<u64>,
 ) -> StdResult<Uint128> {
+    let end_range = convert(limit);
     let vec = to_vec(&sender_addr)?;
     let mut withdrawable_amount: Uint128 = Uint128::zero();
     let res: ReadonlyBucket<UnbondWaitEntity> =
         ReadonlyBucket::multilevel(storage, &[PREFIX_WAIT_MAP, &vec]);
-    for item in res.range(None, None, Order::Ascending) {
+    for item in res.range(None, end_range.as_deref(), Order::Ascending) {
         let (k, v) = item?;
         let user_batch: u64 = from_slice(&k)?;
         let history = read_unbond_history(storage, user_batch);

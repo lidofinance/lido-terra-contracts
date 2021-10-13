@@ -125,6 +125,7 @@ pub fn execute_withdraw_unbonded(
     mut deps: DepsMut,
     env: Env,
     info: MessageInfo,
+    limit: Option<u64>,
 ) -> StdResult<Response> {
     let sender_human = info.sender;
     let contract_address = env.contract.address.clone();
@@ -145,7 +146,7 @@ pub fn execute_withdraw_unbonded(
     // calculate withdraw rate for user requests
     process_withdraw_rate(&mut deps, historical_time, hub_balance)?;
 
-    let withdraw_amount = get_finished_amount(deps.storage, sender_human.to_string())?;
+    let withdraw_amount = get_finished_amount(deps.storage, sender_human.to_string(), limit)?;
 
     if withdraw_amount.is_zero() {
         return Err(StdError::generic_err(format!(
@@ -155,7 +156,7 @@ pub fn execute_withdraw_unbonded(
     }
 
     // remove the previous batches for the user
-    let deprecated_batches = get_unbond_batches(deps.storage, sender_human.to_string())?;
+    let deprecated_batches = get_unbond_batches(deps.storage, sender_human.to_string(), limit)?;
     remove_unbond_wait_list(deps.storage, deprecated_batches, sender_human.to_string())?;
 
     // Update previous balance used for calculation in next Luna batch release

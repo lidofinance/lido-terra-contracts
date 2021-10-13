@@ -1916,7 +1916,7 @@ pub fn proper_slashing() {
 
     env.block.time = env.block.time.plus_seconds(90);
     //check withdrawUnbonded message
-    let withdraw_unbond_msg = ExecuteMsg::WithdrawUnbonded {};
+    let withdraw_unbond_msg = ExecuteMsg::WithdrawUnbonded { limit: None };
     let wdraw_unbonded_res = execute(deps.as_mut(), env, info, withdraw_unbond_msg).unwrap();
     assert_eq!(wdraw_unbonded_res.messages.len(), 1);
 
@@ -2100,7 +2100,7 @@ pub fn proper_slashing_stluna() {
 
     env.block.time = env.block.time.plus_seconds(90);
     //check withdrawUnbonded message
-    let withdraw_unbond_msg = ExecuteMsg::WithdrawUnbonded {};
+    let withdraw_unbond_msg = ExecuteMsg::WithdrawUnbonded { limit: None };
     let wdraw_unbonded_res = execute(deps.as_mut(), env, info, withdraw_unbond_msg).unwrap();
     assert_eq!(wdraw_unbonded_res.messages.len(), 1);
 
@@ -2202,7 +2202,7 @@ pub fn proper_withdraw_unbonded() {
     //set the block time 30 seconds from now.
     env.block.time = env.block.time.plus_seconds(31);
 
-    let wdraw_unbonded_msg = ExecuteMsg::WithdrawUnbonded {};
+    let wdraw_unbonded_msg = ExecuteMsg::WithdrawUnbonded { limit: None };
     let wdraw_unbonded_res = execute(
         deps.as_mut(),
         env.clone(),
@@ -2234,6 +2234,7 @@ pub fn proper_withdraw_unbonded() {
     //this query should be zero since the undelegated period is not passed
     let withdrawable = WithdrawableUnbonded {
         address: bob.clone(),
+        limit: None,
     };
     let query_with = query(deps.as_ref(), mock_env(), withdrawable).unwrap();
     let res: WithdrawableUnbondedResponse = from_binary(&query_with).unwrap();
@@ -2273,6 +2274,7 @@ pub fn proper_withdraw_unbonded() {
     //check with query
     let withdrawable = WithdrawableUnbonded {
         address: bob.clone(),
+        limit: None,
     };
     let query_with = query(deps.as_ref(), env.clone(), withdrawable).unwrap();
     let res: WithdrawableUnbondedResponse = from_binary(&query_with).unwrap();
@@ -2295,6 +2297,7 @@ pub fn proper_withdraw_unbonded() {
     //it should be removed
     let withdrawable = WithdrawableUnbonded {
         address: bob.clone(),
+        limit: None,
     };
     let query_with: WithdrawableUnbondedResponse =
         from_binary(&query(deps.as_ref(), mock_env(), withdrawable).unwrap()).unwrap();
@@ -2407,7 +2410,7 @@ pub fn proper_withdraw_unbonded_stluna() {
     //set the block time 30 seconds from now.
     env.block.time = env.block.time.plus_seconds(31);
 
-    let wdraw_unbonded_msg = ExecuteMsg::WithdrawUnbonded {};
+    let wdraw_unbonded_msg = ExecuteMsg::WithdrawUnbonded { limit: None };
     let wdraw_unbonded_res = execute(
         deps.as_mut(),
         env.clone(),
@@ -2448,6 +2451,7 @@ pub fn proper_withdraw_unbonded_stluna() {
     //this query should be zero since the undelegated period is not passed
     let withdrawable = WithdrawableUnbonded {
         address: bob.clone(),
+        limit: None,
     };
     let query_with = query(deps.as_ref(), mock_env(), withdrawable).unwrap();
     let res: WithdrawableUnbondedResponse = from_binary(&query_with).unwrap();
@@ -2487,6 +2491,7 @@ pub fn proper_withdraw_unbonded_stluna() {
     //check with query
     let withdrawable = WithdrawableUnbonded {
         address: bob.clone(),
+        limit: None,
     };
     let query_with = query(deps.as_ref(), env.clone(), withdrawable).unwrap();
     let res: WithdrawableUnbondedResponse = from_binary(&query_with).unwrap();
@@ -2509,6 +2514,7 @@ pub fn proper_withdraw_unbonded_stluna() {
     //it should be removed
     let withdrawable = WithdrawableUnbonded {
         address: bob.clone(),
+        limit: None,
     };
     let query_with: WithdrawableUnbondedResponse =
         from_binary(&query(deps.as_ref(), mock_env(), withdrawable).unwrap()).unwrap();
@@ -2647,6 +2653,7 @@ pub fn proper_withdraw_unbonded_both_tokens() {
     //this query should be zero since the undelegated period is not passed
     let withdrawable = WithdrawableUnbonded {
         address: bob.clone(),
+        limit: None,
     };
     let query_with = query(deps.as_ref(), mock_env(), withdrawable).unwrap();
     let res: WithdrawableUnbondedResponse = from_binary(&query_with).unwrap();
@@ -2688,12 +2695,13 @@ pub fn proper_withdraw_unbonded_both_tokens() {
     //check with query
     let withdrawable = WithdrawableUnbonded {
         address: bob.clone(),
+        limit: None,
     };
     let query_with = query(deps.as_ref(), env.clone(), withdrawable).unwrap();
     let res: WithdrawableUnbondedResponse = from_binary(&query_with).unwrap();
     assert_eq!(res.withdrawable, Uint128::from(300u64));
 
-    let wdraw_unbonded_msg = ExecuteMsg::WithdrawUnbonded {};
+    let wdraw_unbonded_msg = ExecuteMsg::WithdrawUnbonded { limit: None };
     let success_res = execute(deps.as_mut(), env, info, wdraw_unbonded_msg).unwrap();
 
     assert_eq!(success_res.messages.len(), 1);
@@ -2711,6 +2719,7 @@ pub fn proper_withdraw_unbonded_both_tokens() {
     //it should be removed
     let withdrawable = WithdrawableUnbonded {
         address: bob.clone(),
+        limit: None,
     };
     let query_with: WithdrawableUnbondedResponse =
         from_binary(&query(deps.as_ref(), mock_env(), withdrawable).unwrap()).unwrap();
@@ -2810,7 +2819,7 @@ pub fn proper_withdraw_unbonded_respect_slashing() {
 
     //set the block time 30 seconds from now.
     env.block.time = env.block.time.plus_seconds(31);
-    let wdraw_unbonded_msg = ExecuteMsg::WithdrawUnbonded {};
+    let wdraw_unbonded_msg = ExecuteMsg::WithdrawUnbonded { limit: None };
     let wdraw_unbonded_res = execute(
         deps.as_mut(),
         env.clone(),
@@ -2839,6 +2848,7 @@ pub fn proper_withdraw_unbonded_respect_slashing() {
     //this query should be zero since the undelegated period is not passed
     let withdrawable = WithdrawableUnbonded {
         address: bob.clone(),
+        limit: None,
     };
     let query_with = query(deps.as_ref(), mock_env(), withdrawable).unwrap();
     let res: WithdrawableUnbondedResponse = from_binary(&query_with).unwrap();
@@ -2871,6 +2881,7 @@ pub fn proper_withdraw_unbonded_respect_slashing() {
     //this query does not reflect the actual withdrawable
     let withdrawable = WithdrawableUnbonded {
         address: bob.clone(),
+        limit: None,
     };
     let query_with = query(deps.as_ref(), env.clone(), withdrawable).unwrap();
     let res: WithdrawableUnbondedResponse = from_binary(&query_with).unwrap();
@@ -2891,7 +2902,10 @@ pub fn proper_withdraw_unbonded_respect_slashing() {
     }
 
     // there should not be any result
-    let withdrawable = WithdrawableUnbonded { address: bob };
+    let withdrawable = WithdrawableUnbonded {
+        address: bob,
+        limit: None,
+    };
     let query_with: WithdrawableUnbondedResponse =
         from_binary(&query(deps.as_ref(), mock_env(), withdrawable).unwrap()).unwrap();
     assert_eq!(query_with.withdrawable, Uint128::from(0u64));
@@ -2970,7 +2984,7 @@ pub fn proper_withdraw_unbonded_respect_slashing_stluna() {
 
     //set the block time 30 seconds from now.
     env.block.time = env.block.time.plus_seconds(31);
-    let wdraw_unbonded_msg = ExecuteMsg::WithdrawUnbonded {};
+    let wdraw_unbonded_msg = ExecuteMsg::WithdrawUnbonded { limit: None };
     let wdraw_unbonded_res = execute(
         deps.as_mut(),
         env.clone(),
@@ -2999,6 +3013,7 @@ pub fn proper_withdraw_unbonded_respect_slashing_stluna() {
     //this query should be zero since the undelegated period is not passed
     let withdrawable = WithdrawableUnbonded {
         address: bob.clone(),
+        limit: None,
     };
     let query_with = query(deps.as_ref(), mock_env(), withdrawable).unwrap();
     let res: WithdrawableUnbondedResponse = from_binary(&query_with).unwrap();
@@ -3031,6 +3046,7 @@ pub fn proper_withdraw_unbonded_respect_slashing_stluna() {
     //this query does not reflect the actual withdrawable
     let withdrawable = WithdrawableUnbonded {
         address: bob.clone(),
+        limit: None,
     };
     let query_with = query(deps.as_ref(), env.clone(), withdrawable).unwrap();
     let res: WithdrawableUnbondedResponse = from_binary(&query_with).unwrap();
@@ -3051,7 +3067,10 @@ pub fn proper_withdraw_unbonded_respect_slashing_stluna() {
     }
 
     // there should not be any result
-    let withdrawable = WithdrawableUnbonded { address: bob };
+    let withdrawable = WithdrawableUnbonded {
+        address: bob,
+        limit: None,
+    };
     let query_with: WithdrawableUnbondedResponse =
         from_binary(&query(deps.as_ref(), mock_env(), withdrawable).unwrap()).unwrap();
     assert_eq!(query_with.withdrawable, Uint128::from(0u64));
@@ -3136,7 +3155,7 @@ pub fn proper_withdraw_unbonded_respect_inactivity_slashing() {
     assert_eq!(query_batch.requested_bluna_with_fee, unbond_amount);
 
     env.block.time = env.block.time.plus_seconds(1000);
-    let wdraw_unbonded_msg = ExecuteMsg::WithdrawUnbonded {};
+    let wdraw_unbonded_msg = ExecuteMsg::WithdrawUnbonded { limit: None };
     let wdraw_unbonded_res = execute(
         deps.as_mut(),
         env.clone(),
@@ -3182,6 +3201,7 @@ pub fn proper_withdraw_unbonded_respect_inactivity_slashing() {
     //this query should be zero since the undelegated period is not passed
     let withdrawable = WithdrawableUnbonded {
         address: bob.clone(),
+        limit: None,
     };
     let query_with = query(deps.as_ref(), mock_env(), withdrawable).unwrap();
     let res: WithdrawableUnbondedResponse = from_binary(&query_with).unwrap();
@@ -3213,6 +3233,7 @@ pub fn proper_withdraw_unbonded_respect_inactivity_slashing() {
     //this query does not reflect the actual withdrawable
     let withdrawable = WithdrawableUnbonded {
         address: bob.clone(),
+        limit: None,
     };
     let query_with = query(deps.as_ref(), env.clone(), withdrawable).unwrap();
     let res: WithdrawableUnbondedResponse = from_binary(&query_with).unwrap();
@@ -3233,7 +3254,10 @@ pub fn proper_withdraw_unbonded_respect_inactivity_slashing() {
     }
 
     // there should not be any result
-    let withdrawable = WithdrawableUnbonded { address: bob };
+    let withdrawable = WithdrawableUnbonded {
+        address: bob,
+        limit: None,
+    };
     let query_with: WithdrawableUnbondedResponse =
         from_binary(&query(deps.as_ref(), mock_env(), withdrawable).unwrap()).unwrap();
     assert_eq!(query_with.withdrawable, Uint128::from(0u64));
@@ -3331,7 +3355,7 @@ pub fn proper_withdraw_unbonded_respect_inactivity_slashing_stluna() {
     assert_eq!(query_batch.requested_stluna, unbond_amount);
 
     env.block.time = env.block.time.plus_seconds(1000);
-    let wdraw_unbonded_msg = ExecuteMsg::WithdrawUnbonded {};
+    let wdraw_unbonded_msg = ExecuteMsg::WithdrawUnbonded { limit: None };
     let wdraw_unbonded_res = execute(
         deps.as_mut(),
         mock_env(),
@@ -3377,6 +3401,7 @@ pub fn proper_withdraw_unbonded_respect_inactivity_slashing_stluna() {
     //this query should be zero since the undelegated period is not passed
     let withdrawable = WithdrawableUnbonded {
         address: bob.clone(),
+        limit: None,
     };
     let query_with = query(deps.as_ref(), mock_env(), withdrawable).unwrap();
     let res: WithdrawableUnbondedResponse = from_binary(&query_with).unwrap();
@@ -3408,6 +3433,7 @@ pub fn proper_withdraw_unbonded_respect_inactivity_slashing_stluna() {
     //this query does not reflect the actual withdrawable
     let withdrawable = WithdrawableUnbonded {
         address: bob.clone(),
+        limit: None,
     };
     let query_with = query(deps.as_ref(), env.clone(), withdrawable).unwrap();
     let res: WithdrawableUnbondedResponse = from_binary(&query_with).unwrap();
@@ -3428,7 +3454,10 @@ pub fn proper_withdraw_unbonded_respect_inactivity_slashing_stluna() {
     }
 
     // there should not be any result
-    let withdrawable = WithdrawableUnbonded { address: bob };
+    let withdrawable = WithdrawableUnbonded {
+        address: bob,
+        limit: None,
+    };
     let query_with: WithdrawableUnbondedResponse =
         from_binary(&query(deps.as_ref(), mock_env(), withdrawable).unwrap()).unwrap();
     assert_eq!(query_with.withdrawable, Uint128::from(0u64));
@@ -3578,7 +3607,7 @@ pub fn proper_withdraw_unbond_with_dummies() {
     )]);
 
     env.block.time = env.block.time.plus_seconds(120);
-    let wdraw_unbonded_msg = ExecuteMsg::WithdrawUnbonded {};
+    let wdraw_unbonded_msg = ExecuteMsg::WithdrawUnbonded { limit: None };
     let success_res = execute(deps.as_mut(), env, info, wdraw_unbonded_msg).unwrap();
 
     assert_eq!(success_res.messages.len(), 1);
@@ -3611,7 +3640,10 @@ pub fn proper_withdraw_unbond_with_dummies() {
     }
 
     // there should not be any result
-    let withdrawable = WithdrawableUnbonded { address: bob };
+    let withdrawable = WithdrawableUnbonded {
+        address: bob,
+        limit: None,
+    };
     let query_with: WithdrawableUnbondedResponse =
         from_binary(&query(deps.as_ref(), mock_env(), withdrawable).unwrap()).unwrap();
     assert_eq!(query_with.withdrawable, Uint128::from(0u64));
@@ -3750,7 +3782,7 @@ pub fn proper_withdraw_unbond_with_dummies_stluna() {
     )]);
 
     env.block.time = env.block.time.plus_seconds(120);
-    let wdraw_unbonded_msg = ExecuteMsg::WithdrawUnbonded {};
+    let wdraw_unbonded_msg = ExecuteMsg::WithdrawUnbonded { limit: None };
     let success_res = execute(deps.as_mut(), env, info, wdraw_unbonded_msg).unwrap();
 
     assert_eq!(success_res.messages.len(), 1);
@@ -3783,7 +3815,10 @@ pub fn proper_withdraw_unbond_with_dummies_stluna() {
     }
 
     // there should not be any result
-    let withdrawable = WithdrawableUnbonded { address: bob };
+    let withdrawable = WithdrawableUnbonded {
+        address: bob,
+        limit: None,
+    };
     let query_with: WithdrawableUnbondedResponse =
         from_binary(&query(deps.as_ref(), mock_env(), withdrawable).unwrap()).unwrap();
     assert_eq!(query_with.withdrawable, Uint128::from(0u64));
@@ -4048,7 +4083,7 @@ pub fn proper_recovery_fee() {
 
     env.block.time = env.block.time.plus_seconds(90);
     //check withdrawUnbonded message
-    let withdraw_unbond_msg = ExecuteMsg::WithdrawUnbonded {};
+    let withdraw_unbond_msg = ExecuteMsg::WithdrawUnbonded { limit: None };
     let wdraw_unbonded_res = execute(deps.as_mut(), env, token_info, withdraw_unbond_msg).unwrap();
     assert_eq!(wdraw_unbonded_res.messages.len(), 1);
 

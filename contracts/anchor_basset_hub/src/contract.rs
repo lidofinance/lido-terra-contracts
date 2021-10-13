@@ -109,7 +109,7 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
         ExecuteMsg::UpdateGlobalIndex { airdrop_hooks } => {
             execute_update_global(deps, env, info, airdrop_hooks)
         }
-        ExecuteMsg::WithdrawUnbonded {} => execute_withdraw_unbonded(deps, env, info),
+        ExecuteMsg::WithdrawUnbonded { limit } => execute_withdraw_unbonded(deps, env, info, limit),
         ExecuteMsg::CheckSlashing {} => execute_slashing(deps, env, info),
         ExecuteMsg::UpdateParams {
             epoch_period,
@@ -520,8 +520,8 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
         QueryMsg::Config {} => to_binary(&query_config(deps)?),
         QueryMsg::State {} => to_binary(&query_state(deps)?),
         QueryMsg::CurrentBatch {} => to_binary(&query_current_batch(deps)?),
-        QueryMsg::WithdrawableUnbonded { address } => {
-            to_binary(&query_withdrawable_unbonded(deps, address, env)?)
+        QueryMsg::WithdrawableUnbonded { address, limit } => {
+            to_binary(&query_withdrawable_unbonded(deps, address, env, limit)?)
         }
         QueryMsg::Parameters {} => to_binary(&query_params(deps)?),
         QueryMsg::UnbondRequests { address } => to_binary(&query_unbond_requests(deps, address)?),
@@ -612,10 +612,11 @@ fn query_withdrawable_unbonded(
     deps: Deps,
     address: String,
     env: Env,
+    limit: Option<u64>,
 ) -> StdResult<WithdrawableUnbondedResponse> {
     let params = PARAMETERS.load(deps.storage)?;
     let historical_time = env.block.time.seconds() - params.unbonding_period;
-    let all_requests = query_get_finished_amount(deps.storage, address, historical_time)?;
+    let all_requests = query_get_finished_amount(deps.storage, address, historical_time, limit)?;
 
     let withdrawable = WithdrawableUnbondedResponse {
         withdrawable: all_requests,

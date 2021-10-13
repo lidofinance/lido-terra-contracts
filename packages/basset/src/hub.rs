@@ -133,7 +133,9 @@ pub enum ExecuteMsg {
     },
 
     /// Send back unbonded coin to the user
-    WithdrawUnbonded {},
+    WithdrawUnbonded {
+        limit: Option<u64>,
+    },
 
     /// Check whether the slashing has happened or not
     CheckSlashing {},
@@ -286,6 +288,7 @@ pub enum QueryMsg {
     CurrentBatch {},
     WithdrawableUnbonded {
         address: String,
+        limit: Option<u64>,
     },
     Parameters {},
     UnbondRequests {
