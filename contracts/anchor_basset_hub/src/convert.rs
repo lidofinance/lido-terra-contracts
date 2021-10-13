@@ -72,7 +72,7 @@ pub fn convert_stluna_bluna(
                 ))
             })?;
         prev_state.update_bluna_exchange_rate(
-            total_bluna_supply + bluna_to_mint,
+            total_bluna_supply + bluna_mint_amount_with_fee,
             requested_bluna_with_fee,
         );
         prev_state
@@ -103,7 +103,7 @@ pub fn convert_stluna_bluna(
             state.stluna_exchange_rate.to_string(),
         ),
         attr("stluna_amount", stluna_amount),
-        attr("bluna_amount", bluna_to_mint),
+        attr("bluna_amount", bluna_mint_amount_with_fee),
     ]);
     Ok(res)
 }
