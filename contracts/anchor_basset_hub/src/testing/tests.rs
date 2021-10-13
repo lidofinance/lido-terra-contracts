@@ -4635,7 +4635,7 @@ fn test_convert_to_stluna_with_peg_fee() {
     let applied_exchange_rate = &r
         .attributes
         .iter()
-        .find(|a| return a.key == "bluna_exchange_rate")
+        .find(|a| a.key == "bluna_exchange_rate")
         .unwrap()
         .value;
     assert_eq!("0.8", applied_exchange_rate);
