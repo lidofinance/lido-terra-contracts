@@ -4691,7 +4691,6 @@ fn test_convert_to_stluna_with_peg_fee() {
     assert_eq!("0.84", new_exchange.to_string());
 }
 
-
 #[test]
 fn test_convert_to_bluna_with_peg_fee() {
     let mut deps = dependencies(&coins(2, "token"));
