@@ -3853,7 +3853,7 @@ pub fn proper_multiple_withdraw_unbonded_requests() {
 
     let info = mock_info(&bob, &[coin(100, "uluna")]);
 
-    //set bob's balance to 10 in token contract
+    //set bob's balance to 100 in token contract
     deps.querier.with_token_balances(&[
         (&String::from("token"), &[(&bob, &Uint128::from(100u128))]),
         (&stluna_token_contract, &[]),
@@ -3931,7 +3931,6 @@ pub fn proper_multiple_withdraw_unbonded_requests() {
     let query_unbonded = query(deps.as_ref(), mock_env(), all_unbonded).unwrap();
     let res: UnbondRequestsResponse = from_binary(&query_unbonded).unwrap();
     assert_eq!(res.requests.len(), 9);
-    //the amount should be 10
     assert_eq!(&res.address, &bob);
     assert_eq!(
         50u128,
