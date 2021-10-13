@@ -4554,6 +4554,145 @@ pub enum MIRMsg {
 }
 
 #[test]
+fn test_convert_to_stluna_with_peg_fee() {
+    let mut deps = dependencies(&coins(2, "token"));
+    let sender_addr = String::from("addr001");
+    let owner = String::from("owner1");
+    let bluna_token_contract = String::from("token");
+    let stluna_token_contract = String::from("stluna_token");
+    let reward_contract = String::from("reward");
+
+    initialize(
+        deps.borrow_mut(),
+        owner,
+        reward_contract,
+        bluna_token_contract.clone(),
+        stluna_token_contract.clone(),
+    );
+    STATE
+        .update(&mut deps.storage, |mut prev_state| -> StdResult<_> {
+            prev_state.total_bond_stluna_amount = Uint128::from(1000u64);
+            // due to slashing exchange rate is 0.8
+            prev_state.total_bond_bluna_amount = Uint128::from(1600u64);
+            prev_state.bluna_exchange_rate =
+                Decimal::from_ratio(Uint128::from(800u64), Uint128::from(1000u64));
+            Ok(prev_state)
+        })
+        .unwrap();
+    PARAMETERS
+        .update(&mut deps.storage, |mut prev_param| -> StdResult<_> {
+            prev_param.peg_recovery_fee = Decimal::from_str("0.05")?;
+            Ok(prev_param)
+        })
+        .unwrap();
+    deps.querier.with_token_balances(&[
+        (
+            &String::from("stluna_token"),
+            &[(&sender_addr, &Uint128::from(1000u64))],
+        ),
+        (
+            &String::from("token"),
+            &[(&sender_addr, &Uint128::from(2000u64))],
+        ),
+    ]);
+    /*
+
+    bluna_amount = 1000
+    max_peg_fee = bluna_amount * recovery_fee = 1000 * 0.05 = 50
+    required_peg_fee = 1000(bluna supply) - 800 = 200
+    peg_fee = min(50,200) = 50
+    bluna_amount_with_fee = 1000-50 = 950
+
+    we burn 1000bluna, but converting only 950, denom eqiuv 950*0.8 = 760
+    we mint 760stluna tokens
+
+    let bluna_amount_with_fee: Uint128;
+    if state.bluna_exchange_rate < threshold {
+        let max_peg_fee = bluna_amount * recovery_fee;
+        let required_peg_fee = (total_bluna_supply + current_batch.requested_bluna_with_fee)
+            .checked_sub(state.total_bond_bluna_amount)?;
+        let peg_fee = Uint128::min(max_peg_fee, required_peg_fee);
+        bluna_amount_with_fee = bluna_amount.checked_sub(peg_fee)?;
+    } else {
+        bluna_amount_with_fee = bluna_amount;
+    }
+
+    new bluna exchange rate
+    bonded amount bluna before convert - 1600
+    convert denom equiv(950 bluna) - 760
+    new bonded amount - 840
+    new bluna tokens amount - 1000
+    rate = 840/1000 - 0.84
+    */
+
+    let info = mock_info(bluna_token_contract.as_str(), &[]);
+    let msg = ExecuteMsg::Receive(Cw20ReceiveMsg {
+        sender: sender_addr.clone(),
+        amount: Uint128::from(1000u64),
+        msg: to_binary(&Cw20HookMsg::Convert {}).unwrap(),
+    });
+    let r = execute(deps.as_mut(), mock_env(), info, msg).unwrap();
+    let applied_exchange_rate = &r
+        .attributes
+        .iter()
+        .find(|a| {
+            if a.key == "bluna_exchange_rate" {
+                return true;
+            } else {
+                return false;
+            }
+        })
+        .unwrap()
+        .value;
+    assert_eq!("0.8", applied_exchange_rate);
+
+    let bluna_minted_with_fee = &r
+        .attributes
+        .iter()
+        .find(|a| {
+            if a.key == "bluna_amount" {
+                return true;
+            } else {
+                return false;
+            }
+        })
+        .unwrap()
+        .value;
+    assert_eq!("1000", bluna_minted_with_fee);
+
+    let mint_msg = Cw20ExecuteMsg::Mint {
+        recipient: sender_addr.clone(),
+        amount: Uint128::from(760u128),
+    };
+    assert_eq!(
+        r.messages[0].msg,
+        CosmosMsg::Wasm(WasmMsg::Execute {
+            contract_addr: stluna_token_contract.clone(),
+            msg: to_binary(&mint_msg).unwrap(),
+            funds: vec![],
+        })
+    );
+
+    let burn_msg = Cw20ExecuteMsg::Burn {
+        amount: Uint128::from(1000u128),
+    };
+    assert_eq!(
+        r.messages[1].msg,
+        CosmosMsg::Wasm(WasmMsg::Execute {
+            contract_addr: bluna_token_contract.clone(),
+            msg: to_binary(&burn_msg).unwrap(),
+            funds: vec![],
+        })
+    );
+
+    let query_exchange_rate: StateResponse =
+        from_binary(&query(deps.as_ref(), mock_env(), State {}).unwrap()).unwrap();
+    let new_exchange = query_exchange_rate.bluna_exchange_rate;
+    assert_eq!("0.84", new_exchange.to_string());
+}
+
+
+#[test]
 fn test_convert_to_bluna_with_peg_fee() {
     let mut deps = dependencies(&coins(2, "token"));
     let sender_addr = String::from("addr001");
