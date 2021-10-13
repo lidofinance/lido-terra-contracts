@@ -177,11 +177,9 @@ fn update_global_index() {
 
     // Failed zero staking balance
     let info = mock_info(MOCK_REWARDS_DISPATCHER_ADDR, &[]);
-    let res = execute(deps.as_mut(), mock_env(), info.clone(), msg.clone());
-    match res {
-        Err(StdError::GenericErr { msg, .. }) => assert_eq!(msg, "No asset is bonded by Hub"),
-        _ => panic!("DO NOT ENTER HERE"),
-    }
+    let res = execute(deps.as_mut(), mock_env(), info.clone(), msg.clone()).unwrap();
+    assert_eq!(0, res.messages.len());
+    assert_eq!(0, res.attributes.len());
 
     store_state(
         &mut deps.storage,
