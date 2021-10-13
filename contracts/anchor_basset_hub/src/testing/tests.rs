@@ -4635,13 +4635,7 @@ fn test_convert_to_stluna_with_peg_fee() {
     let applied_exchange_rate = &r
         .attributes
         .iter()
-        .find(|a| {
-            if a.key == "bluna_exchange_rate" {
-                return true;
-            } else {
-                return false;
-            }
-        })
+        .find(|a| return a.key == "bluna_exchange_rate")
         .unwrap()
         .value;
     assert_eq!("0.8", applied_exchange_rate);
@@ -4649,25 +4643,19 @@ fn test_convert_to_stluna_with_peg_fee() {
     let bluna_minted_with_fee = &r
         .attributes
         .iter()
-        .find(|a| {
-            if a.key == "bluna_amount" {
-                return true;
-            } else {
-                return false;
-            }
-        })
+        .find(|a| a.key == "bluna_amount")
         .unwrap()
         .value;
     assert_eq!("1000", bluna_minted_with_fee);
 
     let mint_msg = Cw20ExecuteMsg::Mint {
-        recipient: sender_addr.clone(),
+        recipient: sender_addr,
         amount: Uint128::from(760u128),
     };
     assert_eq!(
         r.messages[0].msg,
         CosmosMsg::Wasm(WasmMsg::Execute {
-            contract_addr: stluna_token_contract.clone(),
+            contract_addr: stluna_token_contract,
             msg: to_binary(&mint_msg).unwrap(),
             funds: vec![],
         })
@@ -4679,7 +4667,7 @@ fn test_convert_to_stluna_with_peg_fee() {
     assert_eq!(
         r.messages[1].msg,
         CosmosMsg::Wasm(WasmMsg::Execute {
-            contract_addr: bluna_token_contract.clone(),
+            contract_addr: bluna_token_contract,
             msg: to_binary(&burn_msg).unwrap(),
             funds: vec![],
         })
@@ -4763,13 +4751,7 @@ fn test_convert_to_bluna_with_peg_fee() {
     let applied_exchange_rate = &r
         .attributes
         .iter()
-        .find(|a| {
-            if a.key == "bluna_exchange_rate" {
-                return true;
-            } else {
-                return false;
-            }
-        })
+        .find(|a| a.key == "bluna_exchange_rate")
         .unwrap()
         .value;
     assert_eq!("0.8", applied_exchange_rate);
@@ -4777,25 +4759,19 @@ fn test_convert_to_bluna_with_peg_fee() {
     let bluna_minted_with_fee = &r
         .attributes
         .iter()
-        .find(|a| {
-            if a.key == "bluna_amount" {
-                return true;
-            } else {
-                return false;
-            }
-        })
+        .find(|a| a.key == "bluna_amount")
         .unwrap()
         .value;
     assert_eq!("1188", bluna_minted_with_fee);
 
     let mint_msg = Cw20ExecuteMsg::Mint {
-        recipient: sender_addr.clone(),
+        recipient: sender_addr,
         amount: Uint128::from(1188u128),
     };
     assert_eq!(
         r.messages[0].msg,
         CosmosMsg::Wasm(WasmMsg::Execute {
-            contract_addr: bluna_token_contract.clone(),
+            contract_addr: bluna_token_contract,
             msg: to_binary(&mint_msg).unwrap(),
             funds: vec![],
         })
@@ -4807,7 +4783,7 @@ fn test_convert_to_bluna_with_peg_fee() {
     assert_eq!(
         r.messages[1].msg,
         CosmosMsg::Wasm(WasmMsg::Execute {
-            contract_addr: stluna_token_contract.clone(),
+            contract_addr: stluna_token_contract,
             msg: to_binary(&burn_msg).unwrap(),
             funds: vec![],
         })
