@@ -81,7 +81,7 @@ pub fn calculate_undelegations(
         };
         let mut to_undelegate = validator
             .total_delegated
-            .sub(Uint128::from(coins_per_validator + extra_coin));
+            .checked_sub(Uint128::from(coins_per_validator + extra_coin))?;
         if to_undelegate > undelegation_amount {
             to_undelegate = undelegation_amount
         }
