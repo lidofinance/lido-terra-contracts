@@ -185,7 +185,7 @@ pub fn execute_swap(
     }
 
     let contr_addr = env.contract.address;
-    let balance = deps.querier.query_all_balances(contr_addr.clone())?;
+    let balance = deps.querier.query_all_balances(contr_addr)?;
     let (total_luna_rewards_available, total_ust_rewards_available, mut msgs) =
         convert_to_target_denoms(
             &deps,
