@@ -189,7 +189,6 @@ pub fn execute_swap(
     let (total_luna_rewards_available, total_ust_rewards_available, mut msgs) =
         convert_to_target_denoms(
             &deps,
-            contr_addr.to_string(),
             balance.clone(),
             config.stluna_reward_denom.clone(),
             config.bluna_reward_denom.clone(),
@@ -238,7 +237,6 @@ pub fn execute_swap(
 
 pub(crate) fn convert_to_target_denoms(
     deps: &DepsMut,
-    _contr_addr: String,
     balance: Vec<Coin>,
     denom_to_keep: String,
     denom_to_xchg: String,
