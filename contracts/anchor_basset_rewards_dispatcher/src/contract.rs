@@ -15,7 +15,10 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 
-use cosmwasm_std::{attr, to_binary, Attribute, BankMsg, Binary, Coin, CosmosMsg, Decimal, Deps, DepsMut, Env, MessageInfo, Response, StdError, StdResult, Uint128, WasmMsg, Fraction};
+use cosmwasm_std::{
+    attr, to_binary, Attribute, BankMsg, Binary, Coin, CosmosMsg, Decimal, Deps, DepsMut, Env,
+    Fraction, MessageInfo, Response, StdError, StdResult, Uint128, WasmMsg,
+};
 
 use crate::msg::{ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg};
 use crate::state::{Config, CONFIG};
@@ -278,10 +281,11 @@ pub(crate) fn get_exchange_rates(
 
     Ok((
         a_2_b_xchg_rates[0].exchange_rate,
-        a_2_b_xchg_rates[0].exchange_rate.inv().ok_or_else(|| {
-            StdError::generic_err("failed to convert exchange rate")
-        })?)
-    )
+        a_2_b_xchg_rates[0]
+            .exchange_rate
+            .inv()
+            .ok_or_else(|| StdError::generic_err("failed to convert exchange rate"))?,
+    ))
 }
 
 pub(crate) fn get_swap_info(
