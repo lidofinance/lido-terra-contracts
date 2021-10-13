@@ -2217,7 +2217,7 @@ pub fn proper_withdraw_unbonded() {
     );
 
     // trigger undelegation message
-    assert!(wdraw_unbonded_res.is_err(), "withdraw unbounded error");
+    assert!(wdraw_unbonded_res.is_err(), "withdraw unbonded error");
     assert_eq!(
         wdraw_unbonded_res.unwrap_err(),
         StdError::generic_err("No withdrawable uluna assets are available yet")
@@ -2422,7 +2422,7 @@ pub fn proper_withdraw_unbonded_stluna() {
     );
 
     // trigger undelegation message
-    assert!(wdraw_unbonded_res.is_err(), "unbounded error");
+    assert!(wdraw_unbonded_res.is_err(), "unbonded error");
     assert_eq!(
         wdraw_unbonded_res.unwrap_err(),
         StdError::generic_err("No withdrawable uluna assets are available yet")
@@ -2823,7 +2823,7 @@ pub fn proper_withdraw_unbonded_respect_slashing() {
         info.clone(),
         wdraw_unbonded_msg.clone(),
     );
-    assert!(wdraw_unbonded_res.is_err(), "unbounded error");
+    assert!(wdraw_unbonded_res.is_err(), "unbonded error");
     assert_eq!(
         wdraw_unbonded_res.unwrap_err(),
         StdError::generic_err("No withdrawable uluna assets are available yet")
@@ -2983,7 +2983,7 @@ pub fn proper_withdraw_unbonded_respect_slashing_stluna() {
         info.clone(),
         wdraw_unbonded_msg.clone(),
     );
-    assert!(wdraw_unbonded_res.is_err(), "unbounded error");
+    assert!(wdraw_unbonded_res.is_err(), "unbonded error");
     assert_eq!(
         wdraw_unbonded_res.unwrap_err(),
         StdError::generic_err("No withdrawable uluna assets are available yet")
@@ -3149,7 +3149,7 @@ pub fn proper_withdraw_unbonded_respect_inactivity_slashing() {
         info.clone(),
         wdraw_unbonded_msg.clone(),
     );
-    assert!(wdraw_unbonded_res.is_err(), "unbounded error");
+    assert!(wdraw_unbonded_res.is_err(), "unbonded error");
     assert_eq!(
         wdraw_unbonded_res.unwrap_err(),
         StdError::generic_err("No withdrawable uluna assets are available yet")
@@ -3350,7 +3350,7 @@ pub fn proper_withdraw_unbonded_respect_inactivity_slashing_stluna() {
         info.clone(),
         wdraw_unbonded_msg.clone(),
     );
-    assert!(wdraw_unbonded_res.is_err(), "unbounded error");
+    assert!(wdraw_unbonded_res.is_err(), "unbonded error");
     assert_eq!(
         wdraw_unbonded_res.unwrap_err(),
         StdError::generic_err("No withdrawable uluna assets are available yet")
