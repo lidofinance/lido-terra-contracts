@@ -45,10 +45,7 @@ pub(crate) fn execute_unbond(
     let mut current_batch = CURRENT_BATCH.load(deps.storage)?;
 
     // Check slashing, update state, and calculate the new exchange rate.
-    let mut state = match slashing(&mut deps, env.clone())? {
-        Some(s) => s,
-        None => STATE.load(deps.storage)?,
-    };
+    let mut state = slashing(&mut deps, env.clone())?;
 
     let mut total_supply = query_total_bluna_issued(deps.as_ref())?;
 
@@ -411,10 +408,7 @@ pub(crate) fn execute_unbond_stluna(
     let mut current_batch = CURRENT_BATCH.load(deps.storage)?;
 
     // Check slashing, update state, and calculate the new exchange rate.
-    let mut state = match slashing(&mut deps, env.clone())? {
-        Some(s) => s,
-        None => STATE.load(deps.storage)?,
-    };
+    let mut state = slashing(&mut deps, env.clone())?;
 
     // Collect all the requests within a epoch period
     current_batch.requested_stluna += amount;

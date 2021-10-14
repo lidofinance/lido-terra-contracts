@@ -71,10 +71,7 @@ pub fn execute_bond(
         })?;
 
     // check slashing
-    let state = match slashing(&mut deps, env)? {
-        Some(s) => s,
-        None => STATE.load(deps.storage)?,
-    };
+    let state = slashing(&mut deps, env)?;
 
     let sender = info.sender.clone();
 

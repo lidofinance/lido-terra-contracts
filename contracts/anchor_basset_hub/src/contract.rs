@@ -350,11 +350,12 @@ fn withdraw_all_rewards(deps: &DepsMut, delegator: String) -> StdResult<Vec<Cosm
 
 /// Check whether slashing has happened
 /// This is used for checking slashing while bonding or unbonding
-pub fn slashing(deps: &mut DepsMut, env: Env) -> StdResult<Option<State>> {
+pub fn slashing(deps: &mut DepsMut, env: Env) -> StdResult<State> {
     // Check the actual bonded amount
+    let mut state = STATE.load(deps.storage)?;
     let delegations = deps.querier.query_all_delegations(env.contract.address)?;
     if delegations.is_empty() {
-        return Ok(None);
+        return Ok(state);
     }
 
     //read params
@@ -368,16 +369,15 @@ pub fn slashing(deps: &mut DepsMut, env: Env) -> StdResult<Option<State>> {
         }
     }
 
-    let mut state = STATE.load(deps.storage)?;
     // Check the amount that contract thinks is bonded
     let state_total_bonded = state.total_bond_bluna_amount + state.total_bond_stluna_amount;
     if state_total_bonded.is_zero() {
-        return Ok(Some(state));
+        return Ok(state);
     }
 
     // Slashing happens if the expected amount is less than stored amount
     if state_total_bonded.u128() <= actual_total_bonded.u128() {
-        return Ok(Some(state));
+        return Ok(state);
     }
 
     let bluna_bond_ratio = Decimal::from_ratio(state.total_bond_bluna_amount, state_total_bonded);
@@ -397,7 +397,7 @@ pub fn slashing(deps: &mut DepsMut, env: Env) -> StdResult<Option<State>> {
 
     STATE.save(deps.storage, &state)?;
 
-    Ok(Some(state))
+    Ok(state)
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -495,11 +495,7 @@ pub fn swap_hook(
 /// Handler for tracking slashing
 pub fn execute_slashing(mut deps: DepsMut, env: Env) -> StdResult<Response> {
     // call slashing and
-    // read state for log
-    let state = match slashing(&mut deps, env)? {
-        Some(s) => s,
-        None => STATE.load(deps.storage)?,
-    };
+    let state = slashing(&mut deps, env)?;
 
     Ok(Response::new().add_attributes(vec![
         attr("action", "check_slashing"),
