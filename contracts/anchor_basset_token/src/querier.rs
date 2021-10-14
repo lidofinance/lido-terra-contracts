@@ -12,19 +12,19 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use cosmwasm_std::{Addr, Binary, DepsMut, QueryRequest, StdError, StdResult, WasmQuery};
-use cosmwasm_storage::to_length_prefixed;
+use cosmwasm_std::{to_binary, Addr, DepsMut, QueryRequest, StdError, StdResult, WasmQuery};
 
 use crate::state::read_hub_contract;
+use anchor_basset_rewards_dispatcher::msg::QueryMsg as RewardsDispatcherQueryMsg;
 use anchor_basset_rewards_dispatcher::state::Config as RewardsDispatcherConfig;
-use basset::hub::Config;
+use basset::hub::{Config, QueryMsg as HubQueryMsg};
 
 pub fn query_reward_contract(deps: &DepsMut) -> StdResult<Addr> {
     let hub_address = deps.api.addr_humanize(&read_hub_contract(deps.storage)?)?;
 
-    let config: Config = deps.querier.query(&QueryRequest::Wasm(WasmQuery::Raw {
+    let config: Config = deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
         contract_addr: hub_address.to_string(),
-        key: Binary::from(to_length_prefixed(b"config")),
+        msg: to_binary(&HubQueryMsg::Config {})?,
     }))?;
 
     let rewards_dispatcher_address =
@@ -34,9 +34,9 @@ pub fn query_reward_contract(deps: &DepsMut) -> StdResult<Addr> {
             })?)?;
 
     let rewards_dispatcher_config: RewardsDispatcherConfig =
-        deps.querier.query(&QueryRequest::Wasm(WasmQuery::Raw {
+        deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
             contract_addr: rewards_dispatcher_address.to_string(),
-            key: Binary::from(b"config"),
+            msg: to_binary(&RewardsDispatcherQueryMsg::Config {})?,
         }))?;
 
     let bluna_reward_address = deps
