@@ -351,7 +351,6 @@ fn withdraw_all_rewards(deps: &DepsMut, delegator: String) -> StdResult<Vec<Cosm
 /// Check whether slashing has happened
 /// This is used for checking slashing while bonding or unbonding
 pub fn slashing(deps: &mut DepsMut, env: Env) -> StdResult<State> {
-    // Check the actual bonded amount
     let mut state = STATE.load(deps.storage)?;
     let delegations = deps.querier.query_all_delegations(env.contract.address)?;
     if delegations.is_empty() {
@@ -362,6 +361,7 @@ pub fn slashing(deps: &mut DepsMut, env: Env) -> StdResult<State> {
     let params = PARAMETERS.load(deps.storage)?;
     let coin_denom = params.underlying_coin_denom;
 
+    // Check the actual bonded amount
     let mut actual_total_bonded = Uint128::zero();
     for delegation in &delegations {
         if delegation.amount.denom == coin_denom {
