@@ -33,7 +33,6 @@ use signed_integer::SignedInt;
 pub(crate) fn execute_unbond(
     mut deps: DepsMut,
     env: Env,
-    info: MessageInfo,
     amount: Uint128,
     sender: String,
 ) -> StdResult<Response> {
@@ -46,9 +45,10 @@ pub(crate) fn execute_unbond(
     let mut current_batch = CURRENT_BATCH.load(deps.storage)?;
 
     // Check slashing, update state, and calculate the new exchange rate.
-    slashing(&mut deps, env.clone(), info)?;
-
-    let mut state = STATE.load(deps.storage)?;
+    let mut state = match slashing(&mut deps, env.clone())? {
+        Some(s) => s,
+        None => STATE.load(deps.storage)?,
+    };
 
     let mut total_supply = query_total_bluna_issued(deps.as_ref())?;
 
@@ -401,7 +401,6 @@ fn pick_validator(deps: &DepsMut, claim: Uint128, delegator: String) -> StdResul
 pub(crate) fn execute_unbond_stluna(
     mut deps: DepsMut,
     env: Env,
-    info: MessageInfo,
     amount: Uint128,
     sender: String,
 ) -> StdResult<Response> {
@@ -412,9 +411,10 @@ pub(crate) fn execute_unbond_stluna(
     let mut current_batch = CURRENT_BATCH.load(deps.storage)?;
 
     // Check slashing, update state, and calculate the new exchange rate.
-    slashing(&mut deps, env.clone(), info)?;
-
-    let mut state = STATE.load(deps.storage)?;
+    let mut state = match slashing(&mut deps, env.clone())? {
+        Some(s) => s,
+        None => STATE.load(deps.storage)?,
+    };
 
     // Collect all the requests within a epoch period
     current_batch.requested_stluna += amount;
