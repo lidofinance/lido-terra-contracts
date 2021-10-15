@@ -19,7 +19,6 @@ use cosmwasm_std::{
     from_slice, to_binary, Api, Coin, ContractResult, Decimal, Empty, OwnedDeps, Querier,
     QuerierResult, QueryRequest, SystemError, SystemResult, WasmQuery,
 };
-use cosmwasm_storage::to_length_prefixed;
 
 pub const MOCK_OWNER_ADDR: &str = "owner";
 pub const MOCK_HUB_CONTRACT_ADDR: &str = "hub";
@@ -67,66 +66,58 @@ impl Querier for WasmMockQuerier {
 impl WasmMockQuerier {
     pub fn handle_query(&self, request: &QueryRequest<Empty>) -> QuerierResult {
         match &request {
-            QueryRequest::Wasm(WasmQuery::Raw { contract_addr, key }) => {
+            QueryRequest::Wasm(WasmQuery::Smart {
+                contract_addr,
+                msg: _,
+            }) => {
                 if *contract_addr == MOCK_HUB_CONTRACT_ADDR {
-                    let prefix_config = to_length_prefixed(b"config").to_vec();
                     let api: MockApi = MockApi::default();
-                    if key.as_slice().to_vec() == prefix_config {
-                        let config = Config {
-                            creator: api.addr_canonicalize(&String::from("owner1")).unwrap(),
-                            reward_dispatcher_contract: Some(
-                                api.addr_canonicalize(&String::from(
-                                    MOCK_REWARDS_DISPATCHER_CONTRACT_ADDR,
-                                ))
+                    let config = Config {
+                        creator: api.addr_canonicalize(&String::from("owner1")).unwrap(),
+                        reward_dispatcher_contract: Some(
+                            api.addr_canonicalize(&String::from(
+                                MOCK_REWARDS_DISPATCHER_CONTRACT_ADDR,
+                            ))
+                            .unwrap(),
+                        ),
+                        validators_registry_contract: Some(
+                            api.addr_canonicalize(&String::from(MOCK_VALIDATORS_REGISTRY_ADDR))
                                 .unwrap(),
-                            ),
-                            validators_registry_contract: Some(
-                                api.addr_canonicalize(&String::from(MOCK_VALIDATORS_REGISTRY_ADDR))
-                                    .unwrap(),
-                            ),
-                            bluna_token_contract: Some(
-                                api.addr_canonicalize(&String::from(MOCK_TOKEN_CONTRACT_ADDR))
-                                    .unwrap(),
-                            ),
-                            airdrop_registry_contract: Some(
-                                api.addr_canonicalize(&String::from("airdrop")).unwrap(),
-                            ),
-                            stluna_token_contract: Some(
-                                api.addr_canonicalize(&String::from(
-                                    MOCK_STLUNA_TOKEN_CONTRACT_ADDR,
-                                ))
+                        ),
+                        bluna_token_contract: Some(
+                            api.addr_canonicalize(&String::from(MOCK_TOKEN_CONTRACT_ADDR))
                                 .unwrap(),
-                            ),
-                        };
-                        SystemResult::Ok(ContractResult::from(to_binary(&config)))
-                    } else {
-                        unimplemented!()
-                    }
+                        ),
+                        airdrop_registry_contract: Some(
+                            api.addr_canonicalize(&String::from("airdrop")).unwrap(),
+                        ),
+                        stluna_token_contract: Some(
+                            api.addr_canonicalize(&String::from(MOCK_STLUNA_TOKEN_CONTRACT_ADDR))
+                                .unwrap(),
+                        ),
+                    };
+                    SystemResult::Ok(ContractResult::from(to_binary(&config)))
                 } else if contract_addr == MOCK_REWARDS_DISPATCHER_CONTRACT_ADDR {
-                    let prefix_config = b"config".to_vec();
                     let api: MockApi = MockApi::default();
-                    if key.as_slice().to_vec() == prefix_config {
-                        let config = RewardsDispatcherConfig {
-                            owner: api
-                                .addr_canonicalize(&String::from(MOCK_OWNER_ADDR))
-                                .unwrap(),
-                            hub_contract: api
-                                .addr_canonicalize(&String::from(MOCK_HUB_CONTRACT_ADDR))
-                                .unwrap(),
-                            bluna_reward_contract: api
-                                .addr_canonicalize(&String::from(MOCK_REWARD_CONTRACT_ADDR))
-                                .unwrap(),
-                            stluna_reward_denom: "uluna".to_string(),
-                            bluna_reward_denom: "uusd".to_string(),
-                            lido_fee_address: api
-                                .addr_canonicalize(&String::from(MOCK_LIDO_FEE_ADDRESS))
-                                .unwrap(),
-                            lido_fee_rate: Decimal::from_ratio(5u128, 100u128),
-                        };
-                        SystemResult::Ok(ContractResult::from(to_binary(&config)))
-                    } else {
-                        unimplemented!()
-                    }
+
+                    let config = RewardsDispatcherConfig {
+                        owner: api
+                            .addr_canonicalize(&String::from(MOCK_OWNER_ADDR))
+                            .unwrap(),
+                        hub_contract: api
+                            .addr_canonicalize(&String::from(MOCK_HUB_CONTRACT_ADDR))
+                            .unwrap(),
+                        bluna_reward_contract: api
+                            .addr_canonicalize(&String::from(MOCK_REWARD_CONTRACT_ADDR))
+                            .unwrap(),
+                        stluna_reward_denom: "uluna".to_string(),
+                        bluna_reward_denom: "uusd".to_string(),
+                        lido_fee_address: api
+                            .addr_canonicalize(&String::from(MOCK_LIDO_FEE_ADDRESS))
+                            .unwrap(),
+                        lido_fee_rate: Decimal::from_ratio(5u128, 100u128),
+                    };
+                    SystemResult::Ok(ContractResult::from(to_binary(&config)))
                 } else {
                     unimplemented!()
                 }
