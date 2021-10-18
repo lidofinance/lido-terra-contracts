@@ -141,8 +141,7 @@ pub fn get_finished_amount(
     storage: &dyn Storage,
     sender_addr: String,
     limit: Option<u64>,
-) -> StdResult<(Uint128,String)> {
-    let mut log = String::new();
+) -> StdResult<Uint128> {
     let vec = to_vec(&sender_addr)?;
     let mut withdrawable_amount: Uint128 = Uint128::zero();
     let res: ReadonlyBucket<UnbondWaitEntity> =
@@ -155,21 +154,13 @@ pub fn get_finished_amount(
         let user_batch: u64 = from_slice(&k)?;
         let history = read_unbond_history(storage, user_batch);
         if let Ok(h) = history {
-            log.push_str(format!(
-                "{} {} {} {}\n",
-                h.batch_id, h.released, h.bluna_withdraw_rate, h.bluna_amount
-            ).as_str());
             if h.released {
                 withdrawable_amount += v.stluna_amount * h.stluna_withdraw_rate
                     + v.bluna_amount * h.bluna_withdraw_rate;
             }
         }
     }
-    log.push_str(format!(
-        "{}\n",
-        withdrawable_amount
-    ).as_str());
-    Ok((withdrawable_amount,log))
+    Ok(withdrawable_amount)
 }
 
 const DEFAULT_UNBONDWAITENTITYREQUESTS: u64 = 100000;

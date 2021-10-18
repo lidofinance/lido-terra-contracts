@@ -144,7 +144,7 @@ pub fn execute_withdraw_unbonded(
     // calculate withdraw rate for user requests
     let batch_count = process_withdraw_rate(&mut deps, historical_time, hub_balance)?;
 
-    let (withdraw_amount, log) =
+    let withdraw_amount =
         get_finished_amount(deps.storage, sender_human.to_string(), limit)?;
 
     if withdraw_amount.is_zero() {
@@ -153,7 +153,6 @@ pub fn execute_withdraw_unbonded(
             coin_denom, historical_time, batch_count
         )));
     }
-    // return Err(StdError::generic_err(format!("withdraw log {}", log)));
 
     // remove the previous batches for the user
     let deprecated_batches = get_unbond_batches(deps.storage, sender_human.to_string(), limit)?;
@@ -185,11 +184,10 @@ fn calculate_newly_added_unbonded_amount(
     storage: &mut dyn Storage,
     last_processed_batch: u64,
     historical_time: u64,
-) -> (Uint256, Uint256, u64, String) {
+) -> (Uint256, Uint256, u64) {
     let mut stluna_total_unbonded_amount = Uint256::zero();
     let mut bluna_total_unbonded_amount = Uint256::zero();
     let mut batch_count: u64 = 0;
-    let mut log = String::new();
 
     // Iterate over unbonded histories that have been processed
     // to calculate newly added unbonded amount
@@ -197,27 +195,21 @@ fn calculate_newly_added_unbonded_amount(
     // let mut i = 1;
     loop {
         let history: UnbondHistory;
-        log.push_str(format!("{} batchID\n", i).as_str());
         match read_unbond_history(storage, i) {
             Ok(h) => {
-                log.push_str(format!("{:?} {} {}\n", h, historical_time, batch_count).as_str());
                 if h.time > historical_time {
-                    log.push_str("to low\n");
                     break;
                 }
                 if !h.released {
                     history = h.clone();
                 } else {
-                    log.push_str("released\n");
                     break;
                 }
             }
-            Err(e) => {
-                log.push_str(format!("err: {}\n", e).as_str());
+            Err(_) => {
                 break;
             }
         }
-        log.push_str("processing\n");
         let stluna_burnt_amount = Uint256::from(history.stluna_amount);
         let stluna_historical_rate = Decimal256::from(history.stluna_withdraw_rate);
         let stluna_unbonded_amount = stluna_burnt_amount * stluna_historical_rate;
@@ -230,14 +222,12 @@ fn calculate_newly_added_unbonded_amount(
         bluna_total_unbonded_amount += bluna_unbonded_amount;
         batch_count += 1;
         i += 1;
-        // break
     }
 
     (
         stluna_total_unbonded_amount,
         bluna_total_unbonded_amount,
         batch_count,
-        log,
     )
 }
 
@@ -293,17 +283,16 @@ fn process_withdraw_rate(
     deps: &mut DepsMut,
     historical_time: u64,
     hub_balance: Uint128,
-) -> StdResult<(u64, Uint256, String)> {
+) -> StdResult<u64> {
     let mut state = STATE.load(deps.storage)?;
 
     let last_processed_batch = state.last_processed_batch;
 
-    let (stluna_total_unbonded_amount, bluna_total_unbonded_amount, batch_count, mut log) =
+    let (stluna_total_unbonded_amount, bluna_total_unbonded_amount, batch_count) =
         calculate_newly_added_unbonded_amount(deps.storage, last_processed_batch, historical_time);
 
-    log.push_str(state.last_processed_batch.to_string().as_str());
     if batch_count < 1 {
-        return Ok((batch_count, stluna_total_unbonded_amount, log));
+        return Ok(batch_count);
     }
 
     let balance_change = SignedInt::from_subtraction(hub_balance, state.prev_hub_balance);
@@ -373,7 +362,7 @@ fn process_withdraw_rate(
 
     STATE.save(deps.storage, &state)?;
 
-    Ok((batch_count, Uint256::zero(), log))
+    Ok(batch_count)
 }
 
 fn pick_validator(deps: &DepsMut, claim: Uint128, delegator: String) -> StdResult<Vec<CosmosMsg>> {
