@@ -84,12 +84,11 @@ pub(crate) fn execute_unbond(
 
     let mut messages: Vec<CosmosMsg> = vec![];
     // If the epoch period is passed, the undelegate message would be sent.
-    if passed_time > epoch_period {
+    // if passed_time > epoch_period {
         let mut undelegate_msgs =
             process_undelegations(&mut deps, env, &mut current_batch, &mut state)?;
         messages.append(&mut undelegate_msgs);
-    }
-
+    // }
     // Store the new requested_with_fee or id in the current batch
     CURRENT_BATCH.save(deps.storage, &current_batch)?;
 
@@ -143,16 +142,18 @@ pub fn execute_withdraw_unbonded(
         .amount;
 
     // calculate withdraw rate for user requests
-    process_withdraw_rate(&mut deps, historical_time, hub_balance)?;
+    let batch_count = process_withdraw_rate(&mut deps, historical_time, hub_balance)?;
 
-    let withdraw_amount = get_finished_amount(deps.storage, sender_human.to_string(), limit)?;
+    let (withdraw_amount, log) =
+        get_finished_amount(deps.storage, sender_human.to_string(), limit)?;
 
     if withdraw_amount.is_zero() {
         return Err(StdError::generic_err(format!(
-            "No withdrawable {} assets are available yet",
-            coin_denom
+            "No withdrawable {} assets are available yet. hist time {}. new batch ount {:?}",
+            coin_denom, historical_time, batch_count
         )));
     }
+    // return Err(StdError::generic_err(format!("withdraw log {}", log)));
 
     // remove the previous batches for the user
     let deprecated_batches = get_unbond_batches(deps.storage, sender_human.to_string(), limit)?;
@@ -184,29 +185,39 @@ fn calculate_newly_added_unbonded_amount(
     storage: &mut dyn Storage,
     last_processed_batch: u64,
     historical_time: u64,
-) -> (Uint256, Uint256, u64) {
+) -> (Uint256, Uint256, u64, String) {
     let mut stluna_total_unbonded_amount = Uint256::zero();
     let mut bluna_total_unbonded_amount = Uint256::zero();
     let mut batch_count: u64 = 0;
+    let mut log = String::new();
 
     // Iterate over unbonded histories that have been processed
     // to calculate newly added unbonded amount
     let mut i = last_processed_batch + 1;
+    // let mut i = 1;
     loop {
         let history: UnbondHistory;
+        log.push_str(format!("{} batchID\n", i).as_str());
         match read_unbond_history(storage, i) {
             Ok(h) => {
+                log.push_str(format!("{:?} {} {}\n", h, historical_time, batch_count).as_str());
                 if h.time > historical_time {
+                    log.push_str("to low\n");
                     break;
                 }
                 if !h.released {
                     history = h.clone();
                 } else {
+                    log.push_str("released\n");
                     break;
                 }
             }
-            Err(_) => break,
+            Err(e) => {
+                log.push_str(format!("err: {}\n", e).as_str());
+                break;
+            }
         }
+        log.push_str("processing\n");
         let stluna_burnt_amount = Uint256::from(history.stluna_amount);
         let stluna_historical_rate = Decimal256::from(history.stluna_withdraw_rate);
         let stluna_unbonded_amount = stluna_burnt_amount * stluna_historical_rate;
@@ -219,12 +230,14 @@ fn calculate_newly_added_unbonded_amount(
         bluna_total_unbonded_amount += bluna_unbonded_amount;
         batch_count += 1;
         i += 1;
+        // break
     }
 
     (
         stluna_total_unbonded_amount,
         bluna_total_unbonded_amount,
         batch_count,
+        log,
     )
 }
 
@@ -280,16 +293,17 @@ fn process_withdraw_rate(
     deps: &mut DepsMut,
     historical_time: u64,
     hub_balance: Uint128,
-) -> StdResult<()> {
+) -> StdResult<(u64, Uint256, String)> {
     let mut state = STATE.load(deps.storage)?;
 
     let last_processed_batch = state.last_processed_batch;
 
-    let (stluna_total_unbonded_amount, bluna_total_unbonded_amount, batch_count) =
+    let (stluna_total_unbonded_amount, bluna_total_unbonded_amount, batch_count, mut log) =
         calculate_newly_added_unbonded_amount(deps.storage, last_processed_batch, historical_time);
 
+    log.push_str(state.last_processed_batch.to_string().as_str());
     if batch_count < 1 {
-        return Ok(());
+        return Ok((batch_count, stluna_total_unbonded_amount, log));
     }
 
     let balance_change = SignedInt::from_subtraction(hub_balance, state.prev_hub_balance);
@@ -359,7 +373,7 @@ fn process_withdraw_rate(
 
     STATE.save(deps.storage, &state)?;
 
-    Ok(())
+    Ok((batch_count, Uint256::zero(), log))
 }
 
 fn pick_validator(deps: &DepsMut, claim: Uint128, delegator: String) -> StdResult<Vec<CosmosMsg>> {

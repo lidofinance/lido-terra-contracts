@@ -13,6 +13,7 @@ pub enum BondType {
 pub type UnbondRequest = Vec<(u64, Uint128, Uint128)>;
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[schemars(deny_unknown_fields)]
 pub struct InstantiateMsg {
     pub epoch_period: u64,
     pub underlying_coin_denom: String,
@@ -23,6 +24,7 @@ pub struct InstantiateMsg {
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema, Default)]
+#[schemars(deny_unknown_fields)]
 pub struct State {
     pub bluna_exchange_rate: Decimal,
     pub stluna_exchange_rate: Decimal,
@@ -35,6 +37,7 @@ pub struct State {
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema, Default)]
+#[schemars(deny_unknown_fields)]
 pub struct OldState {
     pub exchange_rate: Decimal,
     pub total_bond_amount: Uint128,
@@ -46,6 +49,7 @@ pub struct OldState {
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[schemars(deny_unknown_fields)]
 pub struct Config {
     pub creator: CanonicalAddr,
     pub reward_dispatcher_contract: Option<CanonicalAddr>,
@@ -56,6 +60,7 @@ pub struct Config {
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[schemars(deny_unknown_fields)]
 pub struct OldConfig {
     pub creator: CanonicalAddr,
     pub reward_contract: Option<CanonicalAddr>,
@@ -181,6 +186,7 @@ pub enum Cw20HookMsg {
     Convert {},
 }
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[schemars(deny_unknown_fields)]
 pub struct Parameters {
     pub epoch_period: u64,
     pub underlying_coin_denom: String,
@@ -191,6 +197,7 @@ pub struct Parameters {
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[schemars(deny_unknown_fields)]
 pub struct CurrentBatch {
     pub id: u64,
     pub requested_bluna_with_fee: Uint128,
@@ -198,12 +205,14 @@ pub struct CurrentBatch {
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[schemars(deny_unknown_fields)]
 pub struct OldCurrentBatch {
     pub id: u64,
     pub requested_with_fee: Uint128,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[schemars(deny_unknown_fields)]
 pub struct UnbondHistory {
     pub batch_id: u64,
     pub time: u64,
@@ -219,6 +228,7 @@ pub struct UnbondHistory {
 }
 
 #[derive(JsonSchema, Serialize, Deserialize, Default)]
+#[schemars(deny_unknown_fields)]
 pub struct UnbondWaitEntity {
     pub bluna_amount: Uint128,
     pub stluna_amount: Uint128,
@@ -230,6 +240,7 @@ pub enum UnbondType {
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[schemars(deny_unknown_fields)]
 pub struct StateResponse {
     pub bluna_exchange_rate: Decimal,
     pub stluna_exchange_rate: Decimal,
@@ -242,6 +253,7 @@ pub struct StateResponse {
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[schemars(deny_unknown_fields)]
 pub struct ConfigResponse {
     pub owner: String,
     pub reward_dispatcher_contract: Option<String>,
@@ -252,6 +264,7 @@ pub struct ConfigResponse {
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[schemars(deny_unknown_fields)]
 pub struct CurrentBatchResponse {
     pub id: u64,
     pub requested_bluna_with_fee: Uint128,
@@ -259,21 +272,25 @@ pub struct CurrentBatchResponse {
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[schemars(deny_unknown_fields)]
 pub struct WithdrawableUnbondedResponse {
     pub withdrawable: Uint128,
 }
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[schemars(deny_unknown_fields)]
 pub struct UnbondRequestsResponse {
     pub address: String,
     pub requests: UnbondRequest,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[schemars(deny_unknown_fields)]
 pub struct AllHistoryResponse {
     pub history: Vec<UnbondHistory>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[schemars(deny_unknown_fields)]
 pub struct MigrateMsg {
     pub reward_dispatcher_contract: String,
     pub validators_registry_contract: String,
@@ -282,6 +299,7 @@ pub struct MigrateMsg {
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
+#[schemars(deny_unknown_fields)]
 pub enum QueryMsg {
     Config {},
     State {},
