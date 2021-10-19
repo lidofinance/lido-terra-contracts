@@ -653,7 +653,6 @@ fn test_calculate_delegations() {
     }
 }
 
-//TODO: implement more test cases
 #[test]
 fn test_calculate_undelegations() {
     let mut validators = vec![
@@ -731,6 +730,41 @@ fn test_calculate_undelegations() {
     } else {
         panic!("undelegations invalid")
     }
+
+    let validators = vec![
+        default_validator_with_delegations!(100),
+        default_validator_with_delegations!(50),
+        default_validator_with_delegations!(20),
+    ];
+    let expected_undelegations: Vec<Uint128> = vec![
+        Uint128::from(60u128),
+        Uint128::from(0u128),
+        Uint128::from(0u128),
+    ];
+
+    let undelegate_amount = Uint128::from(60u128);
+    let undelegations = calculate_undelegations(undelegate_amount, validators.as_slice()).unwrap();
+    assert_eq!(
+        validators.len(),
+        undelegations.len(),
+        "Delegations are not correct"
+    );
+    for i in 0..expected_undelegations.len() {
+        assert_eq!(
+            undelegations[i], expected_undelegations[i],
+            "Delegation is not correct"
+        )
+    }
+
+    let validators = vec![
+        default_validator_with_delegations!(20),
+        default_validator_with_delegations!(50),
+        default_validator_with_delegations!(100),
+    ];
+    let undelegate_amount = Uint128::from(60u128);
+    // will fail because validators are unsorted
+    let undelegations = calculate_undelegations(undelegate_amount, validators.as_slice()).is_err();
+    assert!(undelegations);
 }
 
 fn set_delegation_query(
