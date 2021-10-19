@@ -69,10 +69,10 @@ pub fn execute_bond(
         .ok_or_else(|| {
             StdError::generic_err(format!("No {} assets are provided to bond", coin_denom))
         })?;
-    // check slashing
-    slashing(&mut deps, env, info.clone())?;
 
-    let state = STATE.load(deps.storage)?;
+    // check slashing
+    let state = slashing(&mut deps, env)?;
+
     let sender = info.sender.clone();
 
     // get the total supply

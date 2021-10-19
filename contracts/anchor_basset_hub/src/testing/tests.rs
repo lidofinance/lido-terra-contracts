@@ -1867,7 +1867,6 @@ pub fn proper_slashing() {
     let _res = execute_unbond(
         deps.as_mut(),
         env.clone(),
-        info.clone(),
         Uint128::from(500u64),
         addr1.clone(),
     )
@@ -1885,7 +1884,6 @@ pub fn proper_slashing() {
     let res = execute_unbond(
         deps.as_mut(),
         env.clone(),
-        info.clone(),
         Uint128::from(500u64),
         addr1.clone(),
     )
@@ -2048,7 +2046,6 @@ pub fn proper_slashing_stluna() {
     let _res = execute_unbond_stluna(
         deps.as_mut(),
         env.clone(),
-        info.clone(),
         Uint128::from(500u64),
         addr1.clone(),
     )
@@ -2066,7 +2063,6 @@ pub fn proper_slashing_stluna() {
     let res = execute_unbond_stluna(
         deps.as_mut(),
         env.clone(),
-        info.clone(),
         Uint128::from(500u64),
         addr1.clone(),
     )
@@ -2160,7 +2156,7 @@ pub fn proper_withdraw_unbonded() {
         (&stluna_token_contract, &[]),
     ]);
 
-    let res = execute(deps.as_mut(), mock_env(), info.clone(), bond_msg).unwrap();
+    let res = execute(deps.as_mut(), mock_env(), info, bond_msg).unwrap();
     assert_eq!(2, res.messages.len());
 
     let delegate = &res.messages[0];
@@ -2174,14 +2170,7 @@ pub fn proper_withdraw_unbonded() {
 
     set_delegation(&mut deps.querier, validator, 100, "uluna");
 
-    let res = execute_unbond(
-        deps.as_mut(),
-        mock_env(),
-        info,
-        Uint128::from(10u64),
-        bob.clone(),
-    )
-    .unwrap();
+    let res = execute_unbond(deps.as_mut(), mock_env(), Uint128::from(10u64), bob.clone()).unwrap();
     assert_eq!(1, res.messages.len());
 
     deps.querier.with_token_balances(&[
@@ -2220,7 +2209,6 @@ pub fn proper_withdraw_unbonded() {
     let res = execute_unbond(
         deps.as_mut(),
         env.clone(),
-        info.clone(),
         Uint128::from(10u64),
         bob.clone(),
     )
@@ -2374,19 +2362,13 @@ pub fn proper_withdraw_unbonded_stluna() {
 
     let info = mock_info(&String::from("reward"), &[coin(100, "uluna")]);
 
-    let res = execute(deps.as_mut(), mock_env(), info.clone(), bond_msg).unwrap();
+    let res = execute(deps.as_mut(), mock_env(), info, bond_msg).unwrap();
     assert_eq!(1, res.messages.len());
 
     set_delegation(&mut deps.querier, validator, 200, "uluna");
 
-    let res = execute_unbond_stluna(
-        deps.as_mut(),
-        mock_env(),
-        info,
-        Uint128::from(10u64),
-        bob.clone(),
-    )
-    .unwrap();
+    let res = execute_unbond_stluna(deps.as_mut(), mock_env(), Uint128::from(10u64), bob.clone())
+        .unwrap();
     assert_eq!(1, res.messages.len());
 
     deps.querier.with_token_balances(&[
@@ -2425,7 +2407,6 @@ pub fn proper_withdraw_unbonded_stluna() {
     let res = execute_unbond_stluna(
         deps.as_mut(),
         env.clone(),
-        info.clone(),
         Uint128::from(10u64),
         bob.clone(),
     )
@@ -2602,7 +2583,7 @@ pub fn proper_withdraw_unbonded_both_tokens() {
 
     let info = mock_info(&String::from("reward"), &[coin(100, "uluna")]);
 
-    let res = execute(deps.as_mut(), mock_env(), info.clone(), bond_msg).unwrap();
+    let res = execute(deps.as_mut(), mock_env(), info, bond_msg).unwrap();
     assert_eq!(1, res.messages.len());
 
     set_delegation(&mut deps.querier, validator, 300, "uluna");
@@ -2610,7 +2591,6 @@ pub fn proper_withdraw_unbonded_both_tokens() {
     let res = execute_unbond(
         deps.as_mut(),
         mock_env(),
-        info,
         Uint128::from(100u64),
         bob.clone(),
     )
@@ -2624,7 +2604,6 @@ pub fn proper_withdraw_unbonded_both_tokens() {
     let res = execute_unbond_stluna(
         deps.as_mut(),
         env.clone(),
-        info.clone(),
         Uint128::from(100u64),
         bob.clone(),
     )
@@ -2776,7 +2755,7 @@ pub fn proper_withdraw_unbonded_respect_slashing() {
         (&stluna_token_contract, &[]),
     ]);
 
-    let res = execute(deps.as_mut(), mock_env(), info.clone(), bond_msg).unwrap();
+    let res = execute(deps.as_mut(), mock_env(), info, bond_msg).unwrap();
     assert_eq!(2, res.messages.len());
 
     let delegate = &res.messages[0];
@@ -2790,7 +2769,7 @@ pub fn proper_withdraw_unbonded_respect_slashing() {
 
     set_delegation(&mut deps.querier, validator, bond_amount.u128(), "uluna");
 
-    let res = execute_unbond(deps.as_mut(), mock_env(), info, unbond_amount, bob.clone()).unwrap();
+    let res = execute_unbond(deps.as_mut(), mock_env(), unbond_amount, bob.clone()).unwrap();
     assert_eq!(1, res.messages.len());
     deps.querier.with_token_balances(&[
         (&String::from("token"), &[(&bob, &Uint128::from(9500u64))]),
@@ -2824,14 +2803,7 @@ pub fn proper_withdraw_unbonded_respect_slashing() {
     );
 
     // trigger undelegation message
-    let res = execute_unbond(
-        deps.as_mut(),
-        env.clone(),
-        info.clone(),
-        unbond_amount,
-        bob.clone(),
-    )
-    .unwrap();
+    let res = execute_unbond(deps.as_mut(), env.clone(), unbond_amount, bob.clone()).unwrap();
     assert_eq!(2, res.messages.len());
     deps.querier
         .with_token_balances(&[(&String::from("token"), &[(&bob, &Uint128::from(9000u64))])]);
@@ -2929,7 +2901,7 @@ pub fn proper_withdraw_unbonded_respect_slashing_stluna() {
 
     let info = mock_info(&bob, &[coin(bond_amount.u128(), "uluna")]);
 
-    let res = execute(deps.as_mut(), mock_env(), info.clone(), bond_msg).unwrap();
+    let res = execute(deps.as_mut(), mock_env(), info, bond_msg).unwrap();
     assert_eq!(2, res.messages.len());
 
     //set bob's balance to 10 in token contract
@@ -2949,8 +2921,7 @@ pub fn proper_withdraw_unbonded_respect_slashing_stluna() {
 
     set_delegation(&mut deps.querier, validator, bond_amount.u128(), "uluna");
 
-    let res =
-        execute_unbond_stluna(deps.as_mut(), mock_env(), info, unbond_amount, bob.clone()).unwrap();
+    let res = execute_unbond_stluna(deps.as_mut(), mock_env(), unbond_amount, bob.clone()).unwrap();
     assert_eq!(1, res.messages.len());
     deps.querier.with_token_balances(&[
         (&stluna_token_contract, &[(&bob, &Uint128::from(9500u64))]),
@@ -2984,14 +2955,8 @@ pub fn proper_withdraw_unbonded_respect_slashing_stluna() {
     );
 
     // trigger undelegation message
-    let res = execute_unbond_stluna(
-        deps.as_mut(),
-        env.clone(),
-        info.clone(),
-        unbond_amount,
-        bob.clone(),
-    )
-    .unwrap();
+    let res =
+        execute_unbond_stluna(deps.as_mut(), env.clone(), unbond_amount, bob.clone()).unwrap();
     assert_eq!(2, res.messages.len());
     deps.querier
         .with_token_balances(&[(&stluna_token_contract, &[(&bob, &Uint128::from(9000u64))])]);
@@ -3095,7 +3060,7 @@ pub fn proper_withdraw_unbonded_respect_inactivity_slashing() {
         (&stluna_token_contract, &[]),
     ]);
 
-    let res = execute(deps.as_mut(), mock_env(), info.clone(), bond_msg).unwrap();
+    let res = execute(deps.as_mut(), mock_env(), info, bond_msg).unwrap();
     assert_eq!(2, res.messages.len());
 
     let delegate = &res.messages[0];
@@ -3109,7 +3074,7 @@ pub fn proper_withdraw_unbonded_respect_inactivity_slashing() {
 
     set_delegation(&mut deps.querier, validator, bond_amount.u128(), "uluna");
 
-    let res = execute_unbond(deps.as_mut(), mock_env(), info, unbond_amount, bob.clone()).unwrap();
+    let res = execute_unbond(deps.as_mut(), mock_env(), unbond_amount, bob.clone()).unwrap();
     assert_eq!(1, res.messages.len());
 
     deps.querier.with_token_balances(&[
@@ -3150,14 +3115,7 @@ pub fn proper_withdraw_unbonded_respect_inactivity_slashing() {
     );
 
     // trigger undelegation message
-    let res = execute_unbond(
-        deps.as_mut(),
-        env.clone(),
-        info.clone(),
-        unbond_amount,
-        bob.clone(),
-    )
-    .unwrap();
+    let res = execute_unbond(deps.as_mut(), env.clone(), unbond_amount, bob.clone()).unwrap();
     assert_eq!(2, res.messages.len());
     deps.querier
         .with_token_balances(&[(&String::from("token"), &[(&bob, &Uint128::from(9000u64))])]);
@@ -3283,7 +3241,7 @@ pub fn proper_withdraw_unbonded_respect_inactivity_slashing_stluna() {
 
     let info = mock_info(&bob, &[coin(bond_amount.u128(), "uluna")]);
 
-    let res = execute(deps.as_mut(), mock_env(), info.clone(), bond_msg).unwrap();
+    let res = execute(deps.as_mut(), mock_env(), info, bond_msg).unwrap();
     assert_eq!(2, res.messages.len());
 
     //set bob's balance to 10 in token contract
@@ -3303,8 +3261,7 @@ pub fn proper_withdraw_unbonded_respect_inactivity_slashing_stluna() {
 
     set_delegation(&mut deps.querier, validator, bond_amount.u128(), "uluna");
 
-    let res =
-        execute_unbond_stluna(deps.as_mut(), mock_env(), info, unbond_amount, bob.clone()).unwrap();
+    let res = execute_unbond_stluna(deps.as_mut(), mock_env(), unbond_amount, bob.clone()).unwrap();
     assert_eq!(1, res.messages.len());
 
     deps.querier.with_token_balances(&[
@@ -3345,14 +3302,8 @@ pub fn proper_withdraw_unbonded_respect_inactivity_slashing_stluna() {
     );
 
     // trigger undelegation message
-    let res = execute_unbond_stluna(
-        deps.as_mut(),
-        env.clone(),
-        info.clone(),
-        unbond_amount,
-        bob.clone(),
-    )
-    .unwrap();
+    let res =
+        execute_unbond_stluna(deps.as_mut(), env.clone(), unbond_amount, bob.clone()).unwrap();
     assert_eq!(2, res.messages.len());
     deps.querier
         .with_token_balances(&[(&stluna_token_contract, &[(&bob, &Uint128::from(9000u64))])]);
@@ -3485,7 +3436,7 @@ pub fn proper_withdraw_unbond_with_dummies() {
         (&stluna_token_contract, &[]),
     ]);
 
-    let res = execute(deps.as_mut(), mock_env(), info.clone(), bond_msg).unwrap();
+    let res = execute(deps.as_mut(), mock_env(), info, bond_msg).unwrap();
     assert_eq!(2, res.messages.len());
 
     set_delegation(
@@ -3495,7 +3446,7 @@ pub fn proper_withdraw_unbond_with_dummies() {
         "uluna",
     );
 
-    let res = execute_unbond(deps.as_mut(), mock_env(), info, unbond_amount, bob.clone()).unwrap();
+    let res = execute_unbond(deps.as_mut(), mock_env(), unbond_amount, bob.clone()).unwrap();
     assert_eq!(1, res.messages.len());
 
     deps.querier.with_token_balances(&[
@@ -3517,14 +3468,7 @@ pub fn proper_withdraw_unbond_with_dummies() {
     //set the block time 30 seconds from now.
     env.block.time = env.block.time.plus_seconds(31);
     // trigger undelegation message
-    let res = execute_unbond(
-        deps.as_mut(),
-        env.clone(),
-        info.clone(),
-        unbond_amount,
-        bob.clone(),
-    )
-    .unwrap();
+    let res = execute_unbond(deps.as_mut(), env.clone(), unbond_amount, bob.clone()).unwrap();
     assert_eq!(2, res.messages.len());
     deps.querier.with_token_balances(&[
         (&String::from("token"), &[(&bob, &Uint128::from(9000u64))]),
@@ -3539,14 +3483,7 @@ pub fn proper_withdraw_unbond_with_dummies() {
         "uluna",
     );
 
-    let res = execute_unbond(
-        deps.as_mut(),
-        env.clone(),
-        info.clone(),
-        unbond_amount,
-        bob.clone(),
-    )
-    .unwrap();
+    let res = execute_unbond(deps.as_mut(), env.clone(), unbond_amount, bob.clone()).unwrap();
     assert_eq!(1, res.messages.len());
     deps.querier.with_token_balances(&[
         (&String::from("token"), &[(&bob, &Uint128::from(8500u64))]),
@@ -3554,14 +3491,7 @@ pub fn proper_withdraw_unbond_with_dummies() {
     ]);
 
     env.block.time = env.block.time.plus_seconds(31);
-    let res = execute_unbond(
-        deps.as_mut(),
-        env.clone(),
-        info.clone(),
-        unbond_amount,
-        bob.clone(),
-    )
-    .unwrap();
+    let res = execute_unbond(deps.as_mut(), env.clone(), unbond_amount, bob.clone()).unwrap();
     assert_eq!(2, res.messages.len());
     deps.querier.with_token_balances(&[
         (&String::from("token"), &[(&bob, &Uint128::from(8000u64))]),
@@ -3650,7 +3580,7 @@ pub fn proper_withdraw_unbond_with_dummies_stluna() {
 
     let info = mock_info(&bob, &[coin(bond_amount.u128(), "uluna")]);
 
-    let res = execute(deps.as_mut(), mock_env(), info.clone(), bond_msg).unwrap();
+    let res = execute(deps.as_mut(), mock_env(), info, bond_msg).unwrap();
     assert_eq!(2, res.messages.len());
 
     //set bob's balance to 10 in token contract
@@ -3666,8 +3596,7 @@ pub fn proper_withdraw_unbond_with_dummies_stluna() {
         "uluna",
     );
 
-    let res =
-        execute_unbond_stluna(deps.as_mut(), mock_env(), info, unbond_amount, bob.clone()).unwrap();
+    let res = execute_unbond_stluna(deps.as_mut(), mock_env(), unbond_amount, bob.clone()).unwrap();
     assert_eq!(1, res.messages.len());
 
     deps.querier.with_token_balances(&[
@@ -3689,14 +3618,8 @@ pub fn proper_withdraw_unbond_with_dummies_stluna() {
     //set the block time 30 seconds from now.
     env.block.time = env.block.time.plus_seconds(31);
     // trigger undelegation message
-    let res = execute_unbond_stluna(
-        deps.as_mut(),
-        env.clone(),
-        info.clone(),
-        unbond_amount,
-        bob.clone(),
-    )
-    .unwrap();
+    let res =
+        execute_unbond_stluna(deps.as_mut(), env.clone(), unbond_amount, bob.clone()).unwrap();
     assert_eq!(2, res.messages.len());
     deps.querier.with_token_balances(&[
         (&stluna_token_contract, &[(&bob, &Uint128::from(9000u64))]),
@@ -3711,14 +3634,8 @@ pub fn proper_withdraw_unbond_with_dummies_stluna() {
         "uluna",
     );
 
-    let res = execute_unbond_stluna(
-        deps.as_mut(),
-        env.clone(),
-        info.clone(),
-        unbond_amount,
-        bob.clone(),
-    )
-    .unwrap();
+    let res =
+        execute_unbond_stluna(deps.as_mut(), env.clone(), unbond_amount, bob.clone()).unwrap();
     assert_eq!(1, res.messages.len());
     deps.querier.with_token_balances(&[
         (&stluna_token_contract, &[(&bob, &Uint128::from(8500u64))]),
@@ -3726,14 +3643,8 @@ pub fn proper_withdraw_unbond_with_dummies_stluna() {
     ]);
 
     env.block.time = env.block.time.plus_seconds(31);
-    let res = execute_unbond_stluna(
-        deps.as_mut(),
-        env.clone(),
-        info.clone(),
-        unbond_amount,
-        bob.clone(),
-    )
-    .unwrap();
+    let res =
+        execute_unbond_stluna(deps.as_mut(), env.clone(), unbond_amount, bob.clone()).unwrap();
     assert_eq!(2, res.messages.len());
     deps.querier.with_token_balances(&[
         (&stluna_token_contract, &[(&bob, &Uint128::from(8000u64))]),
