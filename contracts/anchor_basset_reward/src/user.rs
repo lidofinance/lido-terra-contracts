@@ -28,7 +28,6 @@ use crate::math::{
     decimal_multiplication_in_256, decimal_subtraction_in_256, decimal_summation_in_256,
 };
 use basset::deduct_tax;
-use std::str::FromStr;
 use terra_cosmwasm::TerraMsgWrapper;
 
 pub fn execute_claim_rewards(
@@ -236,20 +235,6 @@ fn calculate_decimal_rewards(
     )
 }
 
-// calculate the reward with decimal
-fn get_decimals(value: Decimal) -> StdResult<Decimal> {
-    let stringed: &str = &*value.to_string();
-    let parts: &[&str] = &*stringed.split('.').collect::<Vec<&str>>();
-    match parts.len() {
-        1 => Ok(Decimal::zero()),
-        2 => {
-            let decimals = Decimal::from_str(&*("0.".to_owned() + parts[1]))?;
-            Ok(decimals)
-        }
-        _ => Err(StdError::generic_err("Unexpected number of dots")),
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -261,19 +246,5 @@ mod tests {
         let user_balance = Uint128::new(1000);
         let reward = calculate_decimal_rewards(global_index, user_index, user_balance);
         assert_eq!(reward.to_string(), "90");
-    }
-
-    #[test]
-    pub fn proper_get_decimals() {
-        let global_index = Decimal::from_ratio(Uint128::new(9999999), Uint128::new(100000000));
-        let user_index = Decimal::zero();
-        let user_balance = Uint128::new(10);
-        let reward = get_decimals(calculate_decimal_rewards(
-            global_index,
-            user_index,
-            user_balance,
-        ))
-        .unwrap();
-        assert_eq!(reward.to_string(), "0.9999999");
     }
 }
