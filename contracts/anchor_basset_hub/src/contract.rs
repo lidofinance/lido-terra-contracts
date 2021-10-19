@@ -88,7 +88,7 @@ pub fn instantiate(
         underlying_coin_denom: msg.underlying_coin_denom,
         unbonding_period: msg.unbonding_period,
         peg_recovery_fee: msg.peg_recovery_fee,
-        er_threshold: msg.er_threshold,
+        er_threshold: msg.er_threshold.min(Decimal::one()),
         reward_denom: msg.reward_denom,
     };
 
