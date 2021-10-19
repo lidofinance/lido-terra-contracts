@@ -53,9 +53,8 @@ pub fn execute_claim_rewards(
 
     let all_reward_with_decimals =
         decimal_summation_in_256(reward_with_decimals, holder.pending_rewards);
-    let decimals = get_decimals(all_reward_with_decimals)?;
-
     let rewards = all_reward_with_decimals * Uint128::new(1);
+    let decimals = all_reward_with_decimals - Decimal::from_ratio(rewards, Uint128::new(1));
 
     if rewards.is_zero() {
         return Err(StdError::generic_err("No rewards have accrued yet"));
