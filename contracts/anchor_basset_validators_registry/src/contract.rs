@@ -37,8 +37,8 @@ pub fn instantiate(
     CONFIG.save(
         deps.storage,
         &Config {
-            owner: deps.api.addr_canonicalize(&info.sender.as_str())?,
-            hub_contract: deps.api.addr_canonicalize(&msg.hub_contract.as_str())?,
+            owner: deps.api.addr_canonicalize(info.sender.as_str())?,
+            hub_contract: deps.api.addr_canonicalize(msg.hub_contract.as_str())?,
         },
     )?;
 
