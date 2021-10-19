@@ -129,19 +129,16 @@ pub fn remove_validator(
         return Err(StdError::generic_err("unauthorized"));
     }
 
-    let validators_number = REGISTRY
-        .range(deps.storage, None, None, cosmwasm_std::Order::Ascending)
-        .count();
+    REGISTRY.remove(deps.storage, validator_address.as_str().as_bytes());
 
-    if validators_number == 1 {
+    let mut validators = query_validators(deps.as_ref())?;
+    if validators.is_empty() {
         return Err(StdError::generic_err(
             "Cannot remove the last validator in the registry",
         ));
     }
+    validators.sort_by(|v1, v2| v1.total_delegated.cmp(&v2.total_delegated));
 
-    REGISTRY.remove(deps.storage, validator_address.as_str().as_bytes());
-
-    let config = CONFIG.load(deps.storage)?;
     let hub_address = deps.api.addr_humanize(&config.hub_contract)?;
 
     let query = deps
@@ -151,8 +148,6 @@ pub fn remove_validator(
     let mut messages: Vec<CosmosMsg> = vec![];
     if let Ok(q) = query {
         let delegated_amount = q;
-        let mut validators = query_validators(deps.as_ref())?;
-        validators.sort_by(|v1, v2| v1.total_delegated.cmp(&v2.total_delegated));
 
         let mut redelegations: Vec<(String, Coin)> = vec![];
         if let Some(delegation) = delegated_amount {
