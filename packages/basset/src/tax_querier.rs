@@ -26,8 +26,5 @@ pub fn deduct_tax(querier: &QuerierWrapper, coin: Coin) -> StdResult<Coin> {
 }
 
 pub fn compute_lido_fee(amount: Uint128, fee_rate: Decimal) -> StdResult<Uint128> {
-    Ok(amount.checked_sub(amount.multiply_ratio(
-        DECIMAL_FRACTION,
-        DECIMAL_FRACTION * fee_rate + DECIMAL_FRACTION,
-    ))?)
+    Ok(amount * fee_rate)
 }
