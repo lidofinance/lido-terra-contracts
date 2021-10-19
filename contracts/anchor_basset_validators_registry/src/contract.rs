@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use std::collections::HashMap;
+
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 
@@ -218,7 +220,10 @@ fn query_validators(deps: Deps) -> StdResult<Vec<Validator>> {
     let config = CONFIG.load(deps.storage)?;
     let hub_address = deps.api.addr_humanize(&config.hub_contract)?;
 
-    let delegations = deps.querier.query_all_delegations(&hub_address)?;
+    let mut delegations = HashMap::new();
+    for delegation in deps.querier.query_all_delegations(&hub_address)? {
+        delegations.insert(delegation.validator, delegation.amount.amount);
+    }
 
     let mut validators: Vec<Validator> = vec![];
     for item in REGISTRY.range(deps.storage, None, None, cosmwasm_std::Order::Ascending) {
@@ -233,14 +238,9 @@ fn query_validators(deps: Deps) -> StdResult<Vec<Validator>> {
         // https://github.com/terra-money/core/blob/58602320d2907814cfccdf43e9679468bb4bd8d3/x/staking/wasm/interface.go#L227
         // So we do query_all_delegations() instead of query_delegation().unwrap()
         // and try to find delegation in the returned vec
-        validator.total_delegated = if let Some(d) = delegations
-            .iter()
-            .find(|d| d.validator == validator.address)
-        {
-            d.amount.amount
-        } else {
-            Uint128::zero()
-        };
+        validator.total_delegated = *delegations
+            .get(&validator.address)
+            .unwrap_or(&Uint128::zero());
         validators.push(validator);
     }
     Ok(validators)
