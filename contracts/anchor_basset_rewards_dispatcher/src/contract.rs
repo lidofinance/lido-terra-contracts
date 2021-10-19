@@ -17,7 +17,7 @@ use cosmwasm_std::entry_point;
 
 use cosmwasm_std::{
     attr, to_binary, Attribute, BankMsg, Binary, Coin, CosmosMsg, Decimal, Deps, DepsMut, Env,
-    MessageInfo, Response, StdError, StdResult, Uint128, WasmMsg,
+    Fraction, MessageInfo, Response, StdError, StdResult, Uint128, WasmMsg,
 };
 
 use crate::msg::{ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg};
@@ -279,13 +279,12 @@ pub(crate) fn get_exchange_rates(
         .query_exchange_rates(denom_a.to_string(), vec![denom_b.to_string()])?
         .exchange_rates;
 
-    let b_2_a_xchg_rates = terra_querier
-        .query_exchange_rates(denom_b.to_string(), vec![denom_a.to_string()])?
-        .exchange_rates;
-
     Ok((
         a_2_b_xchg_rates[0].exchange_rate,
-        b_2_a_xchg_rates[0].exchange_rate,
+        a_2_b_xchg_rates[0]
+            .exchange_rate
+            .inv()
+            .ok_or_else(|| StdError::generic_err("failed to convert exchange rate"))?,
     ))
 }
 
