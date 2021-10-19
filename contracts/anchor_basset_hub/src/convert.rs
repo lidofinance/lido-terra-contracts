@@ -1,3 +1,17 @@
+// Copyright 2021 Anchor Protocol. Modified by Lido
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 use crate::contract::{query_total_bluna_issued, query_total_stluna_issued};
 use crate::math::decimal_division;
 use crate::state::{CONFIG, CURRENT_BATCH, PARAMETERS, STATE};
@@ -58,7 +72,7 @@ pub fn convert_stluna_bluna(
                 ))
             })?;
         prev_state.update_bluna_exchange_rate(
-            total_bluna_supply + bluna_to_mint,
+            total_bluna_supply + bluna_mint_amount_with_fee,
             requested_bluna_with_fee,
         );
         prev_state
@@ -89,7 +103,7 @@ pub fn convert_stluna_bluna(
             state.stluna_exchange_rate.to_string(),
         ),
         attr("stluna_amount", stluna_amount),
-        attr("bluna_amount", bluna_to_mint),
+        attr("bluna_amount", bluna_mint_amount_with_fee),
     ]);
     Ok(res)
 }

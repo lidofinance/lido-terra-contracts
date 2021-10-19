@@ -1,3 +1,17 @@
+// Copyright 2021 Anchor Protocol. Modified by Lido
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 use crate::contract::{query_total_bluna_issued, query_total_stluna_issued, slashing};
 use crate::math::decimal_division;
 use crate::state::{CONFIG, CURRENT_BATCH, PARAMETERS, STATE};
@@ -55,10 +69,10 @@ pub fn execute_bond(
         .ok_or_else(|| {
             StdError::generic_err(format!("No {} assets are provided to bond", coin_denom))
         })?;
-    // check slashing
-    slashing(&mut deps, env, info.clone())?;
 
-    let state = STATE.load(deps.storage)?;
+    // check slashing
+    let state = slashing(&mut deps, env)?;
+
     let sender = info.sender.clone();
 
     // get the total supply

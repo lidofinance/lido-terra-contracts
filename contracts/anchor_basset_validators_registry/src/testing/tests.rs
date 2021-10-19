@@ -1,3 +1,15 @@
+// Copyright 2021 LidoLicensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 use crate::common::{calculate_delegations, calculate_undelegations};
 use crate::contract::{execute, instantiate};
 use crate::msg::{ExecuteMsg, InstantiateMsg};
@@ -641,7 +653,6 @@ fn test_calculate_delegations() {
     }
 }
 
-//TODO: implement more test cases
 #[test]
 fn test_calculate_undelegations() {
     let mut validators = vec![
@@ -719,6 +730,41 @@ fn test_calculate_undelegations() {
     } else {
         panic!("undelegations invalid")
     }
+
+    let validators = vec![
+        default_validator_with_delegations!(100),
+        default_validator_with_delegations!(50),
+        default_validator_with_delegations!(20),
+    ];
+    let expected_undelegations: Vec<Uint128> = vec![
+        Uint128::from(60u128),
+        Uint128::from(0u128),
+        Uint128::from(0u128),
+    ];
+
+    let undelegate_amount = Uint128::from(60u128);
+    let undelegations = calculate_undelegations(undelegate_amount, validators.as_slice()).unwrap();
+    assert_eq!(
+        validators.len(),
+        undelegations.len(),
+        "Delegations are not correct"
+    );
+    for i in 0..expected_undelegations.len() {
+        assert_eq!(
+            undelegations[i], expected_undelegations[i],
+            "Delegation is not correct"
+        )
+    }
+
+    let validators = vec![
+        default_validator_with_delegations!(20),
+        default_validator_with_delegations!(50),
+        default_validator_with_delegations!(100),
+    ];
+    let undelegate_amount = Uint128::from(60u128);
+    // will fail because validators are unsorted
+    let undelegations = calculate_undelegations(undelegate_amount, validators.as_slice()).is_err();
+    assert!(undelegations);
 }
 
 fn set_delegation_query(

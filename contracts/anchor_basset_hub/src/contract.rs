@@ -1,3 +1,17 @@
+// Copyright 2021 Anchor Protocol. Modified by Lido
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 
@@ -37,7 +51,7 @@ pub fn instantiate(
     msg: InstantiateMsg,
 ) -> StdResult<Response> {
     let sender = info.sender;
-    let sndr_raw = deps.api.addr_canonicalize(&sender.as_str())?;
+    let sndr_raw = deps.api.addr_canonicalize(sender.as_str())?;
 
     // store config
     let data = Config {
@@ -96,7 +110,7 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
             execute_update_global(deps, env, info, airdrop_hooks)
         }
         ExecuteMsg::WithdrawUnbonded {} => execute_withdraw_unbonded(deps, env, info),
-        ExecuteMsg::CheckSlashing {} => execute_slashing(deps, env, info),
+        ExecuteMsg::CheckSlashing {} => execute_slashing(deps, env),
         ExecuteMsg::UpdateParams {
             epoch_period,
             unbonding_period,
@@ -205,7 +219,7 @@ pub fn receive_cw20(
     info: MessageInfo,
     cw20_msg: Cw20ReceiveMsg,
 ) -> StdResult<Response> {
-    let contract_addr = deps.api.addr_canonicalize(&info.sender.as_str())?;
+    let contract_addr = deps.api.addr_canonicalize(info.sender.as_str())?;
 
     // only token contract can execute this message
     let conf = CONFIG.load(deps.storage)?;
@@ -229,9 +243,9 @@ pub fn receive_cw20(
     match from_binary(&cw20_msg.msg)? {
         Cw20HookMsg::Unbond {} => {
             if contract_addr == bluna_contract_addr {
-                execute_unbond(deps, env, info, cw20_msg.amount, cw20_msg.sender)
+                execute_unbond(deps, env, cw20_msg.amount, cw20_msg.sender)
             } else if contract_addr == stluna_contract_addr {
-                execute_unbond_stluna(deps, env, info, cw20_msg.amount, cw20_msg.sender)
+                execute_unbond_stluna(deps, env, cw20_msg.amount, cw20_msg.sender)
             } else {
                 Err(StdError::generic_err("unauthorized"))
             }
@@ -322,9 +336,7 @@ fn withdraw_all_rewards(deps: &DepsMut, delegator: String) -> StdResult<Vec<Cosm
 
     let delegations = deps.querier.query_all_delegations(delegator)?;
 
-    if delegations.is_empty() {
-        Ok(messages)
-    } else {
+    if !delegations.is_empty() {
         for delegation in delegations {
             let msg: CosmosMsg =
                 CosmosMsg::Distribution(DistributionMsg::WithdrawDelegatorReward {
@@ -332,23 +344,25 @@ fn withdraw_all_rewards(deps: &DepsMut, delegator: String) -> StdResult<Vec<Cosm
                 });
             messages.push(msg);
         }
-        Ok(messages)
     }
+
+    Ok(messages)
 }
 
 /// Check whether slashing has happened
 /// This is used for checking slashing while bonding or unbonding
-pub fn slashing(deps: &mut DepsMut, env: Env, _info: MessageInfo) -> StdResult<()> {
-    // Check the actual bonded amount
+pub fn slashing(deps: &mut DepsMut, env: Env) -> StdResult<State> {
+    let mut state = STATE.load(deps.storage)?;
     let delegations = deps.querier.query_all_delegations(env.contract.address)?;
     if delegations.is_empty() {
-        return Ok(());
+        return Ok(state);
     }
 
     //read params
     let params = PARAMETERS.load(deps.storage)?;
     let coin_denom = params.underlying_coin_denom;
 
+    // Check the actual bonded amount
     let mut actual_total_bonded = Uint128::zero();
     for delegation in &delegations {
         if delegation.amount.denom == coin_denom {
@@ -356,16 +370,15 @@ pub fn slashing(deps: &mut DepsMut, env: Env, _info: MessageInfo) -> StdResult<(
         }
     }
 
-    let state = STATE.load(deps.storage)?;
     // Check the amount that contract thinks is bonded
     let state_total_bonded = state.total_bond_bluna_amount + state.total_bond_stluna_amount;
     if state_total_bonded.is_zero() {
-        return Ok(());
+        return Ok(state);
     }
 
     // Slashing happens if the expected amount is less than stored amount
     if state_total_bonded.u128() <= actual_total_bonded.u128() {
-        return Ok(());
+        return Ok(state);
     }
 
     let bluna_bond_ratio = Decimal::from_ratio(state.total_bond_bluna_amount, state_total_bonded);
@@ -377,17 +390,15 @@ pub fn slashing(deps: &mut DepsMut, env: Env, _info: MessageInfo) -> StdResult<(
     let current_requested_bluna_with_fee = current_batch.requested_bluna_with_fee;
     let current_requested_stluna = current_batch.requested_stluna;
 
-    STATE.update(deps.storage, |mut state| -> StdResult<_> {
-        state.total_bond_bluna_amount = actual_total_bonded * bluna_bond_ratio;
-        state.total_bond_stluna_amount =
-            actual_total_bonded.checked_sub(state.total_bond_bluna_amount)?;
+    state.total_bond_bluna_amount = actual_total_bonded * bluna_bond_ratio;
+    state.total_bond_stluna_amount =
+        actual_total_bonded.checked_sub(state.total_bond_bluna_amount)?;
+    state.update_bluna_exchange_rate(bluna_total_issued, current_requested_bluna_with_fee);
+    state.update_stluna_exchange_rate(stluna_total_issued, current_requested_stluna);
 
-        state.update_bluna_exchange_rate(bluna_total_issued, current_requested_bluna_with_fee);
-        state.update_stluna_exchange_rate(stluna_total_issued, current_requested_stluna);
-        Ok(state)
-    })?;
+    STATE.save(deps.storage, &state)?;
 
-    Ok(())
+    Ok(state)
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -403,7 +414,7 @@ pub fn claim_airdrop(
 ) -> StdResult<Response> {
     let conf = CONFIG.load(deps.storage)?;
 
-    let sender_raw = deps.api.addr_canonicalize(&info.sender.as_str())?;
+    let sender_raw = deps.api.addr_canonicalize(info.sender.as_str())?;
 
     let airdrop_reg_raw = if let Some(airdrop) = conf.airdrop_registry_contract {
         airdrop
@@ -483,11 +494,9 @@ pub fn swap_hook(
 }
 
 /// Handler for tracking slashing
-pub fn execute_slashing(mut deps: DepsMut, env: Env, info: MessageInfo) -> StdResult<Response> {
-    // call slashing
-    slashing(&mut deps, env, info)?;
-    // read state for log
-    let state = STATE.load(deps.storage)?;
+pub fn execute_slashing(mut deps: DepsMut, env: Env) -> StdResult<Response> {
+    // call slashing and
+    let state = slashing(&mut deps, env)?;
 
     Ok(Response::new().add_attributes(vec![
         attr("action", "check_slashing"),

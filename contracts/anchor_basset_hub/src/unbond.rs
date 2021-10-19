@@ -1,3 +1,17 @@
+// Copyright 2021 Anchor Protocol. Modified by Lido
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 use crate::contract::{query_total_bluna_issued, slashing};
 use crate::state::{
     get_finished_amount, get_unbond_batches, read_unbond_history, remove_unbond_wait_list,
@@ -19,7 +33,6 @@ use signed_integer::SignedInt;
 pub(crate) fn execute_unbond(
     mut deps: DepsMut,
     env: Env,
-    info: MessageInfo,
     amount: Uint128,
     sender: String,
 ) -> StdResult<Response> {
@@ -32,9 +45,7 @@ pub(crate) fn execute_unbond(
     let mut current_batch = CURRENT_BATCH.load(deps.storage)?;
 
     // Check slashing, update state, and calculate the new exchange rate.
-    slashing(&mut deps, env.clone(), info)?;
-
-    let mut state = STATE.load(deps.storage)?;
+    let mut state = slashing(&mut deps, env.clone())?;
 
     let mut total_supply = query_total_bluna_issued(deps.as_ref())?;
 
@@ -387,7 +398,6 @@ fn pick_validator(deps: &DepsMut, claim: Uint128, delegator: String) -> StdResul
 pub(crate) fn execute_unbond_stluna(
     mut deps: DepsMut,
     env: Env,
-    info: MessageInfo,
     amount: Uint128,
     sender: String,
 ) -> StdResult<Response> {
@@ -398,9 +408,7 @@ pub(crate) fn execute_unbond_stluna(
     let mut current_batch = CURRENT_BATCH.load(deps.storage)?;
 
     // Check slashing, update state, and calculate the new exchange rate.
-    slashing(&mut deps, env.clone(), info)?;
-
-    let mut state = STATE.load(deps.storage)?;
+    let mut state = slashing(&mut deps, env.clone())?;
 
     // Collect all the requests within a epoch period
     current_batch.requested_stluna += amount;

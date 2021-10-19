@@ -1,9 +1,23 @@
+// Copyright 2021 Lido
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 
 use cosmwasm_std::{
     attr, to_binary, Attribute, BankMsg, Binary, Coin, CosmosMsg, Decimal, Deps, DepsMut, Env,
-    MessageInfo, Response, StdError, StdResult, Uint128, WasmMsg,
+    Fraction, MessageInfo, Response, StdError, StdResult, Uint128, WasmMsg,
 };
 
 use crate::msg::{ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg};
@@ -171,11 +185,10 @@ pub fn execute_swap(
     }
 
     let contr_addr = env.contract.address;
-    let balance = deps.querier.query_all_balances(contr_addr.clone())?;
+    let balance = deps.querier.query_all_balances(contr_addr)?;
     let (total_luna_rewards_available, total_ust_rewards_available, mut msgs) =
         convert_to_target_denoms(
             &deps,
-            contr_addr.to_string(),
             balance.clone(),
             config.stluna_reward_denom.clone(),
             config.bluna_reward_denom.clone(),
@@ -224,7 +237,6 @@ pub fn execute_swap(
 
 pub(crate) fn convert_to_target_denoms(
     deps: &DepsMut,
-    _contr_addr: String,
     balance: Vec<Coin>,
     denom_to_keep: String,
     denom_to_xchg: String,
@@ -265,13 +277,12 @@ pub(crate) fn get_exchange_rates(
         .query_exchange_rates(denom_a.to_string(), vec![denom_b.to_string()])?
         .exchange_rates;
 
-    let b_2_a_xchg_rates = terra_querier
-        .query_exchange_rates(denom_b.to_string(), vec![denom_a.to_string()])?
-        .exchange_rates;
-
     Ok((
         a_2_b_xchg_rates[0].exchange_rate,
-        b_2_a_xchg_rates[0].exchange_rate,
+        a_2_b_xchg_rates[0]
+            .exchange_rate
+            .inv()
+            .ok_or_else(|| StdError::generic_err("failed to convert exchange rate"))?,
     ))
 }
 

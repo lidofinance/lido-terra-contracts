@@ -1,3 +1,19 @@
+// Copyright 2021 Lido
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+use std::collections::HashMap;
+
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 
@@ -115,19 +131,16 @@ pub fn remove_validator(
         return Err(StdError::generic_err("unauthorized"));
     }
 
-    let validators_number = REGISTRY
-        .range(deps.storage, None, None, cosmwasm_std::Order::Ascending)
-        .count();
+    REGISTRY.remove(deps.storage, validator_address.as_str().as_bytes());
 
-    if validators_number == 1 {
+    let mut validators = query_validators(deps.as_ref())?;
+    if validators.is_empty() {
         return Err(StdError::generic_err(
             "Cannot remove the last validator in the registry",
         ));
     }
+    validators.sort_by(|v1, v2| v1.total_delegated.cmp(&v2.total_delegated));
 
-    REGISTRY.remove(deps.storage, validator_address.as_str().as_bytes());
-
-    let config = CONFIG.load(deps.storage)?;
     let hub_address = deps.api.addr_humanize(&config.hub_contract)?;
 
     let query = deps
@@ -137,8 +150,6 @@ pub fn remove_validator(
     let mut messages: Vec<CosmosMsg> = vec![];
     if let Ok(q) = query {
         let delegated_amount = q;
-        let mut validators = query_validators(deps.as_ref())?;
-        validators.sort_by(|v1, v2| v1.total_delegated.cmp(&v2.total_delegated));
 
         let mut redelegations: Vec<(String, Coin)> = vec![];
         if let Some(delegation) = delegated_amount {
@@ -209,7 +220,10 @@ fn query_validators(deps: Deps) -> StdResult<Vec<Validator>> {
     let config = CONFIG.load(deps.storage)?;
     let hub_address = deps.api.addr_humanize(&config.hub_contract)?;
 
-    let delegations = deps.querier.query_all_delegations(&hub_address)?;
+    let mut delegations = HashMap::new();
+    for delegation in deps.querier.query_all_delegations(&hub_address)? {
+        delegations.insert(delegation.validator, delegation.amount.amount);
+    }
 
     let mut validators: Vec<Validator> = vec![];
     for item in REGISTRY.range(deps.storage, None, None, cosmwasm_std::Order::Ascending) {
@@ -224,14 +238,9 @@ fn query_validators(deps: Deps) -> StdResult<Vec<Validator>> {
         // https://github.com/terra-money/core/blob/58602320d2907814cfccdf43e9679468bb4bd8d3/x/staking/wasm/interface.go#L227
         // So we do query_all_delegations() instead of query_delegation().unwrap()
         // and try to find delegation in the returned vec
-        validator.total_delegated = if let Some(d) = delegations
-            .iter()
-            .find(|d| d.validator == validator.address)
-        {
-            d.amount.amount
-        } else {
-            Uint128::zero()
-        };
+        validator.total_delegated = *delegations
+            .get(&validator.address)
+            .unwrap_or(&Uint128::zero());
         validators.push(validator);
     }
     Ok(validators)
