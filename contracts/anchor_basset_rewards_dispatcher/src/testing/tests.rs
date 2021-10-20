@@ -391,10 +391,16 @@ fn test_update_config() {
     };
     let info = mock_info(&new_owner, &[]);
     let res = execute(deps.as_mut(), mock_env(), info, update_config_msg);
-    assert!(res.is_ok());
+    assert!(res.is_err());
+    assert_eq!(
+        Some(StdError::generic_err(
+            "updating stluna reward denom is forbidden"
+        )),
+        res.err()
+    );
 
     let config = CONFIG.load(&deps.storage).unwrap();
-    assert_eq!(String::from("new_denom"), config.stluna_reward_denom);
+    assert_eq!(String::from("uluna"), config.stluna_reward_denom);
 
     // change bluna_reward_denom
     let update_config_msg = ExecuteMsg::UpdateConfig {
@@ -408,10 +414,16 @@ fn test_update_config() {
     };
     let info = mock_info(&new_owner, &[]);
     let res = execute(deps.as_mut(), mock_env(), info, update_config_msg);
-    assert!(res.is_ok());
+    assert!(res.is_err());
+    assert_eq!(
+        Some(StdError::generic_err(
+            "updating bluna reward denom is forbidden"
+        )),
+        res.err()
+    );
 
     let config = CONFIG.load(&deps.storage).unwrap();
-    assert_eq!(String::from("new_denom"), config.bluna_reward_denom);
+    assert_eq!(String::from("uusd"), config.bluna_reward_denom);
 
     // change lido_fee_address
     let update_config_msg = ExecuteMsg::UpdateConfig {
