@@ -198,13 +198,13 @@ fn test_dispatch_rewards() {
 
     for attr in res.attributes {
         if attr.key == "stluna_rewards" {
-            assert_eq!("188uluna", attr.value)
+            assert_eq!("190uluna", attr.value)
         }
         if attr.key == "bluna_rewards" {
             assert_eq!("282uusd", attr.value)
         }
         if attr.key == "lido_stluna_fee" {
-            assert_eq!("9uluna", attr.value)
+            assert_eq!("10uluna", attr.value)
         }
         if attr.key == "lido_bluna_fee" {
             assert_eq!("14uusd", attr.value)
