@@ -17,21 +17,28 @@ use cosmwasm_std::{to_binary, Addr, DepsMut, QueryRequest, StdError, StdResult, 
 use crate::state::read_hub_contract;
 use anchor_basset_rewards_dispatcher::msg::QueryMsg as RewardsDispatcherQueryMsg;
 use anchor_basset_rewards_dispatcher::state::Config as RewardsDispatcherConfig;
-use basset::hub::{Config, QueryMsg as HubQueryMsg};
+use basset::hub::{ConfigResponse, QueryMsg as HubQueryMsg};
 
 pub fn query_reward_contract(deps: &DepsMut) -> StdResult<Addr> {
     let hub_address = deps.api.addr_humanize(&read_hub_contract(deps.storage)?)?;
 
-    let config: Config = deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
+    let config: ConfigResponse = deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
         contract_addr: hub_address.to_string(),
         msg: to_binary(&HubQueryMsg::Config {})?,
     }))?;
 
-    let rewards_dispatcher_address =
-        deps.api
-            .addr_humanize(&config.reward_dispatcher_contract.ok_or_else(|| {
-                StdError::generic_err("the rewards dispatcher contract must have been registered")
-            })?)?;
+    let rewards_dispatcher_address = deps.api.addr_humanize(
+        &deps.api.addr_canonicalize(
+            config
+                .reward_dispatcher_contract
+                .ok_or_else(|| {
+                    StdError::generic_err(
+                        "the rewards dispatcher contract must have been registered",
+                    )
+                })?
+                .as_str(),
+        )?,
+    )?;
 
     let rewards_dispatcher_config: RewardsDispatcherConfig =
         deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {

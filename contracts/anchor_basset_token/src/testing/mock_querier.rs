@@ -13,7 +13,7 @@
 // limitations under the License.
 
 use anchor_basset_rewards_dispatcher::state::Config as RewardsDispatcherConfig;
-use basset::hub::Config;
+use basset::hub::{ConfigResponse};
 use cosmwasm_std::testing::{MockApi, MockQuerier, MockStorage, MOCK_CONTRACT_ADDR};
 use cosmwasm_std::{
     from_slice, to_binary, Api, Coin, ContractResult, Decimal, Empty, OwnedDeps, Querier,
@@ -71,30 +71,17 @@ impl WasmMockQuerier {
                 msg: _,
             }) => {
                 if *contract_addr == MOCK_HUB_CONTRACT_ADDR {
-                    let api: MockApi = MockApi::default();
-                    let config = Config {
-                        creator: api.addr_canonicalize(&String::from("owner1")).unwrap(),
-                        reward_dispatcher_contract: Some(
-                            api.addr_canonicalize(&String::from(
-                                MOCK_REWARDS_DISPATCHER_CONTRACT_ADDR,
-                            ))
-                            .unwrap(),
-                        ),
-                        validators_registry_contract: Some(
-                            api.addr_canonicalize(&String::from(MOCK_VALIDATORS_REGISTRY_ADDR))
-                                .unwrap(),
-                        ),
-                        bluna_token_contract: Some(
-                            api.addr_canonicalize(&String::from(MOCK_TOKEN_CONTRACT_ADDR))
-                                .unwrap(),
-                        ),
-                        airdrop_registry_contract: Some(
-                            api.addr_canonicalize(&String::from("airdrop")).unwrap(),
-                        ),
-                        stluna_token_contract: Some(
-                            api.addr_canonicalize(&String::from(MOCK_STLUNA_TOKEN_CONTRACT_ADDR))
-                                .unwrap(),
-                        ),
+                    let config = ConfigResponse {
+                        owner: String::from("owner1"),
+                        reward_dispatcher_contract: Some(String::from(
+                            MOCK_REWARDS_DISPATCHER_CONTRACT_ADDR,
+                        )),
+                        validators_registry_contract: Some(String::from(
+                            MOCK_VALIDATORS_REGISTRY_ADDR,
+                        )),
+                        bluna_token_contract: Some(String::from(MOCK_TOKEN_CONTRACT_ADDR)),
+                        airdrop_registry_contract: Some(String::from("airdrop")),
+                        stluna_token_contract: Some(String::from(MOCK_STLUNA_TOKEN_CONTRACT_ADDR)),
                     };
                     SystemResult::Ok(ContractResult::from(to_binary(&config)))
                 } else if contract_addr == MOCK_REWARDS_DISPATCHER_CONTRACT_ADDR {
