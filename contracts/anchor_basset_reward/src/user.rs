@@ -247,4 +247,17 @@ mod tests {
         let reward = calculate_decimal_rewards(global_index, user_index, user_balance);
         assert_eq!(reward.to_string(), "90");
     }
+
+    #[test]
+    pub fn proper_get_decimals() {
+        let global_index = Decimal::from_ratio(Uint128::new(9999999), Uint128::new(100000000));
+        let user_index = Decimal::zero();
+        let user_balance = Uint128::new(10);
+        let decimal_reward = calculate_decimal_rewards(global_index, user_index, user_balance);
+
+        let rewards = decimal_reward * Uint128::new(1);
+        let decimals = decimal_reward - Decimal::from_ratio(rewards, Uint128::new(1));
+
+        assert_eq!(decimals.to_string(), "0.9999999");
+    }
 }
