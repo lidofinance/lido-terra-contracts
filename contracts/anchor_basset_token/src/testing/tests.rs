@@ -57,7 +57,6 @@ fn _do_init<S: Storage, A: Api, Q: Querier>(
         symbol: "BLUNA".to_string(),
         decimals: 6,
         initial_balances: vec![],
-        mint: mint.clone(),
         hub_contract,
     };
 
@@ -101,7 +100,6 @@ fn proper_initialization() {
         symbol: "BLUNA".to_string(),
         decimals: 6,
         initial_balances: vec![],
-        mint: None,
         hub_contract: hub_contract.clone(),
     };
     let info = mock_info(&hub_contract, &[]);
