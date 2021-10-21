@@ -1,6 +1,6 @@
 // Copyright 2021 Lido
 //
-// Licensedicensed under the Apache License, Version 2.0 (the "License");
+// Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
 //
@@ -24,7 +24,6 @@ use cw20_base::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
 
 use crate::handler::*;
 use crate::msg::TokenInitMsg;
-use crate::state::HUB_CONTRACT;
 use cw20::MinterResponse;
 use cw20_base::ContractError;
 
@@ -35,11 +34,6 @@ pub fn instantiate(
     info: MessageInfo,
     msg: TokenInitMsg,
 ) -> Result<Response, ContractError> {
-    HUB_CONTRACT.save(
-        deps.storage,
-        &deps.api.addr_canonicalize(&msg.hub_contract)?,
-    )?;
-
     cw20_init(
         deps,
         env,
