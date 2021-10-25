@@ -16,14 +16,14 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use basset::airdrop::{AirdropInfo, AirdropInfoElem};
-use cosmwasm_std::{from_slice, to_vec, CanonicalAddr, Order, StdResult, Storage};
+use cosmwasm_std::{from_slice, to_vec, Addr, Order, StdResult, Storage};
 use cw_storage_plus::{Bound, Item, Map};
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct Config {
-    pub owner: CanonicalAddr,
-    pub hub_contract: String,
-    pub reward_contract: String,
+    pub owner: Addr,
+    pub hub_contract: Addr,
+    pub reward_contract: Addr,
     pub airdrop_tokens: Vec<String>,
 }
 

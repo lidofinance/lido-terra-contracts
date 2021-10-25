@@ -36,12 +36,12 @@ pub fn instantiate(
     info: MessageInfo,
     msg: InstantiateMsg,
 ) -> StdResult<Response> {
-    let sndr_raw = deps.api.addr_canonicalize(&info.sender.to_string())?;
+    let sndr_raw = info.sender;
 
     let config = Config {
         owner: sndr_raw,
-        hub_contract: msg.hub_contract,
-        reward_contract: msg.reward_contract,
+        hub_contract: deps.api.addr_validate(&msg.hub_contract)?,
+        reward_contract: deps.api.addr_validate(&msg.reward_contract)?,
         airdrop_tokens: vec![],
     };
 
@@ -96,7 +96,7 @@ fn execute_fabricate_mir_claim(
 
     let airdrop_info = read_airdrop_info(deps.storage, "MIR".to_string())?;
     messages.push(SubMsg::new(CosmosMsg::Wasm(WasmMsg::Execute {
-        contract_addr: config.hub_contract,
+        contract_addr: config.hub_contract.to_string(),
         msg: to_binary(&HubHandleMsg::ClaimAirdrop {
             airdrop_token_contract: airdrop_info.airdrop_token_contract,
             airdrop_contract: airdrop_info.airdrop_contract,
@@ -109,7 +109,7 @@ fn execute_fabricate_mir_claim(
             swap_msg: to_binary(&PairHandleMsg::Swap {
                 belief_price: airdrop_info.swap_belief_price,
                 max_spread: airdrop_info.swap_max_spread,
-                to: Some(config.reward_contract),
+                to: Some(config.reward_contract.to_string()),
             })?,
         })?,
         funds: vec![],
@@ -134,7 +134,7 @@ fn execute_fabricate_anchor_claim(
 
     let airdrop_info = read_airdrop_info(deps.storage, "ANC".to_string())?;
     messages.push(SubMsg::new(CosmosMsg::Wasm(WasmMsg::Execute {
-        contract_addr: config.hub_contract,
+        contract_addr: config.hub_contract.to_string(),
         msg: to_binary(&HubHandleMsg::ClaimAirdrop {
             airdrop_token_contract: airdrop_info.airdrop_token_contract,
             airdrop_contract: airdrop_info.airdrop_contract,
@@ -147,7 +147,7 @@ fn execute_fabricate_anchor_claim(
             swap_msg: to_binary(&PairHandleMsg::Swap {
                 belief_price: airdrop_info.swap_belief_price,
                 max_spread: airdrop_info.swap_max_spread,
-                to: Some(config.reward_contract),
+                to: Some(config.reward_contract.to_string()),
             })?,
         })?,
         funds: vec![],
@@ -167,20 +167,20 @@ pub fn execute_update_config(
 ) -> StdResult<Response> {
     // only owner can send this message.
     let mut config = read_config(deps.storage)?;
-    let sender_raw = deps.api.addr_canonicalize(&info.sender.to_string())?;
+    let sender_raw = info.sender;
     if sender_raw != config.owner {
         return Err(StdError::generic_err("unauthorized"));
     }
 
     if let Some(o) = owner {
-        let owner_raw = deps.api.addr_canonicalize(&o)?;
+        let owner_raw = deps.api.addr_validate(&o)?;
         config.owner = owner_raw
     }
     if let Some(hub) = hub_contract {
-        config.hub_contract = hub;
+        config.hub_contract = deps.api.addr_validate(&hub)?;
     }
     if let Some(reward_addr) = reward_contract {
-        config.reward_contract = reward_addr;
+        config.reward_contract = deps.api.addr_validate(&reward_addr)?;
     }
 
     store_config(deps.storage, &config)?;
@@ -197,7 +197,7 @@ pub fn execute_add_airdrop(
 ) -> StdResult<Response> {
     // only owner can send this message.
     let config = read_config(deps.storage)?;
-    let sender_raw = deps.api.addr_canonicalize(&info.sender.to_string())?;
+    let sender_raw = info.sender;
     if sender_raw != config.owner {
         return Err(StdError::generic_err("unauthorized"));
     }
@@ -232,7 +232,7 @@ pub fn execute_update_airdrop(
 ) -> StdResult<Response> {
     // only owner can send this message.
     let config = read_config(deps.storage)?;
-    let sender_raw = deps.api.addr_canonicalize(&info.sender.to_string())?;
+    let sender_raw = info.sender;
     if sender_raw != config.owner {
         return Err(StdError::generic_err("unauthorized"));
     }
@@ -260,7 +260,7 @@ pub fn execute_remove_airdrop(
 ) -> StdResult<Response> {
     // only owner can send this message.
     let config = read_config(deps.storage)?;
-    let sender_raw = deps.api.addr_canonicalize(&info.sender.to_string())?;
+    let sender_raw = info.sender.to_string();
     if sender_raw != config.owner {
         return Err(StdError::generic_err("unauthorized"));
     }
@@ -304,12 +304,12 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
 
 fn query_config(deps: Deps) -> StdResult<ConfigResponse> {
     let config = read_config(deps.storage)?;
-    let owner_addr = deps.api.addr_humanize(&config.owner)?;
+    let owner_addr = config.owner;
 
     Ok(ConfigResponse {
         owner: owner_addr.to_string(),
-        hub_contract: config.hub_contract,
-        reward_contract: config.reward_contract,
+        hub_contract: config.hub_contract.to_string(),
+        reward_contract: config.reward_contract.to_string(),
         airdrop_tokens: config.airdrop_tokens,
     })
 }
