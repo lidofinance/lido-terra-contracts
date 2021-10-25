@@ -3846,6 +3846,7 @@ pub fn test_update_params() {
         StdError::generic_err("peg_recovery_fee can not be greater than 1"),
         res.err().unwrap()
     );
+
     //trying to set er_threshold > 1.
     let update_prams = UpdateParams {
         epoch_period: None,
