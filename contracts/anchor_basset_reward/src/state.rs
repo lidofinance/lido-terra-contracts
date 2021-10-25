@@ -22,11 +22,18 @@ use cw_storage_plus::{Bound, Item, Map};
 
 pub const STATE: Item<State> = Item::new("\u{0}\u{5}state");
 pub const CONFIG: Item<Config> = Item::new("\u{0}\u{6}config");
+pub const OLD_CONFIG: Item<OldConfig> = Item::new("\u{0}\u{6}config");
 pub const HOLDERS: Map<&[u8], Holder> = Map::new("holders");
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct Config {
+pub struct OldConfig {
     pub hub_contract: CanonicalAddr,
+    pub reward_denom: String,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct Config {
+    pub hub_contract: Addr,
     pub reward_denom: String,
 }
 
@@ -183,7 +190,7 @@ mod test {
         store_legacy_config(
             &mut deps.storage,
             &Config {
-                hub_contract: deps.api.addr_canonicalize("hub").unwrap(),
+                hub_contract: deps.api.addr_validate("hub").unwrap(),
                 reward_denom: "".to_string(),
             },
         )

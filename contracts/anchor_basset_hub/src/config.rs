@@ -33,8 +33,7 @@ pub fn execute_update_params(
 ) -> StdResult<Response> {
     // only owner can send this message.
     let config = CONFIG.load(deps.storage)?;
-    let sender_raw = deps.api.addr_canonicalize(&info.sender.to_string())?;
-    if sender_raw != config.creator {
+    if info.sender != config.creator {
         return Err(StdError::generic_err("unauthorized"));
     }
 
@@ -71,65 +70,64 @@ pub fn execute_update_config(
 ) -> StdResult<Response> {
     // only owner must be able to send this message.
     let conf = CONFIG.load(deps.storage)?;
-    let sender_raw = deps.api.addr_canonicalize(&info.sender.to_string())?;
-    if sender_raw != conf.creator {
+    if info.sender != conf.creator {
         return Err(StdError::generic_err("unauthorized"));
     }
 
     let mut messages: Vec<CosmosMsg> = vec![];
 
     if let Some(o) = owner {
-        let owner_raw = deps.api.addr_canonicalize(&o)?;
+        let owner = deps.api.addr_validate(&o)?;
 
         CONFIG.update(deps.storage, |mut last_config| -> StdResult<_> {
-            last_config.creator = owner_raw;
+            last_config.creator = owner;
             Ok(last_config)
         })?;
     }
-    if let Some(reward) = rewards_dispatcher_contract {
-        let reward_raw = deps.api.addr_canonicalize(&reward)?;
+    if let Some(r) = rewards_dispatcher_contract {
+        let reward = deps.api.addr_validate(&r)?;
 
         CONFIG.update(deps.storage, |mut last_config| -> StdResult<_> {
-            last_config.reward_dispatcher_contract = Some(reward_raw);
+            last_config.reward_dispatcher_contract = Some(reward);
             Ok(last_config)
         })?;
 
         // register the reward contract for automate reward withdrawal.
         let msg: CosmosMsg =
-            CosmosMsg::Distribution(DistributionMsg::SetWithdrawAddress { address: reward });
+            CosmosMsg::Distribution(DistributionMsg::SetWithdrawAddress { address: r });
         messages.push(msg);
     }
 
-    if let Some(token) = bluna_token_contract {
-        let token_raw = deps.api.addr_canonicalize(&token)?;
+    if let Some(t) = bluna_token_contract {
+        let bluna_token = deps.api.addr_validate(&t)?;
 
         CONFIG.update(deps.storage, |mut last_config| -> StdResult<_> {
-            last_config.bluna_token_contract = Some(token_raw);
+            last_config.bluna_token_contract = Some(bluna_token);
             Ok(last_config)
         })?;
     }
 
-    if let Some(token) = stluna_token_contract {
-        let token_raw = deps.api.addr_canonicalize(&token)?;
+    if let Some(t) = stluna_token_contract {
+        let stluna_token = deps.api.addr_validate(&t)?;
 
         CONFIG.update(deps.storage, |mut last_config| -> StdResult<_> {
-            last_config.stluna_token_contract = Some(token_raw);
+            last_config.stluna_token_contract = Some(stluna_token);
             Ok(last_config)
         })?;
     }
 
-    if let Some(airdrop) = airdrop_registry_contract {
-        let airdrop_raw = deps.api.addr_canonicalize(&airdrop)?;
+    if let Some(a) = airdrop_registry_contract {
+        let airdrop = deps.api.addr_validate(&a)?;
         CONFIG.update(deps.storage, |mut last_config| -> StdResult<_> {
-            last_config.airdrop_registry_contract = Some(airdrop_raw);
+            last_config.airdrop_registry_contract = Some(airdrop);
             Ok(last_config)
         })?;
     }
 
-    if let Some(validators_registry) = validators_registry_contract {
-        let validators_raw = deps.api.addr_canonicalize(&validators_registry)?;
+    if let Some(v) = validators_registry_contract {
+        let validators_registry = deps.api.addr_validate(&v)?;
         CONFIG.update(deps.storage, |mut last_config| -> StdResult<_> {
-            last_config.validators_registry_contract = Some(validators_raw);
+            last_config.validators_registry_contract = Some(validators_registry);
             Ok(last_config)
         })?;
     }

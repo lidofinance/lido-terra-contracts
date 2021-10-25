@@ -115,27 +115,25 @@ impl WasmMockQuerier {
                     let api: MockApi = MockApi::default();
                     if key.as_slice().to_vec() == prefix_config {
                         let config = Config {
-                            creator: api.addr_canonicalize(&String::from("owner1")).unwrap(),
+                            creator: api.addr_validate(&String::from("owner1")).unwrap(),
                             reward_dispatcher_contract: Some(
-                                api.addr_canonicalize(&String::from(MOCK_REWARDS_DISPATCHER_ADDR))
+                                api.addr_validate(&String::from(MOCK_REWARDS_DISPATCHER_ADDR))
                                     .unwrap(),
                             ),
                             validators_registry_contract: Some(
-                                api.addr_canonicalize(&String::from(MOCK_VALIDATORS_REGISTRY_ADDR))
+                                api.addr_validate(&String::from(MOCK_VALIDATORS_REGISTRY_ADDR))
                                     .unwrap(),
                             ),
                             bluna_token_contract: Some(
-                                api.addr_canonicalize(&String::from(MOCK_TOKEN_CONTRACT_ADDR))
+                                api.addr_validate(&String::from(MOCK_TOKEN_CONTRACT_ADDR))
                                     .unwrap(),
                             ),
                             airdrop_registry_contract: Some(
-                                api.addr_canonicalize(&String::from("airdrop")).unwrap(),
+                                api.addr_validate(&String::from("airdrop")).unwrap(),
                             ),
                             stluna_token_contract: Some(
-                                api.addr_canonicalize(&String::from(
-                                    MOCK_STLUNA_TOKEN_CONTRACT_ADDR,
-                                ))
-                                .unwrap(),
+                                api.addr_validate(&String::from(MOCK_STLUNA_TOKEN_CONTRACT_ADDR))
+                                    .unwrap(),
                             ),
                         };
                         SystemResult::Ok(ContractResult::from(to_binary(&config)))

@@ -99,13 +99,11 @@ pub fn execute_increase_balance(
     amount: Uint128,
 ) -> StdResult<Response<TerraMsgWrapper>> {
     let config = read_config(deps.storage)?;
-    let owner_human = deps.api.addr_humanize(&config.hub_contract)?;
+    let owner_human = config.hub_contract;
     let address_raw = deps.api.addr_canonicalize(&address)?;
     let sender = info.sender;
 
-    let token_address = deps
-        .api
-        .addr_humanize(&query_token_contract(deps.as_ref(), owner_human)?)?;
+    let token_address = query_token_contract(deps.as_ref(), owner_human)?;
 
     // Check sender is token contract
     if sender != token_address {
@@ -144,13 +142,11 @@ pub fn execute_decrease_balance(
     amount: Uint128,
 ) -> StdResult<Response<TerraMsgWrapper>> {
     let config = read_config(deps.storage)?;
-    let hub_contract = deps.api.addr_humanize(&config.hub_contract)?;
+    let hub_contract = config.hub_contract;
     let address_raw = deps.api.addr_canonicalize(&address)?;
 
     // Check sender is token contract
-    if query_token_contract(deps.as_ref(), hub_contract)?
-        != deps.api.addr_canonicalize(info.sender.as_str())?
-    {
+    if query_token_contract(deps.as_ref(), hub_contract)? != info.sender {
         return Err(StdError::generic_err("unauthorized"));
     }
 

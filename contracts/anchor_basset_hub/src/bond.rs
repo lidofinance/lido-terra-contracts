@@ -37,11 +37,9 @@ pub fn execute_bond(
     let recovery_fee = params.peg_recovery_fee;
     let config = CONFIG.load(deps.storage)?;
 
-    let reward_dispatcher_addr =
-        deps.api
-            .addr_humanize(&config.reward_dispatcher_contract.ok_or_else(|| {
-                StdError::generic_err("the reward dispatcher contract must have been registered")
-            })?)?;
+    let reward_dispatcher_addr = config.reward_dispatcher_contract.ok_or_else(|| {
+        StdError::generic_err("the reward dispatcher contract must have been registered")
+    })?;
 
     if bond_type == BondType::BondRewards && info.sender != reward_dispatcher_addr {
         return Err(StdError::generic_err("unauthorized"));
@@ -133,10 +131,7 @@ pub fn execute_bond(
         ));
     };
     let validators: Vec<Validator> = deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
-        contract_addr: deps
-            .api
-            .addr_humanize(&validators_registry_contract)?
-            .to_string(),
+        contract_addr: validators_registry_contract.to_string(),
         msg: to_binary(&QueryValidators::GetValidatorsForDelegation {})?,
     }))?;
 
@@ -176,16 +171,12 @@ pub fn execute_bond(
     };
 
     let token_address = match bond_type {
-        BondType::BLuna => deps
-            .api
-            .addr_humanize(&config.bluna_token_contract.ok_or_else(|| {
-                StdError::generic_err("the token contract must have been registered")
-            })?)?,
-        BondType::StLuna => deps
-            .api
-            .addr_humanize(&config.stluna_token_contract.ok_or_else(|| {
-                StdError::generic_err("the token contract must have been registered")
-            })?)?,
+        BondType::BLuna => config.bluna_token_contract.ok_or_else(|| {
+            StdError::generic_err("the bluna token contract must have been registered")
+        })?,
+        BondType::StLuna => config.stluna_token_contract.ok_or_else(|| {
+            StdError::generic_err("the stluna token contract must have been registered")
+        })?,
         BondType::BondRewards => {
             return Err(StdError::generic_err(
                 "can't mint tokens when bonding rewards",

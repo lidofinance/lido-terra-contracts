@@ -94,7 +94,7 @@ pub fn do_mint(deps: DepsMut, addr: String, amount: Uint128) {
 fn proper_initialization() {
     let mut deps = mock_dependencies(&[]);
     let hub_contract = String::from(MOCK_HUB_CONTRACT_ADDR);
-    let hub_contract_raw = deps.api.addr_canonicalize(&hub_contract).unwrap();
+    let hub_contract_raw = deps.api.addr_validate(&hub_contract).unwrap();
 
     let init_msg = TokenInitMsg {
         name: "bluna".to_string(),

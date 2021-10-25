@@ -16,7 +16,9 @@
 use cosmwasm_std::entry_point;
 
 use crate::global::{execute_swap, execute_update_global_index};
-use crate::state::{read_config, read_state, store_config, store_state, Config, State};
+use crate::state::{
+    read_config, read_state, store_config, store_state, Config, State, CONFIG, OLD_CONFIG,
+};
 use crate::user::{
     execute_claim_rewards, execute_decrease_balance, execute_increase_balance,
     query_accrued_rewards, query_holder, query_holders,
@@ -38,7 +40,7 @@ pub fn instantiate(
     msg: InstantiateMsg,
 ) -> StdResult<Response> {
     let conf = Config {
-        hub_contract: deps.api.addr_canonicalize(&msg.hub_contract)?,
+        hub_contract: deps.api.addr_validate(&msg.hub_contract)?,
         reward_denom: msg.reward_denom,
     };
 
@@ -91,7 +93,7 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
 fn query_config(deps: Deps) -> StdResult<ConfigResponse> {
     let config: Config = read_config(deps.storage)?;
     Ok(ConfigResponse {
-        hub_contract: deps.api.addr_humanize(&config.hub_contract)?.to_string(),
+        hub_contract: config.hub_contract.to_string(),
         reward_denom: config.reward_denom,
     })
 }
@@ -106,6 +108,12 @@ fn query_state(deps: Deps) -> StdResult<StateResponse> {
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn migrate(_deps: DepsMut, _env: Env, _msg: MigrateMsg) -> StdResult<Response> {
+pub fn migrate(deps: DepsMut, _env: Env, _msg: MigrateMsg) -> StdResult<Response> {
+    let old_config = OLD_CONFIG.load(deps.storage)?;
+    let config = Config {
+        hub_contract: deps.api.addr_humanize(&old_config.hub_contract)?,
+        reward_denom: old_config.reward_denom,
+    };
+    CONFIG.save(deps.storage, &config)?;
     Ok(Response::default())
 }

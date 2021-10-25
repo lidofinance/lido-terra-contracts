@@ -37,8 +37,8 @@ pub fn instantiate(
     CONFIG.save(
         deps.storage,
         &Config {
-            owner: deps.api.addr_canonicalize(info.sender.as_str())?,
-            hub_contract: deps.api.addr_canonicalize(msg.hub_contract.as_str())?,
+            owner: info.sender,
+            hub_contract: deps.api.addr_validate(msg.hub_contract.as_str())?,
         },
     )?;
 
@@ -72,25 +72,25 @@ pub fn execute_update_config(
 ) -> StdResult<Response> {
     // only owner must be able to send this message.
     let config = CONFIG.load(deps.storage)?;
-    let owner_address = deps.api.addr_humanize(&config.owner)?;
-    if info.sender != owner_address {
+
+    if info.sender != config.owner {
         return Err(StdError::generic_err("unauthorized"));
     }
 
     if let Some(o) = owner {
-        let owner_raw = deps.api.addr_canonicalize(&o)?;
+        let owner_addr = deps.api.addr_validate(&o)?;
 
         CONFIG.update(deps.storage, |mut last_config| -> StdResult<_> {
-            last_config.owner = owner_raw;
+            last_config.owner = owner_addr;
             Ok(last_config)
         })?;
     }
 
     if let Some(hub) = hub_contract {
-        let hub_raw = deps.api.addr_canonicalize(&hub)?;
+        let hub_addr = deps.api.addr_validate(&hub)?;
 
         CONFIG.update(deps.storage, |mut last_config| -> StdResult<_> {
-            last_config.hub_contract = hub_raw;
+            last_config.hub_contract = hub_addr;
             Ok(last_config)
         })?;
     }
@@ -105,8 +105,8 @@ pub fn add_validator(
     validator: Validator,
 ) -> StdResult<Response> {
     let config = CONFIG.load(deps.storage)?;
-    let owner_address = deps.api.addr_humanize(&config.owner)?;
-    let hub_address = deps.api.addr_humanize(&config.hub_contract)?;
+    let owner_address = config.owner;
+    let hub_address = config.hub_contract;
     if info.sender != owner_address && info.sender != hub_address {
         return Err(StdError::generic_err("unauthorized"));
     }
@@ -126,7 +126,7 @@ pub fn remove_validator(
     validator_address: String,
 ) -> StdResult<Response> {
     let config = CONFIG.load(deps.storage)?;
-    let owner_address = deps.api.addr_humanize(&config.owner)?;
+    let owner_address = config.owner;
     if info.sender != owner_address {
         return Err(StdError::generic_err("unauthorized"));
     }
@@ -141,7 +141,7 @@ pub fn remove_validator(
     }
     validators.sort_by(|v1, v2| v1.total_delegated.cmp(&v2.total_delegated));
 
-    let hub_address = deps.api.addr_humanize(&config.hub_contract)?;
+    let hub_address = config.hub_contract;
 
     let query = deps
         .querier
@@ -218,7 +218,7 @@ fn query_config(deps: Deps) -> StdResult<Config> {
 
 fn query_validators(deps: Deps) -> StdResult<Vec<Validator>> {
     let config = CONFIG.load(deps.storage)?;
-    let hub_address = deps.api.addr_humanize(&config.hub_contract)?;
+    let hub_address = config.hub_contract;
 
     let mut delegations = HashMap::new();
     for delegation in deps.querier.query_all_delegations(&hub_address)? {

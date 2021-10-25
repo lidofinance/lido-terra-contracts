@@ -257,7 +257,7 @@ fn proper_initialization() {
     let query_conf: ConfigResponse =
         from_binary(&query(deps.as_ref(), mock_env(), conf).unwrap()).unwrap();
     let expected_conf = ConfigResponse {
-        owner: String::from("owner1"),
+        owner: deps.api.addr_validate(&String::from("owner1")).unwrap(),
         reward_dispatcher_contract: None,
         validators_registry_contract: None,
         bluna_token_contract: None,
@@ -4097,7 +4097,7 @@ pub fn proper_update_config() {
     assert_eq!(res.messages.len(), 0);
 
     let config = CONFIG.load(&deps.storage).unwrap();
-    let new_owner_raw = deps.api.addr_canonicalize(&new_owner).unwrap();
+    let new_owner_raw = Addr::unchecked(&new_owner);
     assert_eq!(new_owner_raw, config.creator);
 
     // new owner can send the owner related messages

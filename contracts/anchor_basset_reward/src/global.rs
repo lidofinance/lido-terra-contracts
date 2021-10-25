@@ -31,10 +31,8 @@ pub fn execute_swap(
     info: MessageInfo,
 ) -> StdResult<Response<TerraMsgWrapper>> {
     let config = read_config(deps.storage)?;
-    let hub_addr = deps.api.addr_humanize(&config.hub_contract)?;
-    let owner_addr = deps
-        .api
-        .addr_humanize(&query_rewards_dispatcher_contract(deps.as_ref(), hub_addr)?)?;
+    let hub_addr = config.hub_contract;
+    let owner_addr = query_rewards_dispatcher_contract(deps.as_ref(), hub_addr)?;
 
     if info.sender != owner_addr {
         return Err(StdError::generic_err("unauthorized"));
@@ -84,10 +82,8 @@ pub fn execute_update_global_index(
     let mut state: State = read_state(deps.storage)?;
 
     let config = read_config(deps.storage)?;
-    let hub_addr = deps.api.addr_humanize(&config.hub_contract)?;
-    let owner_addr = deps
-        .api
-        .addr_humanize(&query_rewards_dispatcher_contract(deps.as_ref(), hub_addr)?)?;
+    let hub_addr = config.hub_contract;
+    let owner_addr = query_rewards_dispatcher_contract(deps.as_ref(), hub_addr)?;
 
     if info.sender != owner_addr {
         return Err(StdError::generic_err("unauthorized"));

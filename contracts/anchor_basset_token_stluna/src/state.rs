@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use cosmwasm_std::CanonicalAddr;
+use cosmwasm_std::Addr;
 use cw_storage_plus::Item;
 
-pub const HUB_CONTRACT: Item<CanonicalAddr> = Item::new("hub_contract");
+pub const HUB_CONTRACT: Item<Addr> = Item::new("hub_contract");

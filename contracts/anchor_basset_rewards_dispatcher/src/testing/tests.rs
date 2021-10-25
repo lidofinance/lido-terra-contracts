@@ -332,7 +332,7 @@ fn test_update_config() {
     assert!(res.is_ok());
 
     let config = CONFIG.load(&deps.storage).unwrap();
-    let new_owner_raw = deps.api.addr_canonicalize(&new_owner).unwrap();
+    let new_owner_raw = deps.api.addr_validate(&new_owner).unwrap();
     assert_eq!(new_owner_raw, config.owner);
 
     // change hub_contract
@@ -352,7 +352,7 @@ fn test_update_config() {
     let config = CONFIG.load(&deps.storage).unwrap();
     assert_eq!(
         deps.api
-            .addr_canonicalize(&String::from("some_address"))
+            .addr_validate(&String::from("some_address"))
             .unwrap(),
         config.hub_contract
     );
@@ -374,7 +374,7 @@ fn test_update_config() {
     let config = CONFIG.load(&deps.storage).unwrap();
     assert_eq!(
         deps.api
-            .addr_canonicalize(&String::from("some_address"))
+            .addr_validate(&String::from("some_address"))
             .unwrap(),
         config.bluna_reward_contract
     );
@@ -430,7 +430,7 @@ fn test_update_config() {
     let config = CONFIG.load(&deps.storage).unwrap();
     assert_eq!(
         deps.api
-            .addr_canonicalize(&String::from("some_address"))
+            .addr_validate(&String::from("some_address"))
             .unwrap(),
         config.lido_fee_address
     );

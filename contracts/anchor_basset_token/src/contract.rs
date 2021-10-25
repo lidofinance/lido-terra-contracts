@@ -24,7 +24,7 @@ use cw20_legacy::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
 
 use crate::handler::*;
 use crate::msg::{MigrateMsg, TokenInitMsg};
-use crate::state::store_hub_contract;
+use crate::state::{store_hub_contract, HUB_CONTRACT_KEY, OLD_HUB_CONTRACT_KEY};
 use cw20::MinterResponse;
 use cw20_legacy::ContractError;
 
@@ -35,10 +35,7 @@ pub fn instantiate(
     info: MessageInfo,
     msg: TokenInitMsg,
 ) -> StdResult<Response> {
-    store_hub_contract(
-        deps.storage,
-        &deps.api.addr_canonicalize(&msg.hub_contract)?,
-    )?;
+    store_hub_contract(deps.storage, &deps.api.addr_validate(&msg.hub_contract)?)?;
 
     cw20_init(
         deps,
@@ -108,6 +105,8 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn migrate(_deps: DepsMut, _env: Env, _msg: MigrateMsg) -> StdResult<Response> {
+pub fn migrate(deps: DepsMut, _env: Env, _msg: MigrateMsg) -> StdResult<Response> {
+    let old_contract = OLD_HUB_CONTRACT_KEY.load(deps.storage)?;
+    HUB_CONTRACT_KEY.save(deps.storage, &deps.api.addr_humanize(&old_contract)?)?;
     Ok(Response::default())
 }

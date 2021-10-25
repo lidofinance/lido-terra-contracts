@@ -35,10 +35,7 @@ pub fn instantiate(
     info: MessageInfo,
     msg: TokenInitMsg,
 ) -> Result<Response, ContractError> {
-    HUB_CONTRACT.save(
-        deps.storage,
-        &deps.api.addr_canonicalize(&msg.hub_contract)?,
-    )?;
+    HUB_CONTRACT.save(deps.storage, &deps.api.addr_validate(&msg.hub_contract)?)?;
 
     cw20_init(
         deps,

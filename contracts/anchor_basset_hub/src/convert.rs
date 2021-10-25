@@ -33,16 +33,12 @@ pub fn convert_stluna_bluna(
     let threshold = params.er_threshold;
     let recovery_fee = params.peg_recovery_fee;
 
-    let stluna_contract = deps.api.addr_humanize(
-        &conf
-            .stluna_token_contract
-            .ok_or_else(|| StdError::generic_err("stluna contract must be registred"))?,
-    )?;
-    let bluna_contract = deps.api.addr_humanize(
-        &conf
-            .bluna_token_contract
-            .ok_or_else(|| StdError::generic_err("bluna contract must be registred"))?,
-    )?;
+    let stluna_contract = conf
+        .stluna_token_contract
+        .ok_or_else(|| StdError::generic_err("stluna contract must be registred"))?;
+    let bluna_contract = conf
+        .bluna_token_contract
+        .ok_or_else(|| StdError::generic_err("bluna contract must be registred"))?;
 
     let denom_equiv = state.stluna_exchange_rate.mul(stluna_amount);
 
@@ -117,16 +113,12 @@ pub fn convert_bluna_stluna(
     let conf = CONFIG.load(deps.storage)?;
     let state = STATE.load(deps.storage)?;
 
-    let stluna_contract = deps.api.addr_humanize(
-        &conf
-            .stluna_token_contract
-            .ok_or_else(|| StdError::generic_err("stluna contract must be registred"))?,
-    )?;
-    let bluna_contract = deps.api.addr_humanize(
-        &conf
-            .bluna_token_contract
-            .ok_or_else(|| StdError::generic_err("bluna contract must be registred"))?,
-    )?;
+    let stluna_contract = conf
+        .stluna_token_contract
+        .ok_or_else(|| StdError::generic_err("stluna contract must be registred"))?;
+    let bluna_contract = conf
+        .bluna_token_contract
+        .ok_or_else(|| StdError::generic_err("bluna contract must be registred"))?;
 
     let params = PARAMETERS.load(deps.storage)?;
     let threshold = params.er_threshold;

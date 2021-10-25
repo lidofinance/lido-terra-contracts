@@ -1,4 +1,4 @@
-use cosmwasm_std::{Binary, CanonicalAddr, Coin, Decimal, Uint128};
+use cosmwasm_std::{Addr, Binary, CanonicalAddr, Coin, Decimal, Uint128};
 use cw20::Cw20ReceiveMsg;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -47,12 +47,12 @@ pub struct OldState {
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct Config {
-    pub creator: CanonicalAddr,
-    pub reward_dispatcher_contract: Option<CanonicalAddr>,
-    pub validators_registry_contract: Option<CanonicalAddr>,
-    pub bluna_token_contract: Option<CanonicalAddr>,
-    pub stluna_token_contract: Option<CanonicalAddr>,
-    pub airdrop_registry_contract: Option<CanonicalAddr>,
+    pub creator: Addr,
+    pub reward_dispatcher_contract: Option<Addr>,
+    pub validators_registry_contract: Option<Addr>,
+    pub bluna_token_contract: Option<Addr>,
+    pub stluna_token_contract: Option<Addr>,
+    pub airdrop_registry_contract: Option<Addr>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -241,12 +241,12 @@ pub struct StateResponse {
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct ConfigResponse {
-    pub owner: String,
-    pub reward_dispatcher_contract: Option<String>,
-    pub validators_registry_contract: Option<String>,
-    pub bluna_token_contract: Option<String>,
-    pub stluna_token_contract: Option<String>,
-    pub airdrop_registry_contract: Option<String>,
+    pub owner: Addr,
+    pub reward_dispatcher_contract: Option<Addr>,
+    pub validators_registry_contract: Option<Addr>,
+    pub bluna_token_contract: Option<Addr>,
+    pub stluna_token_contract: Option<Addr>,
+    pub airdrop_registry_contract: Option<Addr>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

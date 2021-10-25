@@ -111,22 +111,21 @@ impl WasmMockQuerier {
 
                 if key.as_slice().to_vec() == prefix_config {
                     let config = Config {
-                        creator: api.addr_canonicalize(&String::from("owner1")).unwrap(),
+                        creator: api.addr_validate(&String::from("owner1")).unwrap(),
                         reward_dispatcher_contract: Some(
-                            api.addr_canonicalize(&String::from("reward")).unwrap(),
+                            api.addr_validate(&String::from("reward")).unwrap(),
                         ),
                         validators_registry_contract: Some(
-                            api.addr_canonicalize(&String::from("validators")).unwrap(),
+                            api.addr_validate(&String::from("validators")).unwrap(),
                         ),
                         bluna_token_contract: Some(
-                            api.addr_canonicalize(&String::from("token")).unwrap(),
+                            api.addr_validate(&String::from("token")).unwrap(),
                         ),
                         airdrop_registry_contract: Some(
-                            api.addr_canonicalize(&String::from("airdrop")).unwrap(),
+                            api.addr_validate(&String::from("airdrop")).unwrap(),
                         ),
                         stluna_token_contract: Some(
-                            api.addr_canonicalize(&String::from("stluna_token"))
-                                .unwrap(),
+                            api.addr_validate(&String::from("stluna_token")).unwrap(),
                         ),
                     };
                     SystemResult::Ok(ContractResult::from(to_binary(&config)))

@@ -50,12 +50,9 @@ pub fn instantiate(
     info: MessageInfo,
     msg: InstantiateMsg,
 ) -> StdResult<Response> {
-    let sender = info.sender;
-    let sndr_raw = deps.api.addr_canonicalize(sender.as_str())?;
-
     // store config
     let data = Config {
-        creator: sndr_raw,
+        creator: info.sender,
         reward_dispatcher_contract: None,
         validators_registry_contract: None,
         bluna_token_contract: None,
@@ -185,7 +182,7 @@ pub fn execute_redelegate_proxy(
     src_validator: String,
     redelegations: Vec<(String, Coin)>,
 ) -> StdResult<Response> {
-    let sender_contract_addr = deps.api.addr_canonicalize(info.sender.as_str())?;
+    let sender_contract_addr = info.sender;
     let conf = CONFIG.load(deps.storage)?;
     let validators_registry_contract = conf.validators_registry_contract.ok_or_else(|| {
         StdError::generic_err("the validator registry contract must have been registered")
@@ -219,7 +216,7 @@ pub fn receive_cw20(
     info: MessageInfo,
     cw20_msg: Cw20ReceiveMsg,
 ) -> StdResult<Response> {
-    let contract_addr = deps.api.addr_canonicalize(info.sender.as_str())?;
+    let contract_addr = info.sender;
 
     // only token contract can execute this message
     let conf = CONFIG.load(deps.storage)?;
@@ -273,18 +270,14 @@ pub fn execute_update_global(
     let mut messages: Vec<CosmosMsg> = vec![];
 
     let config = CONFIG.load(deps.storage)?;
-    let reward_addr =
-        deps.api
-            .addr_humanize(&config.reward_dispatcher_contract.ok_or_else(|| {
-                StdError::generic_err("the reward contract must have been registered")
-            })?)?;
+    let reward_addr = config
+        .reward_dispatcher_contract
+        .ok_or_else(|| StdError::generic_err("the reward contract must have been registered"))?;
 
     if airdrop_hooks.is_some() {
-        let registry_addr =
-            deps.api
-                .addr_humanize(&config.airdrop_registry_contract.ok_or_else(|| {
-                    StdError::generic_err("the airdrop registry contract must have been registered")
-                })?)?;
+        let registry_addr = config.airdrop_registry_contract.ok_or_else(|| {
+            StdError::generic_err("the airdrop registry contract must have been registered")
+        })?;
         for msg in airdrop_hooks.unwrap() {
             messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
                 contract_addr: registry_addr.to_string(),
@@ -412,17 +405,13 @@ pub fn claim_airdrop(
 ) -> StdResult<Response> {
     let conf = CONFIG.load(deps.storage)?;
 
-    let sender_raw = deps.api.addr_canonicalize(info.sender.as_str())?;
-
-    let airdrop_reg_raw = if let Some(airdrop) = conf.airdrop_registry_contract {
+    let airdrop_reg = if let Some(airdrop) = conf.airdrop_registry_contract {
         airdrop
     } else {
         return Err(StdError::generic_err("airdrop contract must be registered"));
     };
 
-    let airdrop_reg = deps.api.addr_humanize(&airdrop_reg_raw)?;
-
-    if airdrop_reg_raw != sender_raw {
+    if airdrop_reg != info.sender {
         return Err(StdError::generic_err(format!(
             "Sender must be {}",
             airdrop_reg
@@ -528,54 +517,14 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
 
 fn query_config(deps: Deps) -> StdResult<ConfigResponse> {
     let config = CONFIG.load(deps.storage)?;
-    let mut reward: Option<String> = None;
-    let mut validators_contract: Option<String> = None;
-    let mut bluna_token: Option<String> = None;
-    let mut stluna_token: Option<String> = None;
-    let mut airdrop: Option<String> = None;
-    if config.reward_dispatcher_contract.is_some() {
-        reward = Some(
-            deps.api
-                .addr_humanize(&config.reward_dispatcher_contract.unwrap())?
-                .to_string(),
-        );
-    }
-    if config.bluna_token_contract.is_some() {
-        bluna_token = Some(
-            deps.api
-                .addr_humanize(&config.bluna_token_contract.unwrap())?
-                .to_string(),
-        );
-    }
-    if config.stluna_token_contract.is_some() {
-        stluna_token = Some(
-            deps.api
-                .addr_humanize(&config.stluna_token_contract.unwrap())?
-                .to_string(),
-        );
-    }
-    if config.validators_registry_contract.is_some() {
-        validators_contract = Some(
-            deps.api
-                .addr_humanize(&config.validators_registry_contract.unwrap())?
-                .to_string(),
-        );
-    }
-    if config.airdrop_registry_contract.is_some() {
-        airdrop = Some(
-            deps.api
-                .addr_humanize(&config.airdrop_registry_contract.unwrap())?
-                .to_string(),
-        );
-    }
 
     Ok(ConfigResponse {
-        owner: deps.api.addr_humanize(&config.creator)?.to_string(),
-        reward_dispatcher_contract: reward,
-        validators_registry_contract: validators_contract,
-        bluna_token_contract: bluna_token,
-        airdrop_registry_contract: airdrop,
-        stluna_token_contract: stluna_token,
+        owner: config.creator,
+        reward_dispatcher_contract: config.reward_dispatcher_contract,
+        validators_registry_contract: config.validators_registry_contract,
+        bluna_token_contract: config.bluna_token_contract,
+        airdrop_registry_contract: config.airdrop_registry_contract,
+        stluna_token_contract: config.stluna_token_contract,
     })
 }
 
@@ -623,12 +572,10 @@ fn query_params(deps: Deps) -> StdResult<Parameters> {
 }
 
 pub(crate) fn query_total_bluna_issued(deps: Deps) -> StdResult<Uint128> {
-    let token_address = deps.api.addr_humanize(
-        &CONFIG
-            .load(deps.storage)?
-            .bluna_token_contract
-            .ok_or_else(|| StdError::generic_err("token contract must have been registered"))?,
-    )?;
+    let token_address = &CONFIG
+        .load(deps.storage)?
+        .bluna_token_contract
+        .ok_or_else(|| StdError::generic_err("token contract must have been registered"))?;
     let token_info: TokenInfoResponse =
         deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
             contract_addr: token_address.to_string(),
@@ -638,12 +585,10 @@ pub(crate) fn query_total_bluna_issued(deps: Deps) -> StdResult<Uint128> {
 }
 
 pub(crate) fn query_total_stluna_issued(deps: Deps) -> StdResult<Uint128> {
-    let token_address = deps.api.addr_humanize(
-        &CONFIG
-            .load(deps.storage)?
-            .stluna_token_contract
-            .ok_or_else(|| StdError::generic_err("token contract must have been registered"))?,
-    )?;
+    let token_address = CONFIG
+        .load(deps.storage)?
+        .stluna_token_contract
+        .ok_or_else(|| StdError::generic_err("token contract must have been registered"))?;
     let token_info: TokenInfoResponse =
         deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
             contract_addr: token_address.to_string(),
@@ -686,19 +631,25 @@ pub fn migrate(deps: DepsMut, _env: Env, msg: MigrateMsg) -> StdResult<Response>
 
     //migrate config
     let old_config = OLD_CONFIG.load(deps.storage)?;
+    let hum_bluna_token_contract = if let Some(c) = old_config.token_contract {
+        Some(deps.api.addr_humanize(&c)?)
+    } else {
+        None
+    };
+    let hum_airdrop_registry_contract = if let Some(c) = old_config.airdrop_registry_contract {
+        Some(deps.api.addr_humanize(&c)?)
+    } else {
+        None
+    };
     let new_config = Config {
-        creator: old_config.creator,
-        reward_dispatcher_contract: Some(
-            deps.api
-                .addr_canonicalize(&msg.reward_dispatcher_contract)?,
-        ),
+        creator: deps.api.addr_humanize(&old_config.creator)?,
+        reward_dispatcher_contract: Some(deps.api.addr_validate(&msg.reward_dispatcher_contract)?),
         validators_registry_contract: Some(
-            deps.api
-                .addr_canonicalize(&msg.validators_registry_contract)?,
+            deps.api.addr_validate(&msg.validators_registry_contract)?,
         ),
-        bluna_token_contract: old_config.token_contract,
-        stluna_token_contract: Some(deps.api.addr_canonicalize(&msg.stluna_token_contract)?),
-        airdrop_registry_contract: old_config.airdrop_registry_contract,
+        bluna_token_contract: hum_bluna_token_contract,
+        stluna_token_contract: Some(deps.api.addr_validate(&msg.stluna_token_contract)?),
+        airdrop_registry_contract: hum_airdrop_registry_contract,
     };
     CONFIG.save(deps.storage, &new_config)?;
 
