@@ -281,9 +281,7 @@ fn proper_initialization() {
     );
 }
 
-/// Covers if all the fields of InstantiateMsg are stored in
-/// parameters' storage, the config storage stores the creator,
-/// the current batch storage and state are initialized.
+/// Check that we can not initialize the contract with peg_recovery_fee > 1.0.
 #[test]
 fn bad_initialization() {
     let mut deps = dependencies(&[]);
