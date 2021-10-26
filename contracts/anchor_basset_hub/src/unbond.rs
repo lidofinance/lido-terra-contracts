@@ -474,15 +474,6 @@ fn process_undelegations(
     let bluna_undelegation_amount =
         current_batch.requested_bluna_with_fee * state.bluna_exchange_rate;
 
-    // the contract must stop if
-    if bluna_undelegation_amount == Uint128::from(1u64)
-        || stluna_undelegation_amount == Uint128::from(1u64)
-    {
-        return Err(StdError::generic_err(
-            "Burn amount must be greater than 1 luna",
-        ));
-    }
-
     let delegator = env.contract.address;
 
     // Send undelegated requests to possibly more than one validators
