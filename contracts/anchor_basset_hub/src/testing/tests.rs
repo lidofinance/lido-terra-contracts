@@ -31,7 +31,7 @@
 //!      });
 //! 4. Anywhere you see query(deps.as_ref(), ...) you must replace it with query(deps.as_mut(), ...)
 use anchor_basset_validators_registry::msg::QueryMsg as QueryValidators;
-use anchor_basset_validators_registry::registry::Validator as RegistryValidator;
+use anchor_basset_validators_registry::registry::ValidatorResponse as RegistryValidator;
 use cosmwasm_std::{
     coin, coins, from_binary, to_binary, Addr, Api, BankMsg, Coin, CosmosMsg, Decimal, DepsMut,
     DistributionMsg, Env, FullDelegation, MessageInfo, OwnedDeps, Querier, QueryRequest, Response,
@@ -135,7 +135,7 @@ pub fn do_register_validator(
     validator: Validator,
 ) {
     deps.querier.add_validator(RegistryValidator {
-        total_delegated: Uint128::zero(),
+        total_delegated: Default::default(),
         address: validator.address,
     });
 }

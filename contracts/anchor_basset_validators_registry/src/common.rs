@@ -12,13 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use crate::registry::Validator;
+use crate::registry::ValidatorResponse;
 use cosmwasm_std::{StdError, StdResult, Uint128};
 use std::ops::Sub;
 
 pub fn calculate_delegations(
     mut amount_to_delegate: Uint128,
-    validators: &[Validator],
+    validators: &[ValidatorResponse],
 ) -> StdResult<(Uint128, Vec<Uint128>)> {
     if validators.is_empty() {
         return Err(StdError::generic_err("Empty validators set"));
@@ -54,7 +54,7 @@ pub fn calculate_delegations(
 
 pub fn calculate_undelegations(
     mut undelegation_amount: Uint128,
-    validators: &[Validator],
+    validators: &[ValidatorResponse],
 ) -> StdResult<Vec<Uint128>> {
     if validators.is_empty() {
         return Err(StdError::generic_err("Empty validators set"));
