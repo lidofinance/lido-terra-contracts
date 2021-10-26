@@ -382,13 +382,6 @@ pub fn slashing(deps: &mut DepsMut, env: Env) -> StdResult<State> {
         return Ok(state);
     }
 
-    // Slashing happens if the expected amount is less than stored amount
-    if state_total_bonded.u128() <= actual_total_bonded.u128() {
-        return Ok(state);
-    }
-
-    let bluna_bond_ratio = Decimal::from_ratio(state.total_bond_bluna_amount, state_total_bonded);
-
     // Need total issued for updating the exchange rate
     let bluna_total_issued = query_total_bluna_issued(deps.as_ref())?;
     let stluna_total_issued = query_total_stluna_issued(deps.as_ref())?;
@@ -396,9 +389,13 @@ pub fn slashing(deps: &mut DepsMut, env: Env) -> StdResult<State> {
     let current_requested_bluna_with_fee = current_batch.requested_bluna_with_fee;
     let current_requested_stluna = current_batch.requested_stluna;
 
-    state.total_bond_bluna_amount = actual_total_bonded * bluna_bond_ratio;
-    state.total_bond_stluna_amount =
-        actual_total_bonded.checked_sub(state.total_bond_bluna_amount)?;
+    if state_total_bonded.u128() > actual_total_bonded.u128() {
+        let bluna_bond_ratio =
+            Decimal::from_ratio(state.total_bond_bluna_amount, state_total_bonded);
+        state.total_bond_bluna_amount = actual_total_bonded * bluna_bond_ratio;
+        state.total_bond_stluna_amount =
+            actual_total_bonded.checked_sub(state.total_bond_bluna_amount)?;
+    }
     state.update_bluna_exchange_rate(bluna_total_issued, current_requested_bluna_with_fee);
     state.update_stluna_exchange_rate(stluna_total_issued, current_requested_stluna);
 
@@ -503,7 +500,6 @@ pub fn swap_hook(
 pub fn execute_slashing(mut deps: DepsMut, env: Env) -> StdResult<Response> {
     // call slashing and
     let state = slashing(&mut deps, env)?;
-
     Ok(Response::new().add_attributes(vec![
         attr("action", "check_slashing"),
         attr(

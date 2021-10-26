@@ -12,13 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use basset::hub::ExecuteMsg::CheckSlashing;
+use basset::reward::ExecuteMsg::{DecreaseBalance, IncreaseBalance};
 use cosmwasm_std::testing::{mock_env, mock_info};
 use cosmwasm_std::{
     coins, to_binary, Api, CosmosMsg, DepsMut, OwnedDeps, Querier, Storage, SubMsg, Uint128,
     WasmMsg,
 };
-
-use basset::reward::ExecuteMsg::{DecreaseBalance, IncreaseBalance};
 use cw20::{Cw20ReceiveMsg, MinterResponse, TokenInfoResponse};
 use cw20_legacy::contract::{query_minter, query_token_info};
 use cw20_legacy::msg::ExecuteMsg;
@@ -282,15 +282,22 @@ fn burn() {
     let res = execute(deps.as_mut(), mock_env(), info, msg).unwrap();
     assert_eq!(
         res.messages,
-        vec![SubMsg::new(CosmosMsg::Wasm(WasmMsg::Execute {
-            contract_addr: String::from(MOCK_REWARD_CONTRACT_ADDR),
-            msg: to_binary(&DecreaseBalance {
-                address: addr,
-                amount: Uint128::new(1u128),
-            })
-            .unwrap(),
-            funds: vec![],
-        })),]
+        vec![
+            SubMsg::new(CosmosMsg::Wasm(WasmMsg::Execute {
+                contract_addr: String::from(MOCK_REWARD_CONTRACT_ADDR),
+                msg: to_binary(&DecreaseBalance {
+                    address: addr,
+                    amount: Uint128::new(1u128),
+                })
+                .unwrap(),
+                funds: vec![],
+            })),
+            SubMsg::new(CosmosMsg::Wasm(WasmMsg::Execute {
+                contract_addr: String::from(MOCK_HUB_CONTRACT_ADDR),
+                msg: to_binary(&CheckSlashing {}).unwrap(),
+                funds: vec![],
+            })),
+        ]
     );
 }
 
@@ -325,15 +332,22 @@ fn burn_from() {
     let res = execute(deps.as_mut(), mock_env(), info, msg).unwrap();
     assert_eq!(
         res.messages,
-        vec![SubMsg::new(CosmosMsg::Wasm(WasmMsg::Execute {
-            contract_addr: String::from(MOCK_REWARD_CONTRACT_ADDR),
-            msg: to_binary(&DecreaseBalance {
-                address: addr,
-                amount: Uint128::new(1u128),
-            })
-            .unwrap(),
-            funds: vec![],
-        })),]
+        vec![
+            SubMsg::new(CosmosMsg::Wasm(WasmMsg::Execute {
+                contract_addr: String::from(MOCK_REWARD_CONTRACT_ADDR),
+                msg: to_binary(&DecreaseBalance {
+                    address: addr,
+                    amount: Uint128::new(1u128),
+                })
+                .unwrap(),
+                funds: vec![],
+            })),
+            SubMsg::new(CosmosMsg::Wasm(WasmMsg::Execute {
+                contract_addr: String::from(MOCK_HUB_CONTRACT_ADDR),
+                msg: to_binary(&CheckSlashing {}).unwrap(),
+                funds: vec![],
+            })),
+        ]
     );
 }
 

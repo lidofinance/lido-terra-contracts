@@ -12,8 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use cosmwasm_std::{Binary, DepsMut, Env, MessageInfo, Response, Uint128};
-
+use basset::hub::ExecuteMsg::CheckSlashing;
+use cosmwasm_std::{
+    to_binary, Binary, CosmosMsg, DepsMut, Env, MessageInfo, Response, SubMsg, Uint128, WasmMsg,
+};
 use cw20::Logo;
 use cw20_base::allowances::{
     execute_burn_from as cw20_burn_from, execute_send_from as cw20_send_from,
@@ -25,6 +27,8 @@ use cw20_base::contract::{
     execute_upload_logo as cw20_upload_logo,
 };
 use cw20_base::ContractError;
+
+use crate::state::HUB_CONTRACT;
 
 pub fn execute_transfer(
     deps: DepsMut,
@@ -42,7 +46,25 @@ pub fn execute_burn(
     info: MessageInfo,
     amount: Uint128,
 ) -> Result<Response, ContractError> {
-    cw20_burn(deps, env, info, amount)
+    let hub_contract = deps.api.addr_humanize(&HUB_CONTRACT.load(deps.storage)?)?;
+
+    let mut messages = vec![SubMsg::new(CosmosMsg::Wasm(WasmMsg::Execute {
+        contract_addr: hub_contract.to_string(),
+        msg: to_binary(&CheckSlashing {})?,
+        funds: vec![],
+    }))];
+    if info.sender != hub_contract {
+        messages.push(SubMsg::new(CosmosMsg::Wasm(WasmMsg::Execute {
+            contract_addr: hub_contract.to_string(),
+            msg: to_binary(&CheckSlashing {})?,
+            funds: vec![],
+        })))
+    }
+    let res = cw20_burn(deps, env, info, amount)?;
+
+    Ok(Response::new()
+        .add_submessages(messages)
+        .add_attributes(res.attributes))
 }
 
 pub fn execute_mint(
@@ -84,7 +106,17 @@ pub fn execute_burn_from(
     owner: String,
     amount: Uint128,
 ) -> Result<Response, ContractError> {
-    cw20_burn_from(deps, env, info, owner, amount)
+    let hub_contract = deps.api.addr_humanize(&HUB_CONTRACT.load(deps.storage)?)?;
+
+    let res = cw20_burn_from(deps, env, info, owner, amount)?;
+    let messages = vec![SubMsg::new(CosmosMsg::Wasm(WasmMsg::Execute {
+        contract_addr: hub_contract.to_string(),
+        msg: to_binary(&CheckSlashing {})?,
+        funds: vec![],
+    }))];
+    Ok(Response::new()
+        .add_submessages(messages)
+        .add_attributes(res.attributes))
 }
 
 pub fn execute_send_from(

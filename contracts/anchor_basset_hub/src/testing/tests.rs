@@ -1892,7 +1892,7 @@ pub fn proper_slashing() {
         _ => panic!("Unexpected message: {:?}", message),
     }
 
-    set_delegation(&mut deps.querier, validator.clone(), 100900, "uluna");
+    set_delegation(&mut deps.querier, validator.clone(), 1900, "uluna");
 
     //update user balance
     deps.querier.with_token_balances(&[
@@ -2028,7 +2028,7 @@ pub fn proper_slashing_stluna() {
     //bond again to see the update exchange rate
     let second_bond = ExecuteMsg::BondForStLuna {};
 
-    let info = mock_info(&addr1, &[coin(1000, "uluna")]);
+    let info = mock_info(&addr1, &[coin(900, "uluna")]);
 
     let res = execute(deps.as_mut(), mock_env(), info.clone(), second_bond).unwrap();
     assert_eq!(2, res.messages.len());
@@ -2046,7 +2046,7 @@ pub fn proper_slashing_stluna() {
     match delegate.msg.clone() {
         CosmosMsg::Staking(StakingMsg::Delegate { validator, amount }) => {
             assert_eq!(validator.as_str(), DEFAULT_VALIDATOR);
-            assert_eq!(amount, coin(1000, "uluna"));
+            assert_eq!(amount, coin(900, "uluna"));
         }
         _ => panic!("Unexpected message: {:?}", delegate),
     }
@@ -2063,7 +2063,7 @@ pub fn proper_slashing_stluna() {
                 msg,
                 to_binary(&Mint {
                     recipient: info.sender.to_string(),
-                    amount: Uint128::from(1111u64)
+                    amount: Uint128::from(1000u64)
                 })
                 .unwrap()
             );
@@ -2071,13 +2071,13 @@ pub fn proper_slashing_stluna() {
         _ => panic!("Unexpected message: {:?}", message),
     }
 
-    set_delegation(&mut deps.querier, validator.clone(), 100900, "uluna");
+    set_delegation(&mut deps.querier, validator.clone(), 1800, "uluna");
 
     //update user balance
     deps.querier.with_token_balances(&[
         (
             &stluna_token_contract,
-            &[(&addr1, &Uint128::from(2111u128))],
+            &[(&addr1, &Uint128::from(2000u128))],
         ),
         (&String::from("token"), &[]),
     ]);
@@ -2095,7 +2095,7 @@ pub fn proper_slashing_stluna() {
     deps.querier.with_token_balances(&[
         (
             &stluna_token_contract,
-            &[(&addr1, &Uint128::from(1611u128))],
+            &[(&addr1, &Uint128::from(1500u128))],
         ),
         (&String::from("token"), &[]),
     ]);
@@ -2116,7 +2116,7 @@ pub fn proper_slashing_stluna() {
 
     deps.querier.with_token_balances(&[(
         &stluna_token_contract,
-        &[(&addr1, &Uint128::from(1111u128))],
+        &[(&addr1, &Uint128::from(1000u128))],
     )]);
 
     deps.querier.with_native_balances(&[(
@@ -2637,6 +2637,10 @@ pub fn proper_withdraw_unbonded_both_tokens() {
     )
     .unwrap();
     assert_eq!(1, res.messages.len());
+    deps.querier.with_token_balances(&[
+        (&String::from("token"), &[(&bob, &Uint128::from(0u128))]),
+        (&stluna_token_contract, &[(&bob, &Uint128::from(100u128))]),
+    ]);
 
     let info = mock_info(&bob, &[]);
     let mut env = mock_env();
