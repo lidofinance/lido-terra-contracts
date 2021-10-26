@@ -76,6 +76,12 @@ pub fn instantiate(
 
     STATE.save(deps.storage, &state)?;
 
+    if msg.peg_recovery_fee.gt(&Decimal::one()) {
+        return Err(StdError::generic_err(
+            "peg_recovery_fee can not be greater than 1",
+        ));
+    }
+
     // instantiate parameters
     let params = Parameters {
         epoch_period: msg.epoch_period,
