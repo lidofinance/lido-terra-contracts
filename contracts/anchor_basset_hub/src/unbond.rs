@@ -14,8 +14,8 @@
 
 use crate::contract::{query_total_bluna_issued, slashing};
 use crate::state::{
-    get_finished_amount, get_unbond_batches, read_unbond_history, remove_unbond_wait_list,
-    store_unbond_history, store_unbond_wait_list, CONFIG, CURRENT_BATCH, PARAMETERS, STATE,
+    get_finished_amount, read_unbond_history, remove_unbond_wait_list, store_unbond_history,
+    store_unbond_wait_list, CONFIG, CURRENT_BATCH, PARAMETERS, STATE,
 };
 use anchor_basset_validators_registry::common::calculate_undelegations;
 use anchor_basset_validators_registry::registry::Validator;
@@ -142,7 +142,8 @@ pub fn execute_withdraw_unbonded(
     // calculate withdraw rate for user requests
     process_withdraw_rate(&mut deps, historical_time, hub_balance)?;
 
-    let withdraw_amount = get_finished_amount(deps.storage, sender_human.to_string())?;
+    let (withdraw_amount, deprecated_batches) =
+        get_finished_amount(deps.storage, sender_human.to_string())?;
 
     if withdraw_amount.is_zero() {
         return Err(StdError::generic_err(format!(
@@ -152,7 +153,6 @@ pub fn execute_withdraw_unbonded(
     }
 
     // remove the previous batches for the user
-    let deprecated_batches = get_unbond_batches(deps.storage, sender_human.to_string())?;
     remove_unbond_wait_list(deps.storage, deprecated_batches, sender_human.to_string())?;
 
     // Update previous balance used for calculation in next Luna batch release
