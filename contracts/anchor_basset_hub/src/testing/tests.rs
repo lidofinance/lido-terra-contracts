@@ -4562,7 +4562,7 @@ pub enum MIRMsg {
 }
 
 #[test]
-fn test_convert_to_stluna_with_peg_fee() {
+fn test_convert_to_stluna_with_slashing_and_peg_fee() {
     let mut deps = dependencies(&coins(2, "token"));
     let sender_addr = String::from("addr001");
     let owner = String::from("owner1");
@@ -4577,16 +4577,25 @@ fn test_convert_to_stluna_with_peg_fee() {
         bluna_token_contract.clone(),
         stluna_token_contract.clone(),
     );
+    let validator = sample_validator(DEFAULT_VALIDATOR);
+    set_validator_mock(&mut deps.querier);
+    do_register_validator(&mut deps, validator.clone());
+
     STATE
         .update(&mut deps.storage, |mut prev_state| -> StdResult<_> {
-            prev_state.total_bond_stluna_amount = Uint128::from(1000u64);
-            // due to slashing exchange rate is 0.8
-            prev_state.total_bond_bluna_amount = Uint128::from(1600u64);
-            prev_state.bluna_exchange_rate =
-                Decimal::from_ratio(Uint128::from(800u64), Uint128::from(1000u64));
+            prev_state.total_bond_stluna_amount = Uint128::from(2000u64);
+            prev_state.total_bond_bluna_amount = Uint128::from(2000u64);
+            // set stluna er to 1.2, slashing during convert procedure should make it equal to 1
+            prev_state.stluna_exchange_rate =
+                Decimal::from_ratio(Uint128::from(12u64), Uint128::from(10u64));
             Ok(prev_state)
         })
         .unwrap();
+    // delegating only 3200 = simulate we have delegated 4000 and we lost 800 on slashing
+    // slashing shoud lead us to
+    // bluna er = (2000-400)/2000 = 0.8
+    // stluna er = (2000-400)/1600 = 1
+    set_delegation(&mut deps.querier, validator, 3200, "uluna");
     PARAMETERS
         .update(&mut deps.storage, |mut prev_param| -> StdResult<_> {
             prev_param.peg_recovery_fee = Decimal::from_str("0.05")?;
@@ -4596,7 +4605,7 @@ fn test_convert_to_stluna_with_peg_fee() {
     deps.querier.with_token_balances(&[
         (
             &String::from("stluna_token"),
-            &[(&sender_addr, &Uint128::from(1000u64))],
+            &[(&sender_addr, &Uint128::from(1600u64))],
         ),
         (
             &String::from("token"),
@@ -4630,7 +4639,7 @@ fn test_convert_to_stluna_with_peg_fee() {
     convert denom equiv(950 bluna) - 760
     new bonded amount - 840
     new bluna tokens amount - 1000
-    rate = 840/1000 - 0.84
+    new rate = 840/1000 - 0.84
     */
 
     let info = mock_info(bluna_token_contract.as_str(), &[]);
@@ -4688,7 +4697,7 @@ fn test_convert_to_stluna_with_peg_fee() {
 }
 
 #[test]
-fn test_convert_to_bluna_with_peg_fee() {
+fn test_convert_to_bluna_with_slashing_and_peg_fee() {
     let mut deps = dependencies(&coins(2, "token"));
     let sender_addr = String::from("addr001");
     let owner = String::from("owner1");
@@ -4703,16 +4712,25 @@ fn test_convert_to_bluna_with_peg_fee() {
         bluna_token_contract.clone(),
         stluna_token_contract.clone(),
     );
+    let validator = sample_validator(DEFAULT_VALIDATOR);
+    set_validator_mock(&mut deps.querier);
+    do_register_validator(&mut deps, validator.clone());
+
     STATE
         .update(&mut deps.storage, |mut prev_state| -> StdResult<_> {
-            prev_state.total_bond_stluna_amount = Uint128::from(1000u64);
-            // due to slashing exchange rate is 0.8
-            prev_state.total_bond_bluna_amount = Uint128::from(800u64);
-            prev_state.bluna_exchange_rate =
-                Decimal::from_ratio(Uint128::from(800u64), Uint128::from(1000u64));
+            prev_state.total_bond_stluna_amount = Uint128::from(2000u64);
+            prev_state.total_bond_bluna_amount = Uint128::from(2000u64);
+            // set stluna er to 1.2, slashing during convert procedure should make it equal to 1
+            prev_state.stluna_exchange_rate =
+                Decimal::from_ratio(Uint128::from(12u64), Uint128::from(10u64));
             Ok(prev_state)
         })
         .unwrap();
+    // delegating only 3200 = simulate we have delegated 4000 and we lost 800 on slashing
+    // slashing shoud lead us to
+    // bluna er = (2000-400)/2000 = 0.8
+    // stluna er = (2000-400)/1600 = 1
+    set_delegation(&mut deps.querier, validator, 3200, "uluna");
     PARAMETERS
         .update(&mut deps.storage, |mut prev_param| -> StdResult<_> {
             prev_param.peg_recovery_fee = Decimal::from_str("0.05")?;
@@ -4722,11 +4740,11 @@ fn test_convert_to_bluna_with_peg_fee() {
     deps.querier.with_token_balances(&[
         (
             &String::from("stluna_token"),
-            &[(&sender_addr, &Uint128::from(1000u64))],
+            &[(&sender_addr, &Uint128::from(1600u64))],
         ),
         (
             &String::from("token"),
-            &[(&sender_addr, &Uint128::from(1000u64))],
+            &[(&sender_addr, &Uint128::from(2000u64))],
         ),
     ]);
     /*
@@ -4734,11 +4752,11 @@ fn test_convert_to_bluna_with_peg_fee() {
     bluna_exchange_rate = 0.8
     bluna_to_mint = 1000/0.8 = 1250
     max_peg_fee = bluna_to_mint * recovery_fee = 1250 * 0.05 = 62
-    required_peg_fee = 1000 + 1250 - (800+1000) = 450
-    peg_fee = min(62,450) = 62
+    required_peg_fee = 2000 + 1250 - (1600+1000) = 650
+    peg_fee = min(62,650) = 62
     bluna_mint_amount_with_fee = bluna_to_mint - 62 = 1188
 
-    bluna_exchange_rate after conversion = (800(bluna bonded amount before) + 1000(denom_equiv)) / (1000 + 1188) = 0.822669104....
+    bluna_exchange_rate after conversion = (1600(bluna bonded amount before) + 1000(denom_equiv)) / (2000 + 1188) = 0.81555834....
 
     if state.bluna_exchange_rate < threshold {
         let max_peg_fee = bluna_to_mint * recovery_fee;
@@ -4800,7 +4818,7 @@ fn test_convert_to_bluna_with_peg_fee() {
     let query_exchange_rate: StateResponse =
         from_binary(&query(deps.as_ref(), mock_env(), State {}).unwrap()).unwrap();
     let new_exchange = query_exchange_rate.bluna_exchange_rate;
-    assert_eq!("0.822669104204753199", new_exchange.to_string());
+    assert_eq!("0.815558343789209535", new_exchange.to_string());
 }
 
 #[test]

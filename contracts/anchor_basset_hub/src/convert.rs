@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use crate::contract::{query_total_bluna_issued, query_total_stluna_issued};
+use crate::contract::{query_total_bluna_issued, query_total_stluna_issued, slashing};
 use crate::math::decimal_division;
 use crate::state::{CONFIG, CURRENT_BATCH, PARAMETERS, STATE};
 use cosmwasm_std::{
@@ -22,13 +22,13 @@ use cw20::Cw20ExecuteMsg;
 use std::ops::Mul;
 
 pub fn convert_stluna_bluna(
-    deps: DepsMut,
-    _env: Env,
+    mut deps: DepsMut,
+    env: Env,
     stluna_amount: Uint128,
     sender: String,
 ) -> StdResult<Response> {
     let conf = CONFIG.load(deps.storage)?;
-    let state = STATE.load(deps.storage)?;
+    let state = slashing(&mut deps, env)?;
     let params = PARAMETERS.load(deps.storage)?;
     let threshold = params.er_threshold;
     let recovery_fee = params.peg_recovery_fee;
@@ -109,14 +109,13 @@ pub fn convert_stluna_bluna(
 }
 
 pub fn convert_bluna_stluna(
-    deps: DepsMut,
-    _env: Env,
+    mut deps: DepsMut,
+    env: Env,
     bluna_amount: Uint128,
     sender: String,
 ) -> StdResult<Response> {
     let conf = CONFIG.load(deps.storage)?;
-    let state = STATE.load(deps.storage)?;
-
+    let state = slashing(&mut deps, env)?;
     let stluna_contract = deps.api.addr_humanize(
         &conf
             .stluna_token_contract
