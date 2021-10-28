@@ -16,7 +16,7 @@ use crate::state::{read_config, read_state, store_state, State};
 
 use crate::math::decimal_summation_in_256;
 
-use crate::querier::query_rewards_dispatcher_contract;
+use crate::querier::query_rewards_dispatcher_contract_address;
 use cosmwasm_std::{
     attr, Decimal, DepsMut, Env, MessageInfo, Response, StdError, StdResult, SubMsg,
 };
@@ -34,7 +34,10 @@ pub fn execute_swap(
     let hub_addr = deps.api.addr_humanize(&config.hub_contract)?;
     let owner_addr = deps
         .api
-        .addr_humanize(&query_rewards_dispatcher_contract(deps.as_ref(), hub_addr)?)?;
+        .addr_humanize(&query_rewards_dispatcher_contract_address(
+            deps.as_ref(),
+            hub_addr,
+        )?)?;
 
     if info.sender != owner_addr {
         return Err(StdError::generic_err("unauthorized"));
@@ -87,7 +90,10 @@ pub fn execute_update_global_index(
     let hub_addr = deps.api.addr_humanize(&config.hub_contract)?;
     let owner_addr = deps
         .api
-        .addr_humanize(&query_rewards_dispatcher_contract(deps.as_ref(), hub_addr)?)?;
+        .addr_humanize(&query_rewards_dispatcher_contract_address(
+            deps.as_ref(),
+            hub_addr,
+        )?)?;
 
     if info.sender != owner_addr {
         return Err(StdError::generic_err("unauthorized"));

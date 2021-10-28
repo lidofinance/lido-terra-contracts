@@ -12,32 +12,41 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use basset::hub::Config;
+use basset::hub::{ConfigResponse, QueryMsg};
 use cosmwasm_std::{
-    Addr, Binary, CanonicalAddr, Deps, QueryRequest, StdError, StdResult, WasmQuery,
+    to_binary, Addr, CanonicalAddr, Deps, QueryRequest, StdError, StdResult, WasmQuery,
 };
-use cosmwasm_storage::to_length_prefixed;
 
-pub fn query_token_contract(deps: Deps, contract_addr: Addr) -> StdResult<CanonicalAddr> {
-    let conf: Config = deps.querier.query(&QueryRequest::Wasm(WasmQuery::Raw {
-        contract_addr: contract_addr.to_string(),
-        key: Binary::from(to_length_prefixed(b"config")),
+pub fn query_token_contract_address(
+    deps: Deps,
+    hub_contract_addr: Addr,
+) -> StdResult<CanonicalAddr> {
+    let conf: ConfigResponse = deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
+        contract_addr: hub_contract_addr.to_string(),
+        msg: to_binary(&QueryMsg::Config {})?,
     }))?;
 
-    conf.bluna_token_contract
-        .ok_or_else(|| StdError::generic_err("the bLuna token contract must have been registered"))
+    deps.api.addr_canonicalize(
+        conf.bluna_token_contract
+            .ok_or_else(|| StdError::generic_err("the token contract must have been registered"))?
+            .as_str(),
+    )
 }
 
-pub fn query_rewards_dispatcher_contract(
+pub fn query_rewards_dispatcher_contract_address(
     deps: Deps,
-    contract_addr: Addr,
+    hub_contract_addr: Addr,
 ) -> StdResult<CanonicalAddr> {
-    let conf: Config = deps.querier.query(&QueryRequest::Wasm(WasmQuery::Raw {
-        contract_addr: contract_addr.to_string(),
-        key: Binary::from(to_length_prefixed(b"config")),
+    let conf: ConfigResponse = deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
+        contract_addr: hub_contract_addr.to_string(),
+        msg: to_binary(&QueryMsg::Config {})?,
     }))?;
 
-    conf.reward_dispatcher_contract.ok_or_else(|| {
-        StdError::generic_err("the rewards dispatcher contract must have been registered")
-    })
+    deps.api.addr_canonicalize(
+        conf.reward_dispatcher_contract
+            .ok_or_else(|| {
+                StdError::generic_err("the rewards dispatcher contract must have been registered")
+            })?
+            .as_str(),
+    )
 }

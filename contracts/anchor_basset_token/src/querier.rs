@@ -12,31 +12,38 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use cosmwasm_std::{Addr, Binary, DepsMut, QueryRequest, StdError, StdResult, WasmQuery};
-use cosmwasm_storage::to_length_prefixed;
+use cosmwasm_std::{to_binary, Addr, DepsMut, QueryRequest, StdError, StdResult, WasmQuery};
 
 use crate::state::read_hub_contract;
+use anchor_basset_rewards_dispatcher::msg::QueryMsg as RewardsDispatcherQueryMsg;
 use anchor_basset_rewards_dispatcher::state::Config as RewardsDispatcherConfig;
-use basset::hub::Config;
+use basset::hub::{ConfigResponse, QueryMsg as HubQueryMsg};
 
 pub fn query_reward_contract(deps: &DepsMut) -> StdResult<Addr> {
     let hub_address = deps.api.addr_humanize(&read_hub_contract(deps.storage)?)?;
 
-    let config: Config = deps.querier.query(&QueryRequest::Wasm(WasmQuery::Raw {
+    let config: ConfigResponse = deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
         contract_addr: hub_address.to_string(),
-        key: Binary::from(to_length_prefixed(b"config")),
+        msg: to_binary(&HubQueryMsg::Config {})?,
     }))?;
 
-    let rewards_dispatcher_address =
-        deps.api
-            .addr_humanize(&config.reward_dispatcher_contract.ok_or_else(|| {
-                StdError::generic_err("the rewards dispatcher contract must have been registered")
-            })?)?;
+    let rewards_dispatcher_address = deps.api.addr_humanize(
+        &deps.api.addr_canonicalize(
+            config
+                .reward_dispatcher_contract
+                .ok_or_else(|| {
+                    StdError::generic_err(
+                        "the rewards dispatcher contract must have been registered",
+                    )
+                })?
+                .as_str(),
+        )?,
+    )?;
 
     let rewards_dispatcher_config: RewardsDispatcherConfig =
-        deps.querier.query(&QueryRequest::Wasm(WasmQuery::Raw {
+        deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
             contract_addr: rewards_dispatcher_address.to_string(),
-            key: Binary::from(b"config"),
+            msg: to_binary(&RewardsDispatcherQueryMsg::Config {})?,
         }))?;
 
     let bluna_reward_address = deps

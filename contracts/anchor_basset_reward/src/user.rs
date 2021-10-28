@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use crate::querier::query_token_contract;
+use crate::querier::query_token_contract_address;
 use crate::state::{
     read_config, read_holder, read_holders, read_state, store_holder, store_state, Config, Holder,
     State,
@@ -105,7 +105,7 @@ pub fn execute_increase_balance(
 
     let token_address = deps
         .api
-        .addr_humanize(&query_token_contract(deps.as_ref(), owner_human)?)?;
+        .addr_humanize(&query_token_contract_address(deps.as_ref(), owner_human)?)?;
 
     // Check sender is token contract
     if sender != token_address {
@@ -148,7 +148,7 @@ pub fn execute_decrease_balance(
     let address_raw = deps.api.addr_canonicalize(&address)?;
 
     // Check sender is token contract
-    if query_token_contract(deps.as_ref(), hub_contract)?
+    if query_token_contract_address(deps.as_ref(), hub_contract)?
         != deps.api.addr_canonicalize(info.sender.as_str())?
     {
         return Err(StdError::generic_err("unauthorized"));

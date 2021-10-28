@@ -12,13 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use basset::hub::Config;
+use basset::hub::ConfigResponse;
 use cosmwasm_std::testing::{MockApi, MockQuerier, MockStorage, MOCK_CONTRACT_ADDR};
 use cosmwasm_std::{
-    from_slice, to_binary, Api, Coin, ContractResult, Decimal, OwnedDeps, Querier, QuerierResult,
+    from_slice, to_binary, Coin, ContractResult, Decimal, OwnedDeps, Querier, QuerierResult,
     QueryRequest, SystemError, SystemResult, Uint128, WasmQuery,
 };
-use cosmwasm_storage::to_length_prefixed;
 use std::str::FromStr;
 use terra_cosmwasm::{
     ExchangeRateItem, ExchangeRatesResponse, TaxCapResponse, TaxRateResponse, TerraQuery,
@@ -109,39 +108,24 @@ impl WasmMockQuerier {
                     panic!("DO NOT ENTER HERE")
                 }
             }
-            QueryRequest::Wasm(WasmQuery::Raw { contract_addr, key }) => {
+            QueryRequest::Wasm(WasmQuery::Smart {
+                contract_addr,
+                msg: _,
+            }) => {
                 if *contract_addr == MOCK_HUB_CONTRACT_ADDR {
-                    let prefix_config = to_length_prefixed(b"config").to_vec();
-                    let api: MockApi = MockApi::default();
-                    if key.as_slice().to_vec() == prefix_config {
-                        let config = Config {
-                            creator: api.addr_canonicalize(&String::from("owner1")).unwrap(),
-                            reward_dispatcher_contract: Some(
-                                api.addr_canonicalize(&String::from(MOCK_REWARDS_DISPATCHER_ADDR))
-                                    .unwrap(),
-                            ),
-                            validators_registry_contract: Some(
-                                api.addr_canonicalize(&String::from(MOCK_VALIDATORS_REGISTRY_ADDR))
-                                    .unwrap(),
-                            ),
-                            bluna_token_contract: Some(
-                                api.addr_canonicalize(&String::from(MOCK_TOKEN_CONTRACT_ADDR))
-                                    .unwrap(),
-                            ),
-                            airdrop_registry_contract: Some(
-                                api.addr_canonicalize(&String::from("airdrop")).unwrap(),
-                            ),
-                            stluna_token_contract: Some(
-                                api.addr_canonicalize(&String::from(
-                                    MOCK_STLUNA_TOKEN_CONTRACT_ADDR,
-                                ))
-                                .unwrap(),
-                            ),
-                        };
-                        SystemResult::Ok(ContractResult::from(to_binary(&config)))
-                    } else {
-                        unimplemented!()
-                    }
+                    let config = ConfigResponse {
+                        owner: String::from("owner1"),
+                        reward_dispatcher_contract: Some(String::from(
+                            MOCK_REWARDS_DISPATCHER_ADDR,
+                        )),
+                        validators_registry_contract: Some(String::from(
+                            MOCK_VALIDATORS_REGISTRY_ADDR,
+                        )),
+                        bluna_token_contract: Some(String::from(MOCK_TOKEN_CONTRACT_ADDR)),
+                        airdrop_registry_contract: Some(String::from("airdrop")),
+                        stluna_token_contract: Some(String::from(MOCK_STLUNA_TOKEN_CONTRACT_ADDR)),
+                    };
+                    SystemResult::Ok(ContractResult::from(to_binary(&config)))
                 } else {
                     unimplemented!()
                 }
