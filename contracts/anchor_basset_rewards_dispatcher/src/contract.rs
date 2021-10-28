@@ -25,7 +25,9 @@ use crate::state::{Config, CONFIG};
 use basset::hub::ExecuteMsg::{BondRewards, UpdateGlobalIndex};
 use basset::{compute_lido_fee, deduct_tax};
 use std::ops::Mul;
-use terra_cosmwasm::{create_swap_msg, SwapResponse, TerraMsgWrapper, TerraQuerier};
+use terra_cosmwasm::{
+    create_swap_msg, ExchangeRatesResponse, SwapResponse, TerraMsgWrapper, TerraQuerier,
+};
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
@@ -235,6 +237,7 @@ pub fn execute_swap(
     Ok(res)
 }
 
+#[allow(clippy::needless_collect)]
 pub(crate) fn convert_to_target_denoms(
     deps: &DepsMut,
     balance: Vec<Coin>,
@@ -245,8 +248,20 @@ pub(crate) fn convert_to_target_denoms(
     let mut total_luna_available: Uint128 = Uint128::zero();
     let mut total_usd_available: Uint128 = Uint128::zero();
 
+    let denoms: Vec<String> = balance.iter().map(|item| item.denom.clone()).collect();
+    let exchange_rates = query_exchange_rates(deps, denom_to_xchg.clone(), denoms)?;
+    let known_denoms: Vec<String> = exchange_rates
+        .exchange_rates
+        .iter()
+        .map(|item| item.quote_denom.clone())
+        .collect();
     let mut msgs: Vec<CosmosMsg<TerraMsgWrapper>> = Vec::new();
+
     for coin in balance {
+        if !known_denoms.contains(&coin.denom) {
+            continue;
+        }
+
         if coin.denom == denom_to_keep {
             total_luna_available += coin.amount;
             continue;
@@ -265,6 +280,16 @@ pub(crate) fn convert_to_target_denoms(
     }
 
     Ok((total_luna_available, total_usd_available, msgs))
+}
+
+pub(crate) fn query_exchange_rates(
+    deps: &DepsMut,
+    base_denom: String,
+    quote_denoms: Vec<String>,
+) -> StdResult<ExchangeRatesResponse> {
+    let querier = TerraQuerier::new(&deps.querier);
+    let res: ExchangeRatesResponse = querier.query_exchange_rates(base_denom, quote_denoms)?;
+    Ok(res)
 }
 
 pub(crate) fn get_exchange_rates(
