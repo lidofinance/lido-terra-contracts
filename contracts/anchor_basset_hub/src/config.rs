@@ -51,7 +51,9 @@ pub fn execute_update_params(
         underlying_coin_denom: params.underlying_coin_denom,
         unbonding_period: unbonding_period.unwrap_or(params.unbonding_period),
         peg_recovery_fee: peg_recovery_fee.unwrap_or(params.peg_recovery_fee),
-        er_threshold: er_threshold.unwrap_or(params.er_threshold),
+        er_threshold: er_threshold
+            .unwrap_or(params.er_threshold)
+            .min(Decimal::one()),
         reward_denom: params.reward_denom,
     };
 

@@ -3851,7 +3851,25 @@ pub fn test_update_params() {
     assert_eq!(
         StdError::generic_err("peg_recovery_fee can not be greater than 1"),
         res.err().unwrap()
-    )
+    );
+
+    //trying to set er_threshold > 1.
+    let update_prams = UpdateParams {
+        epoch_period: None,
+        unbonding_period: Some(3),
+        peg_recovery_fee: Some(Decimal::one()),
+        er_threshold: Some(Decimal::from_str("1.1").unwrap()),
+    };
+
+    //the result must be 1
+    let creator_info = mock_info(String::from("owner1").as_str(), &[]);
+    let res = execute(deps.as_mut(), mock_env(), creator_info, update_prams).unwrap();
+    assert_eq!(res.messages.len(), 0);
+
+    let params: Parameters =
+        from_binary(&query(deps.as_ref(), mock_env(), Params {}).unwrap()).unwrap();
+
+    assert_eq!(params.er_threshold, Decimal::one());
 }
 
 /// Covers if peg recovery is applied (in "bond", "unbond",
