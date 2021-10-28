@@ -139,18 +139,16 @@ pub fn execute_update_config(
         })?;
     }
 
-    if let Some(s) = stluna_reward_denom {
-        CONFIG.update(deps.storage, |mut last_config| -> StdResult<_> {
-            last_config.stluna_reward_denom = s;
-            Ok(last_config)
-        })?;
+    if let Some(_s) = stluna_reward_denom {
+        return Err(StdError::generic_err(
+            "updating stluna reward denom is forbidden",
+        ));
     }
 
-    if let Some(b) = bluna_reward_denom {
-        CONFIG.update(deps.storage, |mut last_config| -> StdResult<_> {
-            last_config.bluna_reward_denom = b;
-            Ok(last_config)
-        })?;
+    if let Some(_b) = bluna_reward_denom {
+        return Err(StdError::generic_err(
+            "updating bluna reward denom is forbidden",
+        ));
     }
 
     if let Some(r) = lido_fee_rate {
