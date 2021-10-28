@@ -281,6 +281,34 @@ fn proper_initialization() {
     );
 }
 
+/// Check that we can not initialize the contract with peg_recovery_fee > 1.0.
+#[test]
+fn bad_initialization() {
+    let mut deps = dependencies(&[]);
+
+    let _validator = sample_validator(DEFAULT_VALIDATOR);
+    set_validator_mock(&mut deps.querier);
+
+    // successful call
+    let msg = InstantiateMsg {
+        epoch_period: 30,
+        underlying_coin_denom: "uluna".to_string(),
+        unbonding_period: 210,
+        peg_recovery_fee: Decimal::from_str("1.1").unwrap(),
+        er_threshold: Decimal::one(),
+        reward_denom: "uusd".to_string(),
+    };
+
+    let owner = String::from("owner1");
+    let owner_info = mock_info(owner.as_str(), &[]);
+
+    let res = instantiate(deps.as_mut(), mock_env(), owner_info, msg);
+    assert_eq!(
+        StdError::generic_err("peg_recovery_fee can not be greater than 1"),
+        res.err().unwrap()
+    )
+}
+
 #[test]
 fn proper_bond() {
     let mut deps = dependencies(&[]);
@@ -3803,6 +3831,21 @@ pub fn test_update_params() {
     assert_eq!(params.peg_recovery_fee, Decimal::one());
     assert_eq!(params.er_threshold, Decimal::zero());
     assert_eq!(params.reward_denom, "uusd");
+
+    // Test with peg_recovery_fee > 1.0.
+    let update_prams = UpdateParams {
+        epoch_period: None,
+        unbonding_period: None,
+        peg_recovery_fee: Some(Decimal::from_str("1.1").unwrap()),
+        er_threshold: None,
+    };
+
+    let creator_info = mock_info(String::from("owner1").as_str(), &[]);
+    let res = execute(deps.as_mut(), mock_env(), creator_info, update_prams);
+    assert_eq!(
+        StdError::generic_err("peg_recovery_fee can not be greater than 1"),
+        res.err().unwrap()
+    )
 }
 
 /// Covers if peg recovery is applied (in "bond", "unbond",
