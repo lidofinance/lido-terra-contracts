@@ -18,7 +18,7 @@ use crate::state::{
     store_unbond_wait_list, CONFIG, CURRENT_BATCH, PARAMETERS, STATE,
 };
 use anchor_basset_validators_registry::common::calculate_undelegations;
-use anchor_basset_validators_registry::registry::Validator;
+use anchor_basset_validators_registry::registry::ValidatorResponse;
 use basset::hub::{CurrentBatch, State, UnbondHistory, UnbondType};
 use cosmwasm_bignumber::{Decimal256, Uint256};
 use cosmwasm_std::{
@@ -370,11 +370,11 @@ fn pick_validator(deps: &DepsMut, claim: Uint128, delegator: String) -> StdResul
 
     let mut validators = all_delegations
         .iter()
-        .map(|d| Validator {
+        .map(|d| ValidatorResponse {
             total_delegated: d.amount.amount,
             address: d.validator.clone(),
         })
-        .collect::<Vec<Validator>>();
+        .collect::<Vec<ValidatorResponse>>();
     validators.sort_by(|v1, v2| v2.total_delegated.cmp(&v1.total_delegated));
 
     let undelegations = calculate_undelegations(claim, validators.as_slice())?;

@@ -13,7 +13,7 @@
 use crate::common::{calculate_delegations, calculate_undelegations};
 use crate::contract::{execute, instantiate};
 use crate::msg::{ExecuteMsg, InstantiateMsg};
-use crate::registry::{Validator, CONFIG, REGISTRY};
+use crate::registry::{Validator, ValidatorResponse, CONFIG, REGISTRY};
 use crate::testing::mock_querier::{mock_dependencies, WasmMockQuerier};
 use basset::hub::ExecuteMsg::{RedelegateProxy, UpdateGlobalIndex};
 use cosmwasm_std::testing::{mock_env, mock_info};
@@ -30,7 +30,6 @@ fn proper_instantiate() {
 
     let msg = InstantiateMsg {
         registry: vec![Validator {
-            total_delegated: Default::default(),
             address: Default::default(),
         }],
         hub_contract: hub_address.clone(),
@@ -59,7 +58,6 @@ fn add_validator() {
     let _res = instantiate(deps.as_mut(), mock_env(), info.clone(), msg).unwrap();
 
     let validator = Validator {
-        total_delegated: Default::default(),
         address: Default::default(),
     };
 
@@ -93,7 +91,6 @@ fn ownership_tests() {
     let info = mock_info("villain", &coins(2, "token"));
 
     let validator = Validator {
-        total_delegated: Default::default(),
         address: Default::default(),
     };
 
@@ -163,22 +160,18 @@ fn remove_validator() {
         .addr_validate(&String::from("hub_contract_address"))
         .unwrap();
     let validator1 = Validator {
-        total_delegated: Uint128::zero(),
         address: String::from("validator"),
     };
 
     let validator2 = Validator {
-        total_delegated: Uint128::zero(),
         address: String::from("validator2"),
     };
 
     let validator3 = Validator {
-        total_delegated: Uint128::zero(),
         address: String::from("validator3"),
     };
 
     let validator4 = Validator {
-        total_delegated: Uint128::zero(),
         address: String::from("validator4"),
     };
 
@@ -607,7 +600,7 @@ fn remove_validator() {
 #[macro_export]
 macro_rules! default_validator_with_delegations {
     ($total:expr) => {
-        Validator {
+        ValidatorResponse {
             total_delegated: Uint128::from($total as u128),
             address: Default::default(),
         }

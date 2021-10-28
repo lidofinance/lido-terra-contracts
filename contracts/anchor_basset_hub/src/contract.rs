@@ -729,7 +729,6 @@ pub fn migrate(deps: DepsMut, _env: Env, msg: MigrateMsg) -> StdResult<Response>
                 contract_addr: msg.validators_registry_contract.clone(),
                 msg: if let Ok(m) = to_binary(&AddValidator {
                     validator: Validator {
-                        total_delegated: Default::default(),
                         address: validator_address.clone(),
                     },
                 }) {
