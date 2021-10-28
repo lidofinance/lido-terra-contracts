@@ -106,31 +106,17 @@ pub fn get_unbond_requests(storage: &dyn Storage, sender_addr: String) -> StdRes
     Ok(requests)
 }
 
-pub fn get_unbond_batches(storage: &dyn Storage, sender_addr: String) -> StdResult<Vec<u64>> {
-    let vec = to_vec(&sender_addr)?;
-    let mut deprecated_batches: Vec<u64> = vec![];
-    let res: ReadonlyBucket<UnbondWaitEntity> =
-        ReadonlyBucket::multilevel(storage, &[PREFIX_WAIT_MAP, &vec]);
-    for item in res.range(None, None, Order::Ascending) {
-        let (k, _) = item?;
-        let user_batch: u64 = from_slice(&k)?;
-        let history = read_unbond_history(storage, user_batch);
-        if let Ok(h) = history {
-            if h.released {
-                deprecated_batches.push(user_batch);
-            }
-        }
-    }
-    Ok(deprecated_batches)
-}
-
 /// Return all requested unbond amount.
 /// This needs to be called after process withdraw rate function.
 /// If the batch is released, this will return user's requested
 /// amount proportional to withdraw rate.
-pub fn get_finished_amount(storage: &dyn Storage, sender_addr: String) -> StdResult<Uint128> {
+pub fn get_finished_amount(
+    storage: &dyn Storage,
+    sender_addr: String,
+) -> StdResult<(Uint128, Vec<u64>)> {
     let vec = to_vec(&sender_addr)?;
     let mut withdrawable_amount: Uint128 = Uint128::zero();
+    let mut deprecated_batches: Vec<u64> = vec![];
     let res: ReadonlyBucket<UnbondWaitEntity> =
         ReadonlyBucket::multilevel(storage, &[PREFIX_WAIT_MAP, &vec]);
     for item in res.range(None, None, Order::Ascending) {
@@ -141,10 +127,11 @@ pub fn get_finished_amount(storage: &dyn Storage, sender_addr: String) -> StdRes
             if h.released {
                 withdrawable_amount += v.stluna_amount * h.stluna_withdraw_rate
                     + v.bluna_amount * h.bluna_withdraw_rate;
+                deprecated_batches.push(user_batch);
             }
         }
     }
-    Ok(withdrawable_amount)
+    Ok((withdrawable_amount, deprecated_batches))
 }
 
 /// Return the finished amount for all batches that has been before the given block time.

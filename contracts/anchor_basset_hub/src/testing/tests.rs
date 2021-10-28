@@ -31,7 +31,7 @@
 //!      });
 //! 4. Anywhere you see query(deps.as_ref(), ...) you must replace it with query(deps.as_mut(), ...)
 use anchor_basset_validators_registry::msg::QueryMsg as QueryValidators;
-use anchor_basset_validators_registry::registry::Validator as RegistryValidator;
+use anchor_basset_validators_registry::registry::ValidatorResponse as RegistryValidator;
 use cosmwasm_std::{
     coin, coins, from_binary, to_binary, Addr, Api, BankMsg, Coin, CosmosMsg, Decimal, DepsMut,
     DistributionMsg, Env, FullDelegation, MessageInfo, OwnedDeps, Querier, QueryRequest, Response,
@@ -135,7 +135,7 @@ pub fn do_register_validator(
     validator: Validator,
 ) {
     deps.querier.add_validator(RegistryValidator {
-        total_delegated: Uint128::zero(),
+        total_delegated: Default::default(),
         address: validator.address,
     });
 }
@@ -279,6 +279,34 @@ fn proper_initialization() {
             requested_stluna: Default::default()
         }
     );
+}
+
+/// Check that we can not initialize the contract with peg_recovery_fee > 1.0.
+#[test]
+fn bad_initialization() {
+    let mut deps = dependencies(&[]);
+
+    let _validator = sample_validator(DEFAULT_VALIDATOR);
+    set_validator_mock(&mut deps.querier);
+
+    // successful call
+    let msg = InstantiateMsg {
+        epoch_period: 30,
+        underlying_coin_denom: "uluna".to_string(),
+        unbonding_period: 210,
+        peg_recovery_fee: Decimal::from_str("1.1").unwrap(),
+        er_threshold: Decimal::one(),
+        reward_denom: "uusd".to_string(),
+    };
+
+    let owner = String::from("owner1");
+    let owner_info = mock_info(owner.as_str(), &[]);
+
+    let res = instantiate(deps.as_mut(), mock_env(), owner_info, msg);
+    assert_eq!(
+        StdError::generic_err("peg_recovery_fee can not be greater than 1"),
+        res.err().unwrap()
+    )
 }
 
 #[test]
@@ -3809,6 +3837,21 @@ pub fn test_update_params() {
     assert_eq!(params.peg_recovery_fee, Decimal::one());
     assert_eq!(params.er_threshold, Decimal::zero());
     assert_eq!(params.reward_denom, "uusd");
+
+    // Test with peg_recovery_fee > 1.0.
+    let update_prams = UpdateParams {
+        epoch_period: None,
+        unbonding_period: None,
+        peg_recovery_fee: Some(Decimal::from_str("1.1").unwrap()),
+        er_threshold: None,
+    };
+
+    let creator_info = mock_info(String::from("owner1").as_str(), &[]);
+    let res = execute(deps.as_mut(), mock_env(), creator_info, update_prams);
+    assert_eq!(
+        StdError::generic_err("peg_recovery_fee can not be greater than 1"),
+        res.err().unwrap()
+    )
 }
 
 /// Covers if peg recovery is applied (in "bond", "unbond",

@@ -17,7 +17,7 @@ use crate::math::decimal_division;
 use crate::state::{CONFIG, CURRENT_BATCH, PARAMETERS, STATE};
 use anchor_basset_validators_registry::common::calculate_delegations;
 use anchor_basset_validators_registry::msg::QueryMsg as QueryValidators;
-use anchor_basset_validators_registry::registry::Validator;
+use anchor_basset_validators_registry::registry::ValidatorResponse;
 use basset::hub::BondType;
 use cosmwasm_std::{
     attr, to_binary, Coin, CosmosMsg, DepsMut, Env, MessageInfo, QueryRequest, Response,
@@ -132,13 +132,14 @@ pub fn execute_bond(
             "Validators registry contract address is empty",
         ));
     };
-    let validators: Vec<Validator> = deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
-        contract_addr: deps
-            .api
-            .addr_humanize(&validators_registry_contract)?
-            .to_string(),
-        msg: to_binary(&QueryValidators::GetValidatorsForDelegation {})?,
-    }))?;
+    let validators: Vec<ValidatorResponse> =
+        deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
+            contract_addr: deps
+                .api
+                .addr_humanize(&validators_registry_contract)?
+                .to_string(),
+            msg: to_binary(&QueryValidators::GetValidatorsForDelegation {})?,
+        }))?;
 
     if validators.is_empty() {
         return Err(StdError::generic_err("Validators registry is empty"));

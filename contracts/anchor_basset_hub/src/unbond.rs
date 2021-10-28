@@ -14,11 +14,11 @@
 
 use crate::contract::{query_total_bluna_issued, slashing};
 use crate::state::{
-    get_finished_amount, get_unbond_batches, read_unbond_history, remove_unbond_wait_list,
-    store_unbond_history, store_unbond_wait_list, CONFIG, CURRENT_BATCH, PARAMETERS, STATE,
+    get_finished_amount, read_unbond_history, remove_unbond_wait_list, store_unbond_history,
+    store_unbond_wait_list, CONFIG, CURRENT_BATCH, PARAMETERS, STATE,
 };
 use anchor_basset_validators_registry::common::calculate_undelegations;
-use anchor_basset_validators_registry::registry::Validator;
+use anchor_basset_validators_registry::registry::ValidatorResponse;
 use basset::hub::{CurrentBatch, State, UnbondHistory, UnbondType};
 use cosmwasm_bignumber::{Decimal256, Uint256};
 use cosmwasm_std::{
@@ -142,7 +142,8 @@ pub fn execute_withdraw_unbonded(
     // calculate withdraw rate for user requests
     process_withdraw_rate(&mut deps, historical_time, hub_balance)?;
 
-    let withdraw_amount = get_finished_amount(deps.storage, sender_human.to_string())?;
+    let (withdraw_amount, deprecated_batches) =
+        get_finished_amount(deps.storage, sender_human.to_string())?;
 
     if withdraw_amount.is_zero() {
         return Err(StdError::generic_err(format!(
@@ -152,7 +153,6 @@ pub fn execute_withdraw_unbonded(
     }
 
     // remove the previous batches for the user
-    let deprecated_batches = get_unbond_batches(deps.storage, sender_human.to_string())?;
     remove_unbond_wait_list(deps.storage, deprecated_batches, sender_human.to_string())?;
 
     // Update previous balance used for calculation in next Luna batch release
@@ -370,11 +370,11 @@ fn pick_validator(deps: &DepsMut, claim: Uint128, delegator: String) -> StdResul
 
     let mut validators = all_delegations
         .iter()
-        .map(|d| Validator {
+        .map(|d| ValidatorResponse {
             total_delegated: d.amount.amount,
             address: d.validator.clone(),
         })
-        .collect::<Vec<Validator>>();
+        .collect::<Vec<ValidatorResponse>>();
     validators.sort_by(|v1, v2| v2.total_delegated.cmp(&v1.total_delegated));
 
     let undelegations = calculate_undelegations(claim, validators.as_slice())?;
@@ -473,15 +473,6 @@ fn process_undelegations(
     let stluna_undelegation_amount = current_batch.requested_stluna * state.stluna_exchange_rate;
     let bluna_undelegation_amount =
         current_batch.requested_bluna_with_fee * state.bluna_exchange_rate;
-
-    // the contract must stop if
-    if bluna_undelegation_amount == Uint128::from(1u64)
-        || stluna_undelegation_amount == Uint128::from(1u64)
-    {
-        return Err(StdError::generic_err(
-            "Burn amount must be greater than 1 luna",
-        ));
-    }
 
     let delegator = env.contract.address;
 

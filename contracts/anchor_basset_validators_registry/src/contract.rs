@@ -24,7 +24,7 @@ use cosmwasm_std::{
 
 use crate::common::calculate_delegations;
 use crate::msg::{ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg};
-use crate::registry::{Config, Validator, CONFIG, REGISTRY};
+use crate::registry::{Config, Validator, ValidatorResponse, CONFIG, REGISTRY};
 use basset::hub::ExecuteMsg::{RedelegateProxy, UpdateGlobalIndex};
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -216,7 +216,7 @@ fn query_config(deps: Deps) -> StdResult<Config> {
     Ok(config)
 }
 
-fn query_validators(deps: Deps) -> StdResult<Vec<Validator>> {
+fn query_validators(deps: Deps) -> StdResult<Vec<ValidatorResponse>> {
     let config = CONFIG.load(deps.storage)?;
     let hub_address = deps.api.addr_humanize(&config.hub_contract)?;
 
@@ -225,9 +225,9 @@ fn query_validators(deps: Deps) -> StdResult<Vec<Validator>> {
         delegations.insert(delegation.validator, delegation.amount.amount);
     }
 
-    let mut validators: Vec<Validator> = vec![];
+    let mut validators: Vec<ValidatorResponse> = vec![];
     for item in REGISTRY.range(deps.storage, None, None, cosmwasm_std::Order::Ascending) {
-        let mut validator = Validator {
+        let mut validator = ValidatorResponse {
             total_delegated: Default::default(),
             address: item?.1.address,
         };

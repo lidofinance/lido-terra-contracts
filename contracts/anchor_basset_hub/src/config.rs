@@ -40,6 +40,12 @@ pub fn execute_update_params(
 
     let params: Parameters = PARAMETERS.load(deps.storage)?;
 
+    if peg_recovery_fee.is_some() && peg_recovery_fee.unwrap().gt(&Decimal::one()) {
+        return Err(StdError::generic_err(
+            "peg_recovery_fee can not be greater than 1",
+        ));
+    }
+
     let new_params = Parameters {
         epoch_period: epoch_period.unwrap_or(params.epoch_period),
         underlying_coin_denom: params.underlying_coin_denom,

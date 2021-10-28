@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use cw20::{Cw20Coin, MinterResponse};
+use cw20::Cw20Coin;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -22,7 +22,6 @@ pub struct TokenInitMsg {
     pub symbol: String,
     pub decimals: u8,
     pub initial_balances: Vec<Cw20Coin>,
-    pub mint: Option<MinterResponse>,
     pub hub_contract: String,
 }
 

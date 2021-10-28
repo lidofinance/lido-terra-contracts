@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use crate::querier::query_token_contract;
+use crate::querier::query_token_contract_address;
 use crate::state::{
     read_config, read_holder, read_holders, read_state, store_holder, store_state, Config, Holder,
     State,
@@ -28,7 +28,6 @@ use crate::math::{
     decimal_multiplication_in_256, decimal_subtraction_in_256, decimal_summation_in_256,
 };
 use basset::deduct_tax;
-use std::str::FromStr;
 use terra_cosmwasm::TerraMsgWrapper;
 
 pub fn execute_claim_rewards(
@@ -53,9 +52,8 @@ pub fn execute_claim_rewards(
 
     let all_reward_with_decimals =
         decimal_summation_in_256(reward_with_decimals, holder.pending_rewards);
-    let decimals = get_decimals(all_reward_with_decimals)?;
-
     let rewards = all_reward_with_decimals * Uint128::new(1);
+    let decimals = all_reward_with_decimals - Decimal::from_ratio(rewards, Uint128::new(1));
 
     if rewards.is_zero() {
         return Err(StdError::generic_err("No rewards have accrued yet"));
@@ -105,7 +103,7 @@ pub fn execute_increase_balance(
 
     let token_address = deps
         .api
-        .addr_humanize(&query_token_contract(deps.as_ref(), owner_human)?)?;
+        .addr_humanize(&query_token_contract_address(deps.as_ref(), owner_human)?)?;
 
     // Check sender is token contract
     if sender != token_address {
@@ -148,7 +146,7 @@ pub fn execute_decrease_balance(
     let address_raw = deps.api.addr_canonicalize(&address)?;
 
     // Check sender is token contract
-    if query_token_contract(deps.as_ref(), hub_contract)?
+    if query_token_contract_address(deps.as_ref(), hub_contract)?
         != deps.api.addr_canonicalize(info.sender.as_str())?
     {
         return Err(StdError::generic_err("unauthorized"));
@@ -237,20 +235,6 @@ fn calculate_decimal_rewards(
     )
 }
 
-// calculate the reward with decimal
-fn get_decimals(value: Decimal) -> StdResult<Decimal> {
-    let stringed: &str = &*value.to_string();
-    let parts: &[&str] = &*stringed.split('.').collect::<Vec<&str>>();
-    match parts.len() {
-        1 => Ok(Decimal::zero()),
-        2 => {
-            let decimals = Decimal::from_str(&*("0.".to_owned() + parts[1]))?;
-            Ok(decimals)
-        }
-        _ => Err(StdError::generic_err("Unexpected number of dots")),
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -269,12 +253,11 @@ mod tests {
         let global_index = Decimal::from_ratio(Uint128::new(9999999), Uint128::new(100000000));
         let user_index = Decimal::zero();
         let user_balance = Uint128::new(10);
-        let reward = get_decimals(calculate_decimal_rewards(
-            global_index,
-            user_index,
-            user_balance,
-        ))
-        .unwrap();
-        assert_eq!(reward.to_string(), "0.9999999");
+        let decimal_reward = calculate_decimal_rewards(global_index, user_index, user_balance);
+
+        let rewards = decimal_reward * Uint128::new(1);
+        let decimals = decimal_reward - Decimal::from_ratio(rewards, Uint128::new(1));
+
+        assert_eq!(decimals.to_string(), "0.9999999");
     }
 }
