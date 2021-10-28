@@ -738,11 +738,8 @@ pub fn proper_update_global_index() {
     // register_validator
     do_register_validator(&mut deps, validator.clone());
 
-    //set bob's balance to 10 in token contract
-    deps.querier.with_token_balances(&[
-        (&String::from("token"), &[(&addr1, &bond_amount)]),
-        (&stluna_token_contract, &[(&addr1, &bond_amount)]),
-    ]);
+    deps.querier
+        .with_token_balances(&[(&String::from("token"), &[]), (&stluna_token_contract, &[])]);
 
     // fails if there is no delegation
     let reward_msg = ExecuteMsg::UpdateGlobalIndex {
@@ -755,10 +752,19 @@ pub fn proper_update_global_index() {
 
     // bond
     do_bond(&mut deps, addr1.clone(), bond_amount);
+    do_bond_stluna(&mut deps, addr1.clone(), bond_amount);
+
+    //set bob's balance to 10 in token contract
+    deps.querier.with_token_balances(&[
+        (&String::from("token"), &[(&addr1, &bond_amount)]),
+        (&stluna_token_contract, &[(&addr1, &bond_amount)]),
+    ]);
 
     //set delegation for query-all-delegation
-    let delegations: [FullDelegation; 1] =
-        [(sample_delegation(validator.address.clone(), coin(bond_amount.u128(), "uluna")))];
+    let delegations: [FullDelegation; 1] = [(sample_delegation(
+        validator.address.clone(),
+        coin(bond_amount.u128() * 2, "uluna"),
+    ))];
 
     let validators: [Validator; 1] = [(validator.clone())];
 
@@ -807,8 +813,8 @@ pub fn proper_update_global_index() {
             assert_eq!(
                 msg,
                 to_binary(&SwapToRewardDenom {
-                    stluna_total_mint_amount: Uint128::from(10u64),
-                    bluna_total_mint_amount: Uint128::from(10u64),
+                    stluna_total_bonded: Uint128::from(10u64),
+                    bluna_total_bonded: Uint128::from(10u64),
                 })
                 .unwrap()
             )
