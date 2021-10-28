@@ -110,6 +110,12 @@ pub fn execute_update_config(
         let token_raw = deps.api.addr_canonicalize(&token)?;
 
         CONFIG.update(deps.storage, |mut last_config| -> StdResult<_> {
+            if last_config.bluna_token_contract.is_some() {
+                return Err(StdError::generic_err(
+                    "updating bLuna token address is forbidden",
+                ));
+            }
+
             last_config.bluna_token_contract = Some(token_raw);
             Ok(last_config)
         })?;
@@ -119,6 +125,12 @@ pub fn execute_update_config(
         let token_raw = deps.api.addr_canonicalize(&token)?;
 
         CONFIG.update(deps.storage, |mut last_config| -> StdResult<_> {
+            if last_config.stluna_token_contract.is_some() {
+                return Err(StdError::generic_err(
+                    "updating stLuna token address is forbidden",
+                ));
+            }
+
             last_config.stluna_token_contract = Some(token_raw);
             Ok(last_config)
         })?;

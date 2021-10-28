@@ -4207,16 +4207,15 @@ pub fn proper_update_config() {
         stluna_token_contract: None,
     };
     let new_owner_info = mock_info(&new_owner, &[]);
-    let res = execute(deps.as_mut(), mock_env(), new_owner_info, update_config).unwrap();
-    assert_eq!(res.messages.len(), 0);
+    let res = execute(deps.as_mut(), mock_env(), new_owner_info, update_config);
+    assert_eq!(
+        res.unwrap_err(),
+        StdError::generic_err("updating bLuna token address is forbidden",)
+    );
 
     let config = Config {};
     let config_query: ConfigResponse =
         from_binary(&query(deps.as_ref(), mock_env(), config).unwrap()).unwrap();
-    assert_eq!(
-        config_query.bluna_token_contract.unwrap(),
-        String::from("new token")
-    );
 
     //make sure the other configs are still the same.
     assert_eq!(
@@ -4224,6 +4223,10 @@ pub fn proper_update_config() {
         String::from("new reward")
     );
     assert_eq!(config_query.owner, new_owner);
+    assert_eq!(
+        config_query.bluna_token_contract.unwrap(),
+        String::from("token")
+    );
 
     let update_config = UpdateConfig {
         owner: None,
@@ -4274,8 +4277,11 @@ pub fn proper_update_config() {
         stluna_token_contract: Some(stluna_token_contract.clone()),
     };
     let new_owner_info = mock_info(&new_owner, &[]);
-    let res = execute(deps.as_mut(), mock_env(), new_owner_info, update_config).unwrap();
-    assert_eq!(res.messages.len(), 0);
+    let res = execute(deps.as_mut(), mock_env(), new_owner_info, update_config);
+    assert_eq!(
+        res.unwrap_err(),
+        StdError::generic_err("updating stLuna token address is forbidden",)
+    );
 
     let config = Config {};
     let config_query: ConfigResponse =
