@@ -51,7 +51,9 @@ pub fn execute_update_params(
         underlying_coin_denom: params.underlying_coin_denom,
         unbonding_period: unbonding_period.unwrap_or(params.unbonding_period),
         peg_recovery_fee: peg_recovery_fee.unwrap_or(params.peg_recovery_fee),
-        er_threshold: er_threshold.unwrap_or(params.er_threshold),
+        er_threshold: er_threshold
+            .unwrap_or(params.er_threshold)
+            .min(Decimal::one()),
         reward_denom: params.reward_denom,
     };
 
@@ -110,6 +112,12 @@ pub fn execute_update_config(
         let token_raw = deps.api.addr_canonicalize(&token)?;
 
         CONFIG.update(deps.storage, |mut last_config| -> StdResult<_> {
+            if last_config.bluna_token_contract.is_some() {
+                return Err(StdError::generic_err(
+                    "updating bLuna token address is forbidden",
+                ));
+            }
+
             last_config.bluna_token_contract = Some(token_raw);
             Ok(last_config)
         })?;
@@ -119,6 +127,12 @@ pub fn execute_update_config(
         let token_raw = deps.api.addr_canonicalize(&token)?;
 
         CONFIG.update(deps.storage, |mut last_config| -> StdResult<_> {
+            if last_config.stluna_token_contract.is_some() {
+                return Err(StdError::generic_err(
+                    "updating stLuna token address is forbidden",
+                ));
+            }
+
             last_config.stluna_token_contract = Some(token_raw);
             Ok(last_config)
         })?;
