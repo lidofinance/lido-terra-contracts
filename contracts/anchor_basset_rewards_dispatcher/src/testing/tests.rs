@@ -217,6 +217,44 @@ fn test_dispatch_rewards() {
 }
 
 #[test]
+fn test_dispatch_rewards_zero_lido_fee() {
+    let mut deps = mock_dependencies(&[
+        Coin::new(200, "uluna"),
+        Coin::new(300, "uusd"),
+        Coin::new(20, "usdr"),
+    ]);
+
+    let msg = InstantiateMsg {
+        hub_contract: String::from(MOCK_HUB_CONTRACT_ADDR),
+        bluna_reward_contract: String::from(MOCK_BLUNA_REWARD_CONTRACT_ADDR),
+        bluna_reward_denom: "uusd".to_string(),
+        stluna_reward_denom: "uluna".to_string(),
+        lido_fee_address: String::from(MOCK_LIDO_FEE_ADDRESS),
+        lido_fee_rate: Decimal::zero(),
+    };
+    let info = mock_info("creator", &[]);
+
+    // we can just call .unwrap() to assert this was a success
+    let res = instantiate(deps.as_mut(), mock_env(), info, msg).unwrap();
+    assert_eq!(0, res.messages.len());
+
+    let info = mock_info(String::from(MOCK_HUB_CONTRACT_ADDR).as_str(), &[]);
+    let msg = ExecuteMsg::DispatchRewards {};
+
+    let res = execute(deps.as_mut(), mock_env(), info, msg).unwrap();
+    assert_eq!(3, res.messages.len());
+
+    for attr in res.attributes {
+        if attr.key == "stluna_rewards" {
+            assert_eq!("200uluna", attr.value)
+        }
+        if attr.key == "bluna_rewards" {
+            assert_eq!("297uusd", attr.value)
+        }
+    }
+}
+
+#[test]
 fn test_get_swap_info() {
     let mut deps = mock_dependencies(&[]);
 
