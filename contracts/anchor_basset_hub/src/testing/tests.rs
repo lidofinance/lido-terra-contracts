@@ -1856,12 +1856,11 @@ pub fn proper_slashing() {
     let res = execute(deps.as_mut(), mock_env(), info.clone(), second_bond).unwrap();
     assert_eq!(2, res.messages.len());
 
-    // expected exchange rate must be more than 0.9
-    let expected_er = Decimal::from_ratio(Uint128::from(1900u64), Uint128::from(2111u64));
+    // expected exchange rate must be equal 0.9
     let ex_rate = State {};
     let query_exchange_rate: StateResponse =
         from_binary(&query(deps.as_ref(), mock_env(), ex_rate).unwrap()).unwrap();
-    assert_eq!(query_exchange_rate.bluna_exchange_rate, expected_er);
+    assert_eq!(query_exchange_rate.bluna_exchange_rate.to_string(), "0.9");
 
     let delegate = &res.messages[0];
     match delegate.msg.clone() {
@@ -1935,10 +1934,13 @@ pub fn proper_slashing() {
     });
     assert_eq!(res.messages[0].msg.clone(), msgs);
 
-    deps.querier.with_token_balances(&[(
-        &String::from("token"),
-        &[(&addr1, &Uint128::from(1111u128))],
-    )]);
+    deps.querier.with_token_balances(&[
+        (
+            &String::from("token"),
+            &[(&addr1, &Uint128::from(1111u128))],
+        ),
+        (&stluna_token_contract, &[]),
+    ]);
 
     deps.querier.with_native_balances(&[(
         String::from(MOCK_CONTRACT_ADDR),
@@ -1948,6 +1950,7 @@ pub fn proper_slashing() {
         },
     )]);
 
+    let expected_er = Decimal::from_ratio(Uint128::from(1000u128), Uint128::from(1111u128));
     let ex_rate = State {};
     let query_exchange_rate: StateResponse =
         from_binary(&query(deps.as_ref(), mock_env(), ex_rate).unwrap()).unwrap();
@@ -1959,6 +1962,7 @@ pub fn proper_slashing() {
     let wdraw_unbonded_res = execute(deps.as_mut(), env, info, withdraw_unbond_msg).unwrap();
     assert_eq!(wdraw_unbonded_res.messages.len(), 1);
 
+    let expected_er = Decimal::from_ratio(Uint128::from(1000u128), Uint128::from(1111u128));
     let ex_rate = State {};
     let query_exchange_rate: StateResponse =
         from_binary(&query(deps.as_ref(), mock_env(), ex_rate).unwrap()).unwrap();
@@ -1993,7 +1997,7 @@ pub fn proper_slashing_stluna() {
         deps.borrow_mut(),
         owner,
         reward_contract,
-        token_contract,
+        token_contract.clone(),
         stluna_token_contract.clone(),
     );
 
@@ -2114,10 +2118,13 @@ pub fn proper_slashing_stluna() {
     });
     assert_eq!(res.messages[0].msg, msgs);
 
-    deps.querier.with_token_balances(&[(
-        &stluna_token_contract,
-        &[(&addr1, &Uint128::from(1000u128))],
-    )]);
+    deps.querier.with_token_balances(&[
+        (
+            &stluna_token_contract,
+            &[(&addr1, &Uint128::from(1000u128))],
+        ),
+        (&token_contract, &[]),
+    ]);
 
     deps.querier.with_native_balances(&[(
         String::from(MOCK_CONTRACT_ADDR),
@@ -4029,14 +4036,25 @@ pub fn proper_recovery_fee() {
         amount: unbond_amount,
         msg: to_binary(&second_unbond).unwrap(),
     });
+
+    let query_state: StateResponse =
+        from_binary(&query(deps.as_ref(), mock_env(), State {}).unwrap()).unwrap();
+    let current_batch = CurrentBatch {};
+    let query_batch: CurrentBatchResponse =
+        from_binary(&query(deps.as_ref(), mock_env(), current_batch).unwrap()).unwrap();
     let res = execute(deps.as_mut(), env.clone(), token_info.clone(), receive).unwrap();
     assert_eq!(2, res.messages.len());
 
-    let ex_rate = State {};
-    let query_exchange_rate: StateResponse =
-        from_binary(&query(deps.as_ref(), mock_env(), ex_rate).unwrap()).unwrap();
-    let new_exchange = query_exchange_rate.bluna_exchange_rate;
+    let new_balance = new_balance - unbond_amount;
+    deps.querier.with_token_balances(&[
+        (&String::from("token"), &[(&bob, &new_balance)]),
+        (&stluna_token_contract, &[]),
+    ]);
 
+    let unbond_exchange_rate = Decimal::from_ratio(
+        query_state.total_bond_bluna_amount,
+        new_balance + query_batch.requested_bluna_with_fee + query_batch.requested_bluna_with_fee,
+    );
     let expected = bonded_with_fee + bonded_with_fee;
     let undelegate_message = &res.messages[0];
     match undelegate_message.msg.clone() {
@@ -4045,7 +4063,7 @@ pub fn proper_recovery_fee() {
             amount,
         }) => {
             assert_eq!(validator.address, val);
-            assert_eq!(amount.amount, expected * new_exchange);
+            assert_eq!(amount.amount, expected * unbond_exchange_rate);
         }
         _ => panic!("Unexpected message: {:?}", mint_msg),
     }
@@ -4067,8 +4085,8 @@ pub fn proper_recovery_fee() {
 
     let sent_message = &wdraw_unbonded_res.messages[0];
     let expected = (expected
-        * new_exchange
-        * Decimal::from_ratio(Uint128::from(161870u64), expected * new_exchange))
+        * unbond_exchange_rate
+        * Decimal::from_ratio(Uint128::from(161870u64), expected * unbond_exchange_rate))
         - Uint128::from(1u64);
     match sent_message.msg.clone() {
         CosmosMsg::Bank(BankMsg::Send {
@@ -4092,7 +4110,10 @@ pub fn proper_recovery_fee() {
         res.history[0].bluna_amount,
         bonded_with_fee + bonded_with_fee
     );
-    assert_eq!(res.history[0].bluna_applied_exchange_rate, new_exchange);
+    assert_eq!(
+        res.history[0].bluna_applied_exchange_rate,
+        unbond_exchange_rate
+    );
     assert_eq!(
         res.history[0].bluna_withdraw_rate,
         Decimal::from_ratio(Uint128::from(161869u64), bonded_with_fee + bonded_with_fee)
@@ -4703,7 +4724,7 @@ fn test_convert_to_stluna_with_slashing_and_peg_fee() {
     let query_exchange_rate: StateResponse =
         from_binary(&query(deps.as_ref(), mock_env(), State {}).unwrap()).unwrap();
     let new_exchange = query_exchange_rate.bluna_exchange_rate;
-    assert_eq!("0.84", new_exchange.to_string());
+    assert_eq!("0.42", new_exchange.to_string());
 }
 
 #[test]
@@ -4828,7 +4849,7 @@ fn test_convert_to_bluna_with_slashing_and_peg_fee() {
     let query_exchange_rate: StateResponse =
         from_binary(&query(deps.as_ref(), mock_env(), State {}).unwrap()).unwrap();
     let new_exchange = query_exchange_rate.bluna_exchange_rate;
-    assert_eq!("0.815558343789209535", new_exchange.to_string());
+    assert_eq!("1.3", new_exchange.to_string());
 }
 
 #[test]

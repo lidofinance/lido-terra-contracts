@@ -355,9 +355,7 @@ fn withdraw_all_rewards(deps: &DepsMut, delegator: String) -> StdResult<Vec<Cosm
     Ok(messages)
 }
 
-/// Check whether slashing has happened
-/// This is used for checking slashing while bonding or unbonding
-pub fn slashing(deps: &mut DepsMut, env: Env) -> StdResult<State> {
+fn update_state(deps: Deps, env: Env) -> StdResult<State> {
     let mut state = STATE.load(deps.storage)?;
     let delegations = deps.querier.query_all_delegations(env.contract.address)?;
     if delegations.is_empty() {
@@ -383,8 +381,8 @@ pub fn slashing(deps: &mut DepsMut, env: Env) -> StdResult<State> {
     }
 
     // Need total issued for updating the exchange rate
-    let bluna_total_issued = query_total_bluna_issued(deps.as_ref())?;
-    let stluna_total_issued = query_total_stluna_issued(deps.as_ref())?;
+    let bluna_total_issued = query_total_bluna_issued(deps)?;
+    let stluna_total_issued = query_total_stluna_issued(deps)?;
     let current_batch = CURRENT_BATCH.load(deps.storage)?;
     let current_requested_bluna_with_fee = current_batch.requested_bluna_with_fee;
     let current_requested_stluna = current_batch.requested_stluna;
@@ -398,6 +396,13 @@ pub fn slashing(deps: &mut DepsMut, env: Env) -> StdResult<State> {
     }
     state.update_bluna_exchange_rate(bluna_total_issued, current_requested_bluna_with_fee);
     state.update_stluna_exchange_rate(stluna_total_issued, current_requested_stluna);
+    Ok(state)
+}
+
+/// Check whether slashing has happened
+/// This is used for checking slashing while bonding or unbonding
+pub fn slashing(deps: &mut DepsMut, env: Env) -> StdResult<State> {
+    let state = update_state(deps.as_ref(), env)?;
 
     STATE.save(deps.storage, &state)?;
 
@@ -517,7 +522,7 @@ pub fn execute_slashing(mut deps: DepsMut, env: Env) -> StdResult<Response> {
 pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         QueryMsg::Config {} => to_binary(&query_config(deps)?),
-        QueryMsg::State {} => to_binary(&query_state(deps)?),
+        QueryMsg::State {} => to_binary(&query_state(deps, env)?),
         QueryMsg::CurrentBatch {} => to_binary(&query_current_batch(deps)?),
         QueryMsg::WithdrawableUnbonded { address } => {
             to_binary(&query_withdrawable_unbonded(deps, address, env)?)
@@ -583,8 +588,8 @@ fn query_config(deps: Deps) -> StdResult<ConfigResponse> {
     })
 }
 
-fn query_state(deps: Deps) -> StdResult<StateResponse> {
-    let state = STATE.load(deps.storage)?;
+fn query_state(deps: Deps, env: Env) -> StdResult<StateResponse> {
+    let state = update_state(deps, env)?;
     let res = StateResponse {
         bluna_exchange_rate: state.bluna_exchange_rate,
         stluna_exchange_rate: state.stluna_exchange_rate,

@@ -473,7 +473,6 @@ fn process_undelegations(
     let stluna_undelegation_amount = current_batch.requested_stluna * state.stluna_exchange_rate;
     let bluna_undelegation_amount =
         current_batch.requested_bluna_with_fee * state.bluna_exchange_rate;
-
     let delegator = env.contract.address;
 
     // Send undelegated requests to possibly more than one validators
