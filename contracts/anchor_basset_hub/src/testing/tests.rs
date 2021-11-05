@@ -1862,7 +1862,7 @@ pub fn proper_slashing() {
     let ex_rate = State {};
     let query_exchange_rate: StateResponse =
         from_binary(&query(deps.as_ref(), mock_env(), ex_rate).unwrap()).unwrap();
-    assert_eq!(query_exchange_rate.bluna_exchange_rate.to_string(), "0.9");
+    assert_eq!(query_exchange_rate.bluna_exchange_rate, expected_er);
 
     let delegate = &res.messages[0];
     match delegate.msg.clone() {
