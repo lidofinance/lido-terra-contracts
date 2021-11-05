@@ -1858,7 +1858,17 @@ pub fn proper_slashing() {
     let res = execute(deps.as_mut(), mock_env(), info.clone(), second_bond).unwrap();
     assert_eq!(2, res.messages.len());
 
-    // expected exchange rate must be equal 0.9
+    set_delegation(&mut deps.querier, validator.clone(), 1900, "uluna");
+    deps.querier.with_token_balances(&[
+        (
+            &String::from("token"),
+            &[(&addr1, &Uint128::from(2111u128))],
+        ),
+        (&stluna_token_contract, &[]),
+    ]);
+
+    // expected exchange rate must be greater than 0.9
+    let expected_er = Decimal::from_ratio(Uint128::from(1900u64), Uint128::from(2111u64));
     let ex_rate = State {};
     let query_exchange_rate: StateResponse =
         from_binary(&query(deps.as_ref(), mock_env(), ex_rate).unwrap()).unwrap();
