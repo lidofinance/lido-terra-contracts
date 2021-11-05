@@ -355,7 +355,7 @@ fn withdraw_all_rewards(deps: &DepsMut, delegator: String) -> StdResult<Vec<Cosm
     Ok(messages)
 }
 
-fn update_state(deps: Deps, env: Env) -> StdResult<State> {
+fn query_actual_state(deps: Deps, env: Env) -> StdResult<State> {
     let mut state = STATE.load(deps.storage)?;
     let delegations = deps.querier.query_all_delegations(env.contract.address)?;
     if delegations.is_empty() {
@@ -402,7 +402,7 @@ fn update_state(deps: Deps, env: Env) -> StdResult<State> {
 /// Check whether slashing has happened
 /// This is used for checking slashing while bonding or unbonding
 pub fn slashing(deps: &mut DepsMut, env: Env) -> StdResult<State> {
-    let state = update_state(deps.as_ref(), env)?;
+    let state = query_actual_state(deps.as_ref(), env)?;
 
     STATE.save(deps.storage, &state)?;
 
@@ -589,7 +589,7 @@ fn query_config(deps: Deps) -> StdResult<ConfigResponse> {
 }
 
 fn query_state(deps: Deps, env: Env) -> StdResult<StateResponse> {
-    let state = update_state(deps, env)?;
+    let state = query_actual_state(deps, env)?;
     let res = StateResponse {
         bluna_exchange_rate: state.bluna_exchange_rate,
         stluna_exchange_rate: state.stluna_exchange_rate,

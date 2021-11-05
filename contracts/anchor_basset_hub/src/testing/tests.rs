@@ -1843,10 +1843,12 @@ pub fn proper_slashing() {
     let res = execute(deps.as_mut(), mock_env(), info, report_slashing).unwrap();
     assert_eq!(0, res.messages.len());
 
+    // bonded amount / minted amount
+    let expected_er = Decimal::from_ratio(Uint128::from(900u64), Uint128::from(1000u64));
     let ex_rate = State {};
     let query_exchange_rate: StateResponse =
         from_binary(&query(deps.as_ref(), mock_env(), ex_rate).unwrap()).unwrap();
-    assert_eq!(query_exchange_rate.bluna_exchange_rate.to_string(), "0.9");
+    assert_eq!(query_exchange_rate.bluna_exchange_rate, expected_er);
 
     //bond again to see the update exchange rate
     let second_bond = ExecuteMsg::Bond {};
