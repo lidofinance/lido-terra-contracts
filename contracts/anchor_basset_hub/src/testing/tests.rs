@@ -4053,6 +4053,8 @@ pub fn proper_recovery_fee() {
         (&stluna_token_contract, &[]),
     ]);
 
+    // during undelegation CurrentBatch.requested_bluna_with_fee sets to zero, so we query requested_bluna_with_fee
+    // before test undelegation to calculate unbond_undelegation properly
     let unbond_exchange_rate = Decimal::from_ratio(
         query_state.total_bond_bluna_amount,
         new_balance + query_batch.requested_bluna_with_fee + query_batch.requested_bluna_with_fee,
