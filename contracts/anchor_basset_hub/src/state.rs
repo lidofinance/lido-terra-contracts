@@ -260,13 +260,13 @@ pub fn read_old_unbond_wait_lists(
         .collect::<Vec<StdResult<OldUnbondWaitList>>>())
 }
 
-// migrate unbond waitlist
-// update old values (Uint128) in PREFIX_WAIT_MAP storage to UnbondWaitEntity
+// migrate_unbond_wait_lists moves the old values (Uint128) in OLD_PREFIX_WAIT_MAP storage to UnbondWaitEntity
+// in NEW_PREFIX_WAIT_MAP and deletes the old entries.
 pub fn migrate_unbond_wait_lists(
     storage: &mut dyn Storage,
     limit: Option<u32>,
 ) -> StdResult<Response> {
-    let (old_unbond_wait_list_keys, num_migrated_entries) = {
+    let (removed_keys, num_migrated_entries) = {
         let old_unbond_wait_list_entries = read_old_unbond_wait_lists(storage, limit)?;
         let mut num_migrated_entries: u32 = 0;
         let mut new_unbond_wait_list: Bucket<UnbondWaitEntity> =
@@ -289,7 +289,7 @@ pub fn migrate_unbond_wait_lists(
 
     let mut old_unbond_wait_list: Bucket<Uint128> =
         Bucket::multilevel(storage, &[OLD_PREFIX_WAIT_MAP]);
-    for key in old_unbond_wait_list_keys {
+    for key in removed_keys {
         old_unbond_wait_list.remove(&key);
     }
 
