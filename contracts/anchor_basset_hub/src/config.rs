@@ -30,6 +30,7 @@ pub fn execute_update_params(
     unbonding_period: Option<u64>,
     peg_recovery_fee: Option<Decimal>,
     er_threshold: Option<Decimal>,
+    paused: Option<bool>,
 ) -> StdResult<Response> {
     // only owner can send this message.
     let config = CONFIG.load(deps.storage)?;
@@ -55,6 +56,7 @@ pub fn execute_update_params(
             .unwrap_or(params.er_threshold)
             .min(Decimal::one()),
         reward_denom: params.reward_denom,
+        paused: paused.unwrap_or(params.paused),
     };
 
     PARAMETERS.save(deps.storage, &new_params)?;

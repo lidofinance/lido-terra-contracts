@@ -90,6 +90,7 @@ pub fn instantiate(
         peg_recovery_fee: msg.peg_recovery_fee,
         er_threshold: msg.er_threshold.min(Decimal::one()),
         reward_denom: msg.reward_denom,
+        paused: false,
     };
 
     PARAMETERS.save(deps.storage, &params)?;
@@ -107,6 +108,15 @@ pub fn instantiate(
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> StdResult<Response> {
+    if let ExecuteMsg::MigrateUnbondWaitList { limit } = msg {
+        migrate_unbond_wait_lists(deps.storage, limit)?
+    }
+
+    let params: Parameters = PARAMETERS.load(deps.storage)?;
+    if params.paused {
+        return Err(StdError::generic_err("the contact is paused"));
+    }
+
     match msg {
         ExecuteMsg::Receive(msg) => receive_cw20(deps, env, info, msg),
         ExecuteMsg::Bond {} => execute_bond(deps, env, info, BondType::BLuna),
@@ -122,6 +132,7 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
             unbonding_period,
             peg_recovery_fee,
             er_threshold,
+            paused,
         } => execute_update_params(
             deps,
             env,
@@ -130,6 +141,7 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
             unbonding_period,
             peg_recovery_fee,
             er_threshold,
+            paused,
         ),
         ExecuteMsg::UpdateConfig {
             owner,
@@ -181,6 +193,7 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
             src_validator,
             redelegations,
         } => execute_redelegate_proxy(deps, env, info, src_validator, redelegations),
+        ExecuteMsg::MigrateUnbondWaitList {limit: _} => Err(StdError::generic_err("forbidden")),
     }
 }
 
@@ -751,10 +764,6 @@ pub fn migrate(deps: DepsMut, _env: Env, msg: MigrateMsg) -> StdResult<Response>
         address: msg.reward_dispatcher_contract,
     });
     messages.push(msg);
-
-    // migrate unbond waitlist
-    // update old values (Uint128) in PREFIX_WAIT_MAP storage to UnbondWaitEntity
-    migrate_unbond_wait_lists(deps.storage)?;
 
     // migrate unbond history
     migrate_unbond_history(deps.storage)?;
