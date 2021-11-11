@@ -175,7 +175,7 @@ pub enum ExecuteMsg {
     // MigrateUnbondWaitList migrates a limited amount of old waitlist entries to
     // the new state.
     MigrateUnbondWaitList {
-        limit: Option<usize>,
+        limit: Option<u32>,
     },
 }
 
