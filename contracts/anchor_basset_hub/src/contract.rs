@@ -193,7 +193,7 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
             src_validator,
             redelegations,
         } => execute_redelegate_proxy(deps, env, info, src_validator, redelegations),
-        ExecuteMsg::MigrateUnbondWaitList {limit: _} => Err(StdError::generic_err("forbidden")),
+        ExecuteMsg::MigrateUnbondWaitList { limit: _ } => Err(StdError::generic_err("forbidden")),
     }
 }
 

@@ -3804,6 +3804,7 @@ pub fn test_update_params() {
         unbonding_period: None,
         peg_recovery_fee: None,
         er_threshold: None,
+        paused: Some(false),
     };
     let owner = String::from("owner1");
     let token_contract = String::from("token");
@@ -3845,6 +3846,7 @@ pub fn test_update_params() {
         unbonding_period: Some(3),
         peg_recovery_fee: Some(Decimal::one()),
         er_threshold: Some(Decimal::zero()),
+        paused: Some(false),
     };
 
     //the result must be 1
@@ -3867,6 +3869,7 @@ pub fn test_update_params() {
         unbonding_period: None,
         peg_recovery_fee: Some(Decimal::from_str("1.1").unwrap()),
         er_threshold: None,
+        paused: Some(false),
     };
 
     let creator_info = mock_info(String::from("owner1").as_str(), &[]);
@@ -3882,6 +3885,7 @@ pub fn test_update_params() {
         unbonding_period: Some(3),
         peg_recovery_fee: Some(Decimal::one()),
         er_threshold: Some(Decimal::from_str("1.1").unwrap()),
+        paused: Some(false),
     };
 
     //the result must be 1
@@ -3914,6 +3918,7 @@ pub fn proper_recovery_fee() {
             Uint128::from(99u64),
             Uint128::from(100u64),
         )),
+        paused: Some(false),
     };
     let owner = String::from("owner1");
     let token_contract = String::from("token");
@@ -4212,6 +4217,7 @@ pub fn proper_update_config() {
         unbonding_period: None,
         peg_recovery_fee: None,
         er_threshold: None,
+        paused: Some(false),
     };
 
     let new_owner_info = mock_info(&new_owner, &[]);
@@ -4224,6 +4230,7 @@ pub fn proper_update_config() {
         unbonding_period: None,
         peg_recovery_fee: None,
         er_threshold: None,
+        paused: Some(false),
     };
 
     let new_owner_info = mock_info(&owner, &[]);
