@@ -260,8 +260,8 @@ pub fn read_old_unbond_wait_lists(
         .collect::<Vec<StdResult<OldUnbondWaitList>>>())
 }
 
-// migrate unbond waitlist
-// update old values (Uint128) in PREFIX_WAIT_MAP storage to UnbondWaitEntity
+// migrate_unbond_wait_lists moves the old values (Uint128) in OLD_PREFIX_WAIT_MAP storage to UnbondWaitEntity
+// in NEW_PREFIX_WAIT_MAP and deletes the old entries.
 pub fn migrate_unbond_wait_lists(
     storage: &mut dyn Storage,
     limit: Option<usize>,
