@@ -5084,7 +5084,7 @@ pub fn test_pause() {
         validators_registry_contract: None,
         stluna_token_contract: None,
     };
-    let info = mock_info(&owner.clone(), &[]);
+    let info = mock_info(&owner, &[]);
     let res = execute(deps.as_mut(), mock_env(), info, update_config);
     assert_eq!(
         res.unwrap_err(),
@@ -5111,6 +5111,6 @@ pub fn test_pause() {
         validators_registry_contract: None,
         stluna_token_contract: None,
     };
-    let info = mock_info(&owner.clone(), &[]);
+    let info = mock_info(&owner, &[]);
     execute(deps.as_mut(), mock_env(), info, update_config).unwrap();
 }
