@@ -19,7 +19,8 @@ export async function storeCode(terraClient: LCDClient, wallet: Wallet, contract
   );
   const storeCodeTx = await wallet.createAndSignTx({
     msgs: [storeCode],
-    fee: new StdFee(10000000, new Coins({uluna: 1000000}))
+    gasPrices: new Coins({uusd: 0.4}),
+    gasAdjustment: 1.4
   });
   const storeCodeTxResult = await terraClient.tx.broadcast(storeCodeTx);
 
@@ -48,7 +49,8 @@ export async function instantiateContract(terraClient: LCDClient, wallet: Wallet
 
   const instantiateTx = await wallet.createAndSignTx({
     msgs: [instantiate],
-    fee: new StdFee(10000000, new Coins({uluna: 1000000}))
+    gasPrices: new Coins({uusd: 0.4}),
+    gasAdjustment: 1.4
   });
   const instantiateTxResult = await terraClient.tx.broadcast(instantiateTx);
 
@@ -70,9 +72,11 @@ export async function executeContract(terraClient: LCDClient, wallet: Wallet, co
   );
   const executeTx = await wallet.createAndSignTx({
     msgs: [execute],
-    fee: new StdFee(10000000, new Coins({uluna: 1000000}))
+    gasPrices: new Coins({uusd: 0.4}),
+    gasAdjustment: 1.4
   });
   const executeTxResult = await terraClient.tx.broadcast(executeTx);
+  console.log(executeTxResult.raw_log);
   if (isTxError(executeTxResult)) {
     throw new Error(
       `instantiate failed. code: ${executeTxResult.code}, codespace: ${executeTxResult.codespace}, raw_log: ${executeTxResult.raw_log}`
@@ -89,7 +93,8 @@ export async function migrateContract(terraClient: LCDClient, wallet: Wallet, co
   );
   const migrateTx = await wallet.createAndSignTx({
     msgs: [migrate],
-    fee: new StdFee(10000000, new Coins({uluna: 1000000}))
+    gasPrices: new Coins({uusd: 0.4}),
+    gasAdjustment: 1.4
   });
   const migrateTxResult = await terraClient.tx.broadcast(migrateTx);
   if (isTxError(migrateTxResult)) {

@@ -42,7 +42,7 @@ pub static UNBOND_HISTORY_MAP: &[u8] = b"history_map";
 pub static PREFIX_AIRDROP_INFO: &[u8] = b"airedrop_info";
 pub static VALIDATORS: &[u8] = b"validators";
 
-pub const MAX_DEFAULT_RANGE_LIMIT: usize = 1000;
+pub const MAX_DEFAULT_RANGE_LIMIT: u32 = 1000;
 
 /// Store undelegation wait list per each batch
 /// HashMap<user's address, <batch_id, requested_amount>
@@ -250,13 +250,13 @@ type OldUnbondWaitList = (Vec<u8>, Uint128);
 
 pub fn read_old_unbond_wait_lists(
     storage: &mut dyn Storage,
-    limit: Option<usize>,
+    limit: Option<u32>,
 ) -> StdResult<Vec<StdResult<OldUnbondWaitList>>> {
     let reader: ReadonlyBucket<Uint128> =
         ReadonlyBucket::multilevel(storage, &[OLD_PREFIX_WAIT_MAP]);
     Ok(reader
         .range(None, None, Order::Ascending)
-        .take(limit.unwrap_or(MAX_DEFAULT_RANGE_LIMIT))
+        .take(limit.unwrap_or(MAX_DEFAULT_RANGE_LIMIT) as usize)
         .collect::<Vec<StdResult<OldUnbondWaitList>>>())
 }
 
@@ -264,7 +264,7 @@ pub fn read_old_unbond_wait_lists(
 // in NEW_PREFIX_WAIT_MAP and deletes the old entries.
 pub fn migrate_unbond_wait_lists(
     storage: &mut dyn Storage,
-    limit: Option<usize>,
+    limit: Option<u32>,
 ) -> StdResult<Response> {
     let (removed_keys, num_migrated_entries) = {
         let old_unbond_wait_list_entries = read_old_unbond_wait_lists(storage, limit)?;
