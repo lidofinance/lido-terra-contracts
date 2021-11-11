@@ -42,6 +42,8 @@ pub static UNBOND_HISTORY_MAP: &[u8] = b"history_map";
 pub static PREFIX_AIRDROP_INFO: &[u8] = b"airedrop_info";
 pub static VALIDATORS: &[u8] = b"validators";
 
+pub const MAX_DEFAULT_RANGE_LIMIT: usize = 1000;
+
 /// Store undelegation wait list per each batch
 /// HashMap<user's address, <batch_id, requested_amount>
 pub fn store_unbond_wait_list(
@@ -248,13 +250,13 @@ type OldUnbondWaitList = (Vec<u8>, Uint128);
 
 pub fn read_old_unbond_wait_lists(
     storage: &mut dyn Storage,
-    limit: Option<u64>,
+    limit: Option<usize>,
 ) -> StdResult<Vec<StdResult<OldUnbondWaitList>>> {
-    let vec = convert(limit);
     let reader: ReadonlyBucket<Uint128> =
         ReadonlyBucket::multilevel(storage, &[OLD_PREFIX_WAIT_MAP]);
     Ok(reader
-        .range(None, vec.as_deref(), Order::Ascending)
+        .range(None, None, Order::Ascending)
+        .take(limit.unwrap_or(MAX_DEFAULT_RANGE_LIMIT))
         .collect::<Vec<StdResult<OldUnbondWaitList>>>())
 }
 
@@ -262,19 +264,39 @@ pub fn read_old_unbond_wait_lists(
 // update old values (Uint128) in PREFIX_WAIT_MAP storage to UnbondWaitEntity
 pub fn migrate_unbond_wait_lists(
     storage: &mut dyn Storage,
-    limit: Option<u64>,
+    limit: Option<usize>,
 ) -> StdResult<Response> {
-    let old_unbond_wait_list = read_old_unbond_wait_lists(storage, limit)?;
-    let mut bucket: Bucket<UnbondWaitEntity> = Bucket::multilevel(storage, &[NEW_PREFIX_WAIT_MAP]);
-    for res in old_unbond_wait_list {
-        let (key, amount) = res?;
-        let unbond_wait_entity = UnbondWaitEntity {
-            bluna_amount: amount,
-            stluna_amount: Uint128::zero(),
-        };
-        bucket.save(&key, &unbond_wait_entity)?;
+    let (old_unbond_wait_list_keys, num_migrated_entries) = {
+        let old_unbond_wait_list_entries = read_old_unbond_wait_lists(storage, limit)?;
+        let mut num_migrated_entries: u32 = 0;
+        let mut new_unbond_wait_list: Bucket<UnbondWaitEntity> =
+            Bucket::multilevel(storage, &[NEW_PREFIX_WAIT_MAP]);
+        let mut removed_keys: Vec<Vec<u8>> = vec![];
+
+        for res in old_unbond_wait_list_entries {
+            let (key, amount) = res?;
+            let unbond_wait_entity = UnbondWaitEntity {
+                bluna_amount: amount,
+                stluna_amount: Uint128::zero(),
+            };
+            new_unbond_wait_list.save(&key, &unbond_wait_entity)?;
+            removed_keys.push(key);
+            num_migrated_entries += 1;
+        }
+
+        (removed_keys, num_migrated_entries)
+    };
+
+    let mut old_unbond_wait_list: Bucket<Uint128> =
+        Bucket::multilevel(storage, &[OLD_PREFIX_WAIT_MAP]);
+    for key in old_unbond_wait_list_keys {
+        old_unbond_wait_list.remove(&key);
     }
-    Ok(Response::new().add_attributes(vec![attr("action", "migrate_unbond_wait_lists")]))
+
+    Ok(Response::new().add_attributes(vec![
+        attr("action", "migrate_unbond_wait_lists"),
+        attr("num_migrated_entries", num_migrated_entries.to_string()),
+    ]))
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
