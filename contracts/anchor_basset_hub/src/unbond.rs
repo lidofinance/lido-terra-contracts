@@ -377,7 +377,7 @@ fn pick_validator(deps: &DepsMut, claim: Uint128, delegator: String) -> StdResul
         .collect::<Vec<ValidatorResponse>>();
     validators.sort_by(|v1, v2| v2.total_delegated.cmp(&v1.total_delegated));
 
-    let undelegations = calculate_undelegations(claim, validators.as_slice())?;
+    let undelegations = calculate_undelegations(claim, validators.clone())?;
 
     for (index, undelegated_amount) in undelegations.iter().enumerate() {
         if undelegated_amount.is_zero() {
