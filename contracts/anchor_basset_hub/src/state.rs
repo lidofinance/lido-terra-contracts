@@ -15,7 +15,9 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use cosmwasm_std::{from_slice, to_vec, Decimal, Order, StdError, StdResult, Storage, Uint128, Response, attr};
+use cosmwasm_std::{
+    attr, from_slice, to_vec, Decimal, Order, Response, StdError, StdResult, Storage, Uint128,
+};
 use cosmwasm_storage::{Bucket, PrefixedStorage, ReadonlyBucket, ReadonlyPrefixedStorage};
 
 use cw_storage_plus::Item;
@@ -258,7 +260,10 @@ pub fn read_old_unbond_wait_lists(
 
 // migrate unbond waitlist
 // update old values (Uint128) in PREFIX_WAIT_MAP storage to UnbondWaitEntity
-pub fn migrate_unbond_wait_lists(storage: &mut dyn Storage, limit: Option<u64>) -> StdResult<Response> {
+pub fn migrate_unbond_wait_lists(
+    storage: &mut dyn Storage,
+    limit: Option<u64>,
+) -> StdResult<Response> {
     let old_unbond_wait_list = read_old_unbond_wait_lists(storage, limit)?;
     let mut bucket: Bucket<UnbondWaitEntity> = Bucket::multilevel(storage, &[NEW_PREFIX_WAIT_MAP]);
     for res in old_unbond_wait_list {
@@ -269,9 +274,7 @@ pub fn migrate_unbond_wait_lists(storage: &mut dyn Storage, limit: Option<u64>) 
         };
         bucket.save(&key, &unbond_wait_entity)?;
     }
-    Ok(Response::new().add_attributes(
-        vec![attr("action", "migrate_unbond_wait_lists")]
-    ))
+    Ok(Response::new().add_attributes(vec![attr("action", "migrate_unbond_wait_lists")]))
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
