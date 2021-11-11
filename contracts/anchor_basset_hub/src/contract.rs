@@ -109,12 +109,12 @@ pub fn instantiate(
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> StdResult<Response> {
     if let ExecuteMsg::MigrateUnbondWaitList { limit } = msg {
-        migrate_unbond_wait_lists(deps.storage, limit)?
+        return migrate_unbond_wait_lists(deps.storage, limit);
     }
 
     let params: Parameters = PARAMETERS.load(deps.storage)?;
     if params.paused {
-        return Err(StdError::generic_err("the contact is paused"));
+        return Err(StdError::generic_err("the contact is temporarily paused"));
     }
 
     match msg {
