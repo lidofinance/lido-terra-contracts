@@ -5041,3 +5041,76 @@ fn proper_redelegate_proxy() {
         _ => panic!("Unexpected message: {:?}", redelegate),
     }
 }
+
+///
+#[test]
+pub fn test_pause() {
+    let mut deps = dependencies(&[]);
+
+    let _validator = sample_validator(DEFAULT_VALIDATOR);
+    set_validator_mock(&mut deps.querier);
+
+    let owner = String::from("owner1");
+    let token_contract = String::from("token");
+    let stluna_token_contract = String::from("stluna_token");
+    let reward_contract = String::from("reward");
+
+    initialize(
+        deps.borrow_mut(),
+        owner.clone(),
+        reward_contract,
+        token_contract,
+        stluna_token_contract,
+    );
+
+    // set paused = true
+    let update_prams = UpdateParams {
+        epoch_period: None,
+        unbonding_period: Some(3),
+        peg_recovery_fee: Some(Decimal::one()),
+        er_threshold: Some(Decimal::zero()),
+        paused: Some(true),
+    };
+    let creator_info = mock_info(String::from("owner1").as_str(), &[]);
+    execute(deps.as_mut(), mock_env(), creator_info, update_prams).unwrap();
+
+    // try to run a not allowed action (anything but update config and migrate_unbond_wait_list),
+    // should return an error
+    let update_config = UpdateConfig {
+        owner: Some(owner.clone()),
+        rewards_dispatcher_contract: None,
+        bluna_token_contract: None,
+        airdrop_registry_contract: None,
+        validators_registry_contract: None,
+        stluna_token_contract: None,
+    };
+    let info = mock_info(&owner.clone(), &[]);
+    let res = execute(deps.as_mut(), mock_env(), info, update_config);
+    assert_eq!(
+        res.unwrap_err(),
+        StdError::generic_err("the contact is temporarily paused")
+    );
+
+    // un-pause the contract
+    let update_prams = UpdateParams {
+        epoch_period: None,
+        unbonding_period: Some(3),
+        peg_recovery_fee: Some(Decimal::one()),
+        er_threshold: Some(Decimal::zero()),
+        paused: Some(false),
+    };
+    let creator_info = mock_info(String::from("owner1").as_str(), &[]);
+    execute(deps.as_mut(), mock_env(), creator_info, update_prams).unwrap();
+
+    // execute the same handler, should work
+    let update_config = UpdateConfig {
+        owner: Some(owner.clone()),
+        rewards_dispatcher_contract: None,
+        bluna_token_contract: None,
+        airdrop_registry_contract: None,
+        validators_registry_contract: None,
+        stluna_token_contract: None,
+    };
+    let info = mock_info(&owner.clone(), &[]);
+    execute(deps.as_mut(), mock_env(), info, update_config).unwrap();
+}

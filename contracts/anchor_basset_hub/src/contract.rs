@@ -90,7 +90,7 @@ pub fn instantiate(
         peg_recovery_fee: msg.peg_recovery_fee,
         er_threshold: msg.er_threshold.min(Decimal::one()),
         reward_denom: msg.reward_denom,
-        paused: false,
+        paused: Some(false),
     };
 
     PARAMETERS.save(deps.storage, &params)?;
@@ -133,7 +133,7 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
     }
 
     let params: Parameters = PARAMETERS.load(deps.storage)?;
-    if params.paused {
+    if params.paused.unwrap_or(false) {
         return Err(StdError::generic_err("the contact is temporarily paused"));
     }
 
@@ -752,7 +752,7 @@ pub fn migrate(deps: DepsMut, _env: Env, msg: MigrateMsg) -> StdResult<Response>
         peg_recovery_fee: old_params.peg_recovery_fee,
         er_threshold: old_params.er_threshold,
         reward_denom: old_params.reward_denom,
-        paused: true, // We pause the contract to be able to safely migrate unbond wait lists.
+        paused: Some(true), // We pause the contract to be able to safely migrate unbond wait lists.
     };
     PARAMETERS.save(deps.storage, &new_params)?;
 

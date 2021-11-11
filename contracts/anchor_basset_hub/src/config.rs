@@ -56,7 +56,7 @@ pub fn execute_update_params(
             .unwrap_or(params.er_threshold)
             .min(Decimal::one()),
         reward_denom: params.reward_denom,
-        paused: paused.unwrap_or(params.paused),
+        paused,
     };
 
     PARAMETERS.save(deps.storage, &new_params)?;
