@@ -724,6 +724,18 @@ pub fn migrate(deps: DepsMut, _env: Env, msg: MigrateMsg) -> StdResult<Response>
     };
     CONFIG.save(deps.storage, &new_config)?;
 
+    let old_params = PARAMETERS.load(deps.storage)?;
+    let new_params = Parameters {
+        epoch_period: old_params.epoch_period,
+        underlying_coin_denom: old_params.underlying_coin_denom,
+        unbonding_period: old_params.unbonding_period,
+        peg_recovery_fee: old_params.peg_recovery_fee,
+        er_threshold: old_params.er_threshold,
+        reward_denom: old_params.reward_denom,
+        paused: true, // We pause the contract to be able to safely migrate unbond wait lists.
+    };
+    PARAMETERS.save(deps.storage, &new_params)?;
+
     //migrate CurrentBatch
     let old_current_batch = OLD_CURRENT_BATCH.load(deps.storage)?;
     let new_current_batch = CurrentBatch {
