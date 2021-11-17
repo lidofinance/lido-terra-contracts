@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use crate::state::{CONFIG, PARAMETERS};
+use crate::state::{read_old_unbond_wait_lists, CONFIG, PARAMETERS};
 use basset::hub::Parameters;
 use cosmwasm_std::{
     attr, CosmosMsg, Decimal, DepsMut, DistributionMsg, Env, MessageInfo, Response, StdError,
@@ -45,6 +45,15 @@ pub fn execute_update_params(
         return Err(StdError::generic_err(
             "peg_recovery_fee can not be greater than 1",
         ));
+    }
+
+    if paused.is_some() && !paused.unwrap() {
+        let old_unbond_wait_list_entries = read_old_unbond_wait_lists(deps.storage, Some(1u32))?;
+        if !old_unbond_wait_list_entries.is_empty() {
+            return Err(StdError::generic_err(
+                "cannot unpause contract with old unbond wait lists",
+            ));
+        }
     }
 
     let new_params = Parameters {

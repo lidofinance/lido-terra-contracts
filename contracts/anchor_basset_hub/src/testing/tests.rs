@@ -5088,7 +5088,7 @@ pub fn test_pause() {
     let res = execute(deps.as_mut(), mock_env(), info, update_config);
     assert_eq!(
         res.unwrap_err(),
-        StdError::generic_err("the contact is temporarily paused")
+        StdError::generic_err("the contract is temporarily paused")
     );
 
     // un-pause the contract

@@ -268,6 +268,13 @@ pub fn migrate_unbond_wait_lists(
 ) -> StdResult<Response> {
     let (removed_keys, num_migrated_entries) = {
         let old_unbond_wait_list_entries = read_old_unbond_wait_lists(storage, limit)?;
+        if old_unbond_wait_list_entries.is_empty() {
+            return Ok(Response::new().add_attributes(vec![
+                attr("action", "migrate_unbond_wait_lists"),
+                attr("num_migrated_entries", "0"),
+            ]));
+        }
+
         let mut num_migrated_entries: u32 = 0;
         let mut new_unbond_wait_list: Bucket<UnbondWaitEntity> =
             Bucket::multilevel(storage, &[NEW_PREFIX_WAIT_MAP]);
@@ -291,6 +298,14 @@ pub fn migrate_unbond_wait_lists(
         Bucket::multilevel(storage, &[OLD_PREFIX_WAIT_MAP]);
     for key in removed_keys {
         old_unbond_wait_list.remove(&key);
+    }
+
+    // unpause contract if we've migrated all unbond wait lists
+    let old_unbond_wait_list_entries = read_old_unbond_wait_lists(storage, Some(1u32))?;
+    if old_unbond_wait_list_entries.is_empty() {
+        let mut params: Parameters = PARAMETERS.load(storage)?;
+        params.paused = Some(false);
+        PARAMETERS.save(storage, &params)?;
     }
 
     Ok(Response::new().add_attributes(vec![

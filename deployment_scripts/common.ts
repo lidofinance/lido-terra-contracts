@@ -76,12 +76,13 @@ export async function executeContract(terraClient: LCDClient, wallet: Wallet, co
     gasAdjustment: 1.4
   });
   const executeTxResult = await terraClient.tx.broadcast(executeTx);
-  console.log(executeTxResult.raw_log);
   if (isTxError(executeTxResult)) {
     throw new Error(
       `instantiate failed. code: ${executeTxResult.code}, codespace: ${executeTxResult.codespace}, raw_log: ${executeTxResult.raw_log}`
     );
   }
+
+  return executeTxResult;
 }
 
 export async function migrateContract(terraClient: LCDClient, wallet: Wallet, contractAddress: string, newCodeId: number, message: object) {
