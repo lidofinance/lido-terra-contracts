@@ -134,7 +134,7 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
 
     let params: Parameters = PARAMETERS.load(deps.storage)?;
     if params.paused.unwrap_or(false) {
-        return Err(StdError::generic_err("the contact is temporarily paused"));
+        return Err(StdError::generic_err("the contract is temporarily paused"));
     }
 
     match msg {
