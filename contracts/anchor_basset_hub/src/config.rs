@@ -47,7 +47,7 @@ pub fn execute_update_params(
         ));
     }
 
-    if paused.is_some() && !paused.unwrap() {
+    if paused.is_some() && !paused.unwrap() || paused.is_none() {
         let old_unbond_wait_list_entries = read_old_unbond_wait_lists(deps.storage, Some(1u32))?;
         if !old_unbond_wait_list_entries.is_empty() {
             return Err(StdError::generic_err(
