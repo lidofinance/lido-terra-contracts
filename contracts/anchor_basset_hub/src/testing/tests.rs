@@ -63,7 +63,7 @@ use basset::hub::QueryMsg::{
 };
 use basset::hub::{
     AllHistoryResponse, ConfigResponse, CurrentBatchResponse, Cw20HookMsg, ExecuteMsg,
-    InstantiateMsg, Parameters, StateResponse, UnbondRequestsResponse,
+    InstantiateMsg, Parameters, QueryMsg, StateResponse, UnbondRequestsResponse,
     WithdrawableUnbondedResponse,
 };
 use cosmwasm_std::testing::{MockApi, MockStorage};
@@ -3804,7 +3804,6 @@ pub fn test_update_params() {
         unbonding_period: None,
         peg_recovery_fee: None,
         er_threshold: None,
-        paused: Some(false),
     };
     let owner = String::from("owner1");
     let token_contract = String::from("token");
@@ -3846,7 +3845,6 @@ pub fn test_update_params() {
         unbonding_period: Some(3),
         peg_recovery_fee: Some(Decimal::one()),
         er_threshold: Some(Decimal::zero()),
-        paused: Some(false),
     };
 
     //the result must be 1
@@ -3869,7 +3867,6 @@ pub fn test_update_params() {
         unbonding_period: None,
         peg_recovery_fee: Some(Decimal::from_str("1.1").unwrap()),
         er_threshold: None,
-        paused: Some(false),
     };
 
     let creator_info = mock_info(String::from("owner1").as_str(), &[]);
@@ -3885,7 +3882,6 @@ pub fn test_update_params() {
         unbonding_period: Some(3),
         peg_recovery_fee: Some(Decimal::one()),
         er_threshold: Some(Decimal::from_str("1.1").unwrap()),
-        paused: Some(false),
     };
 
     //the result must be 1
@@ -3918,7 +3914,6 @@ pub fn proper_recovery_fee() {
             Uint128::from(99u64),
             Uint128::from(100u64),
         )),
-        paused: Some(false),
     };
     let owner = String::from("owner1");
     let token_contract = String::from("token");
@@ -4217,7 +4212,6 @@ pub fn proper_update_config() {
         unbonding_period: None,
         peg_recovery_fee: None,
         er_threshold: None,
-        paused: Some(false),
     };
 
     let new_owner_info = mock_info(&new_owner, &[]);
@@ -4230,7 +4224,6 @@ pub fn proper_update_config() {
         unbonding_period: None,
         peg_recovery_fee: None,
         er_threshold: None,
-        paused: Some(false),
     };
 
     let new_owner_info = mock_info(&owner, &[]);
@@ -5064,17 +5057,11 @@ pub fn test_pause() {
     );
 
     // set paused = true
-    let update_prams = UpdateParams {
-        epoch_period: None,
-        unbonding_period: Some(3),
-        peg_recovery_fee: Some(Decimal::one()),
-        er_threshold: Some(Decimal::zero()),
-        paused: Some(true),
-    };
+    let pause_contracts = ExecuteMsg::PauseContracts {};
     let creator_info = mock_info(String::from("owner1").as_str(), &[]);
-    execute(deps.as_mut(), mock_env(), creator_info, update_prams).unwrap();
+    execute(deps.as_mut(), mock_env(), creator_info, pause_contracts).unwrap();
 
-    // try to run a not allowed action (anything but update config and migrate_unbond_wait_list),
+    // try to run a not allowed action (anything but migrate_unbond_wait_list),
     // should return an error
     let update_config = UpdateConfig {
         owner: Some(owner.clone()),
@@ -5092,15 +5079,9 @@ pub fn test_pause() {
     );
 
     // un-pause the contract
-    let update_prams = UpdateParams {
-        epoch_period: None,
-        unbonding_period: Some(3),
-        peg_recovery_fee: Some(Decimal::one()),
-        er_threshold: Some(Decimal::zero()),
-        paused: Some(false),
-    };
+    let unpause_contracts = ExecuteMsg::UnpauseContracts {};
     let creator_info = mock_info(String::from("owner1").as_str(), &[]);
-    execute(deps.as_mut(), mock_env(), creator_info, update_prams).unwrap();
+    execute(deps.as_mut(), mock_env(), creator_info, unpause_contracts).unwrap();
 
     // execute the same handler, should work
     let update_config = UpdateConfig {
@@ -5113,4 +5094,145 @@ pub fn test_pause() {
     };
     let info = mock_info(&owner, &[]);
     execute(deps.as_mut(), mock_env(), info, update_config).unwrap();
+}
+
+#[test]
+pub fn test_guardians() {
+    let mut deps = dependencies(&[]);
+
+    let _validator = sample_validator(DEFAULT_VALIDATOR);
+    set_validator_mock(&mut deps.querier);
+
+    let owner = String::from("owner1");
+    let token_contract = String::from("token");
+    let stluna_token_contract = String::from("stluna_token");
+    let reward_contract = String::from("reward");
+
+    let guardian1 = String::from("guardian1");
+    let guardian2 = String::from("guardian2");
+
+    initialize(
+        deps.borrow_mut(),
+        owner.clone(),
+        reward_contract,
+        token_contract,
+        stluna_token_contract,
+    );
+
+    // try to add guardians
+    // must fail, because only the owner can add guardians
+    let add_guardians = ExecuteMsg::AddGuardians {
+        addresses: vec![guardian1.clone(), guardian2.clone()],
+    };
+    let creator_info = mock_info(String::from("some_user").as_str(), &[]);
+    let res = execute(deps.as_mut(), mock_env(), creator_info, add_guardians);
+    assert_eq!(res.unwrap_err(), StdError::generic_err("unauthorized"));
+
+    // add guardians
+    let add_guardians = ExecuteMsg::AddGuardians {
+        addresses: vec![guardian1.clone(), guardian2.clone()],
+    };
+    let creator_info = mock_info(String::from("owner1").as_str(), &[]);
+    execute(deps.as_mut(), mock_env(), creator_info, add_guardians).unwrap();
+
+    let query_guardians = QueryMsg::Guardians {};
+    let guardians: Vec<String> =
+        from_binary(&query(deps.as_ref(), mock_env(), query_guardians).unwrap()).unwrap();
+    assert_eq!(guardians.len(), 2);
+    assert_eq!(guardians, vec![guardian1.clone(), guardian2.clone()]);
+
+    // set paused = true
+    let pause_contracts = ExecuteMsg::PauseContracts {};
+    let guardian_info = mock_info(guardian1.as_str(), &[]);
+    execute(deps.as_mut(), mock_env(), guardian_info, pause_contracts).unwrap();
+
+    // try to run a not allowed action (anything but migrate_unbond_wait_list),
+    // should return an error
+    let update_config = UpdateConfig {
+        owner: Some(owner.clone()),
+        rewards_dispatcher_contract: None,
+        bluna_token_contract: None,
+        airdrop_registry_contract: None,
+        validators_registry_contract: None,
+        stluna_token_contract: None,
+    };
+    let info = mock_info(&owner, &[]);
+    let res = execute(deps.as_mut(), mock_env(), info, update_config);
+    assert_eq!(
+        res.unwrap_err(),
+        StdError::generic_err("the contract is temporarily paused")
+    );
+
+    // guardians cannot unpause the contracts
+    let unpause_contracts = ExecuteMsg::UnpauseContracts {};
+    let creator_info = mock_info(guardian2.as_str(), &[]);
+    let res = execute(deps.as_mut(), mock_env(), creator_info, unpause_contracts);
+    assert_eq!(res.unwrap_err(), StdError::generic_err("unauthorized"));
+
+    // but the owner can
+    let unpause_contracts = ExecuteMsg::UnpauseContracts {};
+    let creator_info = mock_info(owner.as_str(), &[]);
+    execute(deps.as_mut(), mock_env(), creator_info, unpause_contracts).unwrap();
+
+    // check that contracts are unpaused
+    let update_config = UpdateConfig {
+        owner: Some(owner.clone()),
+        rewards_dispatcher_contract: None,
+        bluna_token_contract: None,
+        airdrop_registry_contract: None,
+        validators_registry_contract: None,
+        stluna_token_contract: None,
+    };
+    let info = mock_info(&owner, &[]);
+    execute(deps.as_mut(), mock_env(), info, update_config).unwrap();
+
+    // try to remove guardian
+    // must fail, because only the owner can remove guardians
+    let remove_guardian = ExecuteMsg::RemoveGuardians {
+        addresses: vec![guardian1.clone()],
+    };
+    let creator_info = mock_info(guardian2.as_str(), &[]);
+    let res = execute(deps.as_mut(), mock_env(), creator_info, remove_guardian);
+    assert_eq!(res.unwrap_err(), StdError::generic_err("unauthorized"));
+
+    // remove guardian
+    let remove_guardian = ExecuteMsg::RemoveGuardians {
+        addresses: vec![guardian1.clone()],
+    };
+    let creator_info = mock_info(String::from("owner1").as_str(), &[]);
+    execute(deps.as_mut(), mock_env(), creator_info, remove_guardian).unwrap();
+
+    let query_guardians = QueryMsg::Guardians {};
+    let guardians: Vec<String> =
+        from_binary(&query(deps.as_ref(), mock_env(), query_guardians).unwrap()).unwrap();
+    assert_eq!(guardians.len(), 1);
+    assert_eq!(guardians, vec![guardian2.clone()]);
+
+    // removed guardian cannot pause the contracts
+    let pause_contracts = ExecuteMsg::PauseContracts {};
+    let guardian_info = mock_info(guardian1.as_str(), &[]);
+    let res = execute(deps.as_mut(), mock_env(), guardian_info, pause_contracts);
+    assert_eq!(res.unwrap_err(), StdError::generic_err("unauthorized"));
+
+    // but the rest can
+    let pause_contracts = ExecuteMsg::PauseContracts {};
+    let guardian_info = mock_info(guardian2.as_str(), &[]);
+    execute(deps.as_mut(), mock_env(), guardian_info, pause_contracts).unwrap();
+
+    // try to run a not allowed action (anything but migrate_unbond_wait_list),
+    // should return an error
+    let update_config = UpdateConfig {
+        owner: Some(owner.clone()),
+        rewards_dispatcher_contract: None,
+        bluna_token_contract: None,
+        airdrop_registry_contract: None,
+        validators_registry_contract: None,
+        stluna_token_contract: None,
+    };
+    let info = mock_info(&owner, &[]);
+    let res = execute(deps.as_mut(), mock_env(), info, update_config);
+    assert_eq!(
+        res.unwrap_err(),
+        StdError::generic_err("the contract is temporarily paused")
+    );
 }

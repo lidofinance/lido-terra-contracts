@@ -14,18 +14,20 @@
 
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
+use std::string::FromUtf8Error;
 
 use cosmwasm_std::{
     attr, from_binary, to_binary, Binary, Coin, CosmosMsg, Decimal, Deps, DepsMut, DistributionMsg,
-    Env, MessageInfo, QueryRequest, Response, StakingMsg, StdError, StdResult, Uint128, WasmMsg,
-    WasmQuery,
+    Env, MessageInfo, Order, QueryRequest, Response, StakingMsg, StdError, StdResult, Uint128,
+    WasmMsg, WasmQuery,
 };
 
 use crate::config::{execute_update_config, execute_update_params};
 use crate::state::{
     all_unbond_history, get_unbond_requests, migrate_unbond_history, migrate_unbond_wait_lists,
-    query_get_finished_amount, read_validators, remove_whitelisted_validators_store, CONFIG,
-    CURRENT_BATCH, OLD_CONFIG, OLD_CURRENT_BATCH, OLD_STATE, PARAMETERS, STATE,
+    query_get_finished_amount, read_old_unbond_wait_lists, read_validators,
+    remove_whitelisted_validators_store, CONFIG, CURRENT_BATCH, GUARDIANS, OLD_CONFIG,
+    OLD_CURRENT_BATCH, OLD_STATE, PARAMETERS, STATE,
 };
 use crate::unbond::{execute_unbond, execute_unbond_stluna, execute_withdraw_unbonded};
 
@@ -112,24 +114,8 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
         return migrate_unbond_wait_lists(deps.storage, limit);
     }
 
-    if let ExecuteMsg::UpdateParams {
-        epoch_period,
-        unbonding_period,
-        peg_recovery_fee,
-        er_threshold,
-        paused,
-    } = msg
-    {
-        return execute_update_params(
-            deps,
-            env,
-            info,
-            epoch_period,
-            unbonding_period,
-            peg_recovery_fee,
-            er_threshold,
-            paused,
-        );
+    if let ExecuteMsg::UnpauseContracts = msg {
+        return execute_unpause_contracts(deps, env, info);
     }
 
     let params: Parameters = PARAMETERS.load(deps.storage)?;
@@ -152,7 +138,6 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
             unbonding_period,
             peg_recovery_fee,
             er_threshold,
-            paused,
         } => execute_update_params(
             deps,
             env,
@@ -161,7 +146,6 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
             unbonding_period,
             peg_recovery_fee,
             er_threshold,
-            paused,
         ),
         ExecuteMsg::UpdateConfig {
             owner,
@@ -214,7 +198,102 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
             redelegations,
         } => execute_redelegate_proxy(deps, env, info, src_validator, redelegations),
         ExecuteMsg::MigrateUnbondWaitList { limit: _ } => Err(StdError::generic_err("forbidden")),
+        ExecuteMsg::PauseContracts => execute_pause_contracts(deps, env, info),
+        ExecuteMsg::UnpauseContracts => execute_unpause_contracts(deps, env, info),
+        ExecuteMsg::AddGuardians { addresses } => execute_add_guardians(deps, env, info, addresses),
+        ExecuteMsg::RemoveGuardians { addresses } => {
+            execute_remove_guardians(deps, env, info, addresses)
+        }
     }
+}
+
+pub fn execute_add_guardians(
+    deps: DepsMut,
+    _env: Env,
+    info: MessageInfo,
+    guardians: Vec<String>,
+) -> StdResult<Response> {
+    let config = CONFIG.load(deps.storage)?;
+    let owner = deps.api.addr_humanize(&config.creator)?;
+
+    if info.sender != owner {
+        return Err(StdError::generic_err("unauthorized"));
+    }
+
+    for guardian in &guardians {
+        GUARDIANS.save(deps.storage, guardian.clone(), &true)?;
+    }
+
+    Ok(Response::new()
+        .add_attributes(vec![attr("action", "add_guardians")])
+        .add_attributes(guardians.iter().map(|g| attr("value", g))))
+}
+
+pub fn execute_remove_guardians(
+    deps: DepsMut,
+    _env: Env,
+    info: MessageInfo,
+    guardians: Vec<String>,
+) -> StdResult<Response> {
+    let config = CONFIG.load(deps.storage)?;
+    let owner = deps.api.addr_humanize(&config.creator)?;
+
+    if info.sender != owner {
+        return Err(StdError::generic_err("unauthorized"));
+    }
+
+    for guardian in &guardians {
+        GUARDIANS.remove(deps.storage, guardian.clone());
+    }
+
+    Ok(Response::new()
+        .add_attributes(vec![attr("action", "remove_guardians")])
+        .add_attributes(guardians.iter().map(|g| attr("value", g))))
+}
+
+pub fn execute_pause_contracts(deps: DepsMut, _env: Env, info: MessageInfo) -> StdResult<Response> {
+    let config = CONFIG.load(deps.storage)?;
+    let owner = deps.api.addr_humanize(&config.creator)?;
+
+    if !(info.sender == owner || GUARDIANS.has(deps.storage, info.sender.to_string())) {
+        return Err(StdError::generic_err("unauthorized"));
+    }
+
+    let mut params: Parameters = PARAMETERS.load(deps.storage)?;
+    params.paused = Some(true);
+
+    PARAMETERS.save(deps.storage, &params)?;
+
+    let res = Response::new().add_attributes(vec![attr("action", "pause_contracts")]);
+    Ok(res)
+}
+
+pub fn execute_unpause_contracts(
+    deps: DepsMut,
+    _env: Env,
+    info: MessageInfo,
+) -> StdResult<Response> {
+    let config = CONFIG.load(deps.storage)?;
+    let owner = deps.api.addr_humanize(&config.creator)?;
+
+    if info.sender != owner {
+        return Err(StdError::generic_err("unauthorized"));
+    }
+
+    let old_unbond_wait_list_entries = read_old_unbond_wait_lists(deps.storage, Some(1u32))?;
+    if !old_unbond_wait_list_entries.is_empty() {
+        return Err(StdError::generic_err(
+            "cannot unpause contract with old unbond wait lists",
+        ));
+    }
+
+    let mut params: Parameters = PARAMETERS.load(deps.storage)?;
+    params.paused = Some(false);
+
+    PARAMETERS.save(deps.storage, &params)?;
+
+    let res = Response::new().add_attributes(vec![attr("action", "unpause_contracts")]);
+    Ok(res)
 }
 
 pub fn execute_redelegate_proxy(
@@ -565,7 +644,14 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
         QueryMsg::AllHistory { start_from, limit } => {
             to_binary(&query_unbond_requests_limitation(deps, start_from, limit)?)
         }
+        QueryMsg::Guardians => to_binary(&query_guardians(deps)?),
     }
+}
+
+fn query_guardians(deps: Deps) -> StdResult<Vec<String>> {
+    let guardians = GUARDIANS.keys(deps.storage, None, None, Order::Ascending);
+    let a: Result<Vec<String>, FromUtf8Error> = guardians.map(String::from_utf8).collect();
+    Ok(a?)
 }
 
 fn query_config(deps: Deps) -> StdResult<ConfigResponse> {

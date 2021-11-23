@@ -20,7 +20,7 @@ use cosmwasm_std::{
 };
 use cosmwasm_storage::{Bucket, PrefixedStorage, ReadonlyBucket, ReadonlyPrefixedStorage};
 
-use cw_storage_plus::Item;
+use cw_storage_plus::{Item, Map};
 
 use basset::hub::{
     Config, CurrentBatch, OldConfig, OldCurrentBatch, OldState, Parameters, State, UnbondHistory,
@@ -31,6 +31,8 @@ pub const CONFIG: Item<Config> = Item::new("\u{0}\u{6}config");
 pub const PARAMETERS: Item<Parameters> = Item::new("\u{0}\u{b}parameteres");
 pub const CURRENT_BATCH: Item<CurrentBatch> = Item::new("\u{0}\u{d}current_batch");
 pub const STATE: Item<State> = Item::new("\u{0}\u{5}state");
+
+pub const GUARDIANS: Map<String, bool> = Map::new("guardians");
 
 pub const OLD_CONFIG: Item<OldConfig> = Item::new("\u{0}\u{6}config");
 pub const OLD_CURRENT_BATCH: Item<OldCurrentBatch> = Item::new("\u{0}\u{d}current_batch");

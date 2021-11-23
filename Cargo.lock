@@ -32,6 +32,7 @@ dependencies = [
  "cw20-base",
  "schemars 0.8.3",
  "serde",
+ "terra-cosmwasm",
 ]
 
 [[package]]

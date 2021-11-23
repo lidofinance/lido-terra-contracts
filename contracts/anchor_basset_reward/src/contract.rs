@@ -22,9 +22,11 @@ use crate::user::{
     query_accrued_rewards, query_holder, query_holders,
 };
 use cosmwasm_std::{
-    to_binary, Binary, Decimal, Deps, DepsMut, Env, MessageInfo, Response, StdResult, Uint128,
+    to_binary, Binary, Decimal, Deps, DepsMut, Env, MessageInfo, Response, StdError, StdResult,
+    Uint128,
 };
 
+use basset::hub::is_paused;
 use basset::reward::{
     ConfigResponse, ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg, StateResponse,
 };
@@ -62,6 +64,14 @@ pub fn execute(
     info: MessageInfo,
     msg: ExecuteMsg,
 ) -> StdResult<Response<TerraMsgWrapper>> {
+    let config: Config = read_config(deps.storage)?;
+    if is_paused(
+        deps.as_ref(),
+        deps.api.addr_humanize(&config.hub_contract)?.to_string(),
+    )? {
+        return Err(StdError::generic_err("the contract is temporarily paused"));
+    }
+
     match msg {
         ExecuteMsg::ClaimRewards { recipient } => execute_claim_rewards(deps, env, info, recipient),
         ExecuteMsg::SwapToRewardDenom {} => execute_swap(deps, env, info),

@@ -22,6 +22,7 @@ use cosmwasm_std::{
 
 use crate::msg::{ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg};
 use crate::state::{Config, CONFIG};
+use basset::hub::is_paused;
 use basset::hub::ExecuteMsg::{BondRewards, UpdateGlobalIndex};
 use basset::{compute_lido_fee, deduct_tax};
 use std::ops::Mul;
@@ -58,6 +59,38 @@ pub fn execute(
     info: MessageInfo,
     msg: ExecuteMsg,
 ) -> StdResult<Response<TerraMsgWrapper>> {
+    if let ExecuteMsg::UpdateConfig {
+        owner,
+        hub_contract,
+        bluna_reward_contract,
+        stluna_reward_denom,
+        bluna_reward_denom,
+        lido_fee_address,
+        lido_fee_rate,
+    } = msg
+    {
+        return execute_update_config(
+            deps,
+            env,
+            info,
+            owner,
+            hub_contract,
+            bluna_reward_contract,
+            stluna_reward_denom,
+            bluna_reward_denom,
+            lido_fee_address,
+            lido_fee_rate,
+        );
+    }
+
+    let config: Config = CONFIG.load(deps.storage)?;
+    if is_paused(
+        deps.as_ref(),
+        deps.api.addr_humanize(&config.hub_contract)?.to_string(),
+    )? {
+        return Err(StdError::generic_err("the contract is temporarily paused"));
+    }
+
     match msg {
         ExecuteMsg::SwapToRewardDenom {
             bluna_total_bonded: bluna_total_mint_amount,

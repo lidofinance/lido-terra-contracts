@@ -27,7 +27,7 @@ use basset::airdrop::{
     ANCAirdropHandleMsg, AirdropInfo, AirdropInfoElem, AirdropInfoResponse, ConfigResponse,
     ExecuteMsg, InstantiateMsg, MIRAirdropHandleMsg, PairHandleMsg, QueryMsg,
 };
-use basset::hub::ExecuteMsg as HubHandleMsg;
+use basset::hub::{is_paused, ExecuteMsg as HubHandleMsg};
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
@@ -92,6 +92,10 @@ fn execute_fabricate_mir_claim(
 ) -> StdResult<Response> {
     let config = read_config(deps.storage)?;
 
+    if is_paused(deps.as_ref(), config.hub_contract.clone())? {
+        return Err(StdError::generic_err("the contract is temporarily paused"));
+    }
+
     let mut messages: Vec<SubMsg> = vec![];
 
     let airdrop_info = read_airdrop_info(deps.storage, "MIR".to_string())?;
@@ -129,6 +133,10 @@ fn execute_fabricate_anchor_claim(
     proof: Vec<String>,
 ) -> StdResult<Response> {
     let config = read_config(deps.storage)?;
+
+    if is_paused(deps.as_ref(), config.hub_contract.clone())? {
+        return Err(StdError::generic_err("the contract is temporarily paused"));
+    }
 
     let mut messages: Vec<SubMsg> = vec![];
 
