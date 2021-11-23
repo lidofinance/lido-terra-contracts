@@ -183,7 +183,6 @@ pub enum ExecuteMsg {
     MigrateUnbondWaitList {
         limit: Option<u32>,
     },
-
     AddGuardians {
         addresses: Vec<String>,
     },

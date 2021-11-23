@@ -663,7 +663,7 @@ fn test_calculate_undelegations() {
     validators.sort_by(|v1, v2| v2.total_delegated.cmp(&v1.total_delegated));
 
     let undelegate_amount = Uint128::from(100u128);
-    let undelegations = calculate_undelegations(undelegate_amount, validators.as_slice()).unwrap();
+    let undelegations = calculate_undelegations(undelegate_amount, validators.clone()).unwrap();
 
     assert_eq!(
         validators.len(),
@@ -692,7 +692,7 @@ fn test_calculate_undelegations() {
     validators.sort_by(|v1, v2| v2.total_delegated.cmp(&v1.total_delegated));
 
     let undelegate_amount = Uint128::from(10u128);
-    let undelegations = calculate_undelegations(undelegate_amount, validators.as_slice()).unwrap();
+    let undelegations = calculate_undelegations(undelegate_amount, validators.clone()).unwrap();
 
     assert_eq!(
         validators.len(),
@@ -715,7 +715,7 @@ fn test_calculate_undelegations() {
     validators.sort_by(|v1, v2| v2.total_delegated.cmp(&v1.total_delegated));
 
     let undelegate_amount = Uint128::from(1000u128);
-    if let Some(e) = calculate_undelegations(undelegate_amount, validators.as_slice()).err() {
+    if let Some(e) = calculate_undelegations(undelegate_amount, validators.clone()).err() {
         assert_eq!(
             e,
             StdError::generic_err("undelegate amount can't be bigger than total delegated amount")
@@ -736,7 +736,7 @@ fn test_calculate_undelegations() {
     ];
 
     let undelegate_amount = Uint128::from(60u128);
-    let undelegations = calculate_undelegations(undelegate_amount, validators.as_slice()).unwrap();
+    let undelegations = calculate_undelegations(undelegate_amount, validators.clone()).unwrap();
     assert_eq!(
         validators.len(),
         undelegations.len(),
@@ -755,9 +755,19 @@ fn test_calculate_undelegations() {
         default_validator_with_delegations!(100),
     ];
     let undelegate_amount = Uint128::from(60u128);
-    // will fail because validators are unsorted
-    let undelegations = calculate_undelegations(undelegate_amount, validators.as_slice()).is_err();
-    assert!(undelegations);
+    let undelegations = calculate_undelegations(undelegate_amount, validators).unwrap();
+    let expected_undelegations: Vec<Uint128> = vec![
+        Uint128::from(0u128),
+        Uint128::from(13u128),
+        Uint128::from(47u128),
+    ];
+
+    for i in 0..expected_undelegations.len() {
+        assert_eq!(
+            undelegations[i], expected_undelegations[i],
+            "Delegation is not correct"
+        )
+    }
 }
 
 fn set_delegation_query(
