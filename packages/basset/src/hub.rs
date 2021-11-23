@@ -112,6 +112,7 @@ pub enum ExecuteMsg {
         unbonding_period: Option<u64>,
         peg_recovery_fee: Option<Decimal>,
         er_threshold: Option<Decimal>,
+        paused: Option<bool>,
     },
 
     ////////////////////
@@ -170,6 +171,12 @@ pub enum ExecuteMsg {
         src_validator: String,
         redelegations: Vec<(String, Coin)>, //(dst_validator, amount)
     },
+
+    // MigrateUnbondWaitList migrates a limited amount of old waitlist entries to
+    // the new state.
+    MigrateUnbondWaitList {
+        limit: Option<u32>,
+    },
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -186,6 +193,7 @@ pub struct Parameters {
     pub peg_recovery_fee: Decimal,
     pub er_threshold: Decimal,
     pub reward_denom: String,
+    pub paused: Option<bool>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

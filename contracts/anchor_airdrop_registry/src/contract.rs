@@ -157,6 +157,7 @@ fn execute_fabricate_anchor_claim(
         .add_submessages(messages)
         .add_attributes(vec![attr("action", "fabricate_anc_claim")]))
 }
+
 pub fn execute_update_config(
     deps: DepsMut,
     _env: Env,

@@ -90,6 +90,7 @@ pub fn instantiate(
         peg_recovery_fee: msg.peg_recovery_fee,
         er_threshold: msg.er_threshold.min(Decimal::one()),
         reward_denom: msg.reward_denom,
+        paused: Some(false),
     };
 
     PARAMETERS.save(deps.storage, &params)?;
@@ -107,6 +108,35 @@ pub fn instantiate(
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> StdResult<Response> {
+    if let ExecuteMsg::MigrateUnbondWaitList { limit } = msg {
+        return migrate_unbond_wait_lists(deps.storage, limit);
+    }
+
+    if let ExecuteMsg::UpdateParams {
+        epoch_period,
+        unbonding_period,
+        peg_recovery_fee,
+        er_threshold,
+        paused,
+    } = msg
+    {
+        return execute_update_params(
+            deps,
+            env,
+            info,
+            epoch_period,
+            unbonding_period,
+            peg_recovery_fee,
+            er_threshold,
+            paused,
+        );
+    }
+
+    let params: Parameters = PARAMETERS.load(deps.storage)?;
+    if params.paused.unwrap_or(false) {
+        return Err(StdError::generic_err("the contract is temporarily paused"));
+    }
+
     match msg {
         ExecuteMsg::Receive(msg) => receive_cw20(deps, env, info, msg),
         ExecuteMsg::Bond {} => execute_bond(deps, env, info, BondType::BLuna),
@@ -122,6 +152,7 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
             unbonding_period,
             peg_recovery_fee,
             er_threshold,
+            paused,
         } => execute_update_params(
             deps,
             env,
@@ -130,6 +161,7 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
             unbonding_period,
             peg_recovery_fee,
             er_threshold,
+            paused,
         ),
         ExecuteMsg::UpdateConfig {
             owner,
@@ -181,6 +213,7 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
             src_validator,
             redelegations,
         } => execute_redelegate_proxy(deps, env, info, src_validator, redelegations),
+        ExecuteMsg::MigrateUnbondWaitList { limit: _ } => Err(StdError::generic_err("forbidden")),
     }
 }
 
@@ -711,6 +744,18 @@ pub fn migrate(deps: DepsMut, _env: Env, msg: MigrateMsg) -> StdResult<Response>
     };
     CONFIG.save(deps.storage, &new_config)?;
 
+    let old_params = PARAMETERS.load(deps.storage)?;
+    let new_params = Parameters {
+        epoch_period: old_params.epoch_period,
+        underlying_coin_denom: old_params.underlying_coin_denom,
+        unbonding_period: old_params.unbonding_period,
+        peg_recovery_fee: old_params.peg_recovery_fee,
+        er_threshold: old_params.er_threshold,
+        reward_denom: old_params.reward_denom,
+        paused: Some(true), // We pause the contract to be able to safely migrate unbond wait lists.
+    };
+    PARAMETERS.save(deps.storage, &new_params)?;
+
     //migrate CurrentBatch
     let old_current_batch = OLD_CURRENT_BATCH.load(deps.storage)?;
     let new_current_batch = CurrentBatch {
@@ -751,10 +796,6 @@ pub fn migrate(deps: DepsMut, _env: Env, msg: MigrateMsg) -> StdResult<Response>
         address: msg.reward_dispatcher_contract,
     });
     messages.push(msg);
-
-    // migrate unbond waitlist
-    // update old values (Uint128) in PREFIX_WAIT_MAP storage to UnbondWaitEntity
-    migrate_unbond_wait_lists(deps.storage)?;
 
     // migrate unbond history
     migrate_unbond_history(deps.storage)?;

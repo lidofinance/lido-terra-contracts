@@ -1,9 +1,6 @@
-import {Coins, LocalTerra} from "@terra-money/terra.js";
+import {Coins, Key, LocalTerra, MnemonicKey, MsgSend} from "@terra-money/terra.js";
 import {executeContract, instantiateContract, migrateContract, storeCode} from "./common";
 const path = require('path');
-
-// Current contracts works with LocalTerra commit 1c3f42a60116b4c17cb5d002aa194eae9b8811b5 only (or older)
-// Cause the latest LocalTerra uses Bombay network and the contracts are incompatible with that yet
 
 const TERRA_ORIGINAL_HUB_CONTRACT = "anchor_basset_hub.wasm"
 const TERRA_ORIGINAL_REWARD_CONTRACT = "anchor_basset_reward.wasm"
@@ -25,7 +22,7 @@ async function main(): Promise<void> {
   let originalBlunaTokenCodeId = await storeCode(terra, test1, path.join(TERRA_ORIGINAL_CONTRACTS_FOLDER, TERRA_ORIGINAL_TOKEN_CONTRACT))
 
   let hubAddress = await instantiateContract(terra, test1, originalHubCodeId,
-    {epoch_period: 30, er_threshold: "1.0", peg_recovery_fee: "0", reward_denom: "uusd", unbonding_period: 2, underlying_coin_denom: "uluna", validator: "terravaloper1dcegyrekltswvyy0xy69ydgxn9x8x32zdy3ua5"}, new Coins({uluna: 1000000}))
+    {epoch_period: 300, er_threshold: "1.0", peg_recovery_fee: "0", reward_denom: "uusd", unbonding_period: 6, underlying_coin_denom: "uluna", validator: "terravaloper1dcegyrekltswvyy0xy69ydgxn9x8x32zdy3ua5"}, new Coins({uluna: 1000000}))
 
   let rewardAddress = await instantiateContract(terra, test1, originalRewardCodeId,
     {hub_contract: hubAddress, reward_denom: "uusd"}, new Coins({}))
@@ -38,10 +35,26 @@ async function main(): Promise<void> {
   await executeContract(terra, test1, hubAddress, {
     update_config: {token_contract: blunaTokenAddress, reward_contract: rewardAddress}}, new Coins({}))
 
-  
-  await executeContract(terra, test1, hubAddress, {bond: {validator: "terravaloper1dcegyrekltswvyy0xy69ydgxn9x8x32zdy3ua5"}}, new Coins({uluna: 1000000}))
-  await executeContract(terra, test1, blunaTokenAddress, {send: {contract: hubAddress, amount: "1000000",
-      msg: Buffer.from(JSON.stringify({"unbond": {}})).toString('base64')}}, new Coins({}))
+  let wallets = [];
+  // simulate large unbond queue from many users
+  for (let i = 0; i < 3000; i++ ) {
+    let wallet = terra.wallet(new MnemonicKey());
+    const send = await test1.createAndSignTx({msgs: [new MsgSend(
+      test1.key.accAddress,
+      wallet.key.accAddress,
+      { uluna: 1000000000, uusd: 1000000000}
+    )]});
+    await terra.tx.broadcast(send);
+
+    await executeContract(terra, wallet, hubAddress, {bond: {validator: "terravaloper1dcegyrekltswvyy0xy69ydgxn9x8x32zdy3ua5"}}, new Coins({uluna: 1000000000}))
+
+    await executeContract(terra, wallet, blunaTokenAddress, {send: {contract: hubAddress, amount: "100",
+        msg: Buffer.from(JSON.stringify({"unbond": {}})).toString('base64')}}, new Coins({}));
+
+    console.log("UNBOND REQUEST NUMBER #", i, "from address ", wallet.key.accAddress);
+
+    wallets.push(wallet);
+  }
 
   console.log()
   console.log("Starting migration process...")
@@ -77,6 +90,13 @@ async function main(): Promise<void> {
   })
   console.log("Done")
 
+  try {
+    await executeContract(terra, test1, hubAddress, {withdraw_unbonded: {}}, new Coins({}));
+  } catch (e) {
+    // the hub is paused
+    console.log("Error: ", e.response.data.error)
+  }
+
   console.log("Migrating rewards...")
   await migrateContract(terra, test1, rewardAddress, newRewardCodeId, {})
   console.log("Done")
@@ -84,6 +104,18 @@ async function main(): Promise<void> {
   console.log("Migrating bLuna token...")
   await migrateContract(terra, test1, blunaTokenAddress, newBlunaTokenCodeId, {})
   console.log("Done")
+
+  for (let i = 0; i < 4; i++ ) {
+    try {
+      await executeContract(terra, test1, hubAddress, {
+        update_params: {paused: false}}, new Coins({}));
+    } catch (e) {
+      // cannot unpause the hub with old unbond wait lists
+      console.log("Error: ", e.response.data.error)
+    }
+    let response = await executeContract(terra, test1, hubAddress, {migrate_unbond_wait_list: {limit: 1000}}, new Coins({}));
+    console.log(response.raw_log);
+  }
 
   console.log()
 
@@ -94,9 +126,19 @@ async function main(): Promise<void> {
   console.log(`BLUNA_TOKEN_CONTRACT = ${blunaTokenAddress}`)
   console.log(`STLUNA_TOKEN_CONTRACT = ${stlunaTokenAddress}`)
 
+  await new Promise(r => setTimeout(r, 10000));
+
+  await executeContract(terra, test1, hubAddress, {bond: {validator: "terravaloper1dcegyrekltswvyy0xy69ydgxn9x8x32zdy3ua5"}}, new Coins({uluna: 1000000000}))
+  await executeContract(terra, test1, blunaTokenAddress, {send: {contract: hubAddress, amount: "100",
+      msg: Buffer.from(JSON.stringify({"unbond": {}})).toString('base64')}}, new Coins({}));
+
 
   //just a few simple tests to make sure the contracts are not failing
   //for more accurate tests we must use integration-tests repo
+  for (let i = 0; i < 100; i++ ) {
+    await executeContract(terra, wallets[i], hubAddress, {withdraw_unbonded: {}}, new Coins({}));
+  }
+
   await executeContract(terra, test1, hubAddress, {bond_for_st_luna: {}}, new Coins({uluna: 1000000}))
   await executeContract(terra, test1, hubAddress, {bond: {}}, new Coins({uluna: 1000000}))
 
