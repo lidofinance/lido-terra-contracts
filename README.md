@@ -87,7 +87,7 @@ The current *bLuna* design consists of three contracts:
 2. A new token is added, *stLuna*. The token is accounted by a new (additional) contract. Note that *stLuna* balace is fixed (i.e., token balance equals the number of shares burned).
 I.e., *stLuna* represents a (non-normalized) share of total staked Luna in that contract. E.g. if a person has 1 *stLuna* and total *stLuna* supply is 50, he has  *1 / 50 = 2%* share of all the staked Luna in that contract. If the total staked luna in contract is 100000, his share represents 2000 Luna staked;
 2. The user can choose whether they want to mint *bLuna* or *stLuna* tokens when submitting his assets to the hub;
-3. A new contact is added: the *Rewards Dispatcher*. It accumulates the rewards from Hub's delegations and manages the rewards;
+3. A new contract is added: the *Rewards Dispatcher*. It accumulates the rewards from Hub's delegations and manages the rewards;
 4. All rewards from *stLuna* tokens (the share of all rewards proportional to the amount of *stLuna* tokens minteds) are converted to Luna and are re-delegated back to the validators pool;
 5. All rewards from *bLuna* (the share of all rewards proportional to the amount of *bLuna* tokens minted) are hadled the old way;
 6. An *x%* Lido rewards fee is added;
