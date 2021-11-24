@@ -17,8 +17,6 @@ use crate::state::{
     get_finished_amount, read_unbond_history, remove_unbond_wait_list, store_unbond_history,
     store_unbond_wait_list, CONFIG, CURRENT_BATCH, PARAMETERS, STATE,
 };
-use lido_terra_validators_registry::common::calculate_undelegations;
-use lido_terra_validators_registry::registry::ValidatorResponse;
 use basset::hub::{CurrentBatch, State, UnbondHistory, UnbondType};
 use cosmwasm_bignumber::{Decimal256, Uint256};
 use cosmwasm_std::{
@@ -26,6 +24,8 @@ use cosmwasm_std::{
     StakingMsg, StdError, StdResult, Storage, Uint128, WasmMsg,
 };
 use cw20::Cw20ExecuteMsg;
+use lido_terra_validators_registry::common::calculate_undelegations;
+use lido_terra_validators_registry::registry::ValidatorResponse;
 use signed_integer::SignedInt;
 
 /// This message must be call by receive_cw20

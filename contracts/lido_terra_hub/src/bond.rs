@@ -15,15 +15,15 @@
 use crate::contract::{query_total_bluna_issued, query_total_stluna_issued, slashing};
 use crate::math::decimal_division;
 use crate::state::{CONFIG, CURRENT_BATCH, PARAMETERS, STATE};
-use lido_terra_validators_registry::common::calculate_delegations;
-use lido_terra_validators_registry::msg::QueryMsg as QueryValidators;
-use lido_terra_validators_registry::registry::ValidatorResponse;
 use basset::hub::BondType;
 use cosmwasm_std::{
     attr, to_binary, Coin, CosmosMsg, DepsMut, Env, MessageInfo, QueryRequest, Response,
     StakingMsg, StdError, StdResult, Uint128, WasmMsg, WasmQuery,
 };
 use cw20::Cw20ExecuteMsg;
+use lido_terra_validators_registry::common::calculate_delegations;
+use lido_terra_validators_registry::msg::QueryMsg as QueryValidators;
+use lido_terra_validators_registry::registry::ValidatorResponse;
 
 pub fn execute_bond(
     mut deps: DepsMut,

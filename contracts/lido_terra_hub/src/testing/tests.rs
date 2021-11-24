@@ -30,13 +30,13 @@
 //!          //...
 //!      });
 //! 4. Anywhere you see query(deps.as_ref(), ...) you must replace it with query(deps.as_mut(), ...)
-use lido_terra_validators_registry::msg::QueryMsg as QueryValidators;
-use lido_terra_validators_registry::registry::ValidatorResponse as RegistryValidator;
 use cosmwasm_std::{
     coin, coins, from_binary, to_binary, to_vec, Addr, Api, BankMsg, Coin, CosmosMsg, Decimal,
     DepsMut, DistributionMsg, Env, FullDelegation, MessageInfo, OwnedDeps, Querier, QueryRequest,
     Response, StakingMsg, StdError, StdResult, Storage, Uint128, Validator, WasmMsg, WasmQuery,
 };
+use lido_terra_validators_registry::msg::QueryMsg as QueryValidators;
+use lido_terra_validators_registry::registry::ValidatorResponse as RegistryValidator;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -51,8 +51,8 @@ use cw20_base::msg::ExecuteMsg::{Burn, Mint};
 use super::mock_querier::{mock_dependencies as dependencies, WasmMockQuerier};
 use crate::math::decimal_division;
 use crate::state::{read_unbond_wait_list, CONFIG, OLD_PREFIX_WAIT_MAP, PARAMETERS, STATE};
-use lido_terra_rewards_dispatcher::msg::ExecuteMsg::{DispatchRewards, SwapToRewardDenom};
 use basset::airdrop::PairHandleMsg;
+use lido_terra_rewards_dispatcher::msg::ExecuteMsg::{DispatchRewards, SwapToRewardDenom};
 
 use basset::airdrop::ExecuteMsg::{FabricateANCClaim, FabricateMIRClaim};
 use basset::hub::Cw20HookMsg::Unbond;

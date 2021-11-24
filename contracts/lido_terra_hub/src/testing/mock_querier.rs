@@ -12,7 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use lido_terra_validators_registry::registry::ValidatorResponse as RegistryValidator;
 use cosmwasm_std::testing::{MockApi, MockQuerier, MockStorage};
 use cosmwasm_std::{
     from_binary, from_slice, to_binary, to_vec, Addr, AllBalanceResponse, Api, BalanceResponse,
@@ -22,6 +21,7 @@ use cosmwasm_std::{
 };
 use cosmwasm_storage::to_length_prefixed;
 use cw20_base::state::{MinterData, TokenInfo};
+use lido_terra_validators_registry::registry::ValidatorResponse as RegistryValidator;
 use std::collections::HashMap;
 
 use basset::hub::Config;

@@ -12,13 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use lido_terra_rewards_dispatcher::state::Config as RewardsDispatcherConfig;
 use basset::hub::ConfigResponse;
 use cosmwasm_std::testing::{MockApi, MockQuerier, MockStorage, MOCK_CONTRACT_ADDR};
 use cosmwasm_std::{
     from_slice, to_binary, Api, Coin, ContractResult, Decimal, Empty, OwnedDeps, Querier,
     QuerierResult, QueryRequest, SystemError, SystemResult, WasmQuery,
 };
+use lido_terra_rewards_dispatcher::state::Config as RewardsDispatcherConfig;
 
 pub const MOCK_OWNER_ADDR: &str = "owner";
 pub const MOCK_HUB_CONTRACT_ADDR: &str = "hub";

@@ -31,9 +31,6 @@ use crate::unbond::{execute_unbond, execute_unbond_stluna, execute_withdraw_unbo
 
 use crate::bond::execute_bond;
 use crate::convert::{convert_bluna_stluna, convert_stluna_bluna};
-use lido_terra_rewards_dispatcher::msg::ExecuteMsg::{DispatchRewards, SwapToRewardDenom};
-use lido_terra_validators_registry::msg::ExecuteMsg::AddValidator;
-use lido_terra_validators_registry::registry::Validator;
 use basset::hub::ExecuteMsg::SwapHook;
 use basset::hub::{
     AllHistoryResponse, BondType, Config, ConfigResponse, CurrentBatch, CurrentBatchResponse,
@@ -42,6 +39,9 @@ use basset::hub::{
 };
 use basset::hub::{Cw20HookMsg, ExecuteMsg};
 use cw20::{BalanceResponse, Cw20ExecuteMsg, Cw20QueryMsg, Cw20ReceiveMsg, TokenInfoResponse};
+use lido_terra_rewards_dispatcher::msg::ExecuteMsg::{DispatchRewards, SwapToRewardDenom};
+use lido_terra_validators_registry::msg::ExecuteMsg::AddValidator;
+use lido_terra_validators_registry::registry::Validator;
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(

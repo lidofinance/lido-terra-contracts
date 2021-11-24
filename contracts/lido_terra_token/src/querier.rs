@@ -15,9 +15,9 @@
 use cosmwasm_std::{to_binary, Addr, DepsMut, QueryRequest, StdError, StdResult, WasmQuery};
 
 use crate::state::read_hub_contract;
+use basset::hub::{ConfigResponse, QueryMsg as HubQueryMsg};
 use lido_terra_rewards_dispatcher::msg::QueryMsg as RewardsDispatcherQueryMsg;
 use lido_terra_rewards_dispatcher::state::Config as RewardsDispatcherConfig;
-use basset::hub::{ConfigResponse, QueryMsg as HubQueryMsg};
 
 pub fn query_reward_contract(deps: &DepsMut) -> StdResult<Addr> {
     let hub_address = deps.api.addr_humanize(&read_hub_contract(deps.storage)?)?;
