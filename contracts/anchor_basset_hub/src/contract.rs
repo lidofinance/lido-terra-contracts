@@ -664,8 +664,9 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
 
 fn query_guardians(deps: Deps) -> StdResult<Vec<String>> {
     let guardians = GUARDIANS.keys(deps.storage, None, None, Order::Ascending);
-    let a: Result<Vec<String>, FromUtf8Error> = guardians.map(String::from_utf8).collect();
-    Ok(a?)
+    let guardians_decoded: Result<Vec<String>, FromUtf8Error> =
+        guardians.map(String::from_utf8).collect();
+    Ok(guardians_decoded?)
 }
 
 fn query_config(deps: Deps) -> StdResult<ConfigResponse> {
