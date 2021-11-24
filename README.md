@@ -8,13 +8,13 @@ You can find information about the architecture, usage, and function of the smar
 ## Contracts
 | Contract                                            | Reference                                              | Description                                                                                                                        |
 | --------------------------------------------------- | ------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------- |
-| [`lido_terra_hub`](https://github.com/lidofinance/lido-terra-contracts/tree/master/contracts/lido_terra_hub)|[doc](https://docs.anchorprotocol/contracts/lido_terra_hub)| Manages minted bLunas and bonded Lunas
-| [`lido_terra_reward`](https://github.com/lidofinance/lido-terra-contracts/tree/master/contracts/lido_terra_reward)|[doc](https://docs.anchorprotocol/contracts/lido_terra_reward)|Manages the distribution of delegation rewards
-| [`lido_terra_token`](https://github.com/lidofinance/lido-terra-contracts/tree/master/contracts/lido_terra_token)| [doc](https://docs.anchorprotocol/contracts/lido_terra_token)|CW20 compliance
-| [`anchor_airdrop_registery`](https://github.com/lidofinance/lido-terra-contracts/tree/master/contracts/lido_terra_airdrop_registry)| [doc](https://docs.anchorprotocol/contracts/lido_terra_airdrop_registry)|Manages message fabricators for MIR and ANC airdrops
-| [`lido_terra_rewards_dispatcher`](https://github.com/lidofinance/lido-terra-contracts/tree/master/contracts/lido_terra_rewards_dispatcher)| [doc](https://docs.anchorprotocol/contracts/lido_terra_airdrop_registry)|Accumulates the rewards from Hub's delegations and manages the rewards
-| [`st_luna`](https://github.com/lidofinance/lido-terra-contracts/tree/master/contracts/st_luna)| [doc](https://docs.anchorprotocol/contracts/lido_terra_airdrop_registry)|CW20 compliance for stluna
-| [`validators-registry`](https://github.com/lidofinance/lido-terra-contracts/tree/master/contracts/validators-registry)| [doc](https://docs.anchorprotocol/contracts/lido_terra_airdrop_registry)|Approved validators whitelist
+| [`lido_terra_hub`](https://github.com/lidofinance/lido-terra-contracts/tree/master/contracts/lido_terra_hub)|[doc](https://lidofinance.github.io/terra-docs/contracts/hub)| Manages minted bLunas and bonded Lunas
+| [`lido_terra_reward`](https://github.com/lidofinance/lido-terra-contracts/tree/master/contracts/lido_terra_reward)|[doc](https://lidofinance.github.io/terra-docs/contracts/reward)|Manages the distribution of delegation rewards
+| [`lido_terra_token`](https://github.com/lidofinance/lido-terra-contracts/tree/master/contracts/lido_terra_token)| [doc](https://lidofinance.github.io/terra-docs/contracts/stLuna_and_bLuna)|CW20 compliance
+| [`anchor_airdrop_registery`](https://github.com/lidofinance/lido-terra-contracts/tree/master/contracts/lido_terra_airdrop_registry)| [doc](https://lidofinance.github.io/terra-docs/contracts/airdrop-registry)|Manages message fabricators for MIR and ANC airdrops
+| [`lido_terra_rewards_dispatcher`](https://github.com/lidofinance/lido-terra-contracts/tree/master/contracts/lido_terra_rewards_dispatcher)| [doc](https://lidofinance.github.io/terra-docs/contracts/rewards_dispatcher)|Accumulates the rewards from Hub's delegations and manages the rewards
+| [`st_luna`](https://github.com/lidofinance/lido-terra-contracts/tree/master/contracts/st_luna)| [doc](https://lidofinance.github.io/terra-docs/contracts/stLuna_and_bLuna)|CW20 compliance for stluna
+| [`validators-registry`](https://github.com/lidofinance/lido-terra-contracts/tree/master/contracts/validators-registry)| [doc](https://lidofinance.github.io/terra-docs/contracts/validators_registry)|Approved validators whitelist
 ## Development
 
 ### Environment Setup
