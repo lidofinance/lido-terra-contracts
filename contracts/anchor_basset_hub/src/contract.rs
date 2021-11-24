@@ -110,19 +110,6 @@ pub fn instantiate(
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> StdResult<Response> {
-    if let ExecuteMsg::MigrateUnbondWaitList { limit } = msg {
-        return migrate_unbond_wait_lists(deps.storage, limit);
-    }
-
-    if let ExecuteMsg::UnpauseContracts = msg {
-        return execute_unpause_contracts(deps, env, info);
-    }
-
-    let params: Parameters = PARAMETERS.load(deps.storage)?;
-    if params.paused.unwrap_or(false) {
-        return Err(StdError::generic_err("the contract is temporarily paused"));
-    }
-
     match msg {
         ExecuteMsg::Receive(msg) => receive_cw20(deps, env, info, msg),
         ExecuteMsg::Bond {} => execute_bond(deps, env, info, BondType::BLuna),
@@ -197,9 +184,11 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
             src_validator,
             redelegations,
         } => execute_redelegate_proxy(deps, env, info, src_validator, redelegations),
-        ExecuteMsg::MigrateUnbondWaitList { limit: _ } => Err(StdError::generic_err("forbidden")),
-        ExecuteMsg::PauseContracts => execute_pause_contracts(deps, env, info),
-        ExecuteMsg::UnpauseContracts => execute_unpause_contracts(deps, env, info),
+        ExecuteMsg::MigrateUnbondWaitList { limit } => {
+            migrate_unbond_wait_lists(deps.storage, limit)
+        }
+        ExecuteMsg::PauseContracts {} => execute_pause_contracts(deps, env, info),
+        ExecuteMsg::UnpauseContracts {} => execute_unpause_contracts(deps, env, info),
         ExecuteMsg::AddGuardians { addresses } => execute_add_guardians(deps, env, info, addresses),
         ExecuteMsg::RemoveGuardians { addresses } => {
             execute_remove_guardians(deps, env, info, addresses)
@@ -337,6 +326,11 @@ pub fn receive_cw20(
     info: MessageInfo,
     cw20_msg: Cw20ReceiveMsg,
 ) -> StdResult<Response> {
+    let params: Parameters = PARAMETERS.load(deps.storage)?;
+    if params.paused.unwrap_or(false) {
+        return Err(StdError::generic_err("the contract is temporarily paused"));
+    }
+
     let contract_addr = deps.api.addr_canonicalize(info.sender.as_str())?;
 
     // only token contract can execute this message
@@ -388,6 +382,11 @@ pub fn execute_update_global(
     _info: MessageInfo,
     airdrop_hooks: Option<Vec<Binary>>,
 ) -> StdResult<Response> {
+    let params: Parameters = PARAMETERS.load(deps.storage)?;
+    if params.paused.unwrap_or(false) {
+        return Err(StdError::generic_err("the contract is temporarily paused"));
+    }
+
     let mut messages: Vec<CosmosMsg> = vec![];
 
     let config = CONFIG.load(deps.storage)?;
@@ -532,6 +531,11 @@ pub fn claim_airdrop(
     claim_msg: Binary,
     swap_msg: Binary,
 ) -> StdResult<Response> {
+    let params: Parameters = PARAMETERS.load(deps.storage)?;
+    if params.paused.unwrap_or(false) {
+        return Err(StdError::generic_err("the contract is temporarily paused"));
+    }
+
     let conf = CONFIG.load(deps.storage)?;
 
     let sender_raw = deps.api.addr_canonicalize(info.sender.as_str())?;
@@ -578,6 +582,11 @@ pub fn swap_hook(
     airdrop_swap_contract: String,
     swap_msg: Binary,
 ) -> StdResult<Response> {
+    let params: Parameters = PARAMETERS.load(deps.storage)?;
+    if params.paused.unwrap_or(false) {
+        return Err(StdError::generic_err("the contract is temporarily paused"));
+    }
+
     if info.sender != env.contract.address {
         return Err(StdError::generic_err("unauthorized"));
     }
@@ -615,6 +624,11 @@ pub fn swap_hook(
 
 /// Handler for tracking slashing
 pub fn execute_slashing(mut deps: DepsMut, env: Env) -> StdResult<Response> {
+    let params: Parameters = PARAMETERS.load(deps.storage)?;
+    if params.paused.unwrap_or(false) {
+        return Err(StdError::generic_err("the contract is temporarily paused"));
+    }
+
     // call slashing and
     let state = slashing(&mut deps, env)?;
     Ok(Response::new().add_attributes(vec![

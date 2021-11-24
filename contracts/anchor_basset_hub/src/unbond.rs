@@ -19,7 +19,7 @@ use crate::state::{
 };
 use anchor_basset_validators_registry::common::calculate_undelegations;
 use anchor_basset_validators_registry::registry::ValidatorResponse;
-use basset::hub::{CurrentBatch, State, UnbondHistory, UnbondType};
+use basset::hub::{CurrentBatch, Parameters, State, UnbondHistory, UnbondType};
 use cosmwasm_bignumber::{Decimal256, Uint256};
 use cosmwasm_std::{
     attr, coin, coins, to_binary, BankMsg, CosmosMsg, Decimal, DepsMut, Env, MessageInfo, Response,
@@ -123,11 +123,15 @@ pub fn execute_withdraw_unbonded(
     env: Env,
     info: MessageInfo,
 ) -> StdResult<Response> {
+    let params: Parameters = PARAMETERS.load(deps.storage)?;
+    if params.paused.unwrap_or(false) {
+        return Err(StdError::generic_err("the contract is temporarily paused"));
+    }
+
     let sender_human = info.sender;
     let contract_address = env.contract.address.clone();
 
     // read params
-    let params = PARAMETERS.load(deps.storage)?;
     let unbonding_period = params.unbonding_period;
     let coin_denom = params.underlying_coin_denom;
 

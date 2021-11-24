@@ -32,6 +32,7 @@ pub const PARAMETERS: Item<Parameters> = Item::new("\u{0}\u{b}parameteres");
 pub const CURRENT_BATCH: Item<CurrentBatch> = Item::new("\u{0}\u{d}current_batch");
 pub const STATE: Item<State> = Item::new("\u{0}\u{5}state");
 
+// Contains whitelisted address which are allowed to pause (but not unpause) the contracts
 pub const GUARDIANS: Map<String, bool> = Map::new("guardians");
 
 pub const OLD_CONFIG: Item<OldConfig> = Item::new("\u{0}\u{6}config");

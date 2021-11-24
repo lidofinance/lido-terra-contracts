@@ -108,7 +108,7 @@ async function main(): Promise<void> {
   for (let i = 0; i < 4; i++ ) {
     try {
       await executeContract(terra, test1, hubAddress, {
-        update_params: {paused: false}}, new Coins({}));
+        unpause_contracts: {}}, new Coins({}));
     } catch (e) {
       // cannot unpause the hub with old unbond wait lists
       console.log("Error: ", e.response.data.error)

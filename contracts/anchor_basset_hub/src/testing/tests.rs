@@ -56,7 +56,9 @@ use basset::airdrop::PairHandleMsg;
 
 use basset::airdrop::ExecuteMsg::{FabricateANCClaim, FabricateMIRClaim};
 use basset::hub::Cw20HookMsg::Unbond;
-use basset::hub::ExecuteMsg::{CheckSlashing, Receive, UpdateConfig, UpdateParams};
+use basset::hub::ExecuteMsg::{
+    CheckSlashing, Receive, UpdateConfig, UpdateGlobalIndex, UpdateParams,
+};
 use basset::hub::QueryMsg::{
     AllHistory, Config, CurrentBatch, Parameters as Params, State, UnbondRequests,
     WithdrawableUnbonded,
@@ -5064,16 +5066,11 @@ pub fn test_pause() {
 
     // try to run a not allowed action (anything but migrate_unbond_wait_list),
     // should return an error
-    let update_config = UpdateConfig {
-        owner: Some(owner.clone()),
-        rewards_dispatcher_contract: None,
-        bluna_token_contract: None,
-        airdrop_registry_contract: None,
-        validators_registry_contract: None,
-        stluna_token_contract: None,
+    let update_global = UpdateGlobalIndex {
+        airdrop_hooks: None,
     };
     let info = mock_info(&owner, &[]);
-    let res = execute(deps.as_mut(), mock_env(), info, update_config);
+    let res = execute(deps.as_mut(), mock_env(), info, update_global);
     assert_eq!(
         res.unwrap_err(),
         StdError::generic_err("the contract is temporarily paused")
@@ -5085,16 +5082,11 @@ pub fn test_pause() {
     execute(deps.as_mut(), mock_env(), creator_info, unpause_contracts).unwrap();
 
     // execute the same handler, should work
-    let update_config = UpdateConfig {
-        owner: Some(owner.clone()),
-        rewards_dispatcher_contract: None,
-        bluna_token_contract: None,
-        airdrop_registry_contract: None,
-        validators_registry_contract: None,
-        stluna_token_contract: None,
+    let update_global = UpdateGlobalIndex {
+        airdrop_hooks: None,
     };
     let info = mock_info(&owner, &[]);
-    execute(deps.as_mut(), mock_env(), info, update_config).unwrap();
+    execute(deps.as_mut(), mock_env(), info, update_global).unwrap();
 
     let batch = to_vec("batch_id").unwrap();
     let addr = to_vec("sender_address").unwrap();
@@ -5109,12 +5101,12 @@ pub fn test_pause() {
         .unwrap();
 
     // set paused = true
-    let pause_contracts = ExecuteMsg::PauseContracts;
+    let pause_contracts = ExecuteMsg::PauseContracts {};
     let creator_info = mock_info(String::from("owner1").as_str(), &[]);
     execute(deps.as_mut(), mock_env(), creator_info, pause_contracts).unwrap();
 
     // try to un-pause the contract (should fail)
-    let unpause_contracts = ExecuteMsg::UnpauseContracts;
+    let unpause_contracts = ExecuteMsg::UnpauseContracts {};
     let creator_info = mock_info(String::from("owner1").as_str(), &[]);
     let res = execute(deps.as_mut(), mock_env(), creator_info, unpause_contracts);
     assert_eq!(
@@ -5128,7 +5120,7 @@ pub fn test_pause() {
     position_indexer.remove(&batch);
 
     // try to un-pause the contract (should be ok)
-    let unpause_contracts = ExecuteMsg::UnpauseContracts;
+    let unpause_contracts = ExecuteMsg::UnpauseContracts {};
     let creator_info = mock_info(String::from("owner1").as_str(), &[]);
     execute(deps.as_mut(), mock_env(), creator_info, unpause_contracts).unwrap();
 }
@@ -5185,16 +5177,11 @@ pub fn test_guardians() {
 
     // try to run a not allowed action (anything but migrate_unbond_wait_list),
     // should return an error
-    let update_config = UpdateConfig {
-        owner: Some(owner.clone()),
-        rewards_dispatcher_contract: None,
-        bluna_token_contract: None,
-        airdrop_registry_contract: None,
-        validators_registry_contract: None,
-        stluna_token_contract: None,
+    let update_global = UpdateGlobalIndex {
+        airdrop_hooks: None,
     };
     let info = mock_info(&owner, &[]);
-    let res = execute(deps.as_mut(), mock_env(), info, update_config);
+    let res = execute(deps.as_mut(), mock_env(), info, update_global);
     assert_eq!(
         res.unwrap_err(),
         StdError::generic_err("the contract is temporarily paused")
@@ -5212,16 +5199,11 @@ pub fn test_guardians() {
     execute(deps.as_mut(), mock_env(), creator_info, unpause_contracts).unwrap();
 
     // check that contracts are unpaused
-    let update_config = UpdateConfig {
-        owner: Some(owner.clone()),
-        rewards_dispatcher_contract: None,
-        bluna_token_contract: None,
-        airdrop_registry_contract: None,
-        validators_registry_contract: None,
-        stluna_token_contract: None,
+    let update_global = UpdateGlobalIndex {
+        airdrop_hooks: None,
     };
     let info = mock_info(&owner, &[]);
-    execute(deps.as_mut(), mock_env(), info, update_config).unwrap();
+    execute(deps.as_mut(), mock_env(), info, update_global).unwrap();
 
     // try to remove guardian
     // must fail, because only the owner can remove guardians
@@ -5258,16 +5240,11 @@ pub fn test_guardians() {
 
     // try to run a not allowed action (anything but migrate_unbond_wait_list),
     // should return an error
-    let update_config = UpdateConfig {
-        owner: Some(owner.clone()),
-        rewards_dispatcher_contract: None,
-        bluna_token_contract: None,
-        airdrop_registry_contract: None,
-        validators_registry_contract: None,
-        stluna_token_contract: None,
+    let update_global = UpdateGlobalIndex {
+        airdrop_hooks: None,
     };
     let info = mock_info(&owner, &[]);
-    let res = execute(deps.as_mut(), mock_env(), info, update_config);
+    let res = execute(deps.as_mut(), mock_env(), info, update_global);
     assert_eq!(
         res.unwrap_err(),
         StdError::generic_err("the contract is temporarily paused")

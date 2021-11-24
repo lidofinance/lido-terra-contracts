@@ -117,9 +117,11 @@ pub enum ExecuteMsg {
         er_threshold: Option<Decimal>,
     },
 
-    PauseContracts,
+    /// Pauses the contracts. Only the owner or allowed guardians can pause the contracts
+    PauseContracts {},
 
-    UnpauseContracts,
+    /// Unpauses the contracts. Only the owner allowed to unpause the contracts
+    UnpauseContracts {},
 
     ////////////////////
     /// User's operations
@@ -183,9 +185,13 @@ pub enum ExecuteMsg {
     MigrateUnbondWaitList {
         limit: Option<u32>,
     },
+
+    /// Adds a list of addresses to a whitelist of guardians which can pause (but not unpause) the contracts
     AddGuardians {
         addresses: Vec<String>,
     },
+
+    /// Removes a list of a addresses from a whitelist of guardians which can pause (but not unpause) the contracts
     RemoveGuardians {
         addresses: Vec<String>,
     },

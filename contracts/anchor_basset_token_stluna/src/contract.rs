@@ -25,6 +25,7 @@ use cw20_base::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
 use crate::handler::*;
 use crate::msg::TokenInitMsg;
 use crate::state::HUB_CONTRACT;
+use basset::hub::is_paused;
 use cw20::MinterResponse;
 use cw20_base::ContractError;
 
@@ -67,6 +68,13 @@ pub fn execute(
     info: MessageInfo,
     msg: ExecuteMsg,
 ) -> Result<Response, ContractError> {
+    let hub_addr = HUB_CONTRACT.load(deps.storage)?;
+    if is_paused(
+        deps.as_ref(),
+        deps.api.addr_humanize(&hub_addr)?.to_string(),
+    )? {
+        return Err(ContractError::Unauthorized {});
+    }
     match msg {
         ExecuteMsg::Transfer { recipient, amount } => {
             execute_transfer(deps, env, info, recipient, amount)

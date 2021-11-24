@@ -15,7 +15,7 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 
-use cosmwasm_std::{Binary, Deps, DepsMut, Env, MessageInfo, Response, StdResult};
+use cosmwasm_std::{Binary, CanonicalAddr, Deps, DepsMut, Env, MessageInfo, Response, StdResult};
 
 use cw20_legacy::allowances::{execute_decrease_allowance, execute_increase_allowance};
 use cw20_legacy::contract::instantiate as cw20_init;
@@ -24,7 +24,8 @@ use cw20_legacy::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
 
 use crate::handler::*;
 use crate::msg::{MigrateMsg, TokenInitMsg};
-use crate::state::store_hub_contract;
+use crate::state::{read_hub_contract, store_hub_contract};
+use basset::hub::is_paused;
 use cw20::MinterResponse;
 use cw20_legacy::ContractError;
 
@@ -66,6 +67,13 @@ pub fn execute(
     info: MessageInfo,
     msg: ExecuteMsg,
 ) -> Result<Response, ContractError> {
+    let hub_addr: CanonicalAddr = read_hub_contract(deps.storage)?;
+    if is_paused(
+        deps.as_ref(),
+        deps.api.addr_humanize(&hub_addr)?.to_string(),
+    )? {
+        return Err(ContractError::Unauthorized {});
+    }
     match msg {
         ExecuteMsg::Transfer { recipient, amount } => {
             execute_transfer(deps, env, info, recipient, amount)
