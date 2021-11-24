@@ -19,7 +19,7 @@ You can find information about the architecture, usage, and function of the smar
 
 ### Environment Setup
 
-- Rust v1.44.1+
+- Rust v1.55.0+
 - `wasm32-unknown-unknown` target
 - Docker
 
