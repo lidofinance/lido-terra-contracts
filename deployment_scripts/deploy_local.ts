@@ -10,12 +10,12 @@ async function main(): Promise<void> {
   const terra = new LocalTerra();
   const {test1} = terra.wallets;
 
-  let hubCodeId = await storeCode(terra, test1, "../artifacts/anchor_basset_hub.wasm")
-  let rewardCodeId = await storeCode(terra, test1, "../artifacts/anchor_basset_reward.wasm")
-  let blunaTokenCodeId = await storeCode(terra, test1, "../artifacts/anchor_basset_token.wasm")
-  let rewardsDispatcherCodeId = await storeCode(terra, test1, "../artifacts/anchor_basset_rewards_dispatcher.wasm")
-  let validatorsRegistryCodeId = await storeCode(terra, test1, "../artifacts/anchor_basset_validators_registry.wasm")
-  let stlunaTokenCodeId = await storeCode(terra, test1, "../artifacts/anchor_basset_token_stluna.wasm")
+  let hubCodeId = await storeCode(terra, test1, "../artifacts/lido_terra_hub.wasm")
+  let rewardCodeId = await storeCode(terra, test1, "../artifacts/lido_terra_reward.wasm")
+  let blunaTokenCodeId = await storeCode(terra, test1, "../artifacts/lido_terra_token.wasm")
+  let rewardsDispatcherCodeId = await storeCode(terra, test1, "../artifacts/lido_terra_rewards_dispatcher.wasm")
+  let validatorsRegistryCodeId = await storeCode(terra, test1, "../artifacts/lido_terra_validators_registry.wasm")
+  let stlunaTokenCodeId = await storeCode(terra, test1, "../artifacts/lido_terra_token_stluna.wasm")
 
   console.log()
 

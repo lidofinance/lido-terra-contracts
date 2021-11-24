@@ -8,13 +8,13 @@ You can find information about the architecture, usage, and function of the smar
 ## Contracts
 | Contract                                            | Reference                                              | Description                                                                                                                        |
 | --------------------------------------------------- | ------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------- |
-| [`anchor_basset_hub`](https://github.com/Anchor-Protocol/anchor-bAsset-contracts/tree/master/contracts/anchor_basset_hub)|[doc](https://docs.anchorprotocol/contracts/anchor_basset_hub)| Manages minted bLunas and bonded Lunas
-| [`anchor_basset_reward`](https://github.com/Anchor-Protocol/anchor-bAsset-contracts/tree/master/contracts/anchor_basset_reward)|[doc](https://docs.anchorprotocol/contracts/anchor_basset_reward)|Manages the distribution of delegation rewards
-| [`anchor_basset_token`](https://github.com/Anchor-Protocol/anchor-bAsset-contracts/tree/master/contracts/anchor_basset_token)| [doc](https://docs.anchorprotocol/contracts/anchor_basset_token)|CW20 compliance
-| [`anchor_airdrop_registery`](https://github.com/Anchor-Protocol/anchor-bAsset-contracts/tree/master/contracts/anchor_airdrop_registry)| [doc](https://docs.anchorprotocol/contracts/anchor_basset_airdrop_registery)|Manages message fabricators for MIR and ANC airdrops
-| [`anchor_basset_rewards_dispatcher`](https://github.com/Anchor-Protocol/anchor-bAsset-contracts/tree/master/contracts/anchor_basset_rewards_dispatcher)| [doc](https://docs.anchorprotocol/contracts/anchor_basset_airdrop_registery)|Accumulates the rewards from Hub's delegations and manages the rewards
-| [`st_luna`](https://github.com/Anchor-Protocol/anchor-bAsset-contracts/tree/master/contracts/st_luna)| [doc](https://docs.anchorprotocol/contracts/anchor_basset_airdrop_registery)|CW20 compliance for stluna
-| [`validators-registry`](https://github.com/Anchor-Protocol/anchor-bAsset-contracts/tree/master/contracts/validators-registry)| [doc](https://docs.anchorprotocol/contracts/anchor_basset_airdrop_registery)|Approved validators whitelist
+| [`lido_terra_hub`](https://github.com/Anchor-Protocol/anchor-bAsset-contracts/tree/master/contracts/lido_terra_hub)|[doc](https://docs.anchorprotocol/contracts/lido_terra_hub)| Manages minted bLunas and bonded Lunas
+| [`lido_terra_reward`](https://github.com/Anchor-Protocol/anchor-bAsset-contracts/tree/master/contracts/lido_terra_reward)|[doc](https://docs.anchorprotocol/contracts/lido_terra_reward)|Manages the distribution of delegation rewards
+| [`lido_terra_token`](https://github.com/Anchor-Protocol/anchor-bAsset-contracts/tree/master/contracts/lido_terra_token)| [doc](https://docs.anchorprotocol/contracts/lido_terra_token)|CW20 compliance
+| [`anchor_airdrop_registery`](https://github.com/Anchor-Protocol/anchor-bAsset-contracts/tree/master/contracts/lido_terra_airdrop_registry)| [doc](https://docs.anchorprotocol/contracts/lido_terra_airdrop_registry)|Manages message fabricators for MIR and ANC airdrops
+| [`lido_terra_rewards_dispatcher`](https://github.com/Anchor-Protocol/anchor-bAsset-contracts/tree/master/contracts/lido_terra_rewards_dispatcher)| [doc](https://docs.anchorprotocol/contracts/lido_terra_airdrop_registry)|Accumulates the rewards from Hub's delegations and manages the rewards
+| [`st_luna`](https://github.com/Anchor-Protocol/anchor-bAsset-contracts/tree/master/contracts/st_luna)| [doc](https://docs.anchorprotocol/contracts/lido_terra_airdrop_registry)|CW20 compliance for stluna
+| [`validators-registry`](https://github.com/Anchor-Protocol/anchor-bAsset-contracts/tree/master/contracts/validators-registry)| [doc](https://docs.anchorprotocol/contracts/lido_terra_airdrop_registry)|Approved validators whitelist
 ## Development
 
 ### Environment Setup
