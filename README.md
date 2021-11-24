@@ -1,4 +1,4 @@
-# Anchor bAsset Contracts
+# Lido Terra Contracts
 
 This monorepository contains the source code for the smart contracts implementing bAsset Protocol on the [Terra](https://terra.money) blockchain.
 
