@@ -2,9 +2,9 @@ import {Coins, Key, LocalTerra, MnemonicKey, MsgSend} from "@terra-money/terra.j
 import {executeContract, instantiateContract, migrateContract, storeCode} from "./common";
 const path = require('path');
 
-const TERRA_ORIGINAL_HUB_CONTRACT = "anchor_basset_hub.wasm"
-const TERRA_ORIGINAL_REWARD_CONTRACT = "anchor_basset_reward.wasm"
-const TERRA_ORIGINAL_TOKEN_CONTRACT = "anchor_basset_token.wasm"
+const TERRA_ORIGINAL_HUB_CONTRACT = "lido_terra_hub.wasm"
+const TERRA_ORIGINAL_REWARD_CONTRACT = "lido_terra_reward.wasm"
+const TERRA_ORIGINAL_TOKEN_CONTRACT = "lido_terra_token.wasm"
 
 async function main(): Promise<void> {
   if (process.argv.length < 3) {
@@ -59,12 +59,12 @@ async function main(): Promise<void> {
   console.log()
   console.log("Starting migration process...")
 
-  let newHubCodeId = await storeCode(terra, test1, "../artifacts/anchor_basset_hub.wasm")
-  let newRewardCodeId = await storeCode(terra, test1, "../artifacts/anchor_basset_reward.wasm")
-  let newBlunaTokenCodeId = await storeCode(terra, test1, "../artifacts/anchor_basset_token.wasm")
-  let rewardsDispatcherCodeId = await storeCode(terra, test1, "../artifacts/anchor_basset_rewards_dispatcher.wasm")
-  let validatorsRegistryCodeId = await storeCode(terra, test1, "../artifacts/anchor_basset_validators_registry.wasm")
-  let stlunaTokenCodeId = await storeCode(terra, test1, "../artifacts/anchor_basset_token_stluna.wasm")
+  let newHubCodeId = await storeCode(terra, test1, "../artifacts/lido_terra_hub.wasm")
+  let newRewardCodeId = await storeCode(terra, test1, "../artifacts/lido_terra_reward.wasm")
+  let newBlunaTokenCodeId = await storeCode(terra, test1, "../artifacts/lido_terra_token.wasm")
+  let rewardsDispatcherCodeId = await storeCode(terra, test1, "../artifacts/lido_terra_rewards_dispatcher.wasm")
+  let validatorsRegistryCodeId = await storeCode(terra, test1, "../artifacts/lido_terra_validators_registry.wasm")
+  let stlunaTokenCodeId = await storeCode(terra, test1, "../artifacts/lido_terra_token_stluna.wasm")
 
   let rewardsDispatcherAddress = await instantiateContract(terra, test1, rewardsDispatcherCodeId,
     {lido_fee_address: test1.key.accAddress,
