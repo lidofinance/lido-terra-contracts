@@ -59,38 +59,6 @@ pub fn execute(
     info: MessageInfo,
     msg: ExecuteMsg,
 ) -> StdResult<Response<TerraMsgWrapper>> {
-    if let ExecuteMsg::UpdateConfig {
-        owner,
-        hub_contract,
-        bluna_reward_contract,
-        stluna_reward_denom,
-        bluna_reward_denom,
-        lido_fee_address,
-        lido_fee_rate,
-    } = msg
-    {
-        return execute_update_config(
-            deps,
-            env,
-            info,
-            owner,
-            hub_contract,
-            bluna_reward_contract,
-            stluna_reward_denom,
-            bluna_reward_denom,
-            lido_fee_address,
-            lido_fee_rate,
-        );
-    }
-
-    let config: Config = CONFIG.load(deps.storage)?;
-    if is_paused(
-        deps.as_ref(),
-        deps.api.addr_humanize(&config.hub_contract)?.to_string(),
-    )? {
-        return Err(StdError::generic_err("the contract is temporarily paused"));
-    }
-
     match msg {
         ExecuteMsg::SwapToRewardDenom {
             bluna_total_bonded: bluna_total_mint_amount,
@@ -139,7 +107,7 @@ pub fn execute_update_config(
     lido_fee_address: Option<String>,
     lido_fee_rate: Option<Decimal>,
 ) -> StdResult<Response<TerraMsgWrapper>> {
-    let conf = CONFIG.load(deps.storage)?;
+    let conf: Config = CONFIG.load(deps.storage)?;
     let sender_raw = deps.api.addr_canonicalize(info.sender.as_str())?;
     if sender_raw != conf.owner {
         return Err(StdError::generic_err("unauthorized"));
@@ -210,7 +178,14 @@ pub fn execute_swap(
     bluna_total_bonded_amount: Uint128,
     stluna_total_bonded_amount: Uint128,
 ) -> StdResult<Response<TerraMsgWrapper>> {
-    let config = CONFIG.load(deps.storage)?;
+    let config: Config = CONFIG.load(deps.storage)?;
+    if is_paused(
+        deps.as_ref(),
+        deps.api.addr_humanize(&config.hub_contract)?.to_string(),
+    )? {
+        return Err(StdError::generic_err("the contract is temporarily paused"));
+    }
+
     let hub_addr = deps.api.addr_humanize(&config.hub_contract)?;
 
     if info.sender != hub_addr {
@@ -391,7 +366,13 @@ pub fn execute_dispatch_rewards(
     env: Env,
     info: MessageInfo,
 ) -> StdResult<Response<TerraMsgWrapper>> {
-    let config = CONFIG.load(deps.storage)?;
+    let config: Config = CONFIG.load(deps.storage)?;
+    if is_paused(
+        deps.as_ref(),
+        deps.api.addr_humanize(&config.hub_contract)?.to_string(),
+    )? {
+        return Err(StdError::generic_err("the contract is temporarily paused"));
+    }
 
     let hub_addr = deps.api.addr_humanize(&config.hub_contract)?;
     if info.sender != hub_addr {
