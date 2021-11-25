@@ -2,7 +2,7 @@
 
 This monorepository contains the source code for the smart contracts implementing bAsset Protocol on the [Terra](https://terra.money) blockchain.
 
-You can find information about the architecture, usage, and function of the smart contracts on the official Anchor documentation [site](https://anchorprotocol.com/).
+You can find information about the architecture, usage, and function of the smart contracts on the official documentation [site](https://lidofinance.github.io/terra-docs/).
 
 
 ## Contracts
