@@ -1,4 +1,4 @@
-# Anchor bAsset Reward  <!-- omit in toc -->
+# Lido Terra Reward  <!-- omit in toc -->
 
 **NOTE**: Reference documentation for this contract is available [here](https://anchor-protocol.gitbook.io/anchor/bluna/reward).
 

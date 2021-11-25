@@ -15,6 +15,7 @@ You can find information about the architecture, usage, and function of the smar
 | [`lido_terra_rewards_dispatcher`](https://github.com/lidofinance/lido-terra-contracts/tree/master/contracts/lido_terra_rewards_dispatcher)| [doc](https://lidofinance.github.io/terra-docs/contracts/rewards_dispatcher)|Accumulates the rewards from Hub's delegations and manages the rewards
 | [`st_luna`](https://github.com/lidofinance/lido-terra-contracts/tree/master/contracts/st_luna)| [doc](https://lidofinance.github.io/terra-docs/contracts/stLuna_and_bLuna)|CW20 compliance for stluna
 | [`validators-registry`](https://github.com/lidofinance/lido-terra-contracts/tree/master/contracts/validators-registry)| [doc](https://lidofinance.github.io/terra-docs/contracts/validators_registry)|Approved validators whitelist
+
 ## Development
 
 ### Environment Setup

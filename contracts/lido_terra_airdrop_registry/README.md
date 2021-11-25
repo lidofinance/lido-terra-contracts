@@ -1,4 +1,4 @@
-# Anchor bAsset Airdrop Registry <!-- omit in toc -->
+# Lido Terra Airdrop Registry <!-- omit in toc -->
 
 **NOTE**: Reference documentation for this contract is available [here](https://app.gitbook.com/@anchor-protocol/s/anchor-2/smart-contracts/bluna/airdrop-registry).
 
