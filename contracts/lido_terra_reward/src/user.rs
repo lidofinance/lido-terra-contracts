@@ -14,8 +14,7 @@
 
 use crate::querier::query_token_contract_address;
 use crate::state::{
-    read_holder, read_holders, read_state, store_holder, store_state, Config, Holder,
-    State,
+    read_holder, read_holders, read_state, store_holder, store_state, Config, Holder, State,
 };
 use basset::reward::{AccruedRewardsResponse, HolderResponse, HoldersResponse};
 

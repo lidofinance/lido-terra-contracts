@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use crate::state::{read_config, read_state, store_state, State, Config};
+use crate::state::{read_config, read_state, store_state, Config, State};
 
 use crate::math::decimal_summation_in_256;
 

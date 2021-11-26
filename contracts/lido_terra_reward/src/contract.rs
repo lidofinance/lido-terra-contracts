@@ -73,11 +73,13 @@ pub fn execute(
     }
 
     match msg {
-        ExecuteMsg::ClaimRewards { recipient } => execute_claim_rewards(deps, env, info, config, recipient),
+        ExecuteMsg::ClaimRewards { recipient } => {
+            execute_claim_rewards(deps, env, info, config, recipient)
+        }
         ExecuteMsg::SwapToRewardDenom {} => execute_swap(deps, env, info, config),
         ExecuteMsg::UpdateGlobalIndex {} => execute_update_global_index(deps, env, info, config),
         ExecuteMsg::IncreaseBalance { address, amount } => {
-            execute_increase_balance(deps, env, info, config,address, amount)
+            execute_increase_balance(deps, env, info, config, address, amount)
         }
         ExecuteMsg::DecreaseBalance { address, amount } => {
             execute_decrease_balance(deps, env, info, config, address, amount)
