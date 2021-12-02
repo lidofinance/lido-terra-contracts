@@ -7,7 +7,7 @@ This is a major release that:
 3. Introduces the new `lido_terra_validators_registry` contract;
 4. Introduces the new `lido_terra_rewards_dispatcher` contract;
 5. Changes the reward distribution logic and applies a configurable fee to the rewards;
-6. Removes the option to pick a validator manually: now a validator is picked from an approved list in a way to make the delegation distribution more even.
+6. Removes the option to pick a validator manually: now validators are picked from an approved list in a way to make the delegation distribution more even.
 
 See the official [docs](https://lidofinance.github.io/terra-docs/) for details.
 
