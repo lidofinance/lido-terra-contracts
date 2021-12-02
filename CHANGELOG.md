@@ -19,7 +19,7 @@ See the official [docs](https://lidofinance.github.io/terra-docs/) for details.
 4. Hub's `ConfigResponse` has been modified. Note that instead of `token_contract`, we now have `bluna_token_contract` and `stluna_token_contract`;
 5. Hub's `whitelisted_validators` query has been removed;
 6. Hub's `CurrentBatchResponse` has been modified. Note that instead of `requested_with_fee`, we now have `requested_bluna_with_fee` and `requested_stluna`;
-7. Hub's `UnbondRequest` has changed from `Vec<(u64, Uint128)>` `to Vec<(u64, Uint128, Uint128)>`;
+7. Hub's `UnbondRequest` has changed from `Vec<(u64, Uint128)>` `to Vec<(u64, Uint128, Uint128)>` (`<batch_id, bLuna_amount, stLuna_amount>`);
 8. Hub's `UnbondHistory` has been modified. Note that instead of `amount` we now have `bluna_amount` and `stluna_amount`, instead of `applied_exchange_rate` we now have `bluna_applied_exchange_rate` and `stluna_applied_exchange_rate`, instead of `withdraw_rate` we now have `bluna_withdraw_rate` and `stluna_withdraw_rate`;
 
 
