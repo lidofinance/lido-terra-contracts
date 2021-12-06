@@ -223,11 +223,11 @@ pub struct UnbondHistory {
 
     pub released: bool,
 
-    #[deprecated]
+    // #[deprecated]
     pub amount: Uint128,
-    #[deprecated]
+    // #[deprecated]
     pub applied_exchange_rate: Decimal,
-    #[deprecated]
+    // #[deprecated]
     pub withdraw_rate: Decimal,
 }
 
@@ -253,9 +253,9 @@ pub struct StateResponse {
     pub last_unbonded_time: u64,
     pub last_processed_batch: u64,
 
-    #[deprecated]
+    // #[deprecated]
     pub total_bond_amount: Uint128,
-    #[deprecated]
+    // #[deprecated]
     pub exchange_rate: Decimal,
 }
 
@@ -268,7 +268,7 @@ pub struct ConfigResponse {
     pub stluna_token_contract: Option<String>,
     pub airdrop_registry_contract: Option<String>,
 
-    #[deprecated]
+    // #[deprecated]
     pub token_contract: Option<String>,
 }
 
@@ -278,7 +278,7 @@ pub struct CurrentBatchResponse {
     pub requested_bluna_with_fee: Uint128,
     pub requested_stluna: Uint128,
 
-    #[deprecated]
+    // #[deprecated]
     pub requested_with_fee: Uint128,
 }
 
