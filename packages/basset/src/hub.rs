@@ -222,6 +222,21 @@ pub struct UnbondHistory {
     pub stluna_withdraw_rate: Decimal,
 
     pub released: bool,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct UnbondHistoryResponse {
+    pub batch_id: u64,
+    pub time: u64,
+    pub bluna_amount: Uint128,
+    pub bluna_applied_exchange_rate: Decimal,
+    pub bluna_withdraw_rate: Decimal,
+
+    pub stluna_amount: Uint128,
+    pub stluna_applied_exchange_rate: Decimal,
+    pub stluna_withdraw_rate: Decimal,
+
+    pub released: bool,
 
     // #[deprecated]
     pub amount: Uint128,
@@ -294,7 +309,7 @@ pub struct UnbondRequestsResponse {
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct AllHistoryResponse {
-    pub history: Vec<UnbondHistory>,
+    pub history: Vec<UnbondHistoryResponse>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

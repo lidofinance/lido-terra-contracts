@@ -34,8 +34,8 @@ use crate::convert::{convert_bluna_stluna, convert_stluna_bluna};
 use basset::hub::ExecuteMsg::SwapHook;
 use basset::hub::{
     AllHistoryResponse, BondType, Config, ConfigResponse, CurrentBatch, CurrentBatchResponse,
-    InstantiateMsg, MigrateMsg, Parameters, QueryMsg, State, StateResponse, UnbondRequestsResponse,
-    WithdrawableUnbondedResponse,
+    InstantiateMsg, MigrateMsg, Parameters, QueryMsg, State, StateResponse, UnbondHistoryResponse,
+    UnbondRequestsResponse, WithdrawableUnbondedResponse,
 };
 use basset::hub::{Cw20HookMsg, ExecuteMsg};
 use cw20::{BalanceResponse, Cw20ExecuteMsg, Cw20QueryMsg, Cw20ReceiveMsg, TokenInfoResponse};
@@ -713,7 +713,31 @@ fn query_unbond_requests_limitation(
     limit: Option<u32>,
 ) -> StdResult<AllHistoryResponse> {
     let requests = all_unbond_history(deps.storage, start, limit)?;
-    let res = AllHistoryResponse { history: requests };
+    let requests_responses = requests
+        .iter()
+        .map(|r| UnbondHistoryResponse {
+            batch_id: r.batch_id,
+            time: r.time,
+
+            bluna_amount: r.bluna_amount,
+            bluna_applied_exchange_rate: r.bluna_applied_exchange_rate,
+            bluna_withdraw_rate: r.bluna_withdraw_rate,
+
+            stluna_amount: r.stluna_amount,
+            stluna_applied_exchange_rate: r.stluna_applied_exchange_rate,
+            stluna_withdraw_rate: r.stluna_withdraw_rate,
+
+            released: r.released,
+
+            amount: r.bluna_amount,
+            applied_exchange_rate: r.bluna_applied_exchange_rate,
+            withdraw_rate: r.bluna_withdraw_rate,
+        })
+        .collect();
+
+    let res = AllHistoryResponse {
+        history: requests_responses,
+    };
     Ok(res)
 }
 

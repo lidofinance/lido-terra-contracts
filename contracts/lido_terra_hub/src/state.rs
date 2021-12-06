@@ -343,10 +343,6 @@ pub fn migrate_unbond_history(storage: &mut dyn Storage) -> StdResult<()> {
                     stluna_applied_exchange_rate: Decimal::one(),
                     stluna_withdraw_rate: Decimal::one(),
                     released: old_history.released,
-
-                    amount: old_history.amount,
-                    applied_exchange_rate: old_history.applied_exchange_rate,
-                    withdraw_rate: old_history.withdraw_rate,
                 };
                 Ok(new_history)
             })
