@@ -224,11 +224,11 @@ pub struct UnbondHistory {
     pub released: bool,
 
     // #[deprecated]
-    pub amount: Uint128,
+    pub amount: Option<Uint128>,
     // #[deprecated]
-    pub applied_exchange_rate: Decimal,
+    pub applied_exchange_rate: Option<Decimal>,
     // #[deprecated]
-    pub withdraw_rate: Decimal,
+    pub withdraw_rate: Option<Decimal>,
 }
 
 #[derive(JsonSchema, Serialize, Deserialize, Default)]

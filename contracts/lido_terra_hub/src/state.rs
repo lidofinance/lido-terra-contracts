@@ -329,24 +329,24 @@ pub fn migrate_unbond_history(storage: &mut dyn Storage) -> StdResult<()> {
         ReadonlyPrefixedStorage::new(storage, UNBOND_HISTORY_MAP)
             .range(None, None, Order::Ascending)
             .map(|item| {
-                let old_history: OldUnbondHistory = match from_slice(&item.1) {
+                let old_history: UnbondHistory = match from_slice(&item.1) {
                     Ok(h) => h,
                     Err(e) => return Err(e),
                 };
                 let new_history = UnbondHistory {
                     batch_id: old_history.batch_id,
                     time: old_history.time,
-                    bluna_amount: old_history.amount,
-                    bluna_applied_exchange_rate: old_history.applied_exchange_rate,
-                    bluna_withdraw_rate: old_history.withdraw_rate,
+                    bluna_amount: old_history.bluna_amount,
+                    bluna_applied_exchange_rate: old_history.bluna_applied_exchange_rate,
+                    bluna_withdraw_rate: old_history.bluna_withdraw_rate,
                     stluna_amount: Uint128::zero(),
                     stluna_applied_exchange_rate: Decimal::one(),
                     stluna_withdraw_rate: Decimal::one(),
                     released: old_history.released,
 
-                    amount: old_history.amount,
-                    applied_exchange_rate: old_history.applied_exchange_rate,
-                    withdraw_rate: old_history.withdraw_rate,
+                    amount: Some(old_history.bluna_amount),
+                    applied_exchange_rate: Some(old_history.bluna_applied_exchange_rate),
+                    withdraw_rate: Some(old_history.bluna_withdraw_rate),
                 };
                 Ok(new_history)
             })
