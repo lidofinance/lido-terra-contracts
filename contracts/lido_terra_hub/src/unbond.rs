@@ -503,9 +503,9 @@ fn process_undelegations(
 
         released: false,
 
-        amount: current_batch.requested_bluna_with_fee,
-        applied_exchange_rate: state.bluna_exchange_rate,
-        withdraw_rate: state.bluna_exchange_rate,
+        amount: Some(current_batch.requested_bluna_with_fee),
+        applied_exchange_rate: Some(state.bluna_exchange_rate),
+        withdraw_rate: Some(state.bluna_exchange_rate),
     };
 
     store_unbond_history(deps.storage, current_batch.id, history)?;

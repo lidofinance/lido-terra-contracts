@@ -24,8 +24,7 @@ use cosmwasm_std::{
 use crate::config::{execute_update_config, execute_update_params};
 use crate::state::{
     all_unbond_history, get_unbond_requests, migrate_unbond_history, migrate_unbond_wait_lists,
-    query_get_finished_amount, read_validators, remove_whitelisted_validators_store, CONFIG,
-    CURRENT_BATCH, OLD_CONFIG, OLD_CURRENT_BATCH, OLD_STATE, PARAMETERS, STATE,
+    query_get_finished_amount, CONFIG, CURRENT_BATCH, PARAMETERS, STATE,
 };
 use crate::unbond::{execute_unbond, execute_unbond_stluna, execute_withdraw_unbonded};
 
@@ -40,8 +39,6 @@ use basset::hub::{
 use basset::hub::{Cw20HookMsg, ExecuteMsg};
 use cw20::{BalanceResponse, Cw20ExecuteMsg, Cw20QueryMsg, Cw20ReceiveMsg, TokenInfoResponse};
 use lido_terra_rewards_dispatcher::msg::ExecuteMsg::{DispatchRewards, SwapToRewardDenom};
-use lido_terra_validators_registry::msg::ExecuteMsg::AddValidator;
-use lido_terra_validators_registry::registry::Validator;
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
@@ -718,8 +715,8 @@ fn query_unbond_requests_limitation(
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn migrate(deps: DepsMut, _env: Env, msg: MigrateMsg) -> StdResult<Response> {
+pub fn migrate(deps: DepsMut, _env: Env, _msg: MigrateMsg) -> StdResult<Response> {
     migrate_unbond_history(deps.storage)?;
 
-    Ok(Response::new().add_messages(messages))
+    Ok(Response::new())
 }
