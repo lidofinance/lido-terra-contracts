@@ -250,6 +250,9 @@ fn proper_initialization() {
         prev_hub_balance: Default::default(),
         last_unbonded_time: env.block.time.seconds(),
         last_processed_batch: 0u64,
+
+        exchange_rate: Decimal::one(),
+        total_bond_amount: Uint128::zero(),
     };
     assert_eq!(query_state, expected_result);
 
@@ -264,6 +267,8 @@ fn proper_initialization() {
         bluna_token_contract: None,
         airdrop_registry_contract: None,
         stluna_token_contract: None,
+
+        token_contract: None,
     };
 
     assert_eq!(expected_conf, query_conf);
@@ -277,7 +282,9 @@ fn proper_initialization() {
         CurrentBatchResponse {
             id: 1,
             requested_bluna_with_fee: Default::default(),
-            requested_stluna: Default::default()
+            requested_stluna: Default::default(),
+
+            requested_with_fee: Default::default(),
         }
     );
 }

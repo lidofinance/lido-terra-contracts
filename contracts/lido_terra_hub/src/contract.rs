@@ -615,9 +615,11 @@ fn query_config(deps: Deps) -> StdResult<ConfigResponse> {
         owner: deps.api.addr_humanize(&config.creator)?.to_string(),
         reward_dispatcher_contract: reward,
         validators_registry_contract: validators_contract,
-        bluna_token_contract: bluna_token,
+        bluna_token_contract: bluna_token.clone(),
         airdrop_registry_contract: airdrop,
         stluna_token_contract: stluna_token,
+
+        token_contract: bluna_token,
     })
 }
 
@@ -632,6 +634,9 @@ fn query_state(deps: Deps, env: Env) -> StdResult<StateResponse> {
         prev_hub_balance: state.prev_hub_balance,
         last_unbonded_time: state.last_unbonded_time,
         last_processed_batch: state.last_processed_batch,
+
+        exchange_rate: state.bluna_exchange_rate,
+        total_bond_amount: state.total_bond_bluna_amount,
     };
     Ok(res)
 }
@@ -642,6 +647,8 @@ fn query_current_batch(deps: Deps) -> StdResult<CurrentBatchResponse> {
         id: current_batch.id,
         requested_bluna_with_fee: current_batch.requested_bluna_with_fee,
         requested_stluna: current_batch.requested_stluna,
+
+        requested_with_fee: current_batch.requested_bluna_with_fee,
     })
 }
 
