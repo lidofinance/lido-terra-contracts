@@ -544,6 +544,8 @@ pub fn execute_slashing(mut deps: DepsMut, env: Env) -> StdResult<Response> {
             "new_bluna_exchange_rate",
             state.bluna_exchange_rate.to_string(),
         ),
+        // #[deprecated]
+        attr("new_exchange_rate", state.bluna_exchange_rate.to_string()),
         attr(
             "new_stluna_exchange_rate",
             state.stluna_exchange_rate.to_string(),
