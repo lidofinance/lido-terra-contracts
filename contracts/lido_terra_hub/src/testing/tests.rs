@@ -31,9 +31,9 @@
 //!      });
 //! 4. Anywhere you see query(deps.as_ref(), ...) you must replace it with query(deps.as_mut(), ...)
 use cosmwasm_std::{
-    coin, coins, from_binary, to_binary, Addr, Api, BankMsg, Coin, CosmosMsg, Decimal,
-    DepsMut, DistributionMsg, Env, FullDelegation, MessageInfo, OwnedDeps, Querier, QueryRequest,
-    Response, StakingMsg, StdError, StdResult, Storage, Uint128, Validator, WasmMsg, WasmQuery,
+    coin, coins, from_binary, to_binary, Addr, Api, BankMsg, Coin, CosmosMsg, Decimal, DepsMut,
+    DistributionMsg, Env, FullDelegation, MessageInfo, OwnedDeps, Querier, QueryRequest, Response,
+    StakingMsg, StdError, StdResult, Storage, Uint128, Validator, WasmMsg, WasmQuery,
 };
 use lido_terra_validators_registry::msg::QueryMsg as QueryValidators;
 use lido_terra_validators_registry::registry::ValidatorResponse as RegistryValidator;

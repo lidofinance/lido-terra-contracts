@@ -24,9 +24,8 @@ use cosmwasm_std::{
 
 use crate::config::{execute_update_config, execute_update_params};
 use crate::state::{
-    all_unbond_history, get_unbond_requests,
-    query_get_finished_amount,
-    CONFIG, CURRENT_BATCH, GUARDIANS, PARAMETERS, STATE,
+    all_unbond_history, get_unbond_requests, query_get_finished_amount, CONFIG, CURRENT_BATCH,
+    GUARDIANS, PARAMETERS, STATE,
 };
 use crate::unbond::{execute_unbond, execute_unbond_stluna, execute_withdraw_unbonded};
 

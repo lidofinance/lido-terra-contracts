@@ -12,16 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use cosmwasm_std::{
-   from_slice, to_vec, Order, StdError, StdResult, Storage, Uint128,
-};
+use cosmwasm_std::{from_slice, to_vec, Order, StdError, StdResult, Storage, Uint128};
 use cosmwasm_storage::{Bucket, PrefixedStorage, ReadonlyBucket, ReadonlyPrefixedStorage};
 
 use cw_storage_plus::{Item, Map};
 
 use basset::hub::{
-    Config, CurrentBatch, Parameters, State, UnbondHistory,
-    UnbondRequest, UnbondType, UnbondWaitEntity,
+    Config, CurrentBatch, Parameters, State, UnbondHistory, UnbondRequest, UnbondType,
+    UnbondWaitEntity,
 };
 
 pub const CONFIG: Item<Config> = Item::new("\u{0}\u{6}config");
