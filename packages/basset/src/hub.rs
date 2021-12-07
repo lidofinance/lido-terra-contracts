@@ -180,12 +180,6 @@ pub enum ExecuteMsg {
         redelegations: Vec<(String, Coin)>, //(dst_validator, amount)
     },
 
-    // MigrateUnbondWaitList migrates a limited amount of old waitlist entries to
-    // the new state.
-    MigrateUnbondWaitList {
-        limit: Option<u32>,
-    },
-
     /// Adds a list of addresses to a whitelist of guardians which can pause (but not unpause) the contracts
     AddGuardians {
         addresses: Vec<String>,
@@ -299,9 +293,6 @@ pub struct AllHistoryResponse {
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct MigrateMsg {
-    pub reward_dispatcher_contract: String,
-    pub validators_registry_contract: String,
-    pub stluna_token_contract: String,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

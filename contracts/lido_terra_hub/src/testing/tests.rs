@@ -31,7 +31,7 @@
 //!      });
 //! 4. Anywhere you see query(deps.as_ref(), ...) you must replace it with query(deps.as_mut(), ...)
 use cosmwasm_std::{
-    coin, coins, from_binary, to_binary, to_vec, Addr, Api, BankMsg, Coin, CosmosMsg, Decimal,
+    coin, coins, from_binary, to_binary, Addr, Api, BankMsg, Coin, CosmosMsg, Decimal,
     DepsMut, DistributionMsg, Env, FullDelegation, MessageInfo, OwnedDeps, Querier, QueryRequest,
     Response, StakingMsg, StdError, StdResult, Storage, Uint128, Validator, WasmMsg, WasmQuery,
 };
@@ -50,7 +50,7 @@ use cw20_base::msg::ExecuteMsg::{Burn, Mint};
 
 use super::mock_querier::{mock_dependencies as dependencies, WasmMockQuerier};
 use crate::math::decimal_division;
-use crate::state::{read_unbond_wait_list, CONFIG, OLD_PREFIX_WAIT_MAP, PARAMETERS, STATE};
+use crate::state::{read_unbond_wait_list, CONFIG, PARAMETERS, STATE};
 use basset::airdrop::PairHandleMsg;
 use lido_terra_rewards_dispatcher::msg::ExecuteMsg::{DispatchRewards, SwapToRewardDenom};
 
@@ -65,11 +65,10 @@ use basset::hub::QueryMsg::{
 };
 use basset::hub::{
     AllHistoryResponse, ConfigResponse, CurrentBatchResponse, Cw20HookMsg, ExecuteMsg,
-    InstantiateMsg, Parameters, QueryMsg, StateResponse, UnbondRequestsResponse, UnbondWaitEntity,
+    InstantiateMsg, Parameters, QueryMsg, StateResponse, UnbondRequestsResponse,
     WithdrawableUnbondedResponse,
 };
 use cosmwasm_std::testing::{MockApi, MockStorage};
-use cosmwasm_storage::Bucket;
 use std::borrow::BorrowMut;
 use std::str::FromStr;
 
@@ -5087,42 +5086,6 @@ pub fn test_pause() {
     };
     let info = mock_info(&owner, &[]);
     execute(deps.as_mut(), mock_env(), info, update_global).unwrap();
-
-    let batch = to_vec("batch_id").unwrap();
-    let addr = to_vec("sender_address").unwrap();
-    let mut position_indexer: Bucket<UnbondWaitEntity> =
-        Bucket::multilevel(deps.storage.borrow_mut(), &[OLD_PREFIX_WAIT_MAP, &addr]);
-    position_indexer
-        .update(&batch, |asked_already| -> StdResult<UnbondWaitEntity> {
-            let mut wl = asked_already.unwrap_or_default();
-            wl.bluna_amount += Uint128::new(42);
-            Ok(wl)
-        })
-        .unwrap();
-
-    // set paused = true
-    let pause_contracts = ExecuteMsg::PauseContracts {};
-    let creator_info = mock_info(String::from("owner1").as_str(), &[]);
-    execute(deps.as_mut(), mock_env(), creator_info, pause_contracts).unwrap();
-
-    // try to un-pause the contract (should fail)
-    let unpause_contracts = ExecuteMsg::UnpauseContracts {};
-    let creator_info = mock_info(String::from("owner1").as_str(), &[]);
-    let res = execute(deps.as_mut(), mock_env(), creator_info, unpause_contracts);
-    assert_eq!(
-        res.unwrap_err(),
-        StdError::generic_err("cannot unpause contract with old unbond wait lists",)
-    );
-
-    // Clear the wait list
-    let mut position_indexer: Bucket<UnbondWaitEntity> =
-        Bucket::multilevel(deps.storage.borrow_mut(), &[OLD_PREFIX_WAIT_MAP, &addr]);
-    position_indexer.remove(&batch);
-
-    // try to un-pause the contract (should be ok)
-    let unpause_contracts = ExecuteMsg::UnpauseContracts {};
-    let creator_info = mock_info(String::from("owner1").as_str(), &[]);
-    execute(deps.as_mut(), mock_env(), creator_info, unpause_contracts).unwrap();
 }
 
 #[test]
