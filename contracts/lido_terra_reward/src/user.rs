@@ -14,8 +14,7 @@
 
 use crate::querier::query_token_contract_address;
 use crate::state::{
-    read_config, read_holder, read_holders, read_state, store_holder, store_state, Config, Holder,
-    State,
+    read_holder, read_holders, read_state, store_holder, store_state, Config, Holder, State,
 };
 use basset::reward::{AccruedRewardsResponse, HolderResponse, HoldersResponse};
 
@@ -34,6 +33,7 @@ pub fn execute_claim_rewards(
     deps: DepsMut,
     _env: Env,
     info: MessageInfo,
+    config: Config,
     recipient: Option<String>,
 ) -> StdResult<Response<TerraMsgWrapper>> {
     let holder_addr = info.sender;
@@ -45,7 +45,6 @@ pub fn execute_claim_rewards(
 
     let mut holder: Holder = read_holder(deps.storage, &holder_addr_raw)?;
     let mut state: State = read_state(deps.storage)?;
-    let config: Config = read_config(deps.storage)?;
 
     let reward_with_decimals =
         calculate_decimal_rewards(state.global_index, holder.index, holder.balance);
@@ -93,10 +92,10 @@ pub fn execute_increase_balance(
     deps: DepsMut,
     _env: Env,
     info: MessageInfo,
+    config: Config,
     address: String,
     amount: Uint128,
 ) -> StdResult<Response<TerraMsgWrapper>> {
-    let config = read_config(deps.storage)?;
     let owner_human = deps.api.addr_humanize(&config.hub_contract)?;
     let address_raw = deps.api.addr_canonicalize(&address)?;
     let sender = info.sender;
@@ -138,10 +137,10 @@ pub fn execute_decrease_balance(
     deps: DepsMut,
     _env: Env,
     info: MessageInfo,
+    config: Config,
     address: String,
     amount: Uint128,
 ) -> StdResult<Response<TerraMsgWrapper>> {
-    let config = read_config(deps.storage)?;
     let hub_contract = deps.api.addr_humanize(&config.hub_contract)?;
     let address_raw = deps.api.addr_canonicalize(&address)?;
 

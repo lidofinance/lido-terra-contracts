@@ -15,7 +15,7 @@
 use crate::contract::{query_total_bluna_issued, query_total_stluna_issued, slashing};
 use crate::math::decimal_division;
 use crate::state::{CONFIG, CURRENT_BATCH, PARAMETERS, STATE};
-use basset::hub::BondType;
+use basset::hub::{BondType, Parameters};
 use cosmwasm_std::{
     attr, to_binary, Coin, CosmosMsg, DepsMut, Env, MessageInfo, QueryRequest, Response,
     StakingMsg, StdError, StdResult, Uint128, WasmMsg, WasmQuery,
@@ -31,7 +31,11 @@ pub fn execute_bond(
     info: MessageInfo,
     bond_type: BondType,
 ) -> Result<Response, StdError> {
-    let params = PARAMETERS.load(deps.storage)?;
+    let params: Parameters = PARAMETERS.load(deps.storage)?;
+    if params.paused.unwrap_or(false) {
+        return Err(StdError::generic_err("the contract is temporarily paused"));
+    }
+
     let coin_denom = params.underlying_coin_denom;
     let threshold = params.er_threshold;
     let recovery_fee = params.peg_recovery_fee;

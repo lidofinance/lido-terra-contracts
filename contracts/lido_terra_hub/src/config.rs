@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use crate::state::{read_old_unbond_wait_lists, CONFIG, PARAMETERS};
+use crate::state::{CONFIG, PARAMETERS};
 use basset::hub::Parameters;
 use cosmwasm_std::{
     attr, CosmosMsg, Decimal, DepsMut, DistributionMsg, Env, MessageInfo, Response, StdError,
@@ -30,7 +30,6 @@ pub fn execute_update_params(
     unbonding_period: Option<u64>,
     peg_recovery_fee: Option<Decimal>,
     er_threshold: Option<Decimal>,
-    paused: Option<bool>,
 ) -> StdResult<Response> {
     // only owner can send this message.
     let config = CONFIG.load(deps.storage)?;
@@ -47,15 +46,6 @@ pub fn execute_update_params(
         ));
     }
 
-    if paused.is_some() && !paused.unwrap() || paused.is_none() {
-        let old_unbond_wait_list_entries = read_old_unbond_wait_lists(deps.storage, Some(1u32))?;
-        if !old_unbond_wait_list_entries.is_empty() {
-            return Err(StdError::generic_err(
-                "cannot unpause contract with old unbond wait lists",
-            ));
-        }
-    }
-
     let new_params = Parameters {
         epoch_period: epoch_period.unwrap_or(params.epoch_period),
         underlying_coin_denom: params.underlying_coin_denom,
@@ -65,7 +55,7 @@ pub fn execute_update_params(
             .unwrap_or(params.er_threshold)
             .min(Decimal::one()),
         reward_denom: params.reward_denom,
-        paused,
+        paused: params.paused,
     };
 
     PARAMETERS.save(deps.storage, &new_params)?;

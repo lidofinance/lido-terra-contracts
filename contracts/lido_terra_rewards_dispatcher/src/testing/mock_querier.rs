@@ -12,10 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use basset::hub::{Parameters, QueryMsg};
 use cosmwasm_std::testing::{MockApi, MockQuerier, MockStorage, MOCK_CONTRACT_ADDR};
 use cosmwasm_std::{
     from_slice, to_binary, Coin, ContractResult, Decimal, OwnedDeps, Querier, QuerierResult,
-    QueryRequest, SystemError, Uint128, WasmQuery,
+    QueryRequest, SystemError, SystemResult, Uint128, WasmQuery,
 };
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -158,10 +159,26 @@ impl WasmMockQuerier {
                     )
                 }
             }
-            QueryRequest::Wasm(WasmQuery::Raw {
-                contract_addr: _,
-                key: _,
-            }) => unimplemented!(),
+            QueryRequest::Wasm(WasmQuery::Smart { contract_addr, msg }) => {
+                if *contract_addr == MOCK_HUB_CONTRACT_ADDR {
+                    if msg == &to_binary(&QueryMsg::Parameters {}).unwrap() {
+                        let params = Parameters {
+                            epoch_period: 0,
+                            underlying_coin_denom: "".to_string(),
+                            unbonding_period: 0,
+                            peg_recovery_fee: Default::default(),
+                            er_threshold: Default::default(),
+                            reward_denom: "".to_string(),
+                            paused: None,
+                        };
+                        SystemResult::Ok(ContractResult::from(to_binary(&params)))
+                    } else {
+                        unimplemented!()
+                    }
+                } else {
+                    unimplemented!()
+                }
+            }
             _ => self.base.handle_query(request),
         }
     }

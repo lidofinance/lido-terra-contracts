@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use basset::hub::ConfigResponse;
+use basset::hub::{ConfigResponse, Parameters, QueryMsg};
 use cosmwasm_std::testing::{MockApi, MockQuerier, MockStorage, MOCK_CONTRACT_ADDR};
 use cosmwasm_std::{
     from_slice, to_binary, Api, Coin, ContractResult, Decimal, Empty, OwnedDeps, Querier,
@@ -66,24 +66,36 @@ impl Querier for WasmMockQuerier {
 impl WasmMockQuerier {
     pub fn handle_query(&self, request: &QueryRequest<Empty>) -> QuerierResult {
         match &request {
-            QueryRequest::Wasm(WasmQuery::Smart {
-                contract_addr,
-                msg: _,
-            }) => {
+            QueryRequest::Wasm(WasmQuery::Smart { contract_addr, msg }) => {
                 if *contract_addr == MOCK_HUB_CONTRACT_ADDR {
-                    let config = ConfigResponse {
-                        owner: String::from("owner1"),
-                        reward_dispatcher_contract: Some(String::from(
-                            MOCK_REWARDS_DISPATCHER_CONTRACT_ADDR,
-                        )),
-                        validators_registry_contract: Some(String::from(
-                            MOCK_VALIDATORS_REGISTRY_ADDR,
-                        )),
-                        bluna_token_contract: Some(String::from(MOCK_TOKEN_CONTRACT_ADDR)),
-                        airdrop_registry_contract: Some(String::from("airdrop")),
-                        stluna_token_contract: Some(String::from(MOCK_STLUNA_TOKEN_CONTRACT_ADDR)),
-                    };
-                    SystemResult::Ok(ContractResult::from(to_binary(&config)))
+                    if msg == &to_binary(&QueryMsg::Parameters {}).unwrap() {
+                        let params = Parameters {
+                            epoch_period: 0,
+                            underlying_coin_denom: "".to_string(),
+                            unbonding_period: 0,
+                            peg_recovery_fee: Default::default(),
+                            er_threshold: Default::default(),
+                            reward_denom: "".to_string(),
+                            paused: None,
+                        };
+                        SystemResult::Ok(ContractResult::from(to_binary(&params)))
+                    } else {
+                        let config = ConfigResponse {
+                            owner: String::from("owner1"),
+                            reward_dispatcher_contract: Some(String::from(
+                                MOCK_REWARDS_DISPATCHER_CONTRACT_ADDR,
+                            )),
+                            validators_registry_contract: Some(String::from(
+                                MOCK_VALIDATORS_REGISTRY_ADDR,
+                            )),
+                            bluna_token_contract: Some(String::from(MOCK_TOKEN_CONTRACT_ADDR)),
+                            airdrop_registry_contract: Some(String::from("airdrop")),
+                            stluna_token_contract: Some(String::from(
+                                MOCK_STLUNA_TOKEN_CONTRACT_ADDR,
+                            )),
+                        };
+                        SystemResult::Ok(ContractResult::from(to_binary(&config)))
+                    }
                 } else if contract_addr == MOCK_REWARDS_DISPATCHER_CONTRACT_ADDR {
                     let api: MockApi = MockApi::default();
 

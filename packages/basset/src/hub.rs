@@ -1,4 +1,7 @@
-use cosmwasm_std::{Binary, CanonicalAddr, Coin, Decimal, Uint128};
+use cosmwasm_std::{
+    to_binary, Binary, CanonicalAddr, Coin, Decimal, Deps, QueryRequest, StdResult, Uint128,
+    WasmQuery,
+};
 use cw20::Cw20ReceiveMsg;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -112,8 +115,13 @@ pub enum ExecuteMsg {
         unbonding_period: Option<u64>,
         peg_recovery_fee: Option<Decimal>,
         er_threshold: Option<Decimal>,
-        paused: Option<bool>,
     },
+
+    /// Pauses the contracts. Only the owner or allowed guardians can pause the contracts
+    PauseContracts {},
+
+    /// Unpauses the contracts. Only the owner allowed to unpause the contracts
+    UnpauseContracts {},
 
     ////////////////////
     /// User's operations
@@ -172,10 +180,14 @@ pub enum ExecuteMsg {
         redelegations: Vec<(String, Coin)>, //(dst_validator, amount)
     },
 
-    // MigrateUnbondWaitList migrates a limited amount of old waitlist entries to
-    // the new state.
-    MigrateUnbondWaitList {
-        limit: Option<u32>,
+    /// Adds a list of addresses to a whitelist of guardians which can pause (but not unpause) the contracts
+    AddGuardians {
+        addresses: Vec<String>,
+    },
+
+    /// Removes a list of a addresses from a whitelist of guardians which can pause (but not unpause) the contracts
+    RemoveGuardians {
+        addresses: Vec<String>,
     },
 }
 
@@ -280,11 +292,7 @@ pub struct AllHistoryResponse {
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct MigrateMsg {
-    pub reward_dispatcher_contract: String,
-    pub validators_registry_contract: String,
-    pub stluna_token_contract: String,
-}
+pub struct MigrateMsg {}
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
@@ -303,4 +311,14 @@ pub enum QueryMsg {
         start_from: Option<u64>,
         limit: Option<u32>,
     },
+    Guardians,
+}
+
+pub fn is_paused(deps: Deps, hub_addr: String) -> StdResult<bool> {
+    let params: Parameters = deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
+        contract_addr: hub_addr,
+        msg: to_binary(&QueryMsg::Parameters {})?,
+    }))?;
+
+    Ok(params.paused.unwrap_or(false))
 }
