@@ -33,8 +33,8 @@ use crate::convert::{convert_bluna_stluna, convert_stluna_bluna};
 use basset::hub::ExecuteMsg::SwapHook;
 use basset::hub::{
     AllHistoryResponse, BondType, Config, ConfigResponse, CurrentBatch, CurrentBatchResponse,
-    InstantiateMsg, MigrateMsg, Parameters, QueryMsg, State, StateResponse, UnbondRequestsResponse,
-    WithdrawableUnbondedResponse,
+    InstantiateMsg, MigrateMsg, Parameters, QueryMsg, State, StateResponse, UnbondHistoryResponse,
+    UnbondRequestsResponse, WithdrawableUnbondedResponse,
 };
 use basset::hub::{Cw20HookMsg, ExecuteMsg};
 use cw20::{BalanceResponse, Cw20ExecuteMsg, Cw20QueryMsg, Cw20ReceiveMsg, TokenInfoResponse};
@@ -610,9 +610,11 @@ fn query_config(deps: Deps) -> StdResult<ConfigResponse> {
         owner: deps.api.addr_humanize(&config.creator)?.to_string(),
         reward_dispatcher_contract: reward,
         validators_registry_contract: validators_contract,
-        bluna_token_contract: bluna_token,
+        bluna_token_contract: bluna_token.clone(),
         airdrop_registry_contract: airdrop,
         stluna_token_contract: stluna_token,
+
+        token_contract: bluna_token,
     })
 }
 
@@ -627,6 +629,9 @@ fn query_state(deps: Deps, env: Env) -> StdResult<StateResponse> {
         prev_hub_balance: state.prev_hub_balance,
         last_unbonded_time: state.last_unbonded_time,
         last_processed_batch: state.last_processed_batch,
+
+        exchange_rate: state.bluna_exchange_rate,
+        total_bond_amount: state.total_bond_bluna_amount,
     };
     Ok(res)
 }
@@ -637,6 +642,8 @@ fn query_current_batch(deps: Deps) -> StdResult<CurrentBatchResponse> {
         id: current_batch.id,
         requested_bluna_with_fee: current_batch.requested_bluna_with_fee,
         requested_stluna: current_batch.requested_stluna,
+
+        requested_with_fee: current_batch.requested_bluna_with_fee,
     })
 }
 
@@ -701,7 +708,31 @@ fn query_unbond_requests_limitation(
     limit: Option<u32>,
 ) -> StdResult<AllHistoryResponse> {
     let requests = all_unbond_history(deps.storage, start, limit)?;
-    let res = AllHistoryResponse { history: requests };
+    let requests_responses = requests
+        .iter()
+        .map(|r| UnbondHistoryResponse {
+            batch_id: r.batch_id,
+            time: r.time,
+
+            bluna_amount: r.bluna_amount,
+            bluna_applied_exchange_rate: r.bluna_applied_exchange_rate,
+            bluna_withdraw_rate: r.bluna_withdraw_rate,
+
+            stluna_amount: r.stluna_amount,
+            stluna_applied_exchange_rate: r.stluna_applied_exchange_rate,
+            stluna_withdraw_rate: r.stluna_withdraw_rate,
+
+            released: r.released,
+
+            amount: r.bluna_amount,
+            applied_exchange_rate: r.bluna_applied_exchange_rate,
+            withdraw_rate: r.bluna_withdraw_rate,
+        })
+        .collect();
+
+    let res = AllHistoryResponse {
+        history: requests_responses,
+    };
     Ok(res)
 }
 

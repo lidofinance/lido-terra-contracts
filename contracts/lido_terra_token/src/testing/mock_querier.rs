@@ -82,6 +82,8 @@ impl WasmMockQuerier {
                         bluna_token_contract: Some(String::from(MOCK_TOKEN_CONTRACT_ADDR)),
                         airdrop_registry_contract: Some(String::from("airdrop")),
                         stluna_token_contract: Some(String::from(MOCK_STLUNA_TOKEN_CONTRACT_ADDR)),
+
+                        token_contract: Some(String::from(MOCK_TOKEN_CONTRACT_ADDR)),
                     };
                     SystemResult::Ok(ContractResult::from(to_binary(&config)))
                 } else if contract_addr == MOCK_REWARDS_DISPATCHER_CONTRACT_ADDR {
