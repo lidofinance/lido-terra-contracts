@@ -22,6 +22,7 @@ use cosmwasm_std::{
 
 use crate::msg::{ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg};
 use crate::state::{Config, ConfigResponse, CONFIG};
+use basset::hub::is_paused;
 use basset::hub::ExecuteMsg::{BondRewards, UpdateGlobalIndex};
 use basset::{compute_lido_fee, deduct_tax};
 use std::ops::Mul;
@@ -106,7 +107,7 @@ pub fn execute_update_config(
     lido_fee_address: Option<String>,
     lido_fee_rate: Option<Decimal>,
 ) -> StdResult<Response<TerraMsgWrapper>> {
-    let conf = CONFIG.load(deps.storage)?;
+    let conf: Config = CONFIG.load(deps.storage)?;
     let sender_raw = deps.api.addr_canonicalize(info.sender.as_str())?;
     if sender_raw != conf.owner {
         return Err(StdError::generic_err("unauthorized"));
@@ -177,7 +178,14 @@ pub fn execute_swap(
     bluna_total_bonded_amount: Uint128,
     stluna_total_bonded_amount: Uint128,
 ) -> StdResult<Response<TerraMsgWrapper>> {
-    let config = CONFIG.load(deps.storage)?;
+    let config: Config = CONFIG.load(deps.storage)?;
+    if is_paused(
+        deps.as_ref(),
+        deps.api.addr_humanize(&config.hub_contract)?.to_string(),
+    )? {
+        return Err(StdError::generic_err("the contract is temporarily paused"));
+    }
+
     let hub_addr = deps.api.addr_humanize(&config.hub_contract)?;
 
     if info.sender != hub_addr {
@@ -358,7 +366,13 @@ pub fn execute_dispatch_rewards(
     env: Env,
     info: MessageInfo,
 ) -> StdResult<Response<TerraMsgWrapper>> {
-    let config = CONFIG.load(deps.storage)?;
+    let config: Config = CONFIG.load(deps.storage)?;
+    if is_paused(
+        deps.as_ref(),
+        deps.api.addr_humanize(&config.hub_contract)?.to_string(),
+    )? {
+        return Err(StdError::generic_err("the contract is temporarily paused"));
+    }
 
     let hub_addr = deps.api.addr_humanize(&config.hub_contract)?;
     if info.sender != hub_addr {

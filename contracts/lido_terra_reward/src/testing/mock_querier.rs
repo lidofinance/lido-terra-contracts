@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use basset::hub::ConfigResponse;
+use basset::hub::{ConfigResponse, Parameters, QueryMsg};
 use cosmwasm_std::testing::{MockApi, MockQuerier, MockStorage, MOCK_CONTRACT_ADDR};
 use cosmwasm_std::{
     from_slice, to_binary, Coin, ContractResult, Decimal, OwnedDeps, Querier, QuerierResult,
@@ -108,11 +108,20 @@ impl WasmMockQuerier {
                     panic!("DO NOT ENTER HERE")
                 }
             }
-            QueryRequest::Wasm(WasmQuery::Smart {
-                contract_addr,
-                msg: _,
-            }) => {
+            QueryRequest::Wasm(WasmQuery::Smart { contract_addr, msg }) => {
                 if *contract_addr == MOCK_HUB_CONTRACT_ADDR {
+                    if msg == &to_binary(&QueryMsg::Parameters {}).unwrap() {
+                        let params = Parameters {
+                            epoch_period: 0,
+                            underlying_coin_denom: "".to_string(),
+                            unbonding_period: 0,
+                            peg_recovery_fee: Default::default(),
+                            er_threshold: Default::default(),
+                            reward_denom: "".to_string(),
+                            paused: None,
+                        };
+                        return SystemResult::Ok(ContractResult::from(to_binary(&params)));
+                    }
                     let config = ConfigResponse {
                         owner: String::from("owner1"),
                         reward_dispatcher_contract: Some(String::from(

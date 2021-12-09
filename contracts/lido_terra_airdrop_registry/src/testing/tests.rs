@@ -18,10 +18,12 @@ use basset::airdrop::{
     InstantiateMsg, MIRAirdropHandleMsg, PairHandleMsg, QueryMsg,
 };
 
+use super::mock_querier::mock_dependencies;
 use basset::airdrop::AirdropInfo;
 use basset::airdrop::ExecuteMsg::UpdateConfig;
 use basset::hub::ExecuteMsg::ClaimAirdrop;
-use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
+use cosmwasm_std::testing::{mock_env, mock_info};
+
 use cosmwasm_std::{
     attr, from_binary, to_binary, CosmosMsg, DepsMut, Env, MessageInfo, Response, StdError, SubMsg,
     Uint128, WasmMsg,

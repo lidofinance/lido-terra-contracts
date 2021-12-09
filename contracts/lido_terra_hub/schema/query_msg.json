@@ -3,6 +3,12 @@
   "title": "QueryMsg",
   "anyOf": [
     {
+      "type": "string",
+      "enum": [
+        "guardians"
+      ]
+    },
+    {
       "type": "object",
       "required": [
         "config"

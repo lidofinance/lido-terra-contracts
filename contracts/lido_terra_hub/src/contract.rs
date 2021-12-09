@@ -14,18 +14,18 @@
 
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
+use std::string::FromUtf8Error;
 
 use cosmwasm_std::{
     attr, from_binary, to_binary, Binary, Coin, CosmosMsg, Decimal, Deps, DepsMut, DistributionMsg,
-    Env, MessageInfo, QueryRequest, Response, StakingMsg, StdError, StdResult, Uint128, WasmMsg,
-    WasmQuery,
+    Env, MessageInfo, Order, QueryRequest, Response, StakingMsg, StdError, StdResult, Uint128,
+    WasmMsg, WasmQuery,
 };
 
 use crate::config::{execute_update_config, execute_update_params};
 use crate::state::{
-    all_unbond_history, get_unbond_requests, migrate_unbond_history, migrate_unbond_wait_lists,
-    query_get_finished_amount, read_validators, remove_whitelisted_validators_store, CONFIG,
-    CURRENT_BATCH, OLD_CONFIG, OLD_CURRENT_BATCH, OLD_STATE, PARAMETERS, STATE,
+    all_unbond_history, get_unbond_requests, query_get_finished_amount, CONFIG, CURRENT_BATCH,
+    GUARDIANS, PARAMETERS, STATE,
 };
 use crate::unbond::{execute_unbond, execute_unbond_stluna, execute_withdraw_unbonded};
 
@@ -40,8 +40,6 @@ use basset::hub::{
 use basset::hub::{Cw20HookMsg, ExecuteMsg};
 use cw20::{BalanceResponse, Cw20ExecuteMsg, Cw20QueryMsg, Cw20ReceiveMsg, TokenInfoResponse};
 use lido_terra_rewards_dispatcher::msg::ExecuteMsg::{DispatchRewards, SwapToRewardDenom};
-use lido_terra_validators_registry::msg::ExecuteMsg::AddValidator;
-use lido_terra_validators_registry::registry::Validator;
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
@@ -108,35 +106,6 @@ pub fn instantiate(
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> StdResult<Response> {
-    if let ExecuteMsg::MigrateUnbondWaitList { limit } = msg {
-        return migrate_unbond_wait_lists(deps.storage, limit);
-    }
-
-    if let ExecuteMsg::UpdateParams {
-        epoch_period,
-        unbonding_period,
-        peg_recovery_fee,
-        er_threshold,
-        paused,
-    } = msg
-    {
-        return execute_update_params(
-            deps,
-            env,
-            info,
-            epoch_period,
-            unbonding_period,
-            peg_recovery_fee,
-            er_threshold,
-            paused,
-        );
-    }
-
-    let params: Parameters = PARAMETERS.load(deps.storage)?;
-    if params.paused.unwrap_or(false) {
-        return Err(StdError::generic_err("the contract is temporarily paused"));
-    }
-
     match msg {
         ExecuteMsg::Receive(msg) => receive_cw20(deps, env, info, msg),
         ExecuteMsg::Bond {} => execute_bond(deps, env, info, BondType::BLuna),
@@ -152,7 +121,6 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
             unbonding_period,
             peg_recovery_fee,
             er_threshold,
-            paused,
         } => execute_update_params(
             deps,
             env,
@@ -161,7 +129,6 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
             unbonding_period,
             peg_recovery_fee,
             er_threshold,
-            paused,
         ),
         ExecuteMsg::UpdateConfig {
             owner,
@@ -213,8 +180,95 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
             src_validator,
             redelegations,
         } => execute_redelegate_proxy(deps, env, info, src_validator, redelegations),
-        ExecuteMsg::MigrateUnbondWaitList { limit: _ } => Err(StdError::generic_err("forbidden")),
+        ExecuteMsg::PauseContracts {} => execute_pause_contracts(deps, env, info),
+        ExecuteMsg::UnpauseContracts {} => execute_unpause_contracts(deps, env, info),
+        ExecuteMsg::AddGuardians { addresses } => execute_add_guardians(deps, env, info, addresses),
+        ExecuteMsg::RemoveGuardians { addresses } => {
+            execute_remove_guardians(deps, env, info, addresses)
+        }
     }
+}
+
+pub fn execute_add_guardians(
+    deps: DepsMut,
+    _env: Env,
+    info: MessageInfo,
+    guardians: Vec<String>,
+) -> StdResult<Response> {
+    let config = CONFIG.load(deps.storage)?;
+    let owner = deps.api.addr_humanize(&config.creator)?;
+
+    if info.sender != owner {
+        return Err(StdError::generic_err("unauthorized"));
+    }
+
+    for guardian in &guardians {
+        GUARDIANS.save(deps.storage, guardian.clone(), &true)?;
+    }
+
+    Ok(Response::new()
+        .add_attributes(vec![attr("action", "add_guardians")])
+        .add_attributes(guardians.iter().map(|g| attr("value", g))))
+}
+
+pub fn execute_remove_guardians(
+    deps: DepsMut,
+    _env: Env,
+    info: MessageInfo,
+    guardians: Vec<String>,
+) -> StdResult<Response> {
+    let config = CONFIG.load(deps.storage)?;
+    let owner = deps.api.addr_humanize(&config.creator)?;
+
+    if info.sender != owner {
+        return Err(StdError::generic_err("unauthorized"));
+    }
+
+    for guardian in &guardians {
+        GUARDIANS.remove(deps.storage, guardian.clone());
+    }
+
+    Ok(Response::new()
+        .add_attributes(vec![attr("action", "remove_guardians")])
+        .add_attributes(guardians.iter().map(|g| attr("value", g))))
+}
+
+pub fn execute_pause_contracts(deps: DepsMut, _env: Env, info: MessageInfo) -> StdResult<Response> {
+    let config = CONFIG.load(deps.storage)?;
+    let owner = deps.api.addr_humanize(&config.creator)?;
+
+    if !(info.sender == owner || GUARDIANS.has(deps.storage, info.sender.to_string())) {
+        return Err(StdError::generic_err("unauthorized"));
+    }
+
+    let mut params: Parameters = PARAMETERS.load(deps.storage)?;
+    params.paused = Some(true);
+
+    PARAMETERS.save(deps.storage, &params)?;
+
+    let res = Response::new().add_attributes(vec![attr("action", "pause_contracts")]);
+    Ok(res)
+}
+
+pub fn execute_unpause_contracts(
+    deps: DepsMut,
+    _env: Env,
+    info: MessageInfo,
+) -> StdResult<Response> {
+    let config = CONFIG.load(deps.storage)?;
+    let owner = deps.api.addr_humanize(&config.creator)?;
+
+    if info.sender != owner {
+        return Err(StdError::generic_err("unauthorized"));
+    }
+
+    let mut params: Parameters = PARAMETERS.load(deps.storage)?;
+    params.paused = Some(false);
+
+    PARAMETERS.save(deps.storage, &params)?;
+
+    let res = Response::new().add_attributes(vec![attr("action", "unpause_contracts")]);
+    Ok(res)
 }
 
 pub fn execute_redelegate_proxy(
@@ -258,6 +312,11 @@ pub fn receive_cw20(
     info: MessageInfo,
     cw20_msg: Cw20ReceiveMsg,
 ) -> StdResult<Response> {
+    let params: Parameters = PARAMETERS.load(deps.storage)?;
+    if params.paused.unwrap_or(false) {
+        return Err(StdError::generic_err("the contract is temporarily paused"));
+    }
+
     let contract_addr = deps.api.addr_canonicalize(info.sender.as_str())?;
 
     // only token contract can execute this message
@@ -309,6 +368,11 @@ pub fn execute_update_global(
     _info: MessageInfo,
     airdrop_hooks: Option<Vec<Binary>>,
 ) -> StdResult<Response> {
+    let params: Parameters = PARAMETERS.load(deps.storage)?;
+    if params.paused.unwrap_or(false) {
+        return Err(StdError::generic_err("the contract is temporarily paused"));
+    }
+
     let mut messages: Vec<CosmosMsg> = vec![];
 
     let config = CONFIG.load(deps.storage)?;
@@ -453,6 +517,11 @@ pub fn claim_airdrop(
     claim_msg: Binary,
     swap_msg: Binary,
 ) -> StdResult<Response> {
+    let params: Parameters = PARAMETERS.load(deps.storage)?;
+    if params.paused.unwrap_or(false) {
+        return Err(StdError::generic_err("the contract is temporarily paused"));
+    }
+
     let conf = CONFIG.load(deps.storage)?;
 
     let sender_raw = deps.api.addr_canonicalize(info.sender.as_str())?;
@@ -499,6 +568,11 @@ pub fn swap_hook(
     airdrop_swap_contract: String,
     swap_msg: Binary,
 ) -> StdResult<Response> {
+    let params: Parameters = PARAMETERS.load(deps.storage)?;
+    if params.paused.unwrap_or(false) {
+        return Err(StdError::generic_err("the contract is temporarily paused"));
+    }
+
     if info.sender != env.contract.address {
         return Err(StdError::generic_err("unauthorized"));
     }
@@ -536,6 +610,11 @@ pub fn swap_hook(
 
 /// Handler for tracking slashing
 pub fn execute_slashing(mut deps: DepsMut, env: Env) -> StdResult<Response> {
+    let params: Parameters = PARAMETERS.load(deps.storage)?;
+    if params.paused.unwrap_or(false) {
+        return Err(StdError::generic_err("the contract is temporarily paused"));
+    }
+
     // call slashing and
     let state = slashing(&mut deps, env)?;
     Ok(Response::new().add_attributes(vec![
@@ -565,7 +644,15 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
         QueryMsg::AllHistory { start_from, limit } => {
             to_binary(&query_unbond_requests_limitation(deps, start_from, limit)?)
         }
+        QueryMsg::Guardians => to_binary(&query_guardians(deps)?),
     }
+}
+
+fn query_guardians(deps: Deps) -> StdResult<Vec<String>> {
+    let guardians = GUARDIANS.keys(deps.storage, None, None, Order::Ascending);
+    let guardians_decoded: Result<Vec<String>, FromUtf8Error> =
+        guardians.map(String::from_utf8).collect();
+    Ok(guardians_decoded?)
 }
 
 fn query_config(deps: Deps) -> StdResult<ConfigResponse> {
@@ -711,94 +798,6 @@ fn query_unbond_requests_limitation(
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn migrate(deps: DepsMut, _env: Env, msg: MigrateMsg) -> StdResult<Response> {
-    // migrate state
-    let old_state = OLD_STATE.load(deps.storage)?;
-    let new_state = State {
-        bluna_exchange_rate: old_state.exchange_rate,
-        stluna_exchange_rate: Decimal::one(),
-        total_bond_bluna_amount: old_state.total_bond_amount,
-        total_bond_stluna_amount: Uint128::zero(),
-        last_index_modification: old_state.last_index_modification,
-        prev_hub_balance: old_state.prev_hub_balance,
-        last_unbonded_time: old_state.last_unbonded_time,
-        last_processed_batch: old_state.last_processed_batch,
-    };
-    STATE.save(deps.storage, &new_state)?;
-
-    //migrate config
-    let old_config = OLD_CONFIG.load(deps.storage)?;
-    let new_config = Config {
-        creator: old_config.creator,
-        reward_dispatcher_contract: Some(
-            deps.api
-                .addr_canonicalize(&msg.reward_dispatcher_contract)?,
-        ),
-        validators_registry_contract: Some(
-            deps.api
-                .addr_canonicalize(&msg.validators_registry_contract)?,
-        ),
-        bluna_token_contract: old_config.token_contract,
-        stluna_token_contract: Some(deps.api.addr_canonicalize(&msg.stluna_token_contract)?),
-        airdrop_registry_contract: old_config.airdrop_registry_contract,
-    };
-    CONFIG.save(deps.storage, &new_config)?;
-
-    let old_params = PARAMETERS.load(deps.storage)?;
-    let new_params = Parameters {
-        epoch_period: old_params.epoch_period,
-        underlying_coin_denom: old_params.underlying_coin_denom,
-        unbonding_period: old_params.unbonding_period,
-        peg_recovery_fee: old_params.peg_recovery_fee,
-        er_threshold: old_params.er_threshold,
-        reward_denom: old_params.reward_denom,
-        paused: Some(true), // We pause the contract to be able to safely migrate unbond wait lists.
-    };
-    PARAMETERS.save(deps.storage, &new_params)?;
-
-    //migrate CurrentBatch
-    let old_current_batch = OLD_CURRENT_BATCH.load(deps.storage)?;
-    let new_current_batch = CurrentBatch {
-        id: old_current_batch.id,
-        requested_bluna_with_fee: old_current_batch.requested_with_fee,
-        requested_stluna: Uint128::zero(),
-    };
-    CURRENT_BATCH.save(deps.storage, &new_current_batch)?;
-
-    //migrate whitelisted validators
-    //we must add them to validators_registry_contract
-    let whitelisted_validators = read_validators(deps.storage)?;
-    let mut messages: Vec<CosmosMsg> = vec![];
-
-    let add_validators_messsages: StdResult<Vec<CosmosMsg>> = whitelisted_validators
-        .iter()
-        .map(|validator_address| {
-            Ok(CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: msg.validators_registry_contract.clone(),
-                msg: if let Ok(m) = to_binary(&AddValidator {
-                    validator: Validator {
-                        address: validator_address.clone(),
-                    },
-                }) {
-                    m
-                } else {
-                    return Err(StdError::generic_err("failed to binary encode message"));
-                },
-                funds: vec![],
-            }))
-        })
-        .collect();
-    messages.extend_from_slice(&add_validators_messsages?);
-
-    remove_whitelisted_validators_store(deps.storage)?;
-
-    let msg: CosmosMsg = CosmosMsg::Distribution(DistributionMsg::SetWithdrawAddress {
-        address: msg.reward_dispatcher_contract,
-    });
-    messages.push(msg);
-
-    // migrate unbond history
-    migrate_unbond_history(deps.storage)?;
-
-    Ok(Response::new().add_messages(messages))
+pub fn migrate(_deps: DepsMut, _env: Env, _msg: MigrateMsg) -> StdResult<Response> {
+    Ok(Response::new())
 }

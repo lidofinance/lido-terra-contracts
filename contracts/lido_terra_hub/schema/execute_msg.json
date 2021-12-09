@@ -105,6 +105,30 @@
       "additionalProperties": false
     },
     {
+      "type": "object",
+      "required": [
+        "pause_contracts"
+      ],
+      "properties": {
+        "pause_contracts": {
+          "type": "object"
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "required": [
+        "unpause_contracts"
+      ],
+      "properties": {
+        "unpause_contracts": {
+          "type": "object"
+        }
+      },
+      "additionalProperties": false
+    },
+    {
       "description": "User's operations Receives `amount` in underlying coin denom from sender. Delegate `amount` equally between validators from the registry. Issue `amount` / exchange_rate for the user.",
       "type": "object",
       "required": [
@@ -301,6 +325,74 @@
             },
             "src_validator": {
               "type": "string"
+            }
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "required": [
+        "migrate_unbond_wait_list"
+      ],
+      "properties": {
+        "migrate_unbond_wait_list": {
+          "type": "object",
+          "properties": {
+            "limit": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "uint32",
+              "minimum": 0.0
+            }
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "required": [
+        "add_guardians"
+      ],
+      "properties": {
+        "add_guardians": {
+          "type": "object",
+          "required": [
+            "addresses"
+          ],
+          "properties": {
+            "addresses": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "required": [
+        "remove_guardians"
+      ],
+      "properties": {
+        "remove_guardians": {
+          "type": "object",
+          "required": [
+            "addresses"
+          ],
+          "properties": {
+            "addresses": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
             }
           }
         }

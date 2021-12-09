@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use crate::state::{read_config, read_state, store_state, State};
+use crate::state::{read_config, read_state, store_state, Config, State};
 
 use crate::math::decimal_summation_in_256;
 
@@ -29,8 +29,8 @@ pub fn execute_swap(
     deps: DepsMut,
     env: Env,
     info: MessageInfo,
+    config: Config,
 ) -> StdResult<Response<TerraMsgWrapper>> {
-    let config = read_config(deps.storage)?;
     let hub_addr = deps.api.addr_humanize(&config.hub_contract)?;
     let owner_addr = deps
         .api
@@ -83,10 +83,10 @@ pub fn execute_update_global_index(
     deps: DepsMut,
     env: Env,
     info: MessageInfo,
+    config: Config,
 ) -> StdResult<Response<TerraMsgWrapper>> {
     let mut state: State = read_state(deps.storage)?;
 
-    let config = read_config(deps.storage)?;
     let hub_addr = deps.api.addr_humanize(&config.hub_contract)?;
     let owner_addr = deps
         .api

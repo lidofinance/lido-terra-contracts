@@ -19,6 +19,12 @@
     "er_threshold": {
       "$ref": "#/definitions/Decimal"
     },
+    "paused": {
+      "type": [
+        "boolean",
+        "null"
+      ]
+    },
     "peg_recovery_fee": {
       "$ref": "#/definitions/Decimal"
     },

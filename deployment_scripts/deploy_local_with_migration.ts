@@ -2,9 +2,9 @@ import {Coins, Key, LocalTerra, MnemonicKey, MsgSend} from "@terra-money/terra.j
 import {executeContract, instantiateContract, migrateContract, storeCode} from "./common";
 const path = require('path');
 
-const TERRA_ORIGINAL_HUB_CONTRACT = "lido_terra_hub.wasm"
-const TERRA_ORIGINAL_REWARD_CONTRACT = "lido_terra_reward.wasm"
-const TERRA_ORIGINAL_TOKEN_CONTRACT = "lido_terra_token.wasm"
+const TERRA_ORIGINAL_HUB_CONTRACT = "anchor_basset_hub.wasm"
+const TERRA_ORIGINAL_REWARD_CONTRACT = "anchor_basset_reward.wasm"
+const TERRA_ORIGINAL_TOKEN_CONTRACT = "anchor_basset_token.wasm"
 
 async function main(): Promise<void> {
   if (process.argv.length < 3) {
@@ -108,7 +108,7 @@ async function main(): Promise<void> {
   for (let i = 0; i < 4; i++ ) {
     try {
       await executeContract(terra, test1, hubAddress, {
-        update_params: {paused: false}}, new Coins({}));
+        unpause_contracts: {}}, new Coins({}));
     } catch (e) {
       // cannot unpause the hub with old unbond wait lists
       console.log("Error: ", e.response.data.error)
