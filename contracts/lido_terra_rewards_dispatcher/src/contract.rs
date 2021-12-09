@@ -21,7 +21,7 @@ use cosmwasm_std::{
 };
 
 use crate::msg::{ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg};
-use crate::state::{Config, CONFIG};
+use crate::state::{Config, ConfigResponse, CONFIG};
 use basset::hub::ExecuteMsg::{BondRewards, UpdateGlobalIndex};
 use basset::{compute_lido_fee, deduct_tax};
 use std::ops::Mul;
@@ -461,9 +461,17 @@ pub fn execute_dispatch_rewards(
         .add_attributes(fees_attrs))
 }
 
-fn query_config(deps: Deps) -> StdResult<Config> {
+fn query_config(deps: Deps) -> StdResult<ConfigResponse> {
     let config = CONFIG.load(deps.storage)?;
-    Ok(config)
+    Ok(ConfigResponse {
+        owner: deps.api.addr_humanize(&config.owner)?,
+        hub_contract: deps.api.addr_humanize(&config.hub_contract)?,
+        bluna_reward_contract: deps.api.addr_humanize(&config.bluna_reward_contract)?,
+        stluna_reward_denom: config.stluna_reward_denom,
+        bluna_reward_denom: config.bluna_reward_denom,
+        lido_fee_address: deps.api.addr_humanize(&config.lido_fee_address)?,
+        lido_fee_rate: config.lido_fee_rate,
+    })
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
