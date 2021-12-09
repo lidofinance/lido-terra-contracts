@@ -23,9 +23,8 @@ use cosmwasm_std::{
 
 use crate::config::{execute_update_config, execute_update_params};
 use crate::state::{
-    all_unbond_history, get_unbond_requests, migrate_unbond_history, migrate_unbond_wait_lists,
-    query_get_finished_amount, read_validators, remove_whitelisted_validators_store, CONFIG,
-    CURRENT_BATCH, OLD_CONFIG, OLD_CURRENT_BATCH, OLD_STATE, PARAMETERS, STATE,
+    all_unbond_history, get_unbond_requests, migrate_unbond_wait_lists, query_get_finished_amount,
+    CONFIG, CURRENT_BATCH, PARAMETERS, STATE,
 };
 use crate::unbond::{execute_unbond, execute_unbond_stluna, execute_withdraw_unbonded};
 
@@ -40,8 +39,6 @@ use basset::hub::{
 use basset::hub::{Cw20HookMsg, ExecuteMsg};
 use cw20::{BalanceResponse, Cw20ExecuteMsg, Cw20QueryMsg, Cw20ReceiveMsg, TokenInfoResponse};
 use lido_terra_rewards_dispatcher::msg::ExecuteMsg::{DispatchRewards, SwapToRewardDenom};
-use lido_terra_validators_registry::msg::ExecuteMsg::AddValidator;
-use lido_terra_validators_registry::registry::Validator;
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
@@ -744,94 +741,6 @@ fn query_unbond_requests_limitation(
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn migrate(deps: DepsMut, _env: Env, msg: MigrateMsg) -> StdResult<Response> {
-    // migrate state
-    let old_state = OLD_STATE.load(deps.storage)?;
-    let new_state = State {
-        bluna_exchange_rate: old_state.exchange_rate,
-        stluna_exchange_rate: Decimal::one(),
-        total_bond_bluna_amount: old_state.total_bond_amount,
-        total_bond_stluna_amount: Uint128::zero(),
-        last_index_modification: old_state.last_index_modification,
-        prev_hub_balance: old_state.prev_hub_balance,
-        last_unbonded_time: old_state.last_unbonded_time,
-        last_processed_batch: old_state.last_processed_batch,
-    };
-    STATE.save(deps.storage, &new_state)?;
-
-    //migrate config
-    let old_config = OLD_CONFIG.load(deps.storage)?;
-    let new_config = Config {
-        creator: old_config.creator,
-        reward_dispatcher_contract: Some(
-            deps.api
-                .addr_canonicalize(&msg.reward_dispatcher_contract)?,
-        ),
-        validators_registry_contract: Some(
-            deps.api
-                .addr_canonicalize(&msg.validators_registry_contract)?,
-        ),
-        bluna_token_contract: old_config.token_contract,
-        stluna_token_contract: Some(deps.api.addr_canonicalize(&msg.stluna_token_contract)?),
-        airdrop_registry_contract: old_config.airdrop_registry_contract,
-    };
-    CONFIG.save(deps.storage, &new_config)?;
-
-    let old_params = PARAMETERS.load(deps.storage)?;
-    let new_params = Parameters {
-        epoch_period: old_params.epoch_period,
-        underlying_coin_denom: old_params.underlying_coin_denom,
-        unbonding_period: old_params.unbonding_period,
-        peg_recovery_fee: old_params.peg_recovery_fee,
-        er_threshold: old_params.er_threshold,
-        reward_denom: old_params.reward_denom,
-        paused: Some(true), // We pause the contract to be able to safely migrate unbond wait lists.
-    };
-    PARAMETERS.save(deps.storage, &new_params)?;
-
-    //migrate CurrentBatch
-    let old_current_batch = OLD_CURRENT_BATCH.load(deps.storage)?;
-    let new_current_batch = CurrentBatch {
-        id: old_current_batch.id,
-        requested_bluna_with_fee: old_current_batch.requested_with_fee,
-        requested_stluna: Uint128::zero(),
-    };
-    CURRENT_BATCH.save(deps.storage, &new_current_batch)?;
-
-    //migrate whitelisted validators
-    //we must add them to validators_registry_contract
-    let whitelisted_validators = read_validators(deps.storage)?;
-    let mut messages: Vec<CosmosMsg> = vec![];
-
-    let add_validators_messsages: StdResult<Vec<CosmosMsg>> = whitelisted_validators
-        .iter()
-        .map(|validator_address| {
-            Ok(CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: msg.validators_registry_contract.clone(),
-                msg: if let Ok(m) = to_binary(&AddValidator {
-                    validator: Validator {
-                        address: validator_address.clone(),
-                    },
-                }) {
-                    m
-                } else {
-                    return Err(StdError::generic_err("failed to binary encode message"));
-                },
-                funds: vec![],
-            }))
-        })
-        .collect();
-    messages.extend_from_slice(&add_validators_messsages?);
-
-    remove_whitelisted_validators_store(deps.storage)?;
-
-    let msg: CosmosMsg = CosmosMsg::Distribution(DistributionMsg::SetWithdrawAddress {
-        address: msg.reward_dispatcher_contract,
-    });
-    messages.push(msg);
-
-    // migrate unbond history
-    migrate_unbond_history(deps.storage)?;
-
-    Ok(Response::new().add_messages(messages))
+pub fn migrate(_deps: DepsMut, _env: Env, _msg: MigrateMsg) -> StdResult<Response> {
+    Ok(Response::new())
 }
