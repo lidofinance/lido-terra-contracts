@@ -224,6 +224,28 @@ pub struct UnbondHistory {
     pub released: bool,
 }
 
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct UnbondHistoryResponse {
+    pub batch_id: u64,
+    pub time: u64,
+    pub bluna_amount: Uint128,
+    pub bluna_applied_exchange_rate: Decimal,
+    pub bluna_withdraw_rate: Decimal,
+
+    pub stluna_amount: Uint128,
+    pub stluna_applied_exchange_rate: Decimal,
+    pub stluna_withdraw_rate: Decimal,
+
+    pub released: bool,
+
+    // #[deprecated]
+    pub amount: Uint128,
+    // #[deprecated]
+    pub applied_exchange_rate: Decimal,
+    // #[deprecated]
+    pub withdraw_rate: Decimal,
+}
+
 #[derive(JsonSchema, Serialize, Deserialize, Default)]
 pub struct UnbondWaitEntity {
     pub bluna_amount: Uint128,
@@ -245,6 +267,11 @@ pub struct StateResponse {
     pub prev_hub_balance: Uint128,
     pub last_unbonded_time: u64,
     pub last_processed_batch: u64,
+
+    // #[deprecated]
+    pub total_bond_amount: Uint128,
+    // #[deprecated]
+    pub exchange_rate: Decimal,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -255,6 +282,9 @@ pub struct ConfigResponse {
     pub bluna_token_contract: Option<String>,
     pub stluna_token_contract: Option<String>,
     pub airdrop_registry_contract: Option<String>,
+
+    // #[deprecated]
+    pub token_contract: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -262,6 +292,9 @@ pub struct CurrentBatchResponse {
     pub id: u64,
     pub requested_bluna_with_fee: Uint128,
     pub requested_stluna: Uint128,
+
+    // #[deprecated]
+    pub requested_with_fee: Uint128,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -276,7 +309,7 @@ pub struct UnbondRequestsResponse {
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct AllHistoryResponse {
-    pub history: Vec<UnbondHistory>,
+    pub history: Vec<UnbondHistoryResponse>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
