@@ -24,7 +24,7 @@ use cosmwasm_std::{
 
 use crate::common::calculate_delegations;
 use crate::msg::{ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg};
-use crate::registry::{Config, Validator, ValidatorResponse, CONFIG, REGISTRY};
+use crate::registry::{Config, ConfigResponse, Validator, ValidatorResponse, CONFIG, REGISTRY};
 use basset::hub::ExecuteMsg::{RedelegateProxy, UpdateGlobalIndex};
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -211,9 +211,12 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     }
 }
 
-fn query_config(deps: Deps) -> StdResult<Config> {
+fn query_config(deps: Deps) -> StdResult<ConfigResponse> {
     let config = CONFIG.load(deps.storage)?;
-    Ok(config)
+    Ok(ConfigResponse {
+        owner: deps.api.addr_humanize(&config.owner)?,
+        hub_contract: deps.api.addr_humanize(&config.hub_contract)?,
+    })
 }
 
 fn query_validators(deps: Deps) -> StdResult<Vec<ValidatorResponse>> {

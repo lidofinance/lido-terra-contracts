@@ -18,7 +18,7 @@ use cosmwasm_std::{
     from_slice, to_binary, Api, Coin, ContractResult, Decimal, Empty, OwnedDeps, Querier,
     QuerierResult, QueryRequest, SystemError, SystemResult, WasmQuery,
 };
-use lido_terra_rewards_dispatcher::state::Config as RewardsDispatcherConfig;
+use lido_terra_rewards_dispatcher::state::ConfigResponse as RewardsDispatcherConfig;
 
 pub const MOCK_OWNER_ADDR: &str = "owner";
 pub const MOCK_HUB_CONTRACT_ADDR: &str = "hub";
@@ -100,19 +100,17 @@ impl WasmMockQuerier {
                     let api: MockApi = MockApi::default();
 
                     let config = RewardsDispatcherConfig {
-                        owner: api
-                            .addr_canonicalize(&String::from(MOCK_OWNER_ADDR))
-                            .unwrap(),
+                        owner: api.addr_validate(&String::from(MOCK_OWNER_ADDR)).unwrap(),
                         hub_contract: api
-                            .addr_canonicalize(&String::from(MOCK_HUB_CONTRACT_ADDR))
+                            .addr_validate(&String::from(MOCK_HUB_CONTRACT_ADDR))
                             .unwrap(),
                         bluna_reward_contract: api
-                            .addr_canonicalize(&String::from(MOCK_REWARD_CONTRACT_ADDR))
+                            .addr_validate(&String::from(MOCK_REWARD_CONTRACT_ADDR))
                             .unwrap(),
                         stluna_reward_denom: "uluna".to_string(),
                         bluna_reward_denom: "uusd".to_string(),
                         lido_fee_address: api
-                            .addr_canonicalize(&String::from(MOCK_LIDO_FEE_ADDRESS))
+                            .addr_validate(&String::from(MOCK_LIDO_FEE_ADDRESS))
                             .unwrap(),
                         lido_fee_rate: Decimal::from_ratio(5u128, 100u128),
                     };

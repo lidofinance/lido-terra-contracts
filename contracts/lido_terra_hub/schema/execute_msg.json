@@ -105,6 +105,7 @@
       "additionalProperties": false
     },
     {
+      "description": "Pauses the contracts. Only the owner or allowed guardians can pause the contracts",
       "type": "object",
       "required": [
         "pause_contracts"
@@ -117,6 +118,7 @@
       "additionalProperties": false
     },
     {
+      "description": "Unpauses the contracts. Only the owner allowed to unpause the contracts",
       "type": "object",
       "required": [
         "unpause_contracts"
@@ -332,28 +334,7 @@
       "additionalProperties": false
     },
     {
-      "type": "object",
-      "required": [
-        "migrate_unbond_wait_list"
-      ],
-      "properties": {
-        "migrate_unbond_wait_list": {
-          "type": "object",
-          "properties": {
-            "limit": {
-              "type": [
-                "integer",
-                "null"
-              ],
-              "format": "uint32",
-              "minimum": 0.0
-            }
-          }
-        }
-      },
-      "additionalProperties": false
-    },
-    {
+      "description": "Adds a list of addresses to a whitelist of guardians which can pause (but not unpause) the contracts",
       "type": "object",
       "required": [
         "add_guardians"
@@ -377,6 +358,7 @@
       "additionalProperties": false
     },
     {
+      "description": "Removes a list of a addresses from a whitelist of guardians which can pause (but not unpause) the contracts",
       "type": "object",
       "required": [
         "remove_guardians"
