@@ -1,6 +1,19 @@
+# 1.0.2
+
+This is a minor release that adds backward compatibility to our contracts:
+
+1. Hub's `StateResponse` has been modified. The legacy fields `exchange_rate` and `total_bond_amount` were returned;
+2. Hub's `ConfigResponse` has been modified. The legacy field `token_contract`is returned;
+3. Hub's `CurrentBatchResponse` has been modified. The legacy field `requested_with_fee` was returned;
+4. Hub's `UnbondHistory` has been modified. The legacy fields `amount`, `applied_exchange_rate`and `withdraw_rate` were returned;
+5. Hub's `UpdateConfig` has been modified. The legacy fields `reward_contract` and `token_contract` were returned;
+6. The legacy log `new_exchange_rate` for the `check_slashing()` function was returned.
+
+N.B.: all new field were kept; all legacy fields will be removed during the next mainnet upgrade.
+
 # 1.0.1
 
-This is a major release that:
+This is a release that:
 
 1. Modifies the `lido_terra_hub` contract heavily;
 2. Introduces the new `lido_terra_token_stluna` token contract;
