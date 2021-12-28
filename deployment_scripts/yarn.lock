@@ -7,7 +7,7 @@
   resolved "https://registry.yarnpkg.com/@terra-money/terra.js/-/terra.js-2.0.2.tgz#e93e2c32c7a700c4edaa82e91b00bd01cdf482ee"
   integrity sha512-sFYqzoipuN85Qn0/pBYoc6RaNC0n5KUCwy4bi27Io4HqyuZ6QHdrjNjoAk5f77uAU8S2ugz+Uq8XgB3EeOiIFA==
   dependencies:
-    axios "^0.21.1"
+    axios "^0.21.2"
     bech32 "^2.0.0"
     bip32 "^2.0.6"
     bip39 "^3.0.3"
