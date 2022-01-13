@@ -40,6 +40,8 @@ use basset::hub::{
 use basset::hub::{Cw20HookMsg, ExecuteMsg};
 use cw20::{BalanceResponse, Cw20ExecuteMsg, Cw20QueryMsg, Cw20ReceiveMsg, TokenInfoResponse};
 use lido_terra_rewards_dispatcher::msg::ExecuteMsg::{DispatchRewards, SwapToRewardDenom};
+use lido_terra_validators_registry::msg::QueryMsg as QueryValidators;
+use lido_terra_validators_registry::registry::ValidatorResponse;
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
@@ -284,9 +286,33 @@ pub fn execute_redelegate_proxy(
         StdError::generic_err("the validator registry contract must have been registered")
     })?;
 
-    if sender_contract_addr != validators_registry_contract && sender_contract_addr != conf.creator
+    if !(sender_contract_addr == validators_registry_contract
+        || sender_contract_addr == conf.creator)
     {
         return Err(StdError::generic_err("unauthorized"));
+    }
+
+    // If the message is not sent by the validators registry contract itself, check that
+    // the destination validators are in the registry.
+    if sender_contract_addr != validators_registry_contract {
+        let validators: Vec<ValidatorResponse> =
+            deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
+                contract_addr: deps
+                    .api
+                    .addr_humanize(&validators_registry_contract)?
+                    .to_string(),
+                msg: to_binary(&QueryValidators::GetValidatorsForDelegation {})?,
+            }))?;
+
+        let validators: Vec<String> = validators.into_iter().map(|x| x.address.clone()).collect();
+        for (dst_validator_addr, _) in redelegations.clone() {
+            if !validators.contains(&dst_validator_addr) {
+                return Err(StdError::generic_err(format!(
+                    "Redelegation validator {} is not in the registry",
+                    dst_validator_addr
+                )));
+            }
+        }
     }
 
     let messages: Vec<CosmosMsg> = redelegations
