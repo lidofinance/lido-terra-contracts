@@ -5019,6 +5019,10 @@ fn proper_redelegate_proxy() {
     }
 
     // check that creator can send such messages
+    deps.querier.add_validator(RegistryValidator {
+        total_delegated: Uint128::zero(),
+        address: "dst_validator".to_string(),
+    });
     let info = mock_info(&owner, &[]);
     let res = execute(deps.as_mut(), mock_env(), info, redelegate_proxy_msg).unwrap();
 

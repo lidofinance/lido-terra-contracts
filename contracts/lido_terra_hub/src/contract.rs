@@ -273,6 +273,7 @@ pub fn execute_unpause_contracts(
     Ok(res)
 }
 
+#[allow(clippy::needless_collect)]
 pub fn execute_redelegate_proxy(
     deps: DepsMut,
     _env: Env,
@@ -304,7 +305,7 @@ pub fn execute_redelegate_proxy(
                 msg: to_binary(&QueryValidators::GetValidatorsForDelegation {})?,
             }))?;
 
-        let validators: Vec<String> = validators.into_iter().map(|x| x.address.clone()).collect();
+        let validators: Vec<String> = validators.into_iter().map(|x| x.address).collect();
         for (dst_validator_addr, _) in redelegations.clone() {
             if !validators.contains(&dst_validator_addr) {
                 return Err(StdError::generic_err(format!(
