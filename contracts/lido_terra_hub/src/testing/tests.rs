@@ -4979,9 +4979,10 @@ fn proper_redelegate_proxy() {
     );
 
     let redelegate_proxy_msg = ExecuteMsg::RedelegateProxy {
-        src_validator: String::from("src_validator"),
-        redelegations: vec![(String::from("dst_validator"), Coin::new(100, "uluna"))],
-    };
+            src_validator: String::from("src_validator"),
+            redelegations: vec![(String::from("dst_validator"), Coin::new(100, "uluna"))],
+        };
+
 
     //invalid sender
     let info = mock_info(&addr1, &[]);
@@ -5024,7 +5025,7 @@ fn proper_redelegate_proxy() {
         address: "dst_validator".to_string(),
     });
     let info = mock_info(&owner, &[]);
-    let res = execute(deps.as_mut(), mock_env(), info, redelegate_proxy_msg).unwrap();
+    let res = execute(deps.as_mut(), mock_env(), info.clone(), redelegate_proxy_msg).unwrap();
 
     let redelegate = &res.messages[0];
     match redelegate.msg.clone() {
@@ -5039,6 +5040,14 @@ fn proper_redelegate_proxy() {
         }
         _ => panic!("Unexpected message: {:?}", redelegate),
     }
+
+    let redelegate_proxy_msg = ExecuteMsg::RedelegateProxy {
+        src_validator: String::from("src_validator"),
+        redelegations: vec![(String::from("unknown_validator"), Coin::new(100, "uluna"))],
+    };
+
+    let res = execute(deps.as_mut(), mock_env(), info, redelegate_proxy_msg).unwrap_err();
+    assert_eq!(res, StdError::generic_err("Redelegation validator unknown_validator is not in the registry"));
 }
 
 ///
