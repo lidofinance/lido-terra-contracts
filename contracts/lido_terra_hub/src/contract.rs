@@ -42,6 +42,7 @@ use cw20::{BalanceResponse, Cw20ExecuteMsg, Cw20QueryMsg, Cw20ReceiveMsg, TokenI
 use lido_terra_rewards_dispatcher::msg::ExecuteMsg::{DispatchRewards, SwapToRewardDenom};
 use lido_terra_validators_registry::msg::QueryMsg as QueryValidators;
 use lido_terra_validators_registry::registry::ValidatorResponse;
+use std::collections::HashSet;
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
@@ -305,7 +306,7 @@ pub fn execute_redelegate_proxy(
                 msg: to_binary(&QueryValidators::GetValidatorsForDelegation {})?,
             }))?;
 
-        let validators: Vec<String> = validators.into_iter().map(|x| x.address).collect();
+        let validators: HashSet<String> = validators.into_iter().map(|x| x.address).collect();
         for (dst_validator_addr, _) in redelegations.clone() {
             if !validators.contains(&dst_validator_addr) {
                 return Err(StdError::generic_err(format!(
