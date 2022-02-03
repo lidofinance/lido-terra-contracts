@@ -5,7 +5,8 @@
   "required": [
     "id",
     "requested_bluna_with_fee",
-    "requested_stluna"
+    "requested_stluna",
+    "requested_with_fee"
   ],
   "properties": {
     "id": {
@@ -17,6 +18,9 @@
       "$ref": "#/definitions/Uint128"
     },
     "requested_stluna": {
+      "$ref": "#/definitions/Uint128"
+    },
+    "requested_with_fee": {
       "$ref": "#/definitions/Uint128"
     }
   },

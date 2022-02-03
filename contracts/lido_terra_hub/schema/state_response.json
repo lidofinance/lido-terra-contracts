@@ -4,16 +4,21 @@
   "type": "object",
   "required": [
     "bluna_exchange_rate",
+    "exchange_rate",
     "last_index_modification",
     "last_processed_batch",
     "last_unbonded_time",
     "prev_hub_balance",
     "stluna_exchange_rate",
+    "total_bond_amount",
     "total_bond_bluna_amount",
     "total_bond_stluna_amount"
   ],
   "properties": {
     "bluna_exchange_rate": {
+      "$ref": "#/definitions/Decimal"
+    },
+    "exchange_rate": {
       "$ref": "#/definitions/Decimal"
     },
     "last_index_modification": {
@@ -36,6 +41,9 @@
     },
     "stluna_exchange_rate": {
       "$ref": "#/definitions/Decimal"
+    },
+    "total_bond_amount": {
+      "$ref": "#/definitions/Uint128"
     },
     "total_bond_bluna_amount": {
       "$ref": "#/definitions/Uint128"
