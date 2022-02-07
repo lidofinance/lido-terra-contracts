@@ -81,6 +81,12 @@
                 }
               ]
             },
+            "paused": {
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
             "peg_recovery_fee": {
               "anyOf": [
                 {
@@ -301,6 +307,28 @@
             },
             "src_validator": {
               "type": "string"
+            }
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "required": [
+        "migrate_unbond_wait_list"
+      ],
+      "properties": {
+        "migrate_unbond_wait_list": {
+          "type": "object",
+          "properties": {
+            "limit": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "uint32",
+              "minimum": 0.0
             }
           }
         }
