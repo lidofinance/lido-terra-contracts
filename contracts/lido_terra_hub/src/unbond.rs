@@ -131,6 +131,10 @@ pub fn execute_withdraw_unbonded(
     let unbonding_period = params.unbonding_period;
     let coin_denom = params.underlying_coin_denom;
 
+    if params.paused.unwrap_or(false) {
+        return Err(StdError::generic_err("the contract is temporarily paused"));
+    }
+
     let historical_time = env.block.time.seconds() - unbonding_period;
 
     // query hub balance for process withdraw rate.
