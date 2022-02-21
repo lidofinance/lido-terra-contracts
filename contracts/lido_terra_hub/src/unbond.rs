@@ -123,11 +123,13 @@ pub fn execute_withdraw_unbonded(
     env: Env,
     info: MessageInfo,
 ) -> StdResult<Response> {
+    let params = PARAMETERS.load(deps.storage)?;
+    if params.paused.unwrap_or(false) {
+        return Err(StdError::generic_err("the contract is temporarily paused"));
+    }
     let sender_human = info.sender;
     let contract_address = env.contract.address.clone();
 
-    // read params
-    let params = PARAMETERS.load(deps.storage)?;
     let unbonding_period = params.unbonding_period;
     let coin_denom = params.underlying_coin_denom;
 
