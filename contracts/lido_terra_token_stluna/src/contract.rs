@@ -15,7 +15,7 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 
-use cosmwasm_std::{Binary, Deps, DepsMut, Env, MessageInfo, Response, StdResult};
+use cosmwasm_std::{Binary, Deps, DepsMut, Env, MessageInfo, Response, StdError, StdResult};
 
 use cw20_base::allowances::{execute_decrease_allowance, execute_increase_allowance};
 use cw20_base::contract::instantiate as cw20_init;
@@ -73,7 +73,9 @@ pub fn execute(
         deps.as_ref(),
         deps.api.addr_humanize(&hub_addr)?.to_string(),
     )? {
-        return Err(ContractError::Unauthorized {});
+        return Err(ContractError::Std(StdError::generic_err(
+            "the contract is temporarily paused",
+        )));
     }
     match msg {
         ExecuteMsg::Transfer { recipient, amount } => {
