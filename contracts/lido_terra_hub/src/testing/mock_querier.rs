@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use basset::airdrop::{AirdropInfoElem, AirdropInfoResponse, QueryMsg as QueryAirdropRegistry};
 use cosmwasm_std::testing::{MockApi, MockQuerier, MockStorage};
 use cosmwasm_std::{
     from_binary, from_slice, to_binary, to_vec, Addr, AllBalanceResponse, Api, BalanceResponse,
@@ -31,6 +32,11 @@ use terra_cosmwasm::{TaxCapResponse, TaxRateResponse, TerraQuery, TerraQueryWrap
 
 pub const MOCK_CONTRACT_ADDR: &str = "cosmos2contract";
 pub const VALIDATORS_REGISTRY: &str = "validators_registry";
+pub const AIRDROP_REGISTRY: &str = "airdrop_registry";
+pub const AIRTOKEN: &str = "AIRTOKEN";
+// cw20 token
+pub const AIRDROP_TOKEN_CONTRACT: &str = "airdrop_token_contract";
+pub const AIRDROP_CONTRACT: &str = "airdrop_contract";
 
 pub fn mock_dependencies(
     contract_balance: &[Coin],
@@ -127,6 +133,39 @@ impl WasmMockQuerier {
                     validators.sort_by(|v1, v2| v1.total_delegated.cmp(&v2.total_delegated));
                     return SystemResult::Ok(ContractResult::from(to_binary(&validators)));
                 }
+                if contract_addr == AIRDROP_REGISTRY {
+                    if let QueryAirdropRegistry::AirdropInfo {
+                        airdrop_token,
+                        start_after: _,
+                        limit: _,
+                    } = from_binary(msg).unwrap()
+                    {
+                        if airdrop_token.clone().unwrap() == AIRTOKEN {
+                            return SystemResult::Ok(ContractResult::from(to_binary(
+                                &AirdropInfoResponse {
+                                    airdrop_info: vec![AirdropInfoElem {
+                                        airdrop_token: AIRTOKEN.to_string(),
+                                        info: basset::airdrop::AirdropInfo {
+                                            airdrop_token_contract: AIRDROP_TOKEN_CONTRACT
+                                                .to_string(),
+                                            airdrop_contract: AIRDROP_CONTRACT.to_string(),
+                                            airdrop_swap_contract: String::from("deprecated"),
+                                            swap_belief_price: None,
+                                            swap_max_spread: None,
+                                        },
+                                    }],
+                                },
+                            )));
+                        } else {
+                            return SystemResult::Err(SystemError::InvalidRequest {
+                                error: format!("token not found: {}", airdrop_token.unwrap()),
+                                request: msg.as_slice().into(),
+                            });
+                        }
+                    } else {
+                        todo!()
+                    }
+                };
                 match from_binary(msg).unwrap() {
                     Cw20QueryMsg::TokenInfo {} => {
                         let balances: &HashMap<String, Uint128> =
@@ -218,6 +257,10 @@ impl WasmMockQuerier {
                         ),
                         airdrop_registry_contract: Some(
                             api.addr_canonicalize(&String::from("airdrop")).unwrap(),
+                        ),
+                        airdrop_withdrawal_account: Some(
+                            api.addr_canonicalize(&String::from("airdrop_withdrawal_account"))
+                                .unwrap(),
                         ),
                     };
                     QuerierResult::Ok(ContractResult::from(to_binary(

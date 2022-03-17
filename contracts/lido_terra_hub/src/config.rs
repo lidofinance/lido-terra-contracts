@@ -76,6 +76,7 @@ pub fn execute_update_config(
     bluna_token_contract: Option<String>,
     stluna_token_contract: Option<String>,
     airdrop_registry_contract: Option<String>,
+    airdrop_withdrawal_account: Option<String>,
     validators_registry_contract: Option<String>,
 ) -> StdResult<Response> {
     // only owner must be able to send this message.
@@ -143,6 +144,14 @@ pub fn execute_update_config(
         let airdrop_raw = deps.api.addr_canonicalize(&airdrop)?;
         CONFIG.update(deps.storage, |mut last_config| -> StdResult<_> {
             last_config.airdrop_registry_contract = Some(airdrop_raw);
+            Ok(last_config)
+        })?;
+    }
+
+    if let Some(withdrawal_account) = airdrop_withdrawal_account {
+        let withdrawal_account_raw = deps.api.addr_canonicalize(&withdrawal_account)?;
+        CONFIG.update(deps.storage, |mut last_config| -> StdResult<_> {
+            last_config.airdrop_withdrawal_account = Some(withdrawal_account_raw);
             Ok(last_config)
         })?;
     }

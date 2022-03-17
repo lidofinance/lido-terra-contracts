@@ -56,6 +56,7 @@ pub struct Config {
     pub bluna_token_contract: Option<CanonicalAddr>,
     pub stluna_token_contract: Option<CanonicalAddr>,
     pub airdrop_registry_contract: Option<CanonicalAddr>,
+    pub airdrop_withdrawal_account: Option<CanonicalAddr>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -107,6 +108,7 @@ pub enum ExecuteMsg {
         bluna_token_contract: Option<String>,
         stluna_token_contract: Option<String>,
         airdrop_registry_contract: Option<String>,
+        airdrop_withdrawal_account: Option<String>,
     },
 
     /// update the parameters that is needed for the contract
@@ -155,6 +157,13 @@ pub enum ExecuteMsg {
     /// Unbond the underlying coin denom.
     /// Burn the received basset token.
     Receive(Cw20ReceiveMsg),
+
+    ClaimAirdrops {
+        token: String,
+        stage: u8,
+        amount: Uint128,
+        proof: Vec<String>,
+    },
 
     ////////////////////
     /// internal operations
@@ -267,6 +276,7 @@ pub struct ConfigResponse {
     pub bluna_token_contract: Option<String>,
     pub stluna_token_contract: Option<String>,
     pub airdrop_registry_contract: Option<String>,
+    pub airdrop_withdrawal_account: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -312,6 +322,14 @@ pub enum QueryMsg {
         limit: Option<u32>,
     },
     Guardians,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub struct Claim {
+    pub stage: u8,
+    pub amount: Uint128,
+    pub proof: Vec<String>,
 }
 
 pub fn is_paused(deps: Deps, hub_addr: String) -> StdResult<bool> {

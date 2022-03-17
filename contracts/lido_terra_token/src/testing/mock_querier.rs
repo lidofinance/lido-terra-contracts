@@ -93,6 +93,9 @@ impl WasmMockQuerier {
                             stluna_token_contract: Some(String::from(
                                 MOCK_STLUNA_TOKEN_CONTRACT_ADDR,
                             )),
+                            airdrop_withdrawal_account: Some(String::from(
+                                "airdrop_withdrawal_account",
+                            )),
                         };
                         SystemResult::Ok(ContractResult::from(to_binary(&config)))
                     }

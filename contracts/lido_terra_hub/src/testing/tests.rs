@@ -43,6 +43,9 @@ use serde::{Deserialize, Serialize};
 use cosmwasm_std::testing::{mock_env, mock_info};
 
 use crate::contract::{execute, instantiate, query};
+use crate::testing::mock_querier::{
+    AIRDROP_CONTRACT, AIRDROP_REGISTRY, AIRDROP_TOKEN_CONTRACT, AIRTOKEN,
+};
 use crate::unbond::{execute_unbond, execute_unbond_stluna};
 
 use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg};
@@ -64,7 +67,7 @@ use basset::hub::QueryMsg::{
     WithdrawableUnbonded,
 };
 use basset::hub::{
-    AllHistoryResponse, ConfigResponse, CurrentBatchResponse, Cw20HookMsg, ExecuteMsg,
+    AllHistoryResponse, Claim, ConfigResponse, CurrentBatchResponse, Cw20HookMsg, ExecuteMsg,
     InstantiateMsg, Parameters, QueryMsg, StateResponse, UnbondRequestsResponse,
     WithdrawableUnbondedResponse,
 };
@@ -125,7 +128,8 @@ pub fn initialize<S: Storage, A: Api, Q: Querier>(
         rewards_dispatcher_contract: Some(reward_contract),
         bluna_token_contract: Some(bluna_token_contract),
         stluna_token_contract: Some(stluna_token_contract),
-        airdrop_registry_contract: Some(String::from("airdrop_registry")),
+        airdrop_registry_contract: Some(String::from(AIRDROP_REGISTRY)),
+        airdrop_withdrawal_account: Some(String::from("airdrop_withdrawal_account")),
         validators_registry_contract: Some(String::from("validators_registry")),
     };
     let res = execute(deps.as_mut(), mock_env(), owner_info, register_msg).unwrap();
@@ -264,6 +268,7 @@ fn proper_initialization() {
         validators_registry_contract: None,
         bluna_token_contract: None,
         airdrop_registry_contract: None,
+        airdrop_withdrawal_account: None,
         stluna_token_contract: None,
     };
 
@@ -4153,6 +4158,7 @@ pub fn proper_update_config() {
     let stluna_token_contract = String::from("stluna_token");
     let reward_contract = String::from("reward");
     let airdrop_registry = String::from("airdrop_registry");
+    let airdrop_withdrawal_account = String::from("airdrop_withdrawal_account");
 
     initialize(
         deps.borrow_mut(),
@@ -4171,6 +4177,11 @@ pub fn proper_update_config() {
         &airdrop_registry
     );
 
+    assert_eq!(
+        &config_query.airdrop_withdrawal_account.unwrap(),
+        &airdrop_withdrawal_account
+    );
+
     //make sure the other configs are still the same.
     assert_eq!(
         &config_query.reward_dispatcher_contract.unwrap(),
@@ -4184,6 +4195,7 @@ pub fn proper_update_config() {
         rewards_dispatcher_contract: None,
         bluna_token_contract: None,
         airdrop_registry_contract: None,
+        airdrop_withdrawal_account: None,
         validators_registry_contract: None,
         stluna_token_contract: None,
     };
@@ -4197,6 +4209,7 @@ pub fn proper_update_config() {
         rewards_dispatcher_contract: None,
         bluna_token_contract: None,
         airdrop_registry_contract: None,
+        airdrop_withdrawal_account: None,
         validators_registry_contract: None,
         stluna_token_contract: None,
     };
@@ -4237,6 +4250,7 @@ pub fn proper_update_config() {
         rewards_dispatcher_contract: Some(String::from("new reward")),
         bluna_token_contract: None,
         airdrop_registry_contract: None,
+        airdrop_withdrawal_account: None,
         validators_registry_contract: None,
         stluna_token_contract: None,
     };
@@ -4262,6 +4276,7 @@ pub fn proper_update_config() {
         rewards_dispatcher_contract: None,
         bluna_token_contract: Some(String::from("new token")),
         airdrop_registry_contract: None,
+        airdrop_withdrawal_account: None,
         validators_registry_contract: None,
         stluna_token_contract: None,
     };
@@ -4292,6 +4307,7 @@ pub fn proper_update_config() {
         rewards_dispatcher_contract: None,
         bluna_token_contract: None,
         airdrop_registry_contract: Some(String::from("new airdrop")),
+        airdrop_withdrawal_account: None,
         validators_registry_contract: None,
         stluna_token_contract: None,
     };
@@ -4310,7 +4326,29 @@ pub fn proper_update_config() {
     let update_config = UpdateConfig {
         owner: None,
         rewards_dispatcher_contract: None,
+        bluna_token_contract: None,
         airdrop_registry_contract: None,
+        airdrop_withdrawal_account: Some(String::from("new_airdrop_widrawal_account")),
+        validators_registry_contract: None,
+        stluna_token_contract: None,
+    };
+    let new_owner_info = mock_info(&new_owner, &[]);
+    let res = execute(deps.as_mut(), mock_env(), new_owner_info, update_config).unwrap();
+    assert_eq!(res.messages.len(), 0);
+
+    let config = Config {};
+    let config_query: ConfigResponse =
+        from_binary(&query(deps.as_ref(), mock_env(), config).unwrap()).unwrap();
+    assert_eq!(
+        config_query.airdrop_withdrawal_account.unwrap(),
+        String::from("new_airdrop_widrawal_account")
+    );
+
+    let update_config = UpdateConfig {
+        owner: None,
+        rewards_dispatcher_contract: None,
+        airdrop_registry_contract: None,
+        airdrop_withdrawal_account: None,
         validators_registry_contract: Some(String::from("new registry")),
         bluna_token_contract: None,
         stluna_token_contract: None,
@@ -4331,6 +4369,7 @@ pub fn proper_update_config() {
         owner: None,
         rewards_dispatcher_contract: None,
         airdrop_registry_contract: None,
+        airdrop_withdrawal_account: None,
         validators_registry_contract: None,
         bluna_token_contract: None,
         stluna_token_contract: Some(stluna_token_contract.clone()),
@@ -4348,6 +4387,62 @@ pub fn proper_update_config() {
     assert_eq!(
         config_query.stluna_token_contract.unwrap(),
         stluna_token_contract,
+    );
+}
+
+#[test]
+fn proper_claim_airdrops() {
+    let owner = String::from("owner1");
+    let token_contract = String::from("token");
+    let stluna_token_contract = String::from("stluna_token");
+    let reward_contract = String::from("reward");
+    let airdrop_withdrawal_account = String::from("airdrop_withdrawal_account");
+
+    let mut deps = dependencies(&[]);
+
+    set_validator_mock(&mut deps.querier);
+    initialize(
+        deps.borrow_mut(),
+        owner.clone(),
+        reward_contract,
+        token_contract,
+        stluna_token_contract,
+    );
+
+    let info = mock_info(&owner, &[]);
+    let claim_msg = ExecuteMsg::ClaimAirdrops {
+        token: String::from(AIRTOKEN),
+        stage: 1,
+        amount: Uint128::from(1000u128),
+        proof: vec![String::from("proof1"), String::from("proof2")],
+    };
+    let res = execute(deps.as_mut(), mock_env(), info, claim_msg).unwrap();
+
+    assert_eq!(
+        res.messages[0].msg,
+        CosmosMsg::Wasm(WasmMsg::Execute {
+            contract_addr: AIRDROP_CONTRACT.to_string(),
+            msg: to_binary(&Claim {
+                stage: 1,
+                amount: Uint128::from(1000u128),
+                proof: vec![String::from("proof1"), String::from("proof2")],
+            })
+            .unwrap(),
+            funds: vec![],
+        })
+    );
+
+    assert_eq!(
+        res.messages[1].msg,
+        CosmosMsg::Wasm(WasmMsg::Execute {
+            contract_addr: AIRDROP_TOKEN_CONTRACT.to_string(),
+            msg: to_binary(&Cw20ExecuteMsg::Transfer {
+                recipient: airdrop_withdrawal_account,
+                amount: Uint128::from(1000u128)
+            })
+            .unwrap(),
+            funds: vec![],
+        })
     );
 }
 

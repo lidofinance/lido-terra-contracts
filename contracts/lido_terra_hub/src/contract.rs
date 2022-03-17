@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use basset::airdrop::{AirdropInfoResponse, QueryMsg as QueryAirdropRegistry};
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use std::string::FromUtf8Error;
@@ -33,9 +34,9 @@ use crate::bond::execute_bond;
 use crate::convert::{convert_bluna_stluna, convert_stluna_bluna};
 use basset::hub::ExecuteMsg::SwapHook;
 use basset::hub::{
-    AllHistoryResponse, BondType, Config, ConfigResponse, CurrentBatch, CurrentBatchResponse,
-    InstantiateMsg, MigrateMsg, Parameters, QueryMsg, State, StateResponse, UnbondRequestsResponse,
-    WithdrawableUnbondedResponse,
+    AllHistoryResponse, BondType, Claim, Config, ConfigResponse, CurrentBatch,
+    CurrentBatchResponse, InstantiateMsg, MigrateMsg, Parameters, QueryMsg, State, StateResponse,
+    UnbondRequestsResponse, WithdrawableUnbondedResponse,
 };
 use basset::hub::{Cw20HookMsg, ExecuteMsg};
 use cw20::{BalanceResponse, Cw20ExecuteMsg, Cw20QueryMsg, Cw20ReceiveMsg, TokenInfoResponse};
@@ -61,6 +62,7 @@ pub fn instantiate(
         validators_registry_contract: None,
         bluna_token_contract: None,
         airdrop_registry_contract: None,
+        airdrop_withdrawal_account: None,
         stluna_token_contract: None,
     };
     CONFIG.save(deps.storage, &data)?;
@@ -138,6 +140,7 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
             rewards_dispatcher_contract,
             bluna_token_contract,
             airdrop_registry_contract,
+            airdrop_withdrawal_account,
             validators_registry_contract,
             stluna_token_contract,
         } => execute_update_config(
@@ -149,6 +152,7 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
             bluna_token_contract,
             stluna_token_contract,
             airdrop_registry_contract,
+            airdrop_withdrawal_account,
             validators_registry_contract,
         ),
         ExecuteMsg::SwapHook {
@@ -179,6 +183,12 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
             claim_msg,
             swap_msg,
         ),
+        ExecuteMsg::ClaimAirdrops {
+            token,
+            stage,
+            amount,
+            proof,
+        } => execute_claim_airdrops(deps, env, info, token, stage, amount, proof),
         ExecuteMsg::RedelegateProxy {
             src_validator,
             redelegations,
@@ -190,6 +200,75 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
             execute_remove_guardians(deps, env, info, addresses)
         }
     }
+}
+
+pub fn execute_claim_airdrops(
+    deps: DepsMut,
+    _env: Env,
+    info: MessageInfo,
+    token: String,
+    stage: u8,
+    amount: Uint128,
+    proof: Vec<String>,
+) -> StdResult<Response> {
+    let config = CONFIG.load(deps.storage)?;
+    let owner = deps.api.addr_humanize(&config.creator)?;
+
+    if info.sender != owner {
+        return Err(StdError::generic_err("unauthorized"));
+    }
+
+    let withdrawal_account = deps.api.addr_humanize(
+        &config
+            .airdrop_withdrawal_account
+            .ok_or_else(|| StdError::generic_err("no withdrawal account configured"))?,
+    )?;
+
+    let registry_addr = deps
+        .api
+        .addr_humanize(&config.airdrop_registry_contract.ok_or_else(|| {
+            StdError::generic_err("the airdrop registry contract must have been registered")
+        })?)?;
+
+    let airdrop_info_resp: AirdropInfoResponse =
+        deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
+            contract_addr: registry_addr.to_string(),
+            msg: to_binary(&QueryAirdropRegistry::AirdropInfo {
+                airdrop_token: Some(token.clone()),
+                start_after: None,
+                limit: None,
+            })?,
+        }))?;
+
+    if airdrop_info_resp.airdrop_info.len() == 0 {
+        return Err(StdError::generic_err(format!(
+            "no airdrop contracts found in the registry for token {}",
+            token
+        )));
+    }
+
+    let airdrop_info = airdrop_info_resp.airdrop_info[0].info.clone();
+
+    let mut messages: Vec<CosmosMsg> = vec![CosmosMsg::Wasm(WasmMsg::Execute {
+        contract_addr: airdrop_info.airdrop_contract,
+        msg: to_binary(&Claim {
+            stage,
+            amount,
+            proof,
+        })?,
+        funds: vec![],
+    })];
+
+    messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
+        contract_addr: airdrop_info.airdrop_token_contract,
+        msg: to_binary(&Cw20ExecuteMsg::Transfer {
+            amount,
+            recipient: withdrawal_account.to_string(),
+        })?,
+        funds: vec![],
+    }));
+
+    Ok(Response::new().add_messages(messages))
 }
 
 pub fn execute_add_guardians(
@@ -690,6 +769,7 @@ fn query_config(deps: Deps) -> StdResult<ConfigResponse> {
     let mut bluna_token: Option<String> = None;
     let mut stluna_token: Option<String> = None;
     let mut airdrop: Option<String> = None;
+    let mut airdrop_withdrawal_account: Option<String> = None;
     if config.reward_dispatcher_contract.is_some() {
         reward = Some(
             deps.api
@@ -725,6 +805,13 @@ fn query_config(deps: Deps) -> StdResult<ConfigResponse> {
                 .to_string(),
         );
     }
+    if config.airdrop_withdrawal_account.is_some() {
+        airdrop_withdrawal_account = Some(
+            deps.api
+                .addr_humanize(&config.airdrop_withdrawal_account.unwrap())?
+                .to_string(),
+        );
+    }
 
     Ok(ConfigResponse {
         owner: deps.api.addr_humanize(&config.creator)?.to_string(),
@@ -732,6 +819,7 @@ fn query_config(deps: Deps) -> StdResult<ConfigResponse> {
         validators_registry_contract: validators_contract,
         bluna_token_contract: bluna_token,
         airdrop_registry_contract: airdrop,
+        airdrop_withdrawal_account: airdrop_withdrawal_account,
         stluna_token_contract: stluna_token,
     })
 }
