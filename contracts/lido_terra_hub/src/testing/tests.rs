@@ -54,10 +54,8 @@ use cw20_base::msg::ExecuteMsg::{Burn, Mint};
 use super::mock_querier::{mock_dependencies as dependencies, WasmMockQuerier};
 use crate::math::decimal_division;
 use crate::state::{read_unbond_wait_list, CONFIG, PARAMETERS, STATE};
-use basset::airdrop::PairHandleMsg;
 use lido_terra_rewards_dispatcher::msg::ExecuteMsg::{DispatchRewards, SwapToRewardDenom};
 
-use basset::airdrop::ExecuteMsg::{FabricateANCClaim, FabricateMIRClaim};
 use basset::hub::Cw20HookMsg::Unbond;
 use basset::hub::ExecuteMsg::{
     CheckSlashing, Receive, UpdateConfig, UpdateGlobalIndex, UpdateParams,
@@ -749,9 +747,7 @@ pub fn proper_update_global_index() {
         .with_token_balances(&[(&String::from("token"), &[]), (&stluna_token_contract, &[])]);
 
     // fails if there is no delegation
-    let reward_msg = ExecuteMsg::UpdateGlobalIndex {
-        airdrop_hooks: None,
-    };
+    let reward_msg = ExecuteMsg::UpdateGlobalIndex {};
 
     let info = mock_info(&addr1, &[]);
     let res = execute(deps.as_mut(), mock_env(), info, reward_msg).unwrap();
@@ -783,9 +779,7 @@ pub fn proper_update_global_index() {
         (&stluna_token_contract, &[(&addr1, &bond_amount)]),
     ]);
 
-    let reward_msg = ExecuteMsg::UpdateGlobalIndex {
-        airdrop_hooks: None,
-    };
+    let reward_msg = ExecuteMsg::UpdateGlobalIndex {};
 
     let info = mock_info(&addr1, &[]);
     let res = execute(deps.as_mut(), mock_env(), info, reward_msg).unwrap();
@@ -900,9 +894,7 @@ pub fn proper_update_global_index_two_validators() {
         (&stluna_token_contract, &[(&addr1, &Uint128::from(10u64))]),
     ]);
 
-    let reward_msg = ExecuteMsg::UpdateGlobalIndex {
-        airdrop_hooks: None,
-    };
+    let reward_msg = ExecuteMsg::UpdateGlobalIndex {};
 
     let info = mock_info(&addr1, &[]);
     let res = execute(deps.as_mut(), mock_env(), info, reward_msg).unwrap();
@@ -978,9 +970,7 @@ pub fn proper_update_global_index_respect_one_registered_validator() {
         (&stluna_token_contract, &[(&addr1, &Uint128::from(10u64))]),
     ]);
 
-    let reward_msg = ExecuteMsg::UpdateGlobalIndex {
-        airdrop_hooks: None,
-    };
+    let reward_msg = ExecuteMsg::UpdateGlobalIndex {};
 
     let info = mock_info(&addr1, &[]);
     let res = execute(deps.as_mut(), mock_env(), info, reward_msg).unwrap();
@@ -4446,227 +4436,6 @@ fn proper_claim_airdrops() {
     );
 }
 
-#[test]
-fn proper_claim_airdrop() {
-    let mut deps = dependencies(&[]);
-
-    set_validator_mock(&mut deps.querier);
-
-    let owner = String::from("owner1");
-    let token_contract = String::from("token");
-    let stluna_token_contract = String::from("stluna_token");
-    let reward_contract = String::from("reward");
-    let airdrop_registry = String::from("airdrop_registry");
-
-    initialize(
-        deps.borrow_mut(),
-        owner.clone(),
-        reward_contract,
-        token_contract,
-        stluna_token_contract,
-    );
-
-    let claim_msg = ExecuteMsg::ClaimAirdrop {
-        airdrop_token_contract: String::from("airdrop_token"),
-        airdrop_contract: String::from("MIR_contract"),
-        airdrop_swap_contract: String::from("airdrop_swap"),
-        claim_msg: to_binary(&MIRMsg::MIRClaim {}).unwrap(),
-        swap_msg: Default::default(),
-    };
-
-    //invalid sender
-    let info = mock_info(&owner, &[]);
-    let res = execute(deps.as_mut(), mock_env(), info, claim_msg.clone()).unwrap_err();
-    assert_eq!(
-        res,
-        StdError::generic_err(format!("Sender must be {}", &airdrop_registry))
-    );
-
-    let valid_info = mock_info(&airdrop_registry, &[]);
-    let res = execute(deps.as_mut(), mock_env(), valid_info, claim_msg).unwrap();
-    assert_eq!(res.messages.len(), 2);
-
-    assert_eq!(
-        res.messages[0].msg.clone(),
-        CosmosMsg::Wasm(WasmMsg::Execute {
-            contract_addr: String::from("MIR_contract"),
-            msg: to_binary(&MIRMsg::MIRClaim {}).unwrap(),
-            funds: vec![],
-        })
-    );
-    assert_eq!(
-        res.messages[1].msg.clone(),
-        CosmosMsg::Wasm(WasmMsg::Execute {
-            contract_addr: mock_env().contract.address.to_string(),
-            msg: to_binary(&ExecuteMsg::SwapHook {
-                airdrop_token_contract: String::from("airdrop_token"),
-                airdrop_swap_contract: String::from("airdrop_swap"),
-                swap_msg: Default::default(),
-            })
-            .unwrap(),
-            funds: vec![],
-        })
-    );
-}
-
-#[test]
-fn proper_swap_hook() {
-    let mut deps = dependencies(&[]);
-
-    set_validator_mock(&mut deps.querier);
-
-    let owner = String::from("owner1");
-    let token_contract = String::from("token");
-    let stluna_token_contract = String::from("stluna_token");
-    let reward_contract = String::from("reward");
-
-    initialize(
-        deps.borrow_mut(),
-        owner.clone(),
-        reward_contract.clone(),
-        token_contract,
-        stluna_token_contract,
-    );
-
-    let swap_msg = ExecuteMsg::SwapHook {
-        airdrop_token_contract: String::from("airdrop_token"),
-        airdrop_swap_contract: String::from("swap_contract"),
-        swap_msg: to_binary(&PairHandleMsg::Swap {
-            belief_price: None,
-            max_spread: None,
-            to: Some(reward_contract.clone()),
-        })
-        .unwrap(),
-    };
-
-    //invalid sender
-    let info = mock_info(&owner, &[]);
-    let res = execute(deps.as_mut(), mock_env(), info, swap_msg.clone()).unwrap_err();
-    assert_eq!(res, StdError::generic_err("unauthorized"));
-
-    // no balance for hub
-    let contract_info = mock_info(&mock_env().contract.address.to_string(), &[]);
-    let res = execute(
-        deps.as_mut(),
-        mock_env(),
-        contract_info.clone(),
-        swap_msg.clone(),
-    );
-    assert!(res.is_err());
-
-    deps.querier.with_token_balances(&[(
-        &String::from("airdrop_token"),
-        &[(
-            &mock_env().contract.address.to_string(),
-            &Uint128::from(1000u64),
-        )],
-    )]);
-
-    let res = execute(deps.as_mut(), mock_env(), contract_info, swap_msg).unwrap();
-    assert_eq!(res.messages.len(), 1);
-    assert_eq!(
-        res.messages[0].msg.clone(),
-        CosmosMsg::Wasm(WasmMsg::Execute {
-            contract_addr: String::from("airdrop_token"),
-            msg: to_binary(&Cw20ExecuteMsg::Send {
-                contract: String::from("swap_contract"),
-                amount: Uint128::from(1000u64),
-                msg: to_binary(&PairHandleMsg::Swap {
-                    belief_price: None,
-                    max_spread: None,
-                    to: Some(reward_contract),
-                })
-                .unwrap(),
-            })
-            .unwrap(),
-            funds: vec![],
-        })
-    )
-}
-
-#[test]
-fn proper_update_global_index_with_airdrop() {
-    let mut deps = dependencies(&[]);
-
-    let validator = sample_validator(DEFAULT_VALIDATOR);
-    set_validator_mock(&mut deps.querier);
-
-    let addr1 = String::from("addr1000");
-    let bond_amount = Uint128::from(10u64);
-
-    let owner = String::from("owner1");
-    let token_contract = String::from("token");
-    let stluna_token_contract = String::from("stluna_token");
-    let reward_contract = String::from("reward");
-
-    initialize(
-        deps.borrow_mut(),
-        owner,
-        reward_contract,
-        token_contract,
-        stluna_token_contract.clone(),
-    );
-
-    // register_validator
-    do_register_validator(&mut deps, validator.clone());
-
-    // bond
-    do_bond(&mut deps, addr1.clone(), bond_amount);
-
-    //set delegation for query-all-delegation
-    let delegations: [FullDelegation; 1] =
-        [(sample_delegation(validator.address.clone(), coin(bond_amount.u128(), "uluna")))];
-
-    let validators: [Validator; 1] = [(validator)];
-
-    set_delegation_query(&mut deps.querier, &delegations, &validators);
-
-    //set bob's balance to 10 in token contract
-    deps.querier.with_token_balances(&[
-        (&String::from("token"), &[(&addr1, &bond_amount)]),
-        (&stluna_token_contract, &[(&addr1, &Uint128::from(10u64))]),
-    ]);
-
-    let binary_msg = to_binary(&FabricateMIRClaim {
-        stage: 0,
-        amount: Uint128::from(1000u64),
-        proof: vec!["proof".to_string()],
-    })
-    .unwrap();
-
-    let binary_msg2 = to_binary(&FabricateANCClaim {
-        stage: 0,
-        amount: Uint128::from(1000u64),
-        proof: vec!["proof".to_string()],
-    })
-    .unwrap();
-    let reward_msg = ExecuteMsg::UpdateGlobalIndex {
-        airdrop_hooks: Some(vec![binary_msg.clone(), binary_msg2.clone()]),
-    };
-
-    let info = mock_info(&addr1, &[]);
-    let res = execute(deps.as_mut(), mock_env(), info, reward_msg).unwrap();
-    assert_eq!(5, res.messages.len());
-
-    assert_eq!(
-        res.messages[0].msg.clone(),
-        CosmosMsg::Wasm(WasmMsg::Execute {
-            contract_addr: String::from("airdrop_registry"),
-            msg: binary_msg,
-            funds: vec![],
-        })
-    );
-
-    assert_eq!(
-        res.messages[1].msg.clone(),
-        CosmosMsg::Wasm(WasmMsg::Execute {
-            contract_addr: String::from("airdrop_registry"),
-            msg: binary_msg2,
-            funds: vec![],
-        })
-    );
-}
-
 fn set_delegation(querier: &mut WasmMockQuerier, validator: Validator, amount: u128, denom: &str) {
     querier.update_staking(
         "uluna",
@@ -5181,9 +4950,7 @@ pub fn test_pause() {
 
     // try to run a not allowed action (anything but migrate_unbond_wait_list),
     // should return an error
-    let update_global = UpdateGlobalIndex {
-        airdrop_hooks: None,
-    };
+    let update_global = UpdateGlobalIndex {};
     let info = mock_info(&owner, &[]);
     let res = execute(deps.as_mut(), mock_env(), info, update_global);
     assert_eq!(
@@ -5197,9 +4964,7 @@ pub fn test_pause() {
     execute(deps.as_mut(), mock_env(), creator_info, unpause_contracts).unwrap();
 
     // execute the same handler, should work
-    let update_global = UpdateGlobalIndex {
-        airdrop_hooks: None,
-    };
+    let update_global = UpdateGlobalIndex {};
     let info = mock_info(&owner, &[]);
     execute(deps.as_mut(), mock_env(), info, update_global).unwrap();
 }
@@ -5256,9 +5021,7 @@ pub fn test_guardians() {
 
     // try to run a not allowed action (anything but migrate_unbond_wait_list),
     // should return an error
-    let update_global = UpdateGlobalIndex {
-        airdrop_hooks: None,
-    };
+    let update_global = UpdateGlobalIndex {};
     let info = mock_info(&owner, &[]);
     let res = execute(deps.as_mut(), mock_env(), info, update_global);
     assert_eq!(
@@ -5278,9 +5041,7 @@ pub fn test_guardians() {
     execute(deps.as_mut(), mock_env(), creator_info, unpause_contracts).unwrap();
 
     // check that contracts are unpaused
-    let update_global = UpdateGlobalIndex {
-        airdrop_hooks: None,
-    };
+    let update_global = UpdateGlobalIndex {};
     let info = mock_info(&owner, &[]);
     execute(deps.as_mut(), mock_env(), info, update_global).unwrap();
 
@@ -5319,9 +5080,7 @@ pub fn test_guardians() {
 
     // try to run a not allowed action (anything but migrate_unbond_wait_list),
     // should return an error
-    let update_global = UpdateGlobalIndex {
-        airdrop_hooks: None,
-    };
+    let update_global = UpdateGlobalIndex {};
     let info = mock_info(&owner, &[]);
     let res = execute(deps.as_mut(), mock_env(), info, update_global);
     assert_eq!(

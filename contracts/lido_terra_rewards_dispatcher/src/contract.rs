@@ -457,10 +457,7 @@ pub fn execute_dispatch_rewards(
     }
     messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
         contract_addr: bluna_reward_addr.to_string(),
-        msg: to_binary(&UpdateGlobalIndex {
-            airdrop_hooks: None,
-        })
-        .unwrap(),
+        msg: to_binary(&UpdateGlobalIndex {}).unwrap(),
         funds: vec![],
     }));
 

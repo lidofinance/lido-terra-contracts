@@ -1,4 +1,4 @@
-use cosmwasm_std::{Decimal, Uint128};
+use cosmwasm_std::Decimal;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -12,20 +12,9 @@ pub struct InstantiateMsg {
 #[serde(rename_all = "snake_case")]
 #[allow(clippy::upper_case_acronyms)]
 pub enum ExecuteMsg {
-    FabricateMIRClaim {
-        stage: u8,
-        amount: Uint128,
-        proof: Vec<String>,
-    },
-    FabricateANCClaim {
-        stage: u8,
-        amount: Uint128,
-        proof: Vec<String>,
-    },
     UpdateConfig {
         owner: Option<String>,
         hub_contract: Option<String>,
-        reward_contract: Option<String>,
     },
     AddAirdropInfo {
         airdrop_token: String,
@@ -52,40 +41,13 @@ pub enum QueryMsg {
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-#[serde(rename_all = "snake_case")]
-#[allow(clippy::upper_case_acronyms)]
-pub enum MIRAirdropHandleMsg {
-    Claim {
-        stage: u8,
-        amount: Uint128,
-        proof: Vec<String>,
-    },
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-#[serde(rename_all = "snake_case")]
-#[allow(clippy::upper_case_acronyms)]
-pub enum ANCAirdropHandleMsg {
-    Claim {
-        stage: u8,
-        amount: Uint128,
-        proof: Vec<String>,
-    },
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-#[serde(rename_all = "snake_case")]
-#[allow(clippy::upper_case_acronyms)]
-pub enum PairHandleMsg {
-    Swap {
-        belief_price: Option<Decimal>,
-        max_spread: Option<Decimal>,
-        to: Option<String>,
-    },
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct AirdropInfo {
+    pub airdrop_token_contract: String,
+    pub airdrop_contract: String,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct AirdropInfoOld {
     pub airdrop_token_contract: String,
     pub airdrop_contract: String,
     pub airdrop_swap_contract: String,
@@ -97,7 +59,6 @@ pub struct AirdropInfo {
 pub struct ConfigResponse {
     pub owner: String,
     pub hub_contract: String,
-    pub reward_contract: String,
     pub airdrop_tokens: Vec<String>,
 }
 
@@ -108,6 +69,15 @@ pub struct AirdropInfoElem {
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct AirdropInfoElemOld {
+    pub airdrop_token: String,
+    pub info: AirdropInfoOld,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct AirdropInfoResponse {
     pub airdrop_info: Vec<AirdropInfoElem>,
 }
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct MigrateMsg {}

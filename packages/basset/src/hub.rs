@@ -1,6 +1,5 @@
 use cosmwasm_std::{
-    to_binary, Binary, CanonicalAddr, Coin, Decimal, Deps, QueryRequest, StdResult, Uint128,
-    WasmQuery,
+    to_binary, CanonicalAddr, Coin, Decimal, Deps, QueryRequest, StdResult, Uint128, WasmQuery,
 };
 use cw20::Cw20ReceiveMsg;
 use schemars::JsonSchema;
@@ -62,8 +61,10 @@ pub struct Config {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct OldConfig {
     pub creator: CanonicalAddr,
-    pub reward_contract: Option<CanonicalAddr>,
-    pub token_contract: Option<CanonicalAddr>,
+    pub reward_dispatcher_contract: Option<CanonicalAddr>,
+    pub validators_registry_contract: Option<CanonicalAddr>,
+    pub bluna_token_contract: Option<CanonicalAddr>,
+    pub stluna_token_contract: Option<CanonicalAddr>,
     pub airdrop_registry_contract: Option<CanonicalAddr>,
 }
 
@@ -139,9 +140,7 @@ pub enum ExecuteMsg {
     BondRewards {},
 
     /// Update global index
-    UpdateGlobalIndex {
-        airdrop_hooks: Option<Vec<Binary>>,
-    },
+    UpdateGlobalIndex {},
 
     /// Send back unbonded coin to the user
     WithdrawUnbonded {},
@@ -163,24 +162,6 @@ pub enum ExecuteMsg {
         stage: u8,
         amount: Uint128,
         proof: Vec<String>,
-    },
-
-    ////////////////////
-    /// internal operations
-    ///////////////////
-    ClaimAirdrop {
-        airdrop_token_contract: String, // Contract address of MIR Cw20 Token
-        airdrop_contract: String,       // Contract address of MIR Airdrop
-        airdrop_swap_contract: String,  // E.g. Contract address of MIR <> UST Terraswap Pair
-        claim_msg: Binary,              // Base64-encoded JSON of MIRAirdropHandleMsg::Claim
-        swap_msg: Binary,               // Base64-encoded string of JSON of PairHandleMsg::Swap
-    },
-
-    /// Swaps claimed airdrop tokens to UST through Terraswap & sends resulting UST to bLuna Reward contract
-    SwapHook {
-        airdrop_token_contract: String, // E.g. contract address of MIR Token
-        airdrop_swap_contract: String,  // E.g. Contract address of MIR <> UST Terraswap Pair
-        swap_msg: Binary,               // E.g. Base64-encoded JSON of PairHandleMsg::Swap
     },
 
     RedelegateProxy {
@@ -302,7 +283,9 @@ pub struct AllHistoryResponse {
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct MigrateMsg {}
+pub struct MigrateMsg {
+    pub airdrop_withdrawal_account: Option<String>,
+}
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]

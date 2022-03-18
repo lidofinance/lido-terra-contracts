@@ -184,9 +184,7 @@ pub fn remove_validator(
                 funds: vec![],
             }));
 
-            let msg = UpdateGlobalIndex {
-                airdrop_hooks: None,
-            };
+            let msg = UpdateGlobalIndex {};
             messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
                 contract_addr: hub_address.into_string(),
                 msg: to_binary(&msg)?,

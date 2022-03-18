@@ -149,9 +149,6 @@ impl WasmMockQuerier {
                                             airdrop_token_contract: AIRDROP_TOKEN_CONTRACT
                                                 .to_string(),
                                             airdrop_contract: AIRDROP_CONTRACT.to_string(),
-                                            airdrop_swap_contract: String::from("deprecated"),
-                                            swap_belief_price: None,
-                                            swap_max_spread: None,
                                         },
                                     }],
                                 },

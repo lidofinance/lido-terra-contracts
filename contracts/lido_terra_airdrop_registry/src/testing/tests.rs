@@ -14,20 +14,15 @@
 
 use crate::contract::{execute, instantiate, query};
 use basset::airdrop::{
-    ANCAirdropHandleMsg, AirdropInfoElem, AirdropInfoResponse, ConfigResponse, ExecuteMsg,
-    InstantiateMsg, MIRAirdropHandleMsg, PairHandleMsg, QueryMsg,
+    AirdropInfoElem, AirdropInfoResponse, ConfigResponse, ExecuteMsg, InstantiateMsg, QueryMsg,
 };
 
 use super::mock_querier::mock_dependencies;
 use basset::airdrop::AirdropInfo;
 use basset::airdrop::ExecuteMsg::UpdateConfig;
-use basset::hub::ExecuteMsg::ClaimAirdrop;
 use cosmwasm_std::testing::{mock_env, mock_info};
 
-use cosmwasm_std::{
-    attr, from_binary, to_binary, CosmosMsg, DepsMut, Env, MessageInfo, Response, StdError, SubMsg,
-    Uint128, WasmMsg,
-};
+use cosmwasm_std::{attr, from_binary, DepsMut, Env, MessageInfo, Response, StdError};
 
 fn do_init(deps: DepsMut, env: Env, info: MessageInfo) {
     let init_msg = InstantiateMsg {
@@ -46,9 +41,6 @@ fn do_add_airdrop_info(deps: DepsMut, env: Env, info: MessageInfo, airdrop_token
         airdrop_info: AirdropInfo {
             airdrop_token_contract: "airdrop_token_contract".to_string(),
             airdrop_contract: "airdrop_contract".to_string(),
-            airdrop_swap_contract: "swap_contract".to_string(),
-            swap_belief_price: None,
-            swap_max_spread: None,
         },
     };
     let res = execute(deps, env, info, msg).unwrap();
@@ -78,99 +70,9 @@ fn proper_init() {
     let expected = ConfigResponse {
         owner: "owner".to_string(),
         hub_contract: "hub_contract".to_string(),
-        reward_contract: "reward_contract".to_string(),
         airdrop_tokens: vec![],
     };
     assert_eq!(conf, expected);
-}
-
-#[test]
-fn proper_mir_claim() {
-    let mut deps = mock_dependencies(&[]);
-
-    let owner = "owner".to_string();
-    let info = mock_info(&owner, &[]);
-
-    do_init(deps.as_mut(), mock_env(), info.clone());
-
-    do_add_airdrop_info(deps.as_mut(), mock_env(), info.clone(), "MIR");
-
-    let msg = ExecuteMsg::FabricateMIRClaim {
-        stage: 0,
-        amount: Uint128::new(1000),
-        proof: vec![],
-    };
-
-    let res = execute(deps.as_mut(), mock_env(), info, msg).unwrap();
-    assert_eq!(res.messages.len(), 1);
-
-    let expected = SubMsg::new(CosmosMsg::Wasm(WasmMsg::Execute {
-        contract_addr: "hub_contract".to_string(),
-        msg: to_binary(&ClaimAirdrop {
-            airdrop_token_contract: "airdrop_token_contract".to_string(),
-            airdrop_contract: "airdrop_contract".to_string(),
-            airdrop_swap_contract: "swap_contract".to_string(),
-            claim_msg: to_binary(&MIRAirdropHandleMsg::Claim {
-                stage: 0,
-                amount: Uint128::new(1000),
-                proof: vec![],
-            })
-            .unwrap(),
-            swap_msg: to_binary(&PairHandleMsg::Swap {
-                belief_price: None,
-                max_spread: None,
-                to: Some("reward_contract".to_string()),
-            })
-            .unwrap(),
-        })
-        .unwrap(),
-        funds: vec![],
-    }));
-    assert_eq!(res.messages[0], expected);
-}
-
-#[test]
-fn proper_anc_claim() {
-    let mut deps = mock_dependencies(&[]);
-
-    let info = mock_info("owner", &[]);
-
-    do_init(deps.as_mut(), mock_env(), info.clone());
-
-    do_add_airdrop_info(deps.as_mut(), mock_env(), info.clone(), "ANC");
-
-    let msg = ExecuteMsg::FabricateANCClaim {
-        stage: 0,
-        amount: Uint128::new(1000),
-        proof: vec![],
-    };
-
-    let res = execute(deps.as_mut(), mock_env(), info, msg).unwrap();
-    assert_eq!(res.messages.len(), 1);
-
-    let expected = SubMsg::new(CosmosMsg::Wasm(WasmMsg::Execute {
-        contract_addr: "hub_contract".to_string(),
-        msg: to_binary(&ClaimAirdrop {
-            airdrop_token_contract: "airdrop_token_contract".to_string(),
-            airdrop_contract: "airdrop_contract".to_string(),
-            airdrop_swap_contract: "swap_contract".to_string(),
-            claim_msg: to_binary(&ANCAirdropHandleMsg::Claim {
-                stage: 0,
-                amount: Uint128::new(1000),
-                proof: vec![],
-            })
-            .unwrap(),
-            swap_msg: to_binary(&PairHandleMsg::Swap {
-                belief_price: None,
-                max_spread: None,
-                to: Some("reward_contract".to_string()),
-            })
-            .unwrap(),
-        })
-        .unwrap(),
-        funds: vec![],
-    }));
-    assert_eq!(res.messages[0], expected);
 }
 
 #[test]
@@ -186,9 +88,6 @@ fn proper_add_airdrop_info() {
         airdrop_info: AirdropInfo {
             airdrop_token_contract: "airdrop_token_contract".to_string(),
             airdrop_contract: "airdrop_contract".to_string(),
-            airdrop_swap_contract: "swap_contract".to_string(),
-            swap_belief_price: None,
-            swap_max_spread: None,
         },
     };
 
@@ -221,9 +120,6 @@ fn proper_add_airdrop_info() {
             info: AirdropInfo {
                 airdrop_token_contract: "airdrop_token_contract".to_string(),
                 airdrop_contract: "airdrop_contract".to_string(),
-                airdrop_swap_contract: "swap_contract".to_string(),
-                swap_belief_price: None,
-                swap_max_spread: None,
             },
         }],
     };
@@ -236,7 +132,6 @@ fn proper_add_airdrop_info() {
     let expected = ConfigResponse {
         owner: "owner".to_string(),
         hub_contract: "hub_contract".to_string(),
-        reward_contract: "reward_contract".to_string(),
         airdrop_tokens: vec!["MIR".to_string()],
     };
     assert_eq!(conf, expected);
@@ -247,9 +142,6 @@ fn proper_add_airdrop_info() {
         airdrop_info: AirdropInfo {
             airdrop_token_contract: "airdrop_token_contract".to_string(),
             airdrop_contract: "new_airdrop_contract".to_string(),
-            airdrop_swap_contract: "swap_contract".to_string(),
-            swap_belief_price: None,
-            swap_max_spread: None,
         },
     };
     let res = execute(deps.as_mut(), mock_env(), info, msg).unwrap_err();
@@ -294,7 +186,6 @@ fn proper_remove_airdrop_info() {
     let expected = ConfigResponse {
         owner: "owner".to_string(),
         hub_contract: "hub_contract".to_string(),
-        reward_contract: "reward_contract".to_string(),
         airdrop_tokens: vec![],
     };
     assert_eq!(conf, expected);
@@ -318,9 +209,6 @@ fn proper_remove_airdrop_info() {
         airdrop_info: AirdropInfo {
             airdrop_token_contract: "airdrop_token_contract".to_string(),
             airdrop_contract: "new_airdrop_contract".to_string(),
-            airdrop_swap_contract: "swap_contract".to_string(),
-            swap_belief_price: None,
-            swap_max_spread: None,
         },
     };
     let res = execute(deps.as_mut(), mock_env(), info, msg).unwrap_err();
@@ -345,9 +233,6 @@ fn proper_update_airdrop_info() {
         airdrop_info: AirdropInfo {
             airdrop_token_contract: "airdrop_token_contract".to_string(),
             airdrop_contract: "new_airdrop_contract".to_string(),
-            airdrop_swap_contract: "swap_contract".to_string(),
-            swap_belief_price: None,
-            swap_max_spread: None,
         },
     };
 
@@ -379,9 +264,6 @@ fn proper_update_airdrop_info() {
             info: AirdropInfo {
                 airdrop_token_contract: "airdrop_token_contract".to_string(),
                 airdrop_contract: "new_airdrop_contract".to_string(),
-                airdrop_swap_contract: "swap_contract".to_string(),
-                swap_belief_price: None,
-                swap_max_spread: None,
             },
         }],
     };
@@ -398,9 +280,6 @@ fn proper_update_airdrop_info() {
     let expected = AirdropInfo {
         airdrop_token_contract: "airdrop_token_contract".to_string(),
         airdrop_contract: "new_airdrop_contract".to_string(),
-        airdrop_swap_contract: "swap_contract".to_string(),
-        swap_belief_price: None,
-        swap_max_spread: None,
     };
     let infos = AirdropInfoResponse {
         airdrop_info: vec![AirdropInfoElem {
@@ -431,9 +310,6 @@ fn proper_update_airdrop_info() {
         airdrop_info: AirdropInfo {
             airdrop_token_contract: "airdrop_token_contract".to_string(),
             airdrop_contract: "new_airdrop_contract".to_string(),
-            airdrop_swap_contract: "swap_contract".to_string(),
-            swap_belief_price: None,
-            swap_max_spread: None,
         },
     };
     let res = execute(deps.as_mut(), mock_env(), info, msg).unwrap_err();
@@ -459,7 +335,6 @@ pub fn proper_update_config() {
     let expected = ConfigResponse {
         owner: "owner".to_string(),
         hub_contract: "hub_contract".to_string(),
-        reward_contract: "reward_contract".to_string(),
         airdrop_tokens: vec!["MIR".to_string()],
     };
     assert_eq!(expected, res);
@@ -467,7 +342,6 @@ pub fn proper_update_config() {
     let update_conf = UpdateConfig {
         owner: Some("new_owner".to_string()),
         hub_contract: Some("new_hub_contract".to_string()),
-        reward_contract: Some("new_reward_contract".to_string()),
     };
     let res = execute(deps.as_mut(), mock_env(), info, update_conf).unwrap();
     assert_eq!(res.messages.len(), 0);
@@ -478,7 +352,6 @@ pub fn proper_update_config() {
     let expected = ConfigResponse {
         owner: "new_owner".to_string(),
         hub_contract: "new_hub_contract".to_string(),
-        reward_contract: "new_reward_contract".to_string(),
         airdrop_tokens: vec!["MIR".to_string()],
     };
     assert_eq!(expected, res);
@@ -500,9 +373,6 @@ fn proper_query() {
         airdrop_info: AirdropInfo {
             airdrop_token_contract: "buzz_airdrop_token_contract".to_string(),
             airdrop_contract: "buzz_airdrop_contract".to_string(),
-            airdrop_swap_contract: "buzz_swap_contract".to_string(),
-            swap_belief_price: None,
-            swap_max_spread: None,
         },
     };
     let res = execute(deps.as_mut(), mock_env(), info, msg).unwrap();
@@ -515,7 +385,6 @@ fn proper_query() {
     let expected = ConfigResponse {
         owner: "owner".to_string(),
         hub_contract: "hub_contract".to_string(),
-        reward_contract: "reward_contract".to_string(),
         airdrop_tokens: vec!["MIR".to_string(), "ANC".to_string(), "BUZZ".to_string()],
     };
     assert_eq!(expected, res);
@@ -532,9 +401,6 @@ fn proper_query() {
     let expected = AirdropInfo {
         airdrop_token_contract: "airdrop_token_contract".to_string(),
         airdrop_contract: "airdrop_contract".to_string(),
-        airdrop_swap_contract: "swap_contract".to_string(),
-        swap_belief_price: None,
-        swap_max_spread: None,
     };
     let infos = AirdropInfoResponse {
         airdrop_info: vec![
@@ -547,9 +413,6 @@ fn proper_query() {
                 info: AirdropInfo {
                     airdrop_token_contract: "buzz_airdrop_token_contract".to_string(),
                     airdrop_contract: "buzz_airdrop_contract".to_string(),
-                    airdrop_swap_contract: "buzz_swap_contract".to_string(),
-                    swap_belief_price: None,
-                    swap_max_spread: None,
                 },
             },
             AirdropInfoElem {

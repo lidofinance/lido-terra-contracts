@@ -15,19 +15,19 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    attr, to_binary, Binary, CosmosMsg, Deps, DepsMut, Env, MessageInfo, Response, StdError,
-    StdResult, SubMsg, Uint128, WasmMsg,
+    attr, from_slice, to_binary, to_vec, Binary, Deps, DepsMut, Env, MessageInfo, Order, Response,
+    StdError, StdResult,
 };
 
 use crate::state::{
     read_airdrop_info, read_all_airdrop_infos, read_config, remove_airdrop_info,
-    store_airdrop_info, store_config, update_airdrop_info, Config, CONFIG,
+    store_airdrop_info, store_config, update_airdrop_info, Config, AIRDROP_INFO, AIRDROP_INFO_OLD,
+    CONFIG, CONFIG_OLD,
 };
 use basset::airdrop::{
-    ANCAirdropHandleMsg, AirdropInfo, AirdropInfoElem, AirdropInfoResponse, ConfigResponse,
-    ExecuteMsg, InstantiateMsg, MIRAirdropHandleMsg, PairHandleMsg, QueryMsg,
+    AirdropInfo, AirdropInfoElem, AirdropInfoElemOld, AirdropInfoResponse, ConfigResponse,
+    ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg,
 };
-use basset::hub::{is_paused, ExecuteMsg as HubHandleMsg};
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
@@ -41,7 +41,6 @@ pub fn instantiate(
     let config = Config {
         owner: sndr_raw,
         hub_contract: msg.hub_contract,
-        reward_contract: msg.reward_contract,
         airdrop_tokens: vec![],
     };
 
@@ -53,21 +52,10 @@ pub fn instantiate(
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> StdResult<Response> {
     match msg {
-        ExecuteMsg::FabricateMIRClaim {
-            stage,
-            amount,
-            proof,
-        } => execute_fabricate_mir_claim(deps, env, info, stage, amount, proof),
-        ExecuteMsg::FabricateANCClaim {
-            stage,
-            amount,
-            proof,
-        } => execute_fabricate_anchor_claim(deps, env, info, stage, amount, proof),
         ExecuteMsg::UpdateConfig {
             owner,
             hub_contract,
-            reward_contract,
-        } => execute_update_config(deps, env, info, owner, hub_contract, reward_contract),
+        } => execute_update_config(deps, env, info, owner, hub_contract),
         ExecuteMsg::AddAirdropInfo {
             airdrop_token,
             airdrop_info,
@@ -82,97 +70,12 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
     }
 }
 
-fn execute_fabricate_mir_claim(
-    deps: DepsMut,
-    _env: Env,
-    _info: MessageInfo,
-    stage: u8,
-    amount: Uint128,
-    proof: Vec<String>,
-) -> StdResult<Response> {
-    let config = read_config(deps.storage)?;
-
-    if is_paused(deps.as_ref(), config.hub_contract.clone())? {
-        return Err(StdError::generic_err("the contract is temporarily paused"));
-    }
-
-    let mut messages: Vec<SubMsg> = vec![];
-
-    let airdrop_info = read_airdrop_info(deps.storage, "MIR".to_string())?;
-    messages.push(SubMsg::new(CosmosMsg::Wasm(WasmMsg::Execute {
-        contract_addr: config.hub_contract,
-        msg: to_binary(&HubHandleMsg::ClaimAirdrop {
-            airdrop_token_contract: airdrop_info.airdrop_token_contract,
-            airdrop_contract: airdrop_info.airdrop_contract,
-            airdrop_swap_contract: airdrop_info.airdrop_swap_contract,
-            claim_msg: to_binary(&MIRAirdropHandleMsg::Claim {
-                stage,
-                amount,
-                proof,
-            })?,
-            swap_msg: to_binary(&PairHandleMsg::Swap {
-                belief_price: airdrop_info.swap_belief_price,
-                max_spread: airdrop_info.swap_max_spread,
-                to: Some(config.reward_contract),
-            })?,
-        })?,
-        funds: vec![],
-    })));
-
-    Ok(Response::new()
-        .add_submessages(messages)
-        .add_attributes(vec![attr("action", "fabricate_mir_claim")]))
-}
-
-fn execute_fabricate_anchor_claim(
-    deps: DepsMut,
-    _env: Env,
-    _info: MessageInfo,
-    stage: u8,
-    amount: Uint128,
-    proof: Vec<String>,
-) -> StdResult<Response> {
-    let config = read_config(deps.storage)?;
-
-    if is_paused(deps.as_ref(), config.hub_contract.clone())? {
-        return Err(StdError::generic_err("the contract is temporarily paused"));
-    }
-
-    let mut messages: Vec<SubMsg> = vec![];
-
-    let airdrop_info = read_airdrop_info(deps.storage, "ANC".to_string())?;
-    messages.push(SubMsg::new(CosmosMsg::Wasm(WasmMsg::Execute {
-        contract_addr: config.hub_contract,
-        msg: to_binary(&HubHandleMsg::ClaimAirdrop {
-            airdrop_token_contract: airdrop_info.airdrop_token_contract,
-            airdrop_contract: airdrop_info.airdrop_contract,
-            airdrop_swap_contract: airdrop_info.airdrop_swap_contract,
-            claim_msg: to_binary(&ANCAirdropHandleMsg::Claim {
-                stage,
-                amount,
-                proof,
-            })?,
-            swap_msg: to_binary(&PairHandleMsg::Swap {
-                belief_price: airdrop_info.swap_belief_price,
-                max_spread: airdrop_info.swap_max_spread,
-                to: Some(config.reward_contract),
-            })?,
-        })?,
-        funds: vec![],
-    })));
-
-    Ok(Response::new()
-        .add_submessages(messages)
-        .add_attributes(vec![attr("action", "fabricate_anc_claim")]))
-}
-
 pub fn execute_update_config(
     deps: DepsMut,
     _env: Env,
     info: MessageInfo,
     owner: Option<String>,
     hub_contract: Option<String>,
-    reward_contract: Option<String>,
 ) -> StdResult<Response> {
     // only owner can send this message.
     let mut config = read_config(deps.storage)?;
@@ -187,9 +90,6 @@ pub fn execute_update_config(
     }
     if let Some(hub) = hub_contract {
         config.hub_contract = hub;
-    }
-    if let Some(reward_addr) = reward_contract {
-        config.reward_contract = reward_addr;
     }
 
     store_config(deps.storage, &config)?;
@@ -318,7 +218,6 @@ fn query_config(deps: Deps) -> StdResult<ConfigResponse> {
     Ok(ConfigResponse {
         owner: owner_addr.to_string(),
         hub_contract: config.hub_contract,
-        reward_contract: config.reward_contract,
         airdrop_tokens: config.airdrop_tokens,
     })
 }
@@ -344,4 +243,52 @@ fn query_airdrop_infos(
             airdrop_info: infos,
         })
     }
+}
+
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn migrate(deps: DepsMut, _env: Env, _msg: MigrateMsg) -> StdResult<Response> {
+    let limit = 10_usize;
+
+    let infos: StdResult<Vec<AirdropInfoElemOld>> = AIRDROP_INFO_OLD
+        .range(deps.storage, None, None, Order::Ascending)
+        .take(limit)
+        .map(|item| {
+            let (k, v) = match item {
+                Ok(p) => p,
+                Err(e) => return Err(e),
+            };
+            let key: String = match from_slice(&k) {
+                Ok(s) => s,
+                Err(e) => return Err(e),
+            };
+            Ok(AirdropInfoElemOld {
+                airdrop_token: key,
+                info: v,
+            })
+        })
+        .collect();
+
+    for info_elem_old in infos? {
+        let key = to_vec(&info_elem_old.airdrop_token)?;
+        AIRDROP_INFO.save(
+            deps.storage,
+            &key,
+            &AirdropInfo {
+                airdrop_token_contract: info_elem_old.info.airdrop_token_contract,
+                airdrop_contract: info_elem_old.info.airdrop_contract,
+            },
+        )?;
+    }
+
+    let config_old = CONFIG_OLD.load(deps.storage)?;
+    CONFIG.save(
+        deps.storage,
+        &Config {
+            owner: config_old.owner,
+            hub_contract: config_old.hub_contract,
+            airdrop_tokens: config_old.airdrop_tokens,
+        },
+    )?;
+
+    Ok(Response::new())
 }

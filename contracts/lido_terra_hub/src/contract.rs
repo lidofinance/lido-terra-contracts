@@ -25,21 +25,20 @@ use cosmwasm_std::{
 
 use crate::config::{execute_update_config, execute_update_params};
 use crate::state::{
-    all_unbond_history, get_unbond_requests, query_get_finished_amount, CONFIG, CURRENT_BATCH,
-    GUARDIANS, PARAMETERS, STATE,
+    all_unbond_history, get_unbond_requests, query_get_finished_amount, CONFIG, CONFIG_OLD,
+    CURRENT_BATCH, GUARDIANS, PARAMETERS, STATE,
 };
 use crate::unbond::{execute_unbond, execute_unbond_stluna, execute_withdraw_unbonded};
 
 use crate::bond::execute_bond;
 use crate::convert::{convert_bluna_stluna, convert_stluna_bluna};
-use basset::hub::ExecuteMsg::SwapHook;
 use basset::hub::{
     AirdropMsg, AllHistoryResponse, BondType, Config, ConfigResponse, CurrentBatch,
     CurrentBatchResponse, InstantiateMsg, MigrateMsg, Parameters, QueryMsg, State, StateResponse,
     UnbondRequestsResponse, WithdrawableUnbondedResponse,
 };
 use basset::hub::{Cw20HookMsg, ExecuteMsg};
-use cw20::{BalanceResponse, Cw20ExecuteMsg, Cw20QueryMsg, Cw20ReceiveMsg, TokenInfoResponse};
+use cw20::{Cw20ExecuteMsg, Cw20QueryMsg, Cw20ReceiveMsg, TokenInfoResponse};
 use lido_terra_rewards_dispatcher::msg::ExecuteMsg::{DispatchRewards, SwapToRewardDenom};
 use lido_terra_validators_registry::msg::QueryMsg as QueryValidators;
 use lido_terra_validators_registry::registry::ValidatorResponse;
@@ -116,9 +115,7 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
         ExecuteMsg::Bond {} => execute_bond(deps, env, info, BondType::BLuna),
         ExecuteMsg::BondForStLuna {} => execute_bond(deps, env, info, BondType::StLuna),
         ExecuteMsg::BondRewards {} => execute_bond(deps, env, info, BondType::BondRewards),
-        ExecuteMsg::UpdateGlobalIndex { airdrop_hooks } => {
-            execute_update_global(deps, env, info, airdrop_hooks)
-        }
+        ExecuteMsg::UpdateGlobalIndex {} => execute_update_global(deps, env, info),
         ExecuteMsg::WithdrawUnbonded {} => execute_withdraw_unbonded(deps, env, info),
         ExecuteMsg::CheckSlashing {} => execute_slashing(deps, env),
         ExecuteMsg::UpdateParams {
@@ -154,34 +151,6 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
             airdrop_registry_contract,
             airdrop_withdrawal_account,
             validators_registry_contract,
-        ),
-        ExecuteMsg::SwapHook {
-            airdrop_token_contract,
-            airdrop_swap_contract,
-            swap_msg,
-        } => swap_hook(
-            deps,
-            env,
-            info,
-            airdrop_token_contract,
-            airdrop_swap_contract,
-            swap_msg,
-        ),
-        ExecuteMsg::ClaimAirdrop {
-            airdrop_token_contract,
-            airdrop_contract,
-            airdrop_swap_contract,
-            claim_msg,
-            swap_msg,
-        } => claim_airdrop(
-            deps,
-            env,
-            info,
-            airdrop_token_contract,
-            airdrop_contract,
-            airdrop_swap_contract,
-            claim_msg,
-            swap_msg,
         ),
         ExecuteMsg::ClaimAirdrops {
             token,
@@ -469,12 +438,7 @@ pub fn receive_cw20(
 
 /// Update general parameters
 /// Permissionless
-pub fn execute_update_global(
-    deps: DepsMut,
-    env: Env,
-    _info: MessageInfo,
-    airdrop_hooks: Option<Vec<Binary>>,
-) -> StdResult<Response> {
+pub fn execute_update_global(deps: DepsMut, env: Env, _info: MessageInfo) -> StdResult<Response> {
     let params: Parameters = PARAMETERS.load(deps.storage)?;
     if params.paused.unwrap_or(false) {
         return Err(StdError::generic_err("the contract is temporarily paused"));
@@ -488,21 +452,6 @@ pub fn execute_update_global(
             .addr_humanize(&config.reward_dispatcher_contract.ok_or_else(|| {
                 StdError::generic_err("the reward contract must have been registered")
             })?)?;
-
-    if airdrop_hooks.is_some() {
-        let registry_addr =
-            deps.api
-                .addr_humanize(&config.airdrop_registry_contract.ok_or_else(|| {
-                    StdError::generic_err("the airdrop registry contract must have been registered")
-                })?)?;
-        for msg in airdrop_hooks.unwrap() {
-            messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: registry_addr.to_string(),
-                msg,
-                funds: vec![],
-            }))
-        }
-    }
 
     // Send withdraw message
     let mut withdraw_msgs = withdraw_all_rewards(&deps, env.contract.address.to_string())?;
@@ -611,108 +560,6 @@ pub fn slashing(deps: &mut DepsMut, env: Env) -> StdResult<State> {
     STATE.save(deps.storage, &state)?;
 
     Ok(state)
-}
-
-#[allow(clippy::too_many_arguments)]
-pub fn claim_airdrop(
-    deps: DepsMut,
-    env: Env,
-    info: MessageInfo,
-    airdrop_token_contract: String,
-    airdrop_contract: String,
-    airdrop_swap_contract: String,
-    claim_msg: Binary,
-    swap_msg: Binary,
-) -> StdResult<Response> {
-    let params: Parameters = PARAMETERS.load(deps.storage)?;
-    if params.paused.unwrap_or(false) {
-        return Err(StdError::generic_err("the contract is temporarily paused"));
-    }
-
-    let conf = CONFIG.load(deps.storage)?;
-
-    let sender_raw = deps.api.addr_canonicalize(info.sender.as_str())?;
-
-    let airdrop_reg_raw = if let Some(airdrop) = conf.airdrop_registry_contract {
-        airdrop
-    } else {
-        return Err(StdError::generic_err("airdrop contract must be registered"));
-    };
-
-    let airdrop_reg = deps.api.addr_humanize(&airdrop_reg_raw)?;
-
-    if airdrop_reg_raw != sender_raw {
-        return Err(StdError::generic_err(format!(
-            "Sender must be {}",
-            airdrop_reg
-        )));
-    }
-
-    let mut messages: Vec<CosmosMsg> = vec![CosmosMsg::Wasm(WasmMsg::Execute {
-        contract_addr: airdrop_contract,
-        msg: claim_msg,
-        funds: vec![],
-    })];
-
-    messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
-        contract_addr: env.contract.address.to_string(),
-        msg: to_binary(&SwapHook {
-            airdrop_token_contract,
-            airdrop_swap_contract,
-            swap_msg,
-        })?,
-        funds: vec![],
-    }));
-
-    Ok(Response::new().add_messages(messages))
-}
-
-pub fn swap_hook(
-    deps: DepsMut,
-    env: Env,
-    info: MessageInfo,
-    airdrop_token_contract: String,
-    airdrop_swap_contract: String,
-    swap_msg: Binary,
-) -> StdResult<Response> {
-    let params: Parameters = PARAMETERS.load(deps.storage)?;
-    if params.paused.unwrap_or(false) {
-        return Err(StdError::generic_err("the contract is temporarily paused"));
-    }
-
-    if info.sender != env.contract.address {
-        return Err(StdError::generic_err("unauthorized"));
-    }
-
-    let airdrop_token_balance: BalanceResponse =
-        deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
-            contract_addr: airdrop_token_contract.to_string(),
-            msg: to_binary(&Cw20QueryMsg::Balance {
-                address: env.contract.address.to_string(),
-            })?,
-        }))?;
-
-    if airdrop_token_balance.balance == Uint128::zero() {
-        return Err(StdError::generic_err(format!(
-            "There is no balance for {} in airdrop token contract {}",
-            &env.contract.address, &airdrop_token_contract
-        )));
-    }
-    let messages: Vec<CosmosMsg> = vec![CosmosMsg::Wasm(WasmMsg::Execute {
-        contract_addr: airdrop_token_contract.clone(),
-        msg: to_binary(&Cw20ExecuteMsg::Send {
-            contract: airdrop_swap_contract,
-            amount: airdrop_token_balance.balance,
-            msg: swap_msg,
-        })?,
-        funds: vec![],
-    })];
-
-    Ok(Response::new().add_messages(messages).add_attributes(vec![
-        attr("action", "swap_airdrop_token"),
-        attr("token_contract", airdrop_token_contract),
-        attr("swap_amount", airdrop_token_balance.balance),
-    ]))
 }
 
 /// Handler for tracking slashing
@@ -914,6 +761,24 @@ fn query_unbond_requests_limitation(
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn migrate(_deps: DepsMut, _env: Env, _msg: MigrateMsg) -> StdResult<Response> {
+pub fn migrate(deps: DepsMut, _env: Env, msg: MigrateMsg) -> StdResult<Response> {
+    let old_config = CONFIG_OLD.load(deps.storage)?;
+
+    let withdrawal_account = if let Some(a) = msg.airdrop_withdrawal_account {
+        Some(deps.api.addr_canonicalize(a.as_str())?)
+    } else {
+        None
+    };
+
+    let new_config = Config {
+        creator: old_config.creator,
+        reward_dispatcher_contract: old_config.reward_dispatcher_contract,
+        validators_registry_contract: old_config.validators_registry_contract,
+        bluna_token_contract: old_config.bluna_token_contract,
+        stluna_token_contract: old_config.stluna_token_contract,
+        airdrop_registry_contract: old_config.airdrop_registry_contract,
+        airdrop_withdrawal_account: withdrawal_account,
+    };
+    CONFIG.save(deps.storage, &new_config)?;
     Ok(Response::new())
 }
