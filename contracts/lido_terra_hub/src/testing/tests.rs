@@ -67,7 +67,7 @@ use basset::hub::QueryMsg::{
     WithdrawableUnbonded,
 };
 use basset::hub::{
-    AllHistoryResponse, Claim, ConfigResponse, CurrentBatchResponse, Cw20HookMsg, ExecuteMsg,
+    AirdropMsg, AllHistoryResponse, ConfigResponse, CurrentBatchResponse, Cw20HookMsg, ExecuteMsg,
     InstantiateMsg, Parameters, QueryMsg, StateResponse, UnbondRequestsResponse,
     WithdrawableUnbondedResponse,
 };
@@ -4422,7 +4422,7 @@ fn proper_claim_airdrops() {
         res.messages[0].msg,
         CosmosMsg::Wasm(WasmMsg::Execute {
             contract_addr: AIRDROP_CONTRACT.to_string(),
-            msg: to_binary(&Claim {
+            msg: to_binary(&AirdropMsg::Claim {
                 stage: 1,
                 amount: Uint128::from(1000u128),
                 proof: vec![String::from("proof1"), String::from("proof2")],

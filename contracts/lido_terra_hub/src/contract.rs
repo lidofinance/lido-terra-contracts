@@ -34,7 +34,7 @@ use crate::bond::execute_bond;
 use crate::convert::{convert_bluna_stluna, convert_stluna_bluna};
 use basset::hub::ExecuteMsg::SwapHook;
 use basset::hub::{
-    AllHistoryResponse, BondType, Claim, Config, ConfigResponse, CurrentBatch,
+    AirdropMsg, AllHistoryResponse, BondType, Config, ConfigResponse, CurrentBatch,
     CurrentBatchResponse, InstantiateMsg, MigrateMsg, Parameters, QueryMsg, State, StateResponse,
     UnbondRequestsResponse, WithdrawableUnbondedResponse,
 };
@@ -240,7 +240,7 @@ pub fn execute_claim_airdrops(
             })?,
         }))?;
 
-    if airdrop_info_resp.airdrop_info.len() == 0 {
+    if airdrop_info_resp.airdrop_info.is_empty() {
         return Err(StdError::generic_err(format!(
             "no airdrop contracts found in the registry for token {}",
             token
@@ -251,7 +251,7 @@ pub fn execute_claim_airdrops(
 
     let mut messages: Vec<CosmosMsg> = vec![CosmosMsg::Wasm(WasmMsg::Execute {
         contract_addr: airdrop_info.airdrop_contract,
-        msg: to_binary(&Claim {
+        msg: to_binary(&AirdropMsg::Claim {
             stage,
             amount,
             proof,
@@ -819,7 +819,7 @@ fn query_config(deps: Deps) -> StdResult<ConfigResponse> {
         validators_registry_contract: validators_contract,
         bluna_token_contract: bluna_token,
         airdrop_registry_contract: airdrop,
-        airdrop_withdrawal_account: airdrop_withdrawal_account,
+        airdrop_withdrawal_account,
         stluna_token_contract: stluna_token,
     })
 }

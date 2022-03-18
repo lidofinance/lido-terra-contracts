@@ -326,10 +326,12 @@ pub enum QueryMsg {
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
-pub struct Claim {
-    pub stage: u8,
-    pub amount: Uint128,
-    pub proof: Vec<String>,
+pub enum AirdropMsg {
+    Claim {
+        stage: u8,
+        amount: Uint128,
+        proof: Vec<String>,
+    },
 }
 
 pub fn is_paused(deps: Deps, hub_addr: String) -> StdResult<bool> {
