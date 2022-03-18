@@ -180,6 +180,11 @@ pub fn execute_claim_airdrops(
     amount: Uint128,
     proof: Vec<String>,
 ) -> StdResult<Response> {
+    let params: Parameters = PARAMETERS.load(deps.storage)?;
+    if params.paused.unwrap_or(false) {
+        return Err(StdError::generic_err("the contract is temporarily paused"));
+    }
+
     let config = CONFIG.load(deps.storage)?;
     let owner = deps.api.addr_humanize(&config.creator)?;
 
