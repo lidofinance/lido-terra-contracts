@@ -18,6 +18,12 @@
                 "null"
               ]
             },
+            "airdrop_withdrawal_account": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
             "bluna_token_contract": {
               "type": [
                 "string",
@@ -175,18 +181,7 @@
       ],
       "properties": {
         "update_global_index": {
-          "type": "object",
-          "properties": {
-            "airdrop_hooks": {
-              "type": [
-                "array",
-                "null"
-              ],
-              "items": {
-                "$ref": "#/definitions/Binary"
-              }
-            }
-          }
+          "type": "object"
         }
       },
       "additionalProperties": false
@@ -231,65 +226,36 @@
       "additionalProperties": false
     },
     {
-      "description": "internal operations",
       "type": "object",
       "required": [
-        "claim_airdrop"
+        "claim_airdrops"
       ],
       "properties": {
-        "claim_airdrop": {
+        "claim_airdrops": {
           "type": "object",
           "required": [
-            "airdrop_contract",
-            "airdrop_swap_contract",
-            "airdrop_token_contract",
-            "claim_msg",
-            "swap_msg"
+            "amount",
+            "proof",
+            "stage",
+            "token"
           ],
           "properties": {
-            "airdrop_contract": {
+            "amount": {
+              "$ref": "#/definitions/Uint128"
+            },
+            "proof": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "stage": {
+              "type": "integer",
+              "format": "uint8",
+              "minimum": 0.0
+            },
+            "token": {
               "type": "string"
-            },
-            "airdrop_swap_contract": {
-              "type": "string"
-            },
-            "airdrop_token_contract": {
-              "type": "string"
-            },
-            "claim_msg": {
-              "$ref": "#/definitions/Binary"
-            },
-            "swap_msg": {
-              "$ref": "#/definitions/Binary"
-            }
-          }
-        }
-      },
-      "additionalProperties": false
-    },
-    {
-      "description": "Swaps claimed airdrop tokens to UST through Terraswap & sends resulting UST to bLuna Reward contract",
-      "type": "object",
-      "required": [
-        "swap_hook"
-      ],
-      "properties": {
-        "swap_hook": {
-          "type": "object",
-          "required": [
-            "airdrop_swap_contract",
-            "airdrop_token_contract",
-            "swap_msg"
-          ],
-          "properties": {
-            "airdrop_swap_contract": {
-              "type": "string"
-            },
-            "airdrop_token_contract": {
-              "type": "string"
-            },
-            "swap_msg": {
-              "$ref": "#/definitions/Binary"
             }
           }
         }
