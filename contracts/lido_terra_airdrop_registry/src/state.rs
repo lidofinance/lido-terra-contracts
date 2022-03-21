@@ -15,7 +15,7 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use basset::airdrop::{AirdropInfo, AirdropInfoElem, AirdropInfoOld};
+use basset::airdrop::{AirdropInfo, AirdropInfoElem};
 use cosmwasm_std::{from_slice, to_vec, CanonicalAddr, Order, StdResult, Storage};
 use cw_storage_plus::{Bound, Item, Map};
 
@@ -36,8 +36,6 @@ pub struct Config {
 
 pub const CONFIG: Item<Config> = Item::new("config");
 pub const AIRDROP_INFO: Map<&[u8], AirdropInfo> = Map::new("airdrop_info");
-pub const CONFIG_OLD: Item<ConfigOld> = Item::new("\u{0}\u{6}config");
-pub const AIRDROP_INFO_OLD: Map<&[u8], AirdropInfoOld> = Map::new("airdrop_info");
 
 pub fn store_config(storage: &mut dyn Storage, config: &Config) -> StdResult<()> {
     CONFIG.save(storage, config)

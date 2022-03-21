@@ -1,4 +1,3 @@
-use cosmwasm_std::Decimal;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -47,15 +46,6 @@ pub struct AirdropInfo {
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct AirdropInfoOld {
-    pub airdrop_token_contract: String,
-    pub airdrop_contract: String,
-    pub airdrop_swap_contract: String,
-    pub swap_belief_price: Option<Decimal>,
-    pub swap_max_spread: Option<Decimal>,
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct ConfigResponse {
     pub owner: String,
     pub hub_contract: String,
@@ -66,12 +56,6 @@ pub struct ConfigResponse {
 pub struct AirdropInfoElem {
     pub airdrop_token: String,
     pub info: AirdropInfo,
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct AirdropInfoElemOld {
-    pub airdrop_token: String,
-    pub info: AirdropInfoOld,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

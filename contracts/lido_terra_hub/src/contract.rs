@@ -25,8 +25,8 @@ use cosmwasm_std::{
 
 use crate::config::{execute_update_config, execute_update_params};
 use crate::state::{
-    all_unbond_history, get_unbond_requests, query_get_finished_amount, CONFIG, CONFIG_OLD,
-    CURRENT_BATCH, GUARDIANS, PARAMETERS, STATE,
+    all_unbond_history, get_unbond_requests, query_get_finished_amount, CONFIG, CURRENT_BATCH,
+    GUARDIANS, PARAMETERS, STATE,
 };
 use crate::unbond::{execute_unbond, execute_unbond_stluna, execute_withdraw_unbonded};
 
@@ -767,7 +767,7 @@ fn query_unbond_requests_limitation(
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn migrate(deps: DepsMut, _env: Env, msg: MigrateMsg) -> StdResult<Response> {
-    let old_config = CONFIG_OLD.load(deps.storage)?;
+    let mut config = CONFIG.load(deps.storage)?;
 
     let withdrawal_account = if let Some(a) = msg.airdrop_withdrawal_account {
         Some(deps.api.addr_canonicalize(a.as_str())?)
@@ -775,15 +775,8 @@ pub fn migrate(deps: DepsMut, _env: Env, msg: MigrateMsg) -> StdResult<Response>
         None
     };
 
-    let new_config = Config {
-        creator: old_config.creator,
-        reward_dispatcher_contract: old_config.reward_dispatcher_contract,
-        validators_registry_contract: old_config.validators_registry_contract,
-        bluna_token_contract: old_config.bluna_token_contract,
-        stluna_token_contract: old_config.stluna_token_contract,
-        airdrop_registry_contract: old_config.airdrop_registry_contract,
-        airdrop_withdrawal_account: withdrawal_account,
-    };
-    CONFIG.save(deps.storage, &new_config)?;
+    config.airdrop_withdrawal_account = withdrawal_account;
+
+    CONFIG.save(deps.storage, &config)?;
     Ok(Response::new())
 }

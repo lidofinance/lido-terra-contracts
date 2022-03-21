@@ -159,8 +159,6 @@ impl WasmMockQuerier {
                                 request: msg.as_slice().into(),
                             });
                         }
-                    } else {
-                        todo!()
                     }
                 };
                 match from_binary(msg).unwrap() {
@@ -252,12 +250,9 @@ impl WasmMockQuerier {
                             api.addr_canonicalize(&String::from("stluna_token"))
                                 .unwrap(),
                         ),
-                        airdrop_registry_contract: Some(
-                            api.addr_canonicalize(&String::from("airdrop")).unwrap(),
-                        ),
+                        airdrop_registry_contract: Some(api.addr_canonicalize("airdrop").unwrap()),
                         airdrop_withdrawal_account: Some(
-                            api.addr_canonicalize(&String::from("airdrop_withdrawal_account"))
-                                .unwrap(),
+                            api.addr_canonicalize("airdrop_withdrawal_account").unwrap(),
                         ),
                     };
                     QuerierResult::Ok(ContractResult::from(to_binary(

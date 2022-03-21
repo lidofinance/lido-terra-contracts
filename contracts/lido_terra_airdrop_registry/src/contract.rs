@@ -21,12 +21,11 @@ use cosmwasm_std::{
 
 use crate::state::{
     read_airdrop_info, read_all_airdrop_infos, read_config, remove_airdrop_info,
-    store_airdrop_info, store_config, update_airdrop_info, Config, AIRDROP_INFO, AIRDROP_INFO_OLD,
-    CONFIG, CONFIG_OLD,
+    store_airdrop_info, store_config, update_airdrop_info, Config, AIRDROP_INFO, CONFIG,
 };
 use basset::airdrop::{
-    AirdropInfo, AirdropInfoElem, AirdropInfoElemOld, AirdropInfoResponse, ConfigResponse,
-    ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg,
+    AirdropInfo, AirdropInfoElem, AirdropInfoResponse, ConfigResponse, ExecuteMsg, InstantiateMsg,
+    MigrateMsg, QueryMsg,
 };
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -249,44 +248,38 @@ fn query_airdrop_infos(
 pub fn migrate(deps: DepsMut, _env: Env, _msg: MigrateMsg) -> StdResult<Response> {
     let limit = 10_usize;
 
-    let infos: StdResult<Vec<AirdropInfoElemOld>> = AIRDROP_INFO_OLD
+    let infos: StdResult<Vec<AirdropInfoElem>> = AIRDROP_INFO
         .range(deps.storage, None, None, Order::Ascending)
         .take(limit)
         .map(|item| {
-            let (k, v) = match item {
-                Ok(p) => p,
-                Err(e) => return Err(e),
-            };
-            let key: String = match from_slice(&k) {
-                Ok(s) => s,
-                Err(e) => return Err(e),
-            };
-            Ok(AirdropInfoElemOld {
+            let (k, v) = item?;
+            let key: String = from_slice(&k)?;
+            Ok(AirdropInfoElem {
                 airdrop_token: key,
                 info: v,
             })
         })
         .collect();
 
-    for info_elem_old in infos? {
-        let key = to_vec(&info_elem_old.airdrop_token)?;
+    for info_elem_to_rewrite in infos? {
+        let key = to_vec(&info_elem_to_rewrite.airdrop_token)?;
         AIRDROP_INFO.save(
             deps.storage,
             &key,
             &AirdropInfo {
-                airdrop_token_contract: info_elem_old.info.airdrop_token_contract,
-                airdrop_contract: info_elem_old.info.airdrop_contract,
+                airdrop_token_contract: info_elem_to_rewrite.info.airdrop_token_contract,
+                airdrop_contract: info_elem_to_rewrite.info.airdrop_contract,
             },
         )?;
     }
 
-    let config_old = CONFIG_OLD.load(deps.storage)?;
+    let config_to_rewrite = CONFIG.load(deps.storage)?;
     CONFIG.save(
         deps.storage,
         &Config {
-            owner: config_old.owner,
-            hub_contract: config_old.hub_contract,
-            airdrop_tokens: config_old.airdrop_tokens,
+            owner: config_to_rewrite.owner,
+            hub_contract: config_to_rewrite.hub_contract,
+            airdrop_tokens: config_to_rewrite.airdrop_tokens,
         },
     )?;
 

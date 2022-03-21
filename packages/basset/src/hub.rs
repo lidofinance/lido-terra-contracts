@@ -58,16 +58,6 @@ pub struct Config {
     pub airdrop_withdrawal_account: Option<CanonicalAddr>,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct OldConfig {
-    pub creator: CanonicalAddr,
-    pub reward_dispatcher_contract: Option<CanonicalAddr>,
-    pub validators_registry_contract: Option<CanonicalAddr>,
-    pub bluna_token_contract: Option<CanonicalAddr>,
-    pub stluna_token_contract: Option<CanonicalAddr>,
-    pub airdrop_registry_contract: Option<CanonicalAddr>,
-}
-
 impl State {
     pub fn update_bluna_exchange_rate(
         &mut self,

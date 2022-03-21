@@ -18,7 +18,7 @@ use cosmwasm_storage::{Bucket, PrefixedStorage, ReadonlyBucket, ReadonlyPrefixed
 use cw_storage_plus::{Item, Map};
 
 use basset::hub::{
-    Config, CurrentBatch, OldConfig, Parameters, State, UnbondHistory, UnbondRequest, UnbondType,
+    Config, CurrentBatch, Parameters, State, UnbondHistory, UnbondRequest, UnbondType,
     UnbondWaitEntity,
 };
 
@@ -26,8 +26,6 @@ pub const CONFIG: Item<Config> = Item::new("\u{0}\u{6}config");
 pub const PARAMETERS: Item<Parameters> = Item::new("\u{0}\u{b}parameteres");
 pub const CURRENT_BATCH: Item<CurrentBatch> = Item::new("\u{0}\u{d}current_batch");
 pub const STATE: Item<State> = Item::new("\u{0}\u{5}state");
-
-pub const CONFIG_OLD: Item<OldConfig> = Item::new("\u{0}\u{6}config");
 
 // Contains whitelisted address which are allowed to pause (but not unpause) the contracts
 pub const GUARDIANS: Map<String, bool> = Map::new("guardians");
