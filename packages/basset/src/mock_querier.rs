@@ -129,8 +129,7 @@ impl WasmMockQuerier {
                                 .unwrap(),
                         ),
                         airdrop_withdrawal_account: Some(
-                            api.addr_canonicalize(&String::from("airdrop_withdrawal_account"))
-                                .unwrap(),
+                            api.addr_canonicalize("airdrop_withdrawal_account").unwrap(),
                         ),
                     };
                     SystemResult::Ok(ContractResult::from(to_binary(&config)))

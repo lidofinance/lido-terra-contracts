@@ -20,14 +20,6 @@ use cosmwasm_std::{from_slice, to_vec, CanonicalAddr, Order, StdResult, Storage}
 use cw_storage_plus::{Bound, Item, Map};
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct ConfigOld {
-    pub owner: CanonicalAddr,
-    pub hub_contract: String,
-    pub reward_contract: String,
-    pub airdrop_tokens: Vec<String>,
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct Config {
     pub owner: CanonicalAddr,
     pub hub_contract: String,
