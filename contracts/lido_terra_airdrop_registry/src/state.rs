@@ -34,7 +34,7 @@ pub struct Config {
     pub airdrop_tokens: Vec<String>,
 }
 
-pub const CONFIG: Item<Config> = Item::new("config");
+pub const CONFIG: Item<Config> = Item::new("\u{0}\u{6}config");
 pub const AIRDROP_INFO: Map<&[u8], AirdropInfo> = Map::new("airdrop_info");
 
 pub fn store_config(storage: &mut dyn Storage, config: &Config) -> StdResult<()> {
