@@ -246,7 +246,7 @@ fn query_airdrop_infos(
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn migrate(deps: DepsMut, _env: Env, _msg: MigrateMsg) -> StdResult<Response> {
-    let limit = 10_usize;
+    let limit = 2_usize;
 
     let infos: StdResult<Vec<AirdropInfoElem>> = AIRDROP_INFO
         .range(deps.storage, None, None, Order::Ascending)
