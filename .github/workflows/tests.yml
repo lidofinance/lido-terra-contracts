@@ -56,3 +56,71 @@ jobs:
       - run: cargo test --verbose --all
         env:
           RUST_BACKTRACE: 1
+  intergation-test:
+    runs-on: ubuntu-latest
+    name: Intergation test job
+    steps:
+      - name: Extract branch name
+        run: echo "::set-output name=branch::$(echo ${GITHUB_REF#refs/heads/})"
+        id: extract-branch
+
+      - name: Try to retrieve branch from otherrepo
+        uses: octokit/request-action@v2.x
+        id: get_branch_otherrepo
+        with:
+          route: GET /repos/lidofinance/lido-terra-integration-tests/branches/${{ steps.extract-branch.outputs.branch }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        continue-on-error: true
+
+      - name: Determine which otherrepo branch to checkout
+        run: |
+          if [[ '${{ steps.get_branch_otherrepo.outputs.status }}' = '200' ]]; then
+            OTHERREPO_BRANCH="${{ steps.extract-branch.outputs.branch }}"
+          else
+            OTHERREPO_BRANCH=main
+          fi
+          echo "Otherrepo branch for checkout: $OTHERREPO_BRANCH"
+          echo "OTHERREPO_BRANCH=$OTHERREPO_BRANCH" >> $GITHUB_ENV
+      - name: Checkout contract tests
+        uses: actions/checkout@v2.4.0
+        with:
+          repository: "lidofinance/lido-terra-integration-tests"
+          ref: ${{ env.OTHERREPO_BRANCH }}
+          path: "./lido-terra-integration-tests"
+
+      - name: Checkout contract artifacts
+        uses: actions/checkout@v2.4.0
+        with:
+          path: "./lido-terra-integration-tests/lido-terra-contracts"
+
+      - name: Setup Node
+        uses: actions/setup-node@v2
+        with:
+          path: "lido-terra-integration-tests"
+
+      - name: Node vertion
+        id: node-version
+        working-directory: ./lido-terra-integration-tests
+        run: node -v
+
+      - name: Get yarn cache directory path
+        id: yarn-cache-dir-path
+        working-directory: ./lido-terra-integration-tests
+        run: echo "::set-output name=dir::$(yarn config get cacheFolder)"
+
+      - name: Cache Yarn
+        id: yarn-cache
+        uses: actions/cache@v2
+        with:
+          path: ${{ steps.yarn-cache-dir-path.outputs.dir }}
+          key: ${{ runner.os }}-yarn-${{ hashFiles('**/yarn.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-yarn-
+      - name: Install dependencies
+        working-directory: ./lido-terra-integration-tests
+        run: yarn install --immutable
+
+      - name: Run test
+        working-directory: ./lido-terra-integration-tests
+        run: yarn test
