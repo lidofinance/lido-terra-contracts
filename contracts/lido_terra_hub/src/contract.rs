@@ -33,9 +33,9 @@ use crate::bond::execute_bond;
 use crate::convert::{convert_bluna_stluna, convert_stluna_bluna};
 use basset::hub::ExecuteMsg::SwapHook;
 use basset::hub::{
-    AllHistoryResponse, BondType, Config, ConfigResponse, CurrentBatch, CurrentBatchResponse,
-    InstantiateMsg, MigrateMsg, Parameters, QueryMsg, State, StateResponse, UnbondRequestsResponse,
-    WithdrawableUnbondedResponse,
+    AirdropMsg, AllHistoryResponse, BondType, Config, ConfigResponse, CurrentBatch,
+    CurrentBatchResponse, InstantiateMsg, MigrateMsg, Parameters, QueryMsg, State, StateResponse,
+    UnbondRequestsResponse, WithdrawableUnbondedResponse,
 };
 use basset::hub::{Cw20HookMsg, ExecuteMsg};
 use cw20::{BalanceResponse, Cw20ExecuteMsg, Cw20QueryMsg, Cw20ReceiveMsg, TokenInfoResponse};
@@ -61,6 +61,7 @@ pub fn instantiate(
         validators_registry_contract: None,
         bluna_token_contract: None,
         airdrop_registry_contract: None,
+        airdrop_withdrawal_account: None,
         stluna_token_contract: None,
     };
     CONFIG.save(deps.storage, &data)?;
@@ -138,6 +139,7 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
             rewards_dispatcher_contract,
             bluna_token_contract,
             airdrop_registry_contract,
+            airdrop_withdrawal_account,
             validators_registry_contract,
             stluna_token_contract,
         } => execute_update_config(
@@ -149,6 +151,7 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
             bluna_token_contract,
             stluna_token_contract,
             airdrop_registry_contract,
+            airdrop_withdrawal_account,
             validators_registry_contract,
         ),
         ExecuteMsg::SwapHook {
@@ -179,6 +182,22 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
             claim_msg,
             swap_msg,
         ),
+        ExecuteMsg::ClaimAirdrops {
+            airdrop_token_contract,
+            airdrop_contract,
+            stage,
+            amount,
+            proof,
+        } => execute_claim_airdrops(
+            deps,
+            env,
+            info,
+            airdrop_token_contract,
+            airdrop_contract,
+            stage,
+            amount,
+            proof,
+        ),
         ExecuteMsg::RedelegateProxy {
             src_validator,
             redelegations,
@@ -190,6 +209,57 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
             execute_remove_guardians(deps, env, info, addresses)
         }
     }
+}
+
+#[allow(clippy::too_many_arguments)]
+pub fn execute_claim_airdrops(
+    deps: DepsMut,
+    _env: Env,
+    info: MessageInfo,
+    airdrop_token_contract: String,
+    airdrop_contract: String,
+    stage: u8,
+    amount: Uint128,
+    proof: Vec<String>,
+) -> StdResult<Response> {
+    let params: Parameters = PARAMETERS.load(deps.storage)?;
+    if params.paused.unwrap_or(false) {
+        return Err(StdError::generic_err("the contract is temporarily paused"));
+    }
+
+    let config = CONFIG.load(deps.storage)?;
+    let owner = deps.api.addr_humanize(&config.creator)?;
+
+    if info.sender != owner {
+        return Err(StdError::generic_err("unauthorized"));
+    }
+
+    let withdrawal_account = deps.api.addr_humanize(
+        &config
+            .airdrop_withdrawal_account
+            .ok_or_else(|| StdError::generic_err("no withdrawal account configured"))?,
+    )?;
+
+    let mut messages: Vec<CosmosMsg> = vec![CosmosMsg::Wasm(WasmMsg::Execute {
+        contract_addr: airdrop_contract,
+        msg: to_binary(&AirdropMsg::Claim {
+            stage,
+            amount,
+            proof,
+        })?,
+        funds: vec![],
+    })];
+
+    messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
+        contract_addr: airdrop_token_contract,
+        msg: to_binary(&Cw20ExecuteMsg::Transfer {
+            amount,
+            recipient: withdrawal_account.to_string(),
+        })?,
+        funds: vec![],
+    }));
+
+    Ok(Response::new().add_messages(messages))
 }
 
 pub fn execute_add_guardians(
@@ -690,6 +760,7 @@ fn query_config(deps: Deps) -> StdResult<ConfigResponse> {
     let mut bluna_token: Option<String> = None;
     let mut stluna_token: Option<String> = None;
     let mut airdrop: Option<String> = None;
+    let mut airdrop_withdrawal_account: Option<String> = None;
     if config.reward_dispatcher_contract.is_some() {
         reward = Some(
             deps.api
@@ -725,6 +796,13 @@ fn query_config(deps: Deps) -> StdResult<ConfigResponse> {
                 .to_string(),
         );
     }
+    if config.airdrop_withdrawal_account.is_some() {
+        airdrop_withdrawal_account = Some(
+            deps.api
+                .addr_humanize(&config.airdrop_withdrawal_account.unwrap())?
+                .to_string(),
+        );
+    }
 
     Ok(ConfigResponse {
         owner: deps.api.addr_humanize(&config.creator)?.to_string(),
@@ -732,6 +810,7 @@ fn query_config(deps: Deps) -> StdResult<ConfigResponse> {
         validators_registry_contract: validators_contract,
         bluna_token_contract: bluna_token,
         airdrop_registry_contract: airdrop,
+        airdrop_withdrawal_account,
         stluna_token_contract: stluna_token,
     })
 }
@@ -826,6 +905,17 @@ fn query_unbond_requests_limitation(
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn migrate(_deps: DepsMut, _env: Env, _msg: MigrateMsg) -> StdResult<Response> {
+pub fn migrate(deps: DepsMut, _env: Env, msg: MigrateMsg) -> StdResult<Response> {
+    let mut config = CONFIG.load(deps.storage)?;
+
+    let withdrawal_account = if let Some(a) = msg.airdrop_withdrawal_account {
+        Some(deps.api.addr_canonicalize(a.as_str())?)
+    } else {
+        None
+    };
+
+    config.airdrop_withdrawal_account = withdrawal_account;
+
+    CONFIG.save(deps.storage, &config)?;
     Ok(Response::new())
 }

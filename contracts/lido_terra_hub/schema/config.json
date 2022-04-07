@@ -16,6 +16,16 @@
         }
       ]
     },
+    "airdrop_withdrawal_account": {
+      "anyOf": [
+        {
+          "$ref": "#/definitions/CanonicalAddr"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
     "bluna_token_contract": {
       "anyOf": [
         {

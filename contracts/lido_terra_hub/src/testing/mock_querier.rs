@@ -31,6 +31,8 @@ use terra_cosmwasm::{TaxCapResponse, TaxRateResponse, TerraQuery, TerraQueryWrap
 
 pub const MOCK_CONTRACT_ADDR: &str = "cosmos2contract";
 pub const VALIDATORS_REGISTRY: &str = "validators_registry";
+pub const AIRDROP_TOKEN_CONTRACT: &str = "airdrop_token_contract";
+pub const AIRDROP_CONTRACT: &str = "airdrop_contract";
 
 pub fn mock_dependencies(
     contract_balance: &[Coin],
@@ -218,6 +220,10 @@ impl WasmMockQuerier {
                         ),
                         airdrop_registry_contract: Some(
                             api.addr_canonicalize(&String::from("airdrop")).unwrap(),
+                        ),
+                        airdrop_withdrawal_account: Some(
+                            api.addr_canonicalize(&String::from("airdrop_withdrawal_account"))
+                                .unwrap(),
                         ),
                     };
                     QuerierResult::Ok(ContractResult::from(to_binary(

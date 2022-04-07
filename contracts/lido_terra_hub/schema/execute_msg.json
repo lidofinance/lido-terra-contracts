@@ -18,6 +18,12 @@
                 "null"
               ]
             },
+            "airdrop_withdrawal_account": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
             "bluna_token_contract": {
               "type": [
                 "string",
@@ -290,6 +296,47 @@
             },
             "swap_msg": {
               "$ref": "#/definitions/Binary"
+            }
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "required": [
+        "claim_airdrops"
+      ],
+      "properties": {
+        "claim_airdrops": {
+          "type": "object",
+          "required": [
+            "airdrop_contract",
+            "airdrop_token_contract",
+            "amount",
+            "proof",
+            "stage"
+          ],
+          "properties": {
+            "airdrop_contract": {
+              "type": "string"
+            },
+            "airdrop_token_contract": {
+              "type": "string"
+            },
+            "amount": {
+              "$ref": "#/definitions/Uint128"
+            },
+            "proof": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "stage": {
+              "type": "integer",
+              "format": "uint8",
+              "minimum": 0.0
             }
           }
         }
