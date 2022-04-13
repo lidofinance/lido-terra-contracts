@@ -31,6 +31,8 @@ use terra_cosmwasm::{TaxCapResponse, TaxRateResponse, TerraQuery, TerraQueryWrap
 
 pub const MOCK_CONTRACT_ADDR: &str = "cosmos2contract";
 pub const VALIDATORS_REGISTRY: &str = "validators_registry";
+pub const AIRDROP_TOKEN_CONTRACT: &str = "airdrop_token_contract";
+pub const AIRDROP_CONTRACT: &str = "airdrop_contract";
 
 pub fn mock_dependencies(
     contract_balance: &[Coin],

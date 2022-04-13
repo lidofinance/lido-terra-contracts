@@ -174,6 +174,15 @@ pub enum ExecuteMsg {
         swap_msg: Binary,               // E.g. Base64-encoded JSON of PairHandleMsg::Swap
     },
 
+    ClaimAirdrops {
+        airdrop_token_contract: String, // E.g. contract address of MIR Token
+        airdrop_contract: String,
+        withdrawal_account: String,
+        stage: u8,
+        amount: Uint128,
+        proof: Vec<String>,
+    },
+
     RedelegateProxy {
         // delegator is automatically set to address of the calling contract
         src_validator: String,
@@ -312,6 +321,16 @@ pub enum QueryMsg {
         limit: Option<u32>,
     },
     Guardians,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum AirdropMsg {
+    Claim {
+        stage: u8,
+        amount: Uint128,
+        proof: Vec<String>,
+    },
 }
 
 pub fn is_paused(deps: Deps, hub_addr: String) -> StdResult<bool> {

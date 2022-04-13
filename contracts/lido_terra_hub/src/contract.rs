@@ -33,9 +33,9 @@ use crate::bond::execute_bond;
 use crate::convert::{convert_bluna_stluna, convert_stluna_bluna};
 use basset::hub::ExecuteMsg::SwapHook;
 use basset::hub::{
-    AllHistoryResponse, BondType, Config, ConfigResponse, CurrentBatch, CurrentBatchResponse,
-    InstantiateMsg, MigrateMsg, Parameters, QueryMsg, State, StateResponse, UnbondRequestsResponse,
-    WithdrawableUnbondedResponse,
+    AirdropMsg, AllHistoryResponse, BondType, Config, ConfigResponse, CurrentBatch,
+    CurrentBatchResponse, InstantiateMsg, MigrateMsg, Parameters, QueryMsg, State, StateResponse,
+    UnbondRequestsResponse, WithdrawableUnbondedResponse,
 };
 use basset::hub::{Cw20HookMsg, ExecuteMsg};
 use cw20::{BalanceResponse, Cw20ExecuteMsg, Cw20QueryMsg, Cw20ReceiveMsg, TokenInfoResponse};
@@ -179,6 +179,24 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
             claim_msg,
             swap_msg,
         ),
+        ExecuteMsg::ClaimAirdrops {
+            airdrop_token_contract,
+            airdrop_contract,
+            withdrawal_account,
+            stage,
+            amount,
+            proof,
+        } => execute_claim_airdrops(
+            deps,
+            env,
+            info,
+            airdrop_token_contract,
+            airdrop_contract,
+            withdrawal_account,
+            stage,
+            amount,
+            proof,
+        ),
         ExecuteMsg::RedelegateProxy {
             src_validator,
             redelegations,
@@ -190,6 +208,52 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
             execute_remove_guardians(deps, env, info, addresses)
         }
     }
+}
+
+#[allow(clippy::too_many_arguments)]
+pub fn execute_claim_airdrops(
+    deps: DepsMut,
+    _env: Env,
+    info: MessageInfo,
+    airdrop_token_contract: String,
+    airdrop_contract: String,
+    withdrawal_account: String,
+    stage: u8,
+    amount: Uint128,
+    proof: Vec<String>,
+) -> StdResult<Response> {
+    let params: Parameters = PARAMETERS.load(deps.storage)?;
+    if params.paused.unwrap_or(false) {
+        return Err(StdError::generic_err("the contract is temporarily paused"));
+    }
+
+    let config = CONFIG.load(deps.storage)?;
+    let owner = deps.api.addr_humanize(&config.creator)?;
+
+    if info.sender != owner {
+        return Err(StdError::generic_err("unauthorized"));
+    }
+
+    let mut messages: Vec<CosmosMsg> = vec![CosmosMsg::Wasm(WasmMsg::Execute {
+        contract_addr: airdrop_contract,
+        msg: to_binary(&AirdropMsg::Claim {
+            stage,
+            amount,
+            proof,
+        })?,
+        funds: vec![],
+    })];
+
+    messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
+        contract_addr: airdrop_token_contract,
+        msg: to_binary(&Cw20ExecuteMsg::Transfer {
+            amount,
+            recipient: withdrawal_account,
+        })?,
+        funds: vec![],
+    }));
+
+    Ok(Response::new().add_messages(messages))
 }
 
 pub fn execute_add_guardians(
