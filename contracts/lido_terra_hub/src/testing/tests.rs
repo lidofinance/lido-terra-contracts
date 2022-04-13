@@ -127,7 +127,6 @@ pub fn initialize<S: Storage, A: Api, Q: Querier>(
         bluna_token_contract: Some(bluna_token_contract),
         stluna_token_contract: Some(stluna_token_contract),
         airdrop_registry_contract: Some(String::from("airdrop_registry")),
-        airdrop_withdrawal_account: Some(String::from("airdrop_withdrawal_account")),
         validators_registry_contract: Some(String::from("validators_registry")),
     };
     let res = execute(deps.as_mut(), mock_env(), owner_info, register_msg).unwrap();
@@ -266,7 +265,6 @@ fn proper_initialization() {
         validators_registry_contract: None,
         bluna_token_contract: None,
         airdrop_registry_contract: None,
-        airdrop_withdrawal_account: None,
         stluna_token_contract: None,
     };
 
@@ -4187,7 +4185,6 @@ pub fn proper_update_config() {
         rewards_dispatcher_contract: None,
         bluna_token_contract: None,
         airdrop_registry_contract: None,
-        airdrop_withdrawal_account: None,
         validators_registry_contract: None,
         stluna_token_contract: None,
     };
@@ -4201,7 +4198,6 @@ pub fn proper_update_config() {
         rewards_dispatcher_contract: None,
         bluna_token_contract: None,
         airdrop_registry_contract: None,
-        airdrop_withdrawal_account: None,
         validators_registry_contract: None,
         stluna_token_contract: None,
     };
@@ -4242,7 +4238,6 @@ pub fn proper_update_config() {
         rewards_dispatcher_contract: Some(String::from("new reward")),
         bluna_token_contract: None,
         airdrop_registry_contract: None,
-        airdrop_withdrawal_account: None,
         validators_registry_contract: None,
         stluna_token_contract: None,
     };
@@ -4268,7 +4263,6 @@ pub fn proper_update_config() {
         rewards_dispatcher_contract: None,
         bluna_token_contract: Some(String::from("new token")),
         airdrop_registry_contract: None,
-        airdrop_withdrawal_account: None,
         validators_registry_contract: None,
         stluna_token_contract: None,
     };
@@ -4299,7 +4293,6 @@ pub fn proper_update_config() {
         rewards_dispatcher_contract: None,
         bluna_token_contract: None,
         airdrop_registry_contract: Some(String::from("new airdrop")),
-        airdrop_withdrawal_account: None,
         validators_registry_contract: None,
         stluna_token_contract: None,
     };
@@ -4318,29 +4311,7 @@ pub fn proper_update_config() {
     let update_config = UpdateConfig {
         owner: None,
         rewards_dispatcher_contract: None,
-        bluna_token_contract: None,
         airdrop_registry_contract: None,
-        airdrop_withdrawal_account: Some(String::from("new airdrop withdrawal account")),
-        validators_registry_contract: None,
-        stluna_token_contract: None,
-    };
-    let new_owner_info = mock_info(&new_owner, &[]);
-    let res = execute(deps.as_mut(), mock_env(), new_owner_info, update_config).unwrap();
-    assert_eq!(res.messages.len(), 0);
-
-    let config = Config {};
-    let config_query: ConfigResponse =
-        from_binary(&query(deps.as_ref(), mock_env(), config).unwrap()).unwrap();
-    assert_eq!(
-        config_query.airdrop_withdrawal_account.unwrap(),
-        String::from("new airdrop withdrawal account")
-    );
-
-    let update_config = UpdateConfig {
-        owner: None,
-        rewards_dispatcher_contract: None,
-        airdrop_registry_contract: None,
-        airdrop_withdrawal_account: None,
         validators_registry_contract: Some(String::from("new registry")),
         bluna_token_contract: None,
         stluna_token_contract: None,
@@ -4361,7 +4332,6 @@ pub fn proper_update_config() {
         owner: None,
         rewards_dispatcher_contract: None,
         airdrop_registry_contract: None,
-        airdrop_withdrawal_account: None,
         validators_registry_contract: None,
         bluna_token_contract: None,
         stluna_token_contract: Some(stluna_token_contract.clone()),
@@ -4471,6 +4441,7 @@ fn proper_claim_airdrops() {
         proof: vec![String::from("proof1"), String::from("proof2")],
         airdrop_token_contract: AIRDROP_TOKEN_CONTRACT.to_string(),
         airdrop_contract: AIRDROP_CONTRACT.to_string(),
+        withdrawal_account: airdrop_withdrawal_account.clone(),
     };
     let res = execute(deps.as_mut(), mock_env(), info, claim_msg).unwrap();
 

@@ -18,12 +18,6 @@
                 "null"
               ]
             },
-            "airdrop_withdrawal_account": {
-              "type": [
-                "string",
-                "null"
-              ]
-            },
             "bluna_token_contract": {
               "type": [
                 "string",
@@ -315,7 +309,8 @@
             "airdrop_token_contract",
             "amount",
             "proof",
-            "stage"
+            "stage",
+            "withdrawal_account"
           ],
           "properties": {
             "airdrop_contract": {
@@ -337,6 +332,9 @@
               "type": "integer",
               "format": "uint8",
               "minimum": 0.0
+            },
+            "withdrawal_account": {
+              "type": "string"
             }
           }
         }

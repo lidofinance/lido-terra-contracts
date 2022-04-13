@@ -56,7 +56,6 @@ pub struct Config {
     pub bluna_token_contract: Option<CanonicalAddr>,
     pub stluna_token_contract: Option<CanonicalAddr>,
     pub airdrop_registry_contract: Option<CanonicalAddr>,
-    pub airdrop_withdrawal_account: Option<CanonicalAddr>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -108,7 +107,6 @@ pub enum ExecuteMsg {
         bluna_token_contract: Option<String>,
         stluna_token_contract: Option<String>,
         airdrop_registry_contract: Option<String>,
-        airdrop_withdrawal_account: Option<String>,
     },
 
     /// update the parameters that is needed for the contract
@@ -179,6 +177,7 @@ pub enum ExecuteMsg {
     ClaimAirdrops {
         airdrop_token_contract: String, // E.g. contract address of MIR Token
         airdrop_contract: String,
+        withdrawal_account: String,
         stage: u8,
         amount: Uint128,
         proof: Vec<String>,
@@ -277,7 +276,6 @@ pub struct ConfigResponse {
     pub bluna_token_contract: Option<String>,
     pub stluna_token_contract: Option<String>,
     pub airdrop_registry_contract: Option<String>,
-    pub airdrop_withdrawal_account: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -303,9 +301,7 @@ pub struct AllHistoryResponse {
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct MigrateMsg {
-    pub airdrop_withdrawal_account: Option<String>,
-}
+pub struct MigrateMsg {}
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
